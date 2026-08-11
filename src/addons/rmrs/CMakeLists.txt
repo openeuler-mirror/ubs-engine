@@ -38,6 +38,7 @@ target_include_directories(
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/vm_mem_migrate_strategy
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/election
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/fault_management
+            ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/fault_management/pid_fault
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/storage
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/ucache
             ${CMAKE_CURRENT_SOURCE_DIR}/over_commit/remote_mem_query

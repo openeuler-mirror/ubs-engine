@@ -931,7 +931,8 @@ MpResult MemBorrowExecutor::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebt
     return MEM_POOLING_ERROR;
 }
 
-static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+MpResult MemBorrowExecutor::GetDebtInfoByNameWithRetry(const std::string& name,
+                                                       std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     constexpr int maxRetryTimes = 30;
     constexpr int sleepSeconds = 1;
@@ -942,7 +943,7 @@ static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<
         UbseResult ret = UbseGetNumaMemDebtInfo(debtInfos);
         if (MemBorrowExecutor::ShouldRetryDebtInfoFetch(ret, debtInfos)) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
+                << "[DebtQuery] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
                 << ", ret=" << static_cast<uint32_t>(ret);
             std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
             curRetryTimes++;
@@ -955,14 +956,14 @@ static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<
             }
         }
 
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] borrowId=" << name
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[DebtQuery] borrowId=" << name
                                                          << " not found in debt info, retry=" << (curRetryTimes + 1);
         std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
         curRetryTimes++;
     }
 
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] borrowId=" << name << " not found in debt info after max retry.";
+        << "[DebtQuery] borrowId=" << name << " not found in debt info after max retry.";
     return MEM_POOLING_ERROR;
 }
 

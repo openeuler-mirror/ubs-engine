@@ -347,6 +347,80 @@ MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borr
     return MEM_POOLING_ERROR;
 }
 
+// 幂等版分大页: 以"当前nr_hugepages >= 借用量对应页数"为达标判据, 上轮RESUME已分过或跨重启重入时直接跳过,
+// 否则补足差额; 避免故障处理多轮重试重复增加nr_hugepages.
+// 与AllocateHugePagesWithRetry同口径(2M大页, borrowSize单位Byte), 共用同一numa互斥锁
+MpResult MpSmapHelper::IdempotentAllocateHugePages(uint64_t numaId, uint64_t borrowSize)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] IdempotentAllocateHugePages start, numaId=" << numaId << ", borrowSize=" << borrowSize
+        << "Byte.";
+    // 1. 获取或创建该 numa 对应的 mutex（与AllocateHugePagesWithRetry共用, 防并发修改同一numa的nr_hugepages）
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex);
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            auto uptr = std::make_unique<std::mutex>();
+            mtx = uptr.get();
+            numaAllocMutexMap[numaId] = std::move(uptr);
+        } else {
+            mtx = it->second.get();
+        }
+    }
+
+    // 2. 锁定该numa的专用mutex
+    std::lock_guard<std::mutex> lock(*mtx);
+
+    const int MAX_RETRY = 100;
+    int retryCnt = 0;
+
+    std::string filePath;
+    MpResult ret = GetHugePageCanonicalPath(std::to_string(numaId), filePath);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetHugePageCanonicalPath failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    // 页数向上取整: 借用量非2M整倍数时截断会少分大页，尾部数据无法承载导致迁不完
+    constexpr uint64_t HUGE_PAGE_2M_BYTES = 2 * 1024 * 1024;
+    uint64_t requiredPages = (borrowSize + HUGE_PAGE_2M_BYTES - 1) / HUGE_PAGE_2M_BYTES;
+
+    do {
+        // 每轮重读当前值: 已满足借用量所需则跳过（上轮RESUME/其他流程已分过, 防重复分配）
+        uint64_t currentPages = 0;
+        ret = GetOriginalHugePages(filePath, currentPages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetOriginalHugePages failed.";
+            return MEM_POOLING_ERROR;
+        }
+        if (currentPages >= requiredPages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] HugePages already enough, numaId=" << numaId << ", current=" << currentPages
+                << ", required=" << requiredPages << ", skip allocate.";
+            return MEM_POOLING_OK;
+        }
+
+        // 不足则补足差额
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] numaId=" << numaId << ", currentPages=" << currentPages
+            << ", requiredPages=" << requiredPages << ", addPages=" << (requiredPages - currentPages) << ".";
+        ret = TryAllocateHugePagesOnce(filePath, requiredPages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] RewriteHugePages failed at retry=" << retryCnt << ", numaId=" << numaId << ".";
+        }
+
+        retryCnt++;
+    } while (retryCnt < MAX_RETRY);
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] IdempotentAllocateHugePages final failed after " << MAX_RETRY << " retries, numaId="
+        << numaId << ", requiredPages=" << requiredPages << ".";
+
+    return MEM_POOLING_ERROR;
+}
+
 MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Allocate hugePages start.";

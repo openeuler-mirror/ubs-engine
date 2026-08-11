@@ -60,6 +60,9 @@ public:
 
     MpResult AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
+    // 幂等版分大页: 先读当前nr_hugepages, 已>=目标值直接跳过, 供故障处理多轮RESUME重试安全调用
+    MpResult IdempotentAllocateHugePages(uint64_t numaId, uint64_t borrowSize);
+
     static int QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource);
 
     static MpResult SmapMode(int runMode);
