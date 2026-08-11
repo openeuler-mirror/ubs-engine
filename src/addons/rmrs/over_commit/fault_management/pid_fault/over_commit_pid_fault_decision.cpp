@@ -498,8 +498,12 @@ MpResult PidFaultDecision::MakeDecisions(const std::string& faultNodeId, const s
         for (const auto& task : selectedTasks) {
             shrunkDemandKB += task.migrationSizeKB;
         }
-        // 缩量后仍低于4MB时借用层会取整到4MB，同步抬升保证BestFit容量校验口径一致
-        shrunkDemandKB = EffectiveBorrowKB(shrunkDemandKB);
+        // 无可选task(所有task均超单numa容量)时保持需求为0直接跳过分配:
+        // 否则EffectiveBorrowKB会把0抬到4MB下限，扣减快照容量却无task受益，挤占其他组额度
+        if (shrunkDemandKB > 0) {
+            // 缩量后仍低于4MB时借用层会取整到4MB，同步抬升保证BestFit容量校验口径一致
+            shrunkDemandKB = EffectiveBorrowKB(shrunkDemandKB);
+        }
 
         plan.tasks = std::move(otherTasks);
         group.taskIds.clear();

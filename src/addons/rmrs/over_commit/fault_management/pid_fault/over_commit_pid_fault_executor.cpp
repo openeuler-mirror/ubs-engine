@@ -287,8 +287,13 @@ void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const F
         }
 
         if (taskResult.completedPhase == TaskPhase::COMPLETED) {
-            PidFaultStateStore::Instance().RemoveCompletedTask(faultNodeId, task.taskId);
-            LOG_INFO << "Task " << task.taskId << " COMPLETED, state removed.";
+            if (PidFaultStateStore::Instance().RemoveCompletedTask(faultNodeId, task.taskId) == MEM_POOLING_OK) {
+                LOG_INFO << "Task " << task.taskId << " COMPLETED, state removed.";
+            } else {
+                // 持久化删除失败: 状态残留下轮会作为RESUME重新加载，幂等链路可收敛，但需告警
+                LOG_ERROR << "RemoveCompletedTask failed for task " << task.taskId << ", state may linger.";
+                (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+            }
             continue;
         }
         if (taskResult.completedPhase >= TaskPhase::BORROWED) {

@@ -71,6 +71,9 @@ MpResult PidFaultStateStore::LoadFromStorage()
     UbseByteBuffer buffer{};
     MpResult ret = UbseStorageQueryData(KEY_PREFIX, KEY_NAME, &buffer, LoadStateCallback);
     if (ret != MEM_POOLING_OK) {
+        // 存储层对"无数据"与"I/O错误"返回同样的非OK码无法区分，按首次启动从头开始处理;
+        // 记WARN便于排障时区分静默启动与存储异常
+        LOG_WARN << "LoadFromStorage query failed, ret=" << ret << ", starting fresh.";
         if (buffer.data != nullptr) {
             delete[] buffer.data;
         }

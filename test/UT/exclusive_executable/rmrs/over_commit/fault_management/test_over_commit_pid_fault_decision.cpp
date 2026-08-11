@@ -196,6 +196,41 @@ TEST_F(TestPidFaultDecisionNoLoop, MakeDecisions_EmptyActualBorrowInNodes_Normal
     EXPECT_EQ(executePlans[0].borrowGroups[0].candidateLenderNodes[0], "node3");
 }
 
+/*
+ * 用例描述：缩量分支贪心选不出任何task（task尺寸远超最大单numa容量）
+ * 预期：本组整体放弃（demandKB/taskIds/candidateLenderNodes清空），不得出现EffectiveBorrowKB(0)抬到4MB
+ *      的无task虚分配组（旧缺陷：扣减快照4MB容量却无task受益，挤占其他组额度）
+ */
+TEST_F(TestPidFaultDecisionNoLoop, MakeDecisions_ShrinkEmptySelection_NoVirtualAllocation)
+{
+    gMockNodeMap = {{"node1", MakeWorkingNode("node1", 16 * 1024 * 1024)},
+                    {"node3", MakeWorkingNode("node3", 16 * 1024 * 1024)}};
+    gMockNumaList.clear();
+    MockDecisionDeps();
+
+    std::vector<BorrowInNodePlan> nodePlans(1);
+    nodePlans[0].borrowInNodeId = "node1";
+    nodePlans[0].reachability.ubseReachable = true;
+    MigrationTask task1;
+    task1.taskId = "container_huge";
+    task1.migrationSizeKB = 64ULL * 1024 * 1024; // 64GB，远超任何单numa容量，贪心必返空集
+    task1.hasSameSocketConstraint = false;
+    nodePlans[0].tasks.push_back(task1);
+
+    PidFaultDecision decision;
+    std::vector<FaultExecutePlan> executePlans;
+    std::unordered_set<std::string> emptyExclude;
+    ASSERT_EQ(decision.MakeDecisions("node0", nodePlans, emptyExclude, executePlans), MEM_POOLING_OK);
+    ASSERT_EQ(executePlans.size(), 1U);
+    ASSERT_EQ(executePlans[0].borrowGroups.size(), 1U);
+    const auto& group = executePlans[0].borrowGroups[0];
+    // 本轮放弃: 组字段清空，task从plan移除等下轮，不允许出现demandKB=4096的虚分配
+    EXPECT_EQ(group.demandKB, 0U);
+    EXPECT_TRUE(group.taskIds.empty());
+    EXPECT_TRUE(group.candidateLenderNodes.empty());
+    EXPECT_TRUE(executePlans[0].tasks.empty());
+}
+
 // 需求低于4MB下限时按实际将借量4MB做容量门槛: 余量不足4MB的numa不可承接
 TEST_F(TestPidFaultDecisionMinBorrowSize, BestFitRejectWhenLendableBelowMinBorrowSize)
 {

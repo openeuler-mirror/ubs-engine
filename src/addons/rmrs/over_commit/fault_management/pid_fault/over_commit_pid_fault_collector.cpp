@@ -290,7 +290,11 @@ void PidFaultCollector::MarkSocketConstraints(OverCommitFaultContext& context)
             if (sceneType == MpSceneType::CONTAINER_SCENE) {
                 // 容器场景：查询绑定类型（同socket约束由bindType推导: BIND_MULTIPLE=无约束）
                 NumaBindType bindType = NumaBindType::BIND_SINGLE;
-                OverCommitStorage::Instance().GetNumaBindType(nodeId, bindType);
+                if (OverCommitStorage::Instance().GetNumaBindType(nodeId, bindType) != MEM_POOLING_OK) {
+                    // 查询失败保守回退BIND_SINGLE(下游按有同socket约束处理)，避免BIND_INVALID污染账本日志
+                    LOG_WARN << "GetNumaBindType failed for node=" << nodeId << ", fallback to BIND_SINGLE.";
+                    bindType = NumaBindType::BIND_SINGLE;
+                }
                 info.bindType = bindType;
             } else {
                 // 虚机场景：始终有同socket约束
