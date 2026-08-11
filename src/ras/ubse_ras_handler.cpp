@@ -14,11 +14,14 @@
 #include <dlfcn.h>
 #include <cctype>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
+#include <fstream>
 #include <mutex>
 #include <regex>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <utility>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
@@ -147,6 +150,175 @@ static void SubmitClearExpiredHandlerResult()
         return;
     }
 }
+
+// RAS 侧硬编码的 BMC 故障码数值（不引入 mp_error.h，修改 mp_error.h 数值须同步此处）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE = 1; // 节点通信失败（可重试，RPC 失败映射此值）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE = 3;  // 本地内存不足（不可重试）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE = 4; // 借用内存不足（不可重试）
+constexpr uint32_t MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE = 8;     // 部分成功（可重试码上界）
+
+// sysfs 路径与默认超时
+constexpr const char* REBOOT_TIMEOUT_SYSFS_PATH = "/sys/module/sentry_reporter/parameters/reboot_timeout_ms";
+constexpr uint32_t REBOOT_TIMEOUT_DEFAULT_MS = 30000; // 读取失败时的默认值
+
+// 判断是否为 BMC 故障可重试码（值 1-8 且非 3、4）
+static bool IsBmcFaultRetryableCode(uint32_t code)
+{
+    if (code < MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE || code > MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE) {
+        return false;
+    }
+    return code != MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE && code != MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE;
+}
+
+// 读取 sysfs 获取 BMC 下电超时时间。失败返回默认值。
+static uint32_t ReadRebootTimeoutMs()
+{
+    std::ifstream ifs(REBOOT_TIMEOUT_SYSFS_PATH);
+    if (!ifs.is_open()) {
+        UBSE_LOG_WARN << "Open reboot_timeout_ms sysfs failed, use default " << REBOOT_TIMEOUT_DEFAULT_MS << "ms";
+        return REBOOT_TIMEOUT_DEFAULT_MS;
+    }
+    uint32_t value = 0;
+    ifs >> value;
+    if (ifs.fail() || value == 0) {
+        UBSE_LOG_WARN << "Read reboot_timeout_ms sysfs invalid, use default " << REBOOT_TIMEOUT_DEFAULT_MS << "ms";
+        return REBOOT_TIMEOUT_DEFAULT_MS;
+    }
+    UBSE_LOG_INFO << "Read reboot_timeout_ms=" << value << "ms from sysfs";
+    return value;
+}
+
+// BMC 故障状态（key=nodeId，故障节点自身 nodeId）
+struct BmcFaultState {
+    std::string msgId;         // 当前处理的 msgId（用于到期构造 ack）
+    uint32_t lastErrorCode{0}; // 最近一次可重试错误码（0 表示无）
+    bool timerStarted{false};  // 计时线程是否已启动（防重复启动）
+    bool finalAckSent{false};  // 计时线程到期 ack 是否已回送（防后续重试再透传）
+};
+
+// 计时线程上下文（每 nodeId 一个）
+struct BmcFaultTimer {
+    std::thread worker;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool cancelled{false};
+};
+
+static std::unordered_map<std::string, BmcFaultState> g_nodeBmcFaultState;
+static std::mutex g_nodeBmcFaultStateMutex;
+static std::unordered_map<std::string, std::shared_ptr<BmcFaultTimer>> g_bmcFaultTimers;
+static std::mutex g_bmcFaultTimersMutex;
+
+// 计时线程到期回调：有最近故障码则回送 ack 阻断 BMC，无则不回送（sysSentry 自然停止劫持）。
+static void OnBmcFaultTimerExpired(const std::string& nodeId)
+{
+    std::string msgId;
+    uint32_t lastError = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_nodeBmcFaultStateMutex);
+        auto it = g_nodeBmcFaultState.find(nodeId);
+        if (it == g_nodeBmcFaultState.end()) {
+            UBSE_LOG_WARN << "BMC fault timer expired but state gone, nodeId=" << nodeId;
+            return;
+        }
+        msgId = it->second.msgId;
+        lastError = it->second.lastErrorCode;
+        it->second.finalAckSent = true;
+    }
+    if (lastError != 0) {
+        auto ackStr = msgId + "_" + std::to_string(lastError);
+        UBSE_LOG_INFO << "BMC fault timer expired, send final ack to block BMC, nodeId=" << nodeId
+                      << ", ack=" << ackStr;
+        (void)ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+    } else {
+        UBSE_LOG_INFO << "BMC fault timer expired, no last error code, nodeId=" << nodeId
+                      << ", let sysSentry stop hijacking";
+    }
+}
+
+// 启动计时线程（新 msgId 时调用一次）。若已启动则不重复启动。
+static void StartBmcFaultTimer(const std::string& nodeId, uint32_t timeoutMs)
+{
+    std::lock_guard<std::mutex> lock(g_bmcFaultTimersMutex);
+    auto it = g_bmcFaultTimers.find(nodeId);
+    if (it != g_bmcFaultTimers.end() && it->second->worker.joinable()) {
+        // 已有线程，不重复启动
+        return;
+    }
+    auto timer = std::make_shared<BmcFaultTimer>();
+    auto nodeIdCopy = nodeId; // 拷贝到线程闭包
+    timer->worker = std::thread([nodeIdCopy, timeoutMs, timer]() {
+        std::unique_lock<std::mutex> lk(timer->mtx);
+        (void)timer->cv.wait_for(lk, std::chrono::milliseconds(timeoutMs), [timer]() { return timer->cancelled; });
+        if (!timer->cancelled) {
+            OnBmcFaultTimerExpired(nodeIdCopy);
+        }
+    });
+    g_bmcFaultTimers[nodeId] = timer;
+    UBSE_LOG_INFO << "BMC fault timer started, nodeId=" << nodeId << ", timeoutMs=" << timeoutMs;
+}
+
+// 停止并 join 计时线程（ret=UBSE_OK 或新 msgId 时调用）。
+static void StopBmcFaultTimer(const std::string& nodeId)
+{
+    std::shared_ptr<BmcFaultTimer> timer;
+    {
+        std::lock_guard<std::mutex> lock(g_bmcFaultTimersMutex);
+        auto it = g_bmcFaultTimers.find(nodeId);
+        if (it == g_bmcFaultTimers.end()) {
+            return;
+        }
+        timer = it->second;
+        g_bmcFaultTimers.erase(it);
+    }
+    {
+        std::unique_lock<std::mutex> lk(timer->mtx);
+        timer->cancelled = true;
+    }
+    timer->cv.notify_all();
+    if (timer->worker.joinable()) {
+        timer->worker.join();
+    }
+    UBSE_LOG_INFO << "BMC fault timer stopped, nodeId=" << nodeId;
+}
+
+// 更新 BMC 故障状态：新 msgId 时清空状态并返回 true；重复 msgId 返回 false。
+static bool UpdateBmcFaultState(const std::string& nodeId, const std::string& msgId)
+{
+    std::lock_guard<std::mutex> lock(g_nodeBmcFaultStateMutex);
+    auto it = g_nodeBmcFaultState.find(nodeId);
+    if (it == g_nodeBmcFaultState.end() || it->second.msgId != msgId) {
+        // 新 msgId：清空状态
+        BmcFaultState state;
+        state.msgId = msgId;
+        g_nodeBmcFaultState[nodeId] = state;
+        return true;
+    }
+    return false;
+}
+
+// 记录最近错误码（可重试码到达时调用）。
+static void SetBmcFaultLastError(const std::string& nodeId, uint32_t code)
+{
+    std::lock_guard<std::mutex> lock(g_nodeBmcFaultStateMutex);
+    g_nodeBmcFaultState[nodeId].lastErrorCode = code;
+}
+
+// 查询是否已回送最终 ack（用于到期后静默）。
+static bool IsBmcFaultFinalAckSent(const std::string& nodeId)
+{
+    std::lock_guard<std::mutex> lock(g_nodeBmcFaultStateMutex);
+    auto it = g_nodeBmcFaultState.find(nodeId);
+    return it != g_nodeBmcFaultState.end() && it->second.finalAckSent;
+}
+
+// 清空 BMC 故障状态（计时线程到期后或状态变更时调用）。
+static void ClearBmcFaultState(const std::string& nodeId)
+{
+    std::lock_guard<std::mutex> lock(g_nodeBmcFaultStateMutex);
+    g_nodeBmcFaultState.erase(nodeId);
+}
+
 struct DebtInfo {
     std::string name; // 资源名称标识
     std::string borrowNodeId;
@@ -477,13 +649,13 @@ UbseResult ReportBMCFaultToMaster(const std::string& info, const std::string& fa
         return UBSE_ERROR_NULLPTR;
     }
     auto ret = comModule->RpcSend(param, request, response);
-    if (ret != UBSE_OK || response->GetResult() != UBSE_OK) {
-        UBSE_LOG_WARN << "Fault execute may fail, " << FormatRetCode(response->GetResult());
-        UBSE_LOG_WARN << "RpcSend may fail, " << FormatRetCode(ret);
-        if (response->GetResult() != UBSE_OK) {
-            return response->GetResult();
-        }
+    if (ret != UBSE_OK) {
+        // RPC 失败时 response 不可信，不检查业务结果，直接返回让上层映射为 IPC_ERROR
         return ret;
+    }
+    if (response->GetResult() != UBSE_OK) {
+        UBSE_LOG_WARN << "Fault execute failed, " << FormatRetCode(response->GetResult());
+        return response->GetResult();
     }
     return UBSE_OK;
 }
@@ -545,12 +717,51 @@ UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
         return ret;
     }
     UBSE_LOG_INFO << "master nodeId=" << masterRoleInfo.nodeId << ", current nodeId=" << curRoleInfo.nodeId;
-    ret = ReportBMCFaultToMaster(info, curRoleInfo.nodeId, masterRoleInfo.nodeId);
-    if (ret != UBSE_OK) {
-        return ret;
+    const auto& nodeId = curRoleInfo.nodeId;
+    ret = ReportBMCFaultToMaster(info, nodeId, masterRoleInfo.nodeId);
+    if (ret >= UBSE_INTERNAL_ERROR_BASE) {
+        // UBSE 系统级错误（RPC 失败、空指针等）映射为 RMRS BMC 故障码 IPC_ERROR（值 1），不引入 mp_error.h。
+        // 语义：节点通信失败，可重试。策略 B 据此启动限时重试。
+        ret = MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE;
+        UBSE_LOG_WARN << "RPC to master failed, map to MEM_POOLING_FAULT_IPC_ERROR, " << FormatRetCode(ret);
+    } else if (ret != UBSE_OK) {
+        // RMRS 业务码，保留原值由后续策略判定可重试性
+        UBSE_LOG_WARN << "ReportBMCFaultToMaster failed, keep code, " << FormatRetCode(ret);
     }
-    auto ackStr = std::to_string(ret);
-    ackStr = info + "_" + ackStr;
+
+    // 策略 B：到期后静默，不再透传 ack，让 sysSentry 自然停止劫持
+    if (IsBmcFaultFinalAckSent(nodeId)) {
+        UBSE_LOG_INFO << "BMC fault final ack already sent, silent for nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+
+    // 故障处理成功：停计时线程、清空状态、透传 ack(0)
+    if (ret == UBSE_OK) {
+        StopBmcFaultTimer(nodeId);
+        ClearBmcFaultState(nodeId);
+        auto ackStr = info + "_" + std::to_string(ret);
+        return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+    }
+
+    // 更新 BMC 故障状态（新 msgId 时清空状态、停旧计时线程）
+    bool isNewMsg = UpdateBmcFaultState(nodeId, info);
+
+    // 不可重试码：不启计时线程，直接透传 ack（sysSentry 自然超时停止劫持）
+    if (!IsBmcFaultRetryableCode(ret)) {
+        UBSE_LOG_INFO << "BMC fault non-retryable code=" << ret << ", nodeId=" << nodeId;
+        auto ackStr = info + "_" + std::to_string(ret);
+        return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+    }
+
+    // 可重试码：记录最近错误码，新 msgId 时启动计时线程
+    SetBmcFaultLastError(nodeId, ret);
+    if (isNewMsg) {
+        // 新 msgId：旧计时线程已在 UpdateBmcFaultState 前的 ClearBmcFaultState 里停过；
+        // 但 ClearBmcFaultState 只在 ret==UBSE_OK 分支调，这里新 msgId 需主动停旧线程
+        StopBmcFaultTimer(nodeId);
+        StartBmcFaultTimer(nodeId, ReadRebootTimeoutMs());
+    }
+    auto ackStr = info + "_" + std::to_string(ret);
     return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
 }
 
