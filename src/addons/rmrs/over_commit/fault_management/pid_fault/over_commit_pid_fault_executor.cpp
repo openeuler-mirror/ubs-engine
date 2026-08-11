@@ -84,9 +84,9 @@ MpResult PidFaultExecutor::BorrowForGroup(const FaultExecutePlan& plan, const Pl
     srcParam.username = plan.borrowUser.username;
     LOG_DEBUG << "BorrowForGroup: plan=" << plan.planId << ", srcNid=" << srcParam.srcNid
               << ", srcSocketId=" << srcParam.srcSocketId << ", srcNumaId=" << srcParam.srcNumaId
-              << ", constrained=" << group.hasSameSocketConstraint
-              << ", demandKB=" << group.demandKB << ", uid=" << srcParam.uid
-              << ", candidateLenderNodes=" << JoinToString(group.candidateLenderNodes) << ".";
+              << ", constrained=" << group.hasSameSocketConstraint << ", demandKB=" << group.demandKB
+              << ", uid=" << srcParam.uid << ", candidateLenderNodes=" << JoinToString(group.candidateLenderNodes)
+              << ".";
 
     // 故障借用层入参单位KB（低于4MB下限的取整与KB→字节换算由借用层统一处理）
     std::vector<uint64_t> borrowSizes{group.demandKB};
@@ -115,8 +115,7 @@ MpResult PidFaultExecutor::BorrowForGroup(const FaultExecutePlan& plan, const Pl
     }
     if (ret != MEM_POOLING_OK || borrowResult.borrowIds.empty() || borrowResult.presentNumaId.empty()) {
         LOG_ERROR << "MemBorrowExecuteForPidFaultInOverCommit failed for plan " << plan.planId
-                  << ", group socket=" << group.constraintSocketId
-                  << ", reason=" << static_cast<uint32_t>(ret) << ".";
+                  << ", group socket=" << group.constraintSocketId << ", reason=" << static_cast<uint32_t>(ret) << ".";
         // 透传借用层失败原因: 内存不足(n=4)/借用执行异常(n=6)；ret为OK但结果为空时归为借用执行异常
         return ret != MEM_POOLING_OK ? ret : MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
@@ -124,9 +123,9 @@ MpResult PidFaultExecutor::BorrowForGroup(const FaultExecutePlan& plan, const Pl
     newBorrowId = borrowResult.borrowIds[0];
     newRemoteNumaId = borrowResult.presentNumaId[0];
     // 实际借用量以借用层返回为准（UBSE按block粒度取整可能大于需求量）；缺失时兜底需求量取整口径
-    newBorrowSizeKB = borrowResult.borrowedSizesKB.empty()
-                          ? std::max(group.demandKB, static_cast<uint64_t>(MIN_BORROW_SIZE_KB))
-                          : borrowResult.borrowedSizesKB[0];
+    newBorrowSizeKB = borrowResult.borrowedSizesKB.empty() ?
+                          std::max(group.demandKB, static_cast<uint64_t>(MIN_BORROW_SIZE_KB)) :
+                          borrowResult.borrowedSizesKB[0];
     LOG_INFO << "Borrow success for plan " << plan.planId << " group(socket=" << group.constraintSocketId
              << "): newBorrowId=" << newBorrowId << ", newRemoteNumaId=" << newRemoteNumaId
              << ", demandKB=" << group.demandKB << ", actualBorrowKB=" << newBorrowSizeKB << ".";

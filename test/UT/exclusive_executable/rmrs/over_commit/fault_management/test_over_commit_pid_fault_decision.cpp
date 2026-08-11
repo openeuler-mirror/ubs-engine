@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 #include "mockcpp/mokc.h"
-#include "over_commit_pid_fault_decision.h"
 #include "over_commit_pid_fault_decision.cpp"
+#include "over_commit_pid_fault_decision.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling {
@@ -24,8 +24,8 @@ namespace mempooling {
 // invoke函数首参为this指针
 using GetTaskStateFunc = MpResult (*)(PidFaultStateStore*, const std::string&, const std::string&, TaskPersistState&);
 using GetWaterMarkFunc = MpResult (*)(OverCommitStorage*, uint16_t&, uint16_t&);
-using GetAllNodesFunc = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> (*)(
-    ubse::nodeController::UbseNodeController*);
+using GetAllNodesFunc =
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> (*)(ubse::nodeController::UbseNodeController*);
 
 class TestPidFaultDecisionMinBorrowSize : public ::testing::Test {
 public:
@@ -86,12 +86,8 @@ void MockDecisionDeps()
     MOCKER_CPP(&UbseGetAllNodeNumaInfo, UbseResult(*)(std::vector<UbseNodeNumaInfo>&))
         .stubs()
         .will(invoke(MockGetAllNodeNumaInfo));
-    MOCKER_CPP(&OverCommitStorage::GetWaterMark, GetWaterMarkFunc)
-        .stubs()
-        .will(invoke(MockGetWaterMark));
-    MOCKER_CPP(&PidFaultStateStore::GetTaskState, GetTaskStateFunc)
-        .stubs()
-        .will(invoke(MockGetTaskStateNotFound));
+    MOCKER_CPP(&OverCommitStorage::GetWaterMark, GetWaterMarkFunc).stubs().will(invoke(MockGetWaterMark));
+    MOCKER_CPP(&PidFaultStateStore::GetTaskState, GetTaskStateFunc).stubs().will(invoke(MockGetTaskStateNotFound));
 }
 
 ubse::nodeController::UbseNodeInfo MakeWorkingNode(const std::string& id, uint64_t sizeKB)

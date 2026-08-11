@@ -15,9 +15,9 @@
 #include <unordered_map>
 #include <vector>
 #include "mockcpp/mokc.h"
-#include "over_commit_pid_fault_handler.h"
 #include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_handler.cpp"
+#include "over_commit_pid_fault_handler.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling::over_commit {
@@ -40,8 +40,8 @@ static UbseByteBuffer BuildExecuteReqBuffer(const FaultPidExecuteRequest& reques
     RmrsOutStream builder;
     FaultPidExecuteRequestSerialization(builder, request);
     UbseByteBuffer req = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-        delete[] data;
-    }};
+                              delete[] data;
+                          }};
     return req;
 }
 
@@ -436,8 +436,7 @@ MpResult MockIdempotentAllocateHugePages(MpSmapHelper* self, uint64_t numaId, ui
 using IdempotentAllocateHugePagesFunc = MpResult (*)(MpSmapHelper*, uint64_t, uint64_t);
 using GetSceneTypeFunc = MpSceneType (*)(const MpConfiguration*);
 using GetPageTypeFunc = PageType (*)(MpConfiguration*);
-using SetSmapRemoteNumaInfoFunc = MpResult (*)(const int16_t&,
-                                               const std::vector<MemBorrowInfoWithSrc>&);
+using SetSmapRemoteNumaInfoFunc = MpResult (*)(const int16_t&, const std::vector<MemBorrowInfoWithSrc>&);
 
 // 捕获smap借用信息设置调用（首参srcNumaId与infos）
 static std::vector<std::pair<int16_t, std::vector<MemBorrowInfoWithSrc>>> gSetSmapCalls;
@@ -457,9 +456,7 @@ MpResult MockSetSmapRemoteNumaInfoOk(const int16_t& srcNumaId, const std::vector
 void MockMigrateGroupDeps()
 {
     // const成员函数invoke的this参数匹配有问题，用returnValue（对齐存量用例惯例）
-    MOCKER_CPP(&MpConfiguration::GetSceneType, GetSceneTypeFunc)
-        .stubs()
-        .will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(&MpConfiguration::GetSceneType, GetSceneTypeFunc).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
     MOCKER_CPP(&MpConfiguration::GetPageType, GetPageTypeFunc).stubs().will(invoke(MockGetPageType2M));
     MOCKER_CPP(&MpSmapHelper::IdempotentAllocateHugePages, IdempotentAllocateHugePagesFunc)
         .stubs()

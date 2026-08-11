@@ -15,8 +15,8 @@
 #include <cctype>
 #include <fstream>
 #include <future>
-#include <set>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include "ubse_error.h"
@@ -183,8 +183,7 @@ static MpResult CollectVmPidMemInfos(const std::vector<uint16_t>& faultNumaIds, 
             uint16_t remoteRatio = std::min<uint16_t>(ratio, 100);
             uint64_t expectedKB = entry.totalUsageKB * remoteRatio / 100;
             if (expectedKB == 0) {
-                LOG_DEBUG << "Pid=" << pid << " on faultNuma=" << faultNumaId
-                          << " expected usage is 0, skip.";
+                LOG_DEBUG << "Pid=" << pid << " on faultNuma=" << faultNumaId << " expected usage is 0, skip.";
                 continue;
             }
             NumaMemUsage usage;
@@ -539,12 +538,11 @@ static MpResult MigrateSingleTask(const MigrationTask& task)
             }
             const auto& managed = managedIt->second;
             // ratio纳管要求ratio>0、memsize纳管要求memSize>0，否则smap报参数错误
-            bool validQuota =
-                (managed.migrateMode == static_cast<uint8_t>(MIG_RATIO_MODE) && managed.ratio > 0) ||
-                (managed.migrateMode == static_cast<uint8_t>(MIG_MEMSIZE_MODE) && managed.memSize > 0);
+            bool validQuota = (managed.migrateMode == static_cast<uint8_t>(MIG_RATIO_MODE) && managed.ratio > 0) ||
+                              (managed.migrateMode == static_cast<uint8_t>(MIG_MEMSIZE_MODE) && managed.memSize > 0);
             if (!validQuota) {
-                LOG_WARN << "Skip pid=" << pid << " on src numa=" << srcNumaId << ": no valid managed quota, mode="
-                         << static_cast<uint32_t>(managed.migrateMode) << ".";
+                LOG_WARN << "Skip pid=" << pid << " on src numa=" << srcNumaId
+                         << ": no valid managed quota, mode=" << static_cast<uint32_t>(managed.migrateMode) << ".";
                 continue;
             }
             msg.payload[idx].pid = pid;
@@ -554,9 +552,9 @@ static MpResult MigrateSingleTask(const MigrationTask& task)
             msg.payload[idx].ratio = managed.ratio;
             msg.payload[idx].memSize = managed.memSize;
             LOG_DEBUG << "Migrate payload: pid=" << pid << ", srcNuma=" << srcNumaId
-                      << ", destNuma=" << task.newRemoteNumaId << ", mode="
-                      << static_cast<uint32_t>(managed.migrateMode) << ", ratio="
-                      << static_cast<uint32_t>(managed.ratio) << ", memSizeKB=" << managed.memSize << ".";
+                      << ", destNuma=" << task.newRemoteNumaId
+                      << ", mode=" << static_cast<uint32_t>(managed.migrateMode)
+                      << ", ratio=" << static_cast<uint32_t>(managed.ratio) << ", memSizeKB=" << managed.memSize << ".";
             idx++;
         }
         msg.count = idx;
@@ -648,8 +646,8 @@ static std::vector<std::string> MigrateTaskGroup(uint16_t newRemoteNumaId,
     for (const auto& [borrowId, info] : borrowInfoById) {
         borrowSizeByLocalNuma[info.first] += info.second;
     }
-    LOG_DEBUG << "MigrateTaskGroup: destNuma=" << newRemoteNumaId << " totalBorrowedKB=" << totalBorrowedKB
-              << " (from " << borrowInfoById.size() << " borrows, " << borrowSizeByLocalNuma.size()
+    LOG_DEBUG << "MigrateTaskGroup: destNuma=" << newRemoteNumaId << " totalBorrowedKB=" << totalBorrowedKB << " (from "
+              << borrowInfoById.size() << " borrows, " << borrowSizeByLocalNuma.size()
               << " local numas), set smap remote numa info.";
     for (const auto& [localNuma, sizeKB] : borrowSizeByLocalNuma) {
         MemBorrowInfoWithSrc info{
