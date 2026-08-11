@@ -22,6 +22,7 @@
 #include "ubse_node_controller.h"
 #include "mp_configuration.h"
 #include "over_commit_pid_fault_state_store.h"
+#include "over_commit_pid_fault_common.h"
 #include "over_commit_storage.h"
 
 namespace mempooling {
@@ -54,18 +55,6 @@ static inline uint64_t EffectiveBorrowKB(uint64_t demandKB)
     return demandKB < MIN_BORROW_SIZE_KB ? MIN_BORROW_SIZE_KB : demandKB;
 }
 
-// 调试用: 把列表拼成"[a b c]"形式，方便日志里一行看清集合内容
-template <typename T>
-static std::string JoinToString(const std::vector<T>& values)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (const auto& v : values) {
-        oss << " " << v;
-    }
-    oss << " ]";
-    return oss.str();
-}
 
 // 调试用: 打印单个借用组画像（约束/归属numa/需求/成员/预分配借出节点），真实运行时可据此追踪分组-预分配链路
 static void PrintBorrowGroupDetail(const std::string& planId, const PlanBorrowGroup& group)

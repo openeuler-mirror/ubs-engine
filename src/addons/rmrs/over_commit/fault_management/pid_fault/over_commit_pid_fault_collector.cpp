@@ -199,7 +199,12 @@ static void FaultPidQueryResHandler(void* ctx, const UbseByteBuffer& respData, u
         return;
     }
     RmrsInStream in(respData.data, respData.len);
-    FaultPidQueryResponseDeserialization(in, *result);
+    if (FaultPidQueryResponseDeserialization(in, *result) != MEM_POOLING_OK) {
+        // 响应截断/损坏: 丢弃部分填充数据，按该节点查询失败降级处理
+        LOG_ERROR << "FaultPidQueryResHandler deserialization incomplete, drop partial data.";
+        *result = FaultPidQueryResponse{};
+        result->retCode = MEM_POOLING_ERROR;
+    }
 }
 
 MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNodeId, OverCommitFaultContext& context)

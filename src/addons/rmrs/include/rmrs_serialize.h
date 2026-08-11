@@ -189,6 +189,12 @@ public:
         return mFlag && offset == inStream.length();
     }
 
+    // 流读取至今无错误（不要求流已消费完，供多消息串联/元素级反序列化使用）
+    bool IsValid() const
+    {
+        return mFlag;
+    }
+
 private:
     std::string inStream;
     size_t offset{};

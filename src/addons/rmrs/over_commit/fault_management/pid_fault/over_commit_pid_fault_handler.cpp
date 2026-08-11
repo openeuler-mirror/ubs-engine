@@ -465,7 +465,12 @@ void PidFaultHandler::PidQueryResHandler(void* ctx, const UbseByteBuffer& respDa
         return;
     }
     RmrsInStream in(respData.data, respData.len);
-    FaultPidQueryResponseDeserialization(in, *result);
+    if (FaultPidQueryResponseDeserialization(in, *result) != MEM_POOLING_OK) {
+        // 响应截断/损坏: 丢弃部分填充数据，避免基于无效数据构建迁移任务
+        LOG_ERROR << "PidQueryResHandler deserialization incomplete, drop partial data.";
+        *result = FaultPidQueryResponse{};
+        result->retCode = MEM_POOLING_ERROR;
+    }
 }
 
 // ==================== PID Execute Handler ====================
@@ -884,7 +889,12 @@ void PidFaultHandler::PidExecuteResHandler(void* ctx, const UbseByteBuffer& resp
         return;
     }
     RmrsInStream in(respData.data, respData.len);
-    FaultPidExecuteResponseDeserialization(in, *result);
+    if (FaultPidExecuteResponseDeserialization(in, *result) != MEM_POOLING_OK) {
+        // 响应截断/损坏: 丢弃部分填充数据，按失败处理等下轮重试
+        LOG_ERROR << "PidExecuteResHandler deserialization incomplete, drop partial data.";
+        *result = FaultPidExecuteResponse{};
+        result->retCode = MEM_POOLING_ERROR;
+    }
 }
 
 } // namespace mempooling::over_commit
