@@ -258,9 +258,9 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
                uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(MockRackRpcSendReturnOk));
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
-        .will(returnValue(0));
+        .will(returnValue(MEM_POOLING_OK));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -276,9 +276,9 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFailed)
         .stubs()
         .will(invoke(MockGetNumaBindTypeRpcSuccess));
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
-        .will(returnValue(1));
+        .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
@@ -1933,9 +1933,9 @@ void SetupMemIdFaultCommonMocks()
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
-        .will(returnValue(0));
+        .will(returnValue(MEM_POOLING_OK));
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_MemBorrowExecuteFail_EnableSmapProcessMigrate)

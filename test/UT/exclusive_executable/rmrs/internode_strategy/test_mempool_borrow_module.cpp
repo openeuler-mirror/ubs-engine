@@ -1373,7 +1373,7 @@ TEST_F(TestMemPoolBorrowModule, AddMemoryParamsToResult_TestWithOk)
 
 TEST_F(TestMemPoolBorrowModule, GetSocketInfo_TestFailed)
 {
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     DestMemoryBorrowParam destParam1;
@@ -1964,7 +1964,7 @@ TEST_F(TestMemPoolBorrowModule, GetSocketInfo_Success)
     DestMemoryBorrowParam tempParam;
     tempParam.destNid = "node0";
     uint32_t numaId = 1;
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto res = MempoolBorrowModule::Instance().GetSocketInfo(tempParam, numaId);
@@ -2867,6 +2867,306 @@ TEST_F(TestMemPoolBorrowModule, GetRemoteNumaListTestSucceed)
 
     GetRemoteNumaList(numaHugePageInfoSumList, remoteNumaIdList);
     EXPECT_EQ(remoteNumaIdList.size(), 0);
+}
+
+// 捕获故障借用实际下发给UBSE的size（字节）、usrInfo、isFault与BorrowIdInFaultProcess跟踪开关，
+// 验证KB入参的取整与换算、usrInfo归属协议差异
+static uint64_t gFaultBorrowCapturedSizeBytes = 0;
+static std::vector<uint8_t> gFaultBorrowCapturedUsrInfo;
+// 模拟UBSE返回的实际借用量（block取整后可能大于下发size）；0=与下发size一致
+static uint64_t gFaultBorrowMockActualSizeBytes = 0;
+static bool gFaultBorrowCapturedIsFault = false;
+static bool gFaultBorrowCapturedTrackInFaultProcess = true;
+MpResult MockProcessSingleBorrowForFault(const SrcMemoryBorrowParam& srcParam, const UbseMemNumaCandidateOpt& opt,
+                                         const bool& isFault, UbseMemNumaDesc& desc, const bool trackInFaultProcess)
+{
+    gFaultBorrowCapturedSizeBytes = opt.size;
+    gFaultBorrowCapturedIsFault = isFault;
+    gFaultBorrowCapturedTrackInFaultProcess = trackInFaultProcess;
+    gFaultBorrowCapturedUsrInfo.assign(opt.usrInfo, opt.usrInfo + sizeof(int16_t));
+    desc.name = "bid-fault";
+    desc.numaId = 2;
+    desc.size = (gFaultBorrowMockActualSizeBytes == 0) ? opt.size : gFaultBorrowMockActualSizeBytes;
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_LiftSmallSizeToMin4MB)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowForFault));
+
+    // 入参1024KB(1MB)低于UBSE单笔借用下限4MB: 预期抬升到4MB后换算为字节下发
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {1024}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
+    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 4ULL * 1024 * 1024);
+}
+
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_PassThroughSizeAboveMin)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowForFault));
+
+    // 入参8192KB(8MB)高于下限: 不取整，仅KB→字节换算
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
+    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 8ULL * 1024 * 1024);
+}
+
+// ==================== PID粒度故障专用借用（容器/虚机场景） ====================
+
+// 真实创建调用mock: 回填desc并捕获usrInfo，验证usrInfo协议真正落到UBSE创建入参
+static std::vector<uint8_t> gPidCreateCapturedUsrInfo;
+UbseResult MockUbseMemNumaCreateWithCandidateOk(const std::string& name, const UbseMemBorrower& borrower,
+                                                const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
+{
+    (void)borrower;
+    gPidCreateCapturedUsrInfo.assign(opt.usrInfo, opt.usrInfo + sizeof(int16_t));
+    desc.name = name;
+    desc.numaId = 2;
+    return UBSE_OK;
+}
+
+// 账本查询mock: 按name回填实际借用量（账本Σ exportNumaInfos[].size口径）
+static uint64_t gPidDebtMockActualSizeBytes = 0;
+MpResult MockGetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    UbseNumaMemoryDebtInfo info{};
+    info.name = name;
+    info.size = gPidDebtMockActualSizeBytes;
+    info.remoteNumaId = 2;
+    debtInfos = {info};
+    return MEM_POOLING_OK;
+}
+
+// 账本查询失败mock: 验证兜底请求值路径（同时供只关注其他协议的用例避免真实查询阻塞）
+MpResult MockGetDebtInfoByNameWithRetryFail(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    (void)name;
+    debtInfos.clear();
+    return MEM_POOLING_ERROR;
+}
+
+/*
+ * 用例描述：PID专用借用usrInfo按正常借用协议写借入方本地numaId（int16前2字节），
+ *           不写裸机process_mem的ProcessMemUsrInfo（virt_agent水线归还可见性前提）
+ * 预期：下发UBSE的usrInfo前2字节=srcNumaId；isFault=true保留-rep后缀；不记入BorrowIdInFaultProcess
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_UsrInfoWriteSrcNumaId)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 1;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+
+    // BorrowIdInFaultProcess::Update打桩失败：若PID链路误记入将导致借用失败，以此反向证明不记入
+    MOCKER_CPP(&BorrowIdInFaultProcess::Update, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&UbseMemNumaCreateWithCandidate, UbseResult(*)(const std::string&, const UbseMemBorrower&,
+                                                              const UbseMemNumaCandidateOpt&, UbseMemNumaDesc&))
+        .stubs()
+        .will(invoke(MockUbseMemNumaCreateWithCandidateOk));
+    // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注usrInfo协议
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfoByNameWithRetryFail));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(borrowExecuteResult.borrowIds.size(), 1U);
+    // -rep后缀: virt_agent SyncGlobalBorrowMap据此标记MIGRATE_SUCCESS进入归还候选
+    EXPECT_NE(borrowExecuteResult.borrowIds[0].find("-rep"), std::string::npos);
+    ASSERT_EQ(gPidCreateCapturedUsrInfo.size(), sizeof(int16_t));
+    int16_t capturedNumaId = 0;
+    (void)memcpy_s(&capturedNumaId, sizeof(capturedNumaId), gPidCreateCapturedUsrInfo.data(), sizeof(int16_t));
+    EXPECT_EQ(capturedNumaId, 1);
+}
+
+/*
+ * 用例描述：PID专用借用KB入参取整与换算口径与裸机故障借用一致
+ * 预期：1024KB抬升到4MB下发；isFault=true；trackInFaultProcess=false
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_LiftSmallSizeToMin4MB)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowForFault));
+    // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注KB取整与换算口径
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfoByNameWithRetryFail));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1U);
+    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 4ULL * 1024 * 1024);
+    EXPECT_TRUE(gFaultBorrowCapturedIsFault);
+    EXPECT_FALSE(gFaultBorrowCapturedTrackInFaultProcess);
+    gFaultBorrowMockActualSizeBytes = 0;
+}
+
+/*
+ * 用例描述：实际借用量从账本透出（需求1794MB，UBSE block取整后实际借到1920MB；
+ *           借用回填的desc.size是请求值回显而非实际值，必须查账本）
+ * 预期：borrowedSizesKB以账本实际值1920MB为准（故障链路据此分大页/设smap账目，按请求值会少分迁不完）
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_ActualBorrowSizeFromDebt)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    // desc.size回显请求值1794MB（gFaultBorrowMockActualSizeBytes=0即与下发size一致），账本实际值1920MB
+    gPidDebtMockActualSizeBytes = 1920ULL * 1024 * 1024;
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowForFault));
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfoByNameWithRetry));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(borrowExecuteResult.borrowedSizesKB.size(), 1U);
+    EXPECT_EQ(borrowExecuteResult.borrowedSizesKB[0], 1920ULL * 1024);
+    gPidDebtMockActualSizeBytes = 0;
+}
+
+/*
+ * 用例描述：账本查询失败时兜底请求值（查询不可用不阻断故障链路，保持旧行为）
+ * 预期：borrowedSizesKB=请求值1794MB并告警，借用仍成功
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbackToRequestSize)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowForFault));
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfoByNameWithRetryFail));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(borrowExecuteResult.borrowedSizesKB.size(), 1U);
+    EXPECT_EQ(borrowExecuteResult.borrowedSizesKB[0], 1794ULL * 1024);
+}
+
+/*
+ * 用例描述：裸机Simplified故障借用保持原行为——记入BorrowIdInFaultProcess（Update失败则借用失败）
+ * 预期：返回MEM_POOLING_FAULT_BORROW_MEM_ERROR，与PID链路不记入形成对照
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_TrackInFaultProcess)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    MOCKER_CPP(&BorrowIdInFaultProcess::Update, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
+    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);
+}
+
+/*
+ * 用例描述：无候选借出节点时快速失败，归为借用内存不足（n=4）
+ * 预期：返回MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR，不发起UBSE创建
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_NoCandidateNode)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                                borrowExecuteResult, {});
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);
 }
 
 } // namespace mempooling

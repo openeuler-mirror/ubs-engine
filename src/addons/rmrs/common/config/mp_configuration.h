@@ -117,6 +117,11 @@ public:
         return faultSimplified_;
     }
 
+    inline bool GetPidFaultHandleEnabled() const
+    {
+        return pidFaultHandleEnabled_;
+    }
+
     inline long GetBasePageSize()
     {
         return basePageSize;
@@ -149,6 +154,7 @@ private:
     bool mustSamePlane = true;
     bool enableBorrowSplit = true;
     bool faultSimplified_{false};
+    bool pidFaultHandleEnabled_{false};
 };
 
 } // namespace mempooling

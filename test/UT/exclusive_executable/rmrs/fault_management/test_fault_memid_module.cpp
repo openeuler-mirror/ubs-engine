@@ -1250,7 +1250,7 @@ TEST_F(TestFaultMemIdModule, GetSocketIdOfNUMA_Success)
     std::string destPreNid;
     uint16_t destSocketId;
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 

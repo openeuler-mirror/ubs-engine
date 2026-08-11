@@ -77,6 +77,7 @@ public:
 
     static bool IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo);
     static MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     static std::vector<UbseNumaMemoryDebtInfo> FilterValidDebtInfos(
         const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     static uint64_t SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
