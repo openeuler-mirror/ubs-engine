@@ -1,6 +1,7 @@
 add_executable(ubsectl-ssu
         ubse_cli_ssu_main.cpp
         ubse_cli_ssu_cmd_reg.cpp
+        ubse_cli_ssu_error.cpp
         ubse_cli_ssu_struct.cpp
 )
 target_link_libraries(ubsectl-ssu PRIVATE

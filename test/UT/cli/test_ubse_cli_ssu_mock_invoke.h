@@ -90,13 +90,37 @@ uint32_t mock_ssu_attach_space_invoke_call_bad_response(uint16_t module_code, ui
                                                         const ubse_api_buffer_t* request_data,
                                                         ubse_api_buffer_t* response_data);
 
+uint32_t mock_ssu_attach_space_invoke_call_already_attached(uint16_t module_code, uint16_t op_code,
+                                                            const ubse_api_buffer_t* request_data,
+                                                            ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_attach_space_invoke_call_bad_already_attached(uint16_t module_code, uint16_t op_code,
+                                                                const ubse_api_buffer_t* request_data,
+                                                                ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_attach_space_invoke_call_already_attached_without_response(uint16_t module_code, uint16_t op_code,
+                                                                             const ubse_api_buffer_t* request_data,
+                                                                             ubse_api_buffer_t* response_data);
+
 uint32_t mock_ssu_attach_linear_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                    const ubse_api_buffer_t* request_data,
                                                    ubse_api_buffer_t* response_data);
 
+uint32_t mock_ssu_attach_linear_invoke_call_already_attached(uint16_t module_code, uint16_t op_code,
+                                                             const ubse_api_buffer_t* request_data,
+                                                             ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_attach_linear_invoke_call_bad_already_attached(uint16_t module_code, uint16_t op_code,
+                                                                 const ubse_api_buffer_t* request_data,
+                                                                 ubse_api_buffer_t* response_data);
+
 uint32_t mock_ssu_attach_striped_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                     const ubse_api_buffer_t* request_data,
                                                     ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_attach_striped_invoke_call_already_attached(uint16_t module_code, uint16_t op_code,
+                                                              const ubse_api_buffer_t* request_data,
+                                                              ubse_api_buffer_t* response_data);
 
 uint32_t mock_ssu_detach_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                             const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
