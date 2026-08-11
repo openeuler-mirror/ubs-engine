@@ -2902,14 +2902,14 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_LiftSmallSizeToMin4MB)
     ProcessMemUsrInfo usrInfo{};
 
     MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&,
-                           UbseMemNumaDesc&, const bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
 
     // 入参1024KB(1MB)低于UBSE单笔借用下限4MB: 预期抬升到4MB后换算为字节下发
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
-        srcParam, {1024}, waterMark, borrowExecuteResult, usrInfo, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {1024}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
@@ -2928,14 +2928,14 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_PassThroughSizeAboveMin
     ProcessMemUsrInfo usrInfo{};
 
     MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&,
-                           UbseMemNumaDesc&, const bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
 
     // 入参8192KB(8MB)高于下限: 不取整，仅KB→字节换算
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
-        srcParam, {8192}, waterMark, borrowExecuteResult, usrInfo, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
@@ -2995,9 +2995,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_UsrInfoWriteSrcNumaI
     MOCKER_CPP(&BorrowIdInFaultProcess::Update, MpResult(*)(const std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&UbseMemNumaCreateWithCandidate,
-               UbseResult(*)(const std::string&, const UbseMemBorrower&, const UbseMemNumaCandidateOpt&,
-                             UbseMemNumaDesc&))
+    MOCKER_CPP(&UbseMemNumaCreateWithCandidate, UbseResult(*)(const std::string&, const UbseMemBorrower&,
+                                                              const UbseMemNumaCandidateOpt&, UbseMemNumaDesc&))
         .stubs()
         .will(invoke(MockUbseMemNumaCreateWithCandidateOk));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注usrInfo协议
@@ -3006,8 +3005,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_UsrInfoWriteSrcNumaI
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(
-        srcParam, {8192}, waterMark, borrowExecuteResult, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(borrowExecuteResult.borrowIds.size(), 1U);
@@ -3034,8 +3033,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_LiftSmallSizeToMin4M
     MemBorrowExecuteResult borrowExecuteResult;
 
     MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&,
-                           UbseMemNumaDesc&, const bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注KB取整与换算口径
@@ -3044,8 +3043,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_LiftSmallSizeToMin4M
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(
-        srcParam, {1024}, waterMark, borrowExecuteResult, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1U);
@@ -3073,8 +3072,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_ActualBorrowSizeFrom
     gPidDebtMockActualSizeBytes = 1920ULL * 1024 * 1024;
 
     MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&,
-                           UbseMemNumaDesc&, const bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
@@ -3082,8 +3081,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_ActualBorrowSizeFrom
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetry));
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(
-        srcParam, {1794ULL * 1024}, waterMark, borrowExecuteResult, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(borrowExecuteResult.borrowedSizesKB.size(), 1U);
@@ -3106,8 +3105,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbac
     MemBorrowExecuteResult borrowExecuteResult;
 
     MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&,
-                           UbseMemNumaDesc&, const bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
+                           const bool))
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
@@ -3115,8 +3114,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbac
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(
-        srcParam, {1794ULL * 1024}, waterMark, borrowExecuteResult, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
+                                                                                borrowExecuteResult, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(borrowExecuteResult.borrowedSizesKB.size(), 1U);
@@ -3142,8 +3141,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_TrackInFaultProcess)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
-        srcParam, {8192}, waterMark, borrowExecuteResult, usrInfo, {"Node1"});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                             borrowExecuteResult, usrInfo, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);
@@ -3163,8 +3162,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_NoCandidateNode)
     WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
     MemBorrowExecuteResult borrowExecuteResult;
 
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(
-        srcParam, {8192}, waterMark, borrowExecuteResult, {});
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {8192}, waterMark,
+                                                                                borrowExecuteResult, {});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);

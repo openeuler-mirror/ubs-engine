@@ -56,9 +56,8 @@ static uint64_t GetActualBorrowSizeBytes(const std::string& borrowId, uint64_t r
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     if (MemBorrowExecutor::GetDebtInfoByNameWithRetry(borrowId, debtInfos) != MEM_POOLING_OK) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemBorrow] Debt query failed for borrowId=" << borrowId
-            << ", fallback to request size=" << requestSizeBytes << ".";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] Debt query failed for borrowId=" << borrowId
+                                                         << ", fallback to request size=" << requestSizeBytes << ".";
         return requestSizeBytes;
     }
     for (const auto& debtInfo : debtInfos) {

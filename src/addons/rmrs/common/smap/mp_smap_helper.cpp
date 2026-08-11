@@ -415,8 +415,8 @@ MpResult MpSmapHelper::IdempotentAllocateHugePages(uint64_t numaId, uint64_t bor
     } while (retryCnt < MAX_RETRY);
 
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MpSmapHelper] IdempotentAllocateHugePages final failed after " << MAX_RETRY << " retries, numaId="
-        << numaId << ", requiredPages=" << requiredPages << ".";
+        << "[MpSmapHelper] IdempotentAllocateHugePages final failed after " << MAX_RETRY
+        << " retries, numaId=" << numaId << ", requiredPages=" << requiredPages << ".";
 
     return MEM_POOLING_ERROR;
 }
