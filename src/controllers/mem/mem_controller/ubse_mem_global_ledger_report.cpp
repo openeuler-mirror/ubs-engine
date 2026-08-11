@@ -196,7 +196,7 @@ void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryI
 {
     uint32_t state = static_cast<uint32_t>(item.state);
     out << item.name;
-    SerializeNumaInfos(out, item.numaInfos);
+    SerializeNumaInfos(out, item.exportNumaInfos);
     out << item.blockSize << state;
     ubse::mem::serial::UbseUdsInfoSerialization(out, item.userInfo);
     SerializeMemIds(out, item.memids);
@@ -210,7 +210,7 @@ bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem
 {
     uint32_t state{};
     in >> item.name;
-    if (!DeserializeNumaInfos(in, item.numaInfos)) {
+    if (!DeserializeNumaInfos(in, item.exportNumaInfos)) {
         return false;
     }
     in >> item.blockSize >> state;
@@ -450,7 +450,7 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowImportOb
     item.name = obj.req.name;
     item.blockSize = obj.algoResult.blockSize;
     item.state = obj.status.state;
-    item.numaInfos = obj.algoResult.importNumaInfos;
+    item.exportNumaInfos = obj.algoResult.exportNumaInfos;
     item.userInfo = obj.req.udsInfo;
     if (memcpy_s(item.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_WARN << "copy usrInfo failed when build shm import summary, name=" << obj.req.name;
@@ -469,7 +469,7 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowExportOb
     item.name = obj.req.name;
     item.blockSize = obj.algoResult.blockSize;
     item.state = obj.status.state;
-    item.numaInfos = obj.algoResult.exportNumaInfos;
+    item.exportNumaInfos = obj.algoResult.exportNumaInfos;
     item.userInfo = obj.req.udsInfo;
     if (memcpy_s(item.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_WARN << "copy usrInfo failed when build shm export summary, name=" << obj.req.name;

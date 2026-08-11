@@ -372,7 +372,6 @@ UbseResult GlobalMasterStore::LoadImport(const std::string &importNodeId, const 
     }
     UbseMemShareBorrowExportObj exportObj;
     if (LoadExport(name, exportObj) == UBSE_OK) {
-        out.algoResult.exportNumaInfos = exportObj.algoResult.exportNumaInfos;
         out.exportObmmInfo = exportObj.status.exportObmmInfo;
     }
     return UBSE_OK;
@@ -384,11 +383,9 @@ UbseResult GlobalMasterStore::LoadAllImports(const std::string &name,
     out.clear();
     std::vector<std::pair<std::string, UbseGlobalLedgerSummaryItem>> items;
     UbseGlobalLedgerSummaryStore::GetInstance().GetAllImportItems(items, name);
-    std::vector<UbseMemDebtNumaInfo> exportNumaInfos;
     std::vector<UbseMemObmmInfo> exportObmmInfo;
     UbseMemShareBorrowExportObj exportObj;
     if (LoadExport(name, exportObj) == UBSE_OK) {
-        exportNumaInfos = std::move(exportObj.algoResult.exportNumaInfos);
         exportObmmInfo = std::move(exportObj.status.exportObmmInfo);
     }
     for (const auto &[nodeId, item] : items) {
@@ -396,7 +393,11 @@ UbseResult GlobalMasterStore::LoadAllImports(const std::string &name,
         obj.importNodeId = nodeId;
         obj.req.name = item.name;
         obj.algoResult.blockSize = item.blockSize;
-        obj.algoResult.exportNumaInfos = exportNumaInfos;
+        obj.algoResult.exportNumaInfos = item.exportNumaInfos;
+        obj.req.size = 0;
+        for (const auto &numaInfo : item.exportNumaInfos) {
+            obj.req.size += numaInfo.size;
+        }
         obj.exportObmmInfo = exportObmmInfo;
         obj.status.state = item.state;
         obj.req.udsInfo = item.userInfo;
@@ -424,7 +425,7 @@ void GlobalMasterStore::PutExport(const UbseMemShareBorrowExportObj &obj)
     exportItem.name = obj.req.name;
     exportItem.blockSize = obj.algoResult.blockSize;
     exportItem.state = obj.status.state;
-    exportItem.numaInfos = obj.algoResult.exportNumaInfos;
+    exportItem.exportNumaInfos = obj.algoResult.exportNumaInfos;
     exportItem.userInfo = obj.req.udsInfo;
     if (memcpy_s(exportItem.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_WARN << "copy usrInfo failed when put export summary, name=" << obj.req.name;
@@ -441,6 +442,7 @@ void GlobalMasterStore::PutImport(const UbseMemShareBorrowImportObj &obj)
     UbseGlobalLedgerSummaryItem importItem;
     importItem.name = obj.req.name;
     importItem.state = obj.status.state;
+    importItem.exportNumaInfos = obj.algoResult.exportNumaInfos;
     importItem.userInfo = obj.req.udsInfo;
     if (memcpy_s(importItem.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_WARN << "copy usrInfo failed when put import summary, name=" << obj.req.name;
@@ -516,9 +518,9 @@ void GlobalMasterStore::ForEachExport(IShareStore::ExportVisitor visitor)
             UbseMemShareBorrowExportObj exportObj;
             exportObj.req.name = item.name;
             exportObj.algoResult.blockSize = item.blockSize;
-            exportObj.algoResult.exportNumaInfos = item.numaInfos;
+            exportObj.algoResult.exportNumaInfos = item.exportNumaInfos;
             exportObj.req.size = 0;
-            for (const auto &numaInfo : item.numaInfos) {
+            for (const auto &numaInfo : item.exportNumaInfos) {
                 exportObj.req.size += numaInfo.size;
             }
             exportObj.status.state = item.state;
@@ -547,13 +549,9 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
         UBSE_LOG_WARN << "Failed to get all node summaries";
         return;
     }
-    std::unordered_map<std::string, std::vector<UbseMemDebtNumaInfo>> exportNumaInfosMap;
     std::unordered_map<std::string, std::vector<UbseMemObmmInfo>> exportObmmInfoMap;
     for (const auto &[nodeId, summary] : summaries) {
         for (const auto &[name, item] : summary.shmSummary.exportItems) {
-            if (!item.numaInfos.empty()) {
-                exportNumaInfosMap[name] = item.numaInfos;
-            }
             if (!item.memids.empty()) {
                 std::vector<UbseMemObmmInfo> obmmInfos;
                 for (size_t i = 0; i < item.memids.size(); ++i) {
@@ -574,6 +572,11 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
             importObj.importNodeId = nodeId;
             importObj.req.name = item.name;
             importObj.algoResult.blockSize = item.blockSize;
+            importObj.algoResult.exportNumaInfos = item.exportNumaInfos;
+            importObj.req.size = 0;
+            for (const auto &numaInfo : item.exportNumaInfos) {
+                importObj.req.size += numaInfo.size;
+            }
             importObj.status.state = item.state;
             importObj.req.udsInfo = item.userInfo;
             if (memcpy_s(importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, item.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
@@ -583,10 +586,6 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
                 UbseMemImportResult importResult{};
                 importResult.memId = memId;
                 importObj.status.importResults.push_back(importResult);
-            }
-            auto it = exportNumaInfosMap.find(item.name);
-            if (it != exportNumaInfosMap.end()) {
-                importObj.algoResult.exportNumaInfos = it->second;
             }
             auto obmmIt = exportObmmInfoMap.find(item.name);
             if (obmmIt != exportObmmInfoMap.end()) {

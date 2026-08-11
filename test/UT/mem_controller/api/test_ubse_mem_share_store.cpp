@@ -414,9 +414,11 @@ TEST_F(TestGlobalMasterStore, PutImport_Basic_StoresSummary)
 TEST_F(TestGlobalMasterStore, LoadImport_EnrichesWithExportNumaInfos)
 {
     GlobalMasterStore store;
-    auto exportObj = CreateExportObj("gs03", "exportNode");
-    store.PutExport(exportObj);
     auto importObj = CreateImportObj("gs03", "importNode");
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = "exportNode";
+    numaInfo.size = 4096;
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
     store.PutImport(importObj);
 
     UbseMemShareBorrowImportObj out;
@@ -424,6 +426,7 @@ TEST_F(TestGlobalMasterStore, LoadImport_EnrichesWithExportNumaInfos)
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ(static_cast<size_t>(1), out.algoResult.exportNumaInfos.size());
     EXPECT_EQ("exportNode", out.algoResult.exportNumaInfos[0].nodeId);
+    EXPECT_EQ(static_cast<uint64_t>(4096), out.req.size);
 }
 
 // GS-04: LoadImport_NoExport_StillSucceeds
@@ -538,6 +541,10 @@ TEST_F(TestGlobalMasterStore, ForEachImport_ReconstructsWithNumaAndObmm)
     store.UpdateExportMemIds(exportObj);
 
     auto importObj = CreateImportObj("gs10", "importNode");
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = "exportNode";
+    numaInfo.size = 4096;
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
     store.PutImport(importObj);
 
     int visitCount = 0;
@@ -548,6 +555,7 @@ TEST_F(TestGlobalMasterStore, ForEachImport_ReconstructsWithNumaAndObmm)
         EXPECT_EQ("gs10", name);
         EXPECT_EQ(static_cast<size_t>(1), iObj.algoResult.exportNumaInfos.size());
         EXPECT_EQ("exportNode", iObj.algoResult.exportNumaInfos[0].nodeId);
+        EXPECT_EQ(static_cast<uint64_t>(4096), iObj.req.size);
         EXPECT_EQ(static_cast<size_t>(1), iObj.exportObmmInfo.size());
         EXPECT_EQ(static_cast<uint64_t>(300), iObj.exportObmmInfo[0].memId);
     });

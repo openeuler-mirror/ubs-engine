@@ -288,7 +288,7 @@ TEST_F(TestGlobalLedgerSummaryStore, GetExportItem_ReturnsFullItem)
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = "numa0";
     numaInfo.size = 4096;
-    item.numaInfos.push_back(numaInfo);
+    item.exportNumaInfos.push_back(numaInfo);
 
     item.memids = {42, 43};
     item.faultTypes = {UB_MEM_HEALTHY, UB_MEM_HEALTHY};
@@ -332,7 +332,7 @@ TEST_F(TestGlobalLedgerSummaryStore, GetImportItem_ReturnsFullItem)
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = "numa1";
     numaInfo.size = 8192;
-    item.numaInfos.push_back(numaInfo);
+    item.exportNumaInfos.push_back(numaInfo);
 
     store.PutNodeImportItem("1", item);
 
@@ -341,9 +341,12 @@ TEST_F(TestGlobalLedgerSummaryStore, GetImportItem_ReturnsFullItem)
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ("full_import", out.req.name);
     EXPECT_EQ(static_cast<uint32_t>(512), out.algoResult.blockSize);
+    EXPECT_EQ(static_cast<size_t>(1), out.algoResult.exportNumaInfos.size());
+    EXPECT_EQ("numa1", out.algoResult.exportNumaInfos[0].nodeId);
+    EXPECT_EQ(static_cast<uint64_t>(8192), out.algoResult.exportNumaInfos[0].size);
     EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, out.status.state);
     EXPECT_EQ("1", out.importNodeId);
-    EXPECT_EQ(static_cast<uint64_t>(512), out.req.size);
+    EXPECT_EQ(static_cast<uint64_t>(8192), out.req.size);
     EXPECT_EQ(static_cast<size_t>(3), out.status.importResults.size());
     EXPECT_EQ(static_cast<uint64_t>(7), out.status.importResults[0].memId);
     EXPECT_EQ(static_cast<uint64_t>(8), out.status.importResults[1].memId);

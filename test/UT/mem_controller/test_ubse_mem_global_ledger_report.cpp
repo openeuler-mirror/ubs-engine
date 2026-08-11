@@ -73,6 +73,7 @@ TEST_F(TestGlobalLedgerReport, GlobalSummaryStore_ExportThenImport_UsesCorrectDa
     importObj.req.name = "enrich_test";
     importObj.importNodeId = "3";
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
     store.PutImport(importObj);
 
     UbseMemShareBorrowImportObj out;

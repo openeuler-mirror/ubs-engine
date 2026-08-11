@@ -238,7 +238,7 @@ UbseResult UbseGlobalLedgerSummaryStore::GetExportItem(const std::string &name,
         if (it != summary.shmSummary.exportItems.end() && it->second.state == UBSE_MEM_EXPORT_SUCCESS) {
             exportObj.req.name = it->second.name;
             exportObj.algoResult.blockSize = it->second.blockSize;
-            exportObj.algoResult.exportNumaInfos = it->second.numaInfos;
+            exportObj.algoResult.exportNumaInfos = it->second.exportNumaInfos;
             exportObj.status.state = it->second.state;
             exportObj.req.udsInfo = it->second.userInfo;
             if (memcpy_s(exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, it->second.usrInfo,
@@ -261,9 +261,9 @@ UbseResult UbseGlobalLedgerSummaryStore::GetExportItem(const std::string &name,
             }
             exportObj.req.shmRegion.nodeNum = it->second.nodelist.size();
             exportObj.req.size = 0;
-            for (auto &numaInfo : it->second.numaInfos) {
+            for (auto &numaInfo : it->second.exportNumaInfos) {
                 exportObj.req.size += numaInfo.size;
-            }            
+            }
             return UBSE_OK;
         }
     }
@@ -284,13 +284,17 @@ UbseResult UbseGlobalLedgerSummaryStore::GetImportItem(const std::string &name, 
     }
     importObj.req.name = it->second.name;
     importObj.algoResult.blockSize = it->second.blockSize;
+    importObj.algoResult.exportNumaInfos = it->second.exportNumaInfos;
     importObj.status.state = it->second.state;
     importObj.importNodeId = importNodeId;
     importObj.req.udsInfo = it->second.userInfo;
     if (memcpy_s(importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, it->second.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_WARN << "copy usrInfo failed when get import item, name=" << name;
     }
-    importObj.req.size = it->second.blockSize;
+    importObj.req.size = 0;
+    for (auto &numaInfo : it->second.exportNumaInfos) {
+        importObj.req.size += numaInfo.size;
+    }
     for (const auto &nodeId : it->second.nodelist) {
         ubse::adapter_plugins::mmi::UbseNodeInfo nodeInfo;
         nodeInfo.nodeId = nodeId;
