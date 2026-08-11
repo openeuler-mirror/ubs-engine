@@ -15,9 +15,9 @@
 #include <string>
 #include <vector>
 #include "mockcpp/mokc.h"
-#include "over_commit_pid_fault_executor.h"
 #include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_executor.cpp"
+#include "over_commit_pid_fault_executor.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling {
@@ -181,9 +181,8 @@ TEST_F(TestPidFaultErrorCodeExecutor, ExecuteAll_RpcDispatchFail_ReturnIpcError)
                MpResult(PidFaultStateStore::*)(const std::string&, const TaskPersistState&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&ubse::com::UbseRpcSend,
-               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
-                           const ubse::com::UbseComRespHandler&))
+    MOCKER_CPP(&ubse::com::UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                                    const ubse::com::UbseComRespHandler&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 

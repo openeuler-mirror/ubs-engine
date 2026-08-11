@@ -46,7 +46,7 @@ enum class PlanType : uint32_t
 
 // 单个numa上的内存占用（区分页类型）
 struct NumaMemUsage {
-    pid_t pid = 0;         // 所属进程PID（容器task聚合多pid时迁移需按pid分别下发）
+    pid_t pid = 0;           // 所属进程PID（容器task聚合多pid时迁移需按pid分别下发）
     uint16_t numaId = 0;     // numa ID
     bool isLocal = true;     // 是否本地numa
     int16_t socketId = -1;   // socket ID（远端numa时=-1）
@@ -158,8 +158,8 @@ struct BorrowInNodePlan {
 // 不同本地numa的task也必须分组分笔（usrInfo按本地numa归属，virt_agent水线归还按本地numa触发）
 struct PlanBorrowGroup {
     bool hasSameSocketConstraint = true;
-    int16_t constraintSocketId = -1;  // 约束socket（无约束组无效）
-    uint16_t localNumaId = 0;         // 归属本地numa（取组内首个task的第一个本地numa，容器多本地取第一个）
+    int16_t constraintSocketId = -1; // 约束socket（无约束组无效）
+    uint16_t localNumaId = 0; // 归属本地numa（取组内首个task的第一个本地numa，容器多本地取第一个）
     uint64_t demandKB = 0;            // 本组NEW任务聚合借用需求
     std::vector<std::string> taskIds; // 本组NEW任务的taskId
     // BFD预分配的借出节点（借用时slotIds钉住），空=本轮未分配到借出容量

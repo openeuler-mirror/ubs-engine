@@ -16,9 +16,9 @@
 #include <unordered_set>
 #include <vector>
 #include "mockcpp/mokc.h"
+#include "over_commit_pid_fault_collector.cpp"
 #include "over_commit_pid_fault_collector.h"
 #include "over_commit_pid_fault_error_util.h"
-#include "over_commit_pid_fault_collector.cpp"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace ubse::mem::controller {
@@ -148,9 +148,8 @@ TEST_F(TestPidFaultErrorCodeCollector, QueryPidMemDistribution_AllNodesRpcFail_R
     MOCKER_CPP(&MpConfiguration::GetMpSceneType, MpSceneType(*)(MpConfiguration*))
         .stubs()
         .will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(&ubse::com::UbseRpcSend,
-               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
-                           const ubse::com::UbseComRespHandler&))
+    MOCKER_CPP(&ubse::com::UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                                    const ubse::com::UbseComRespHandler&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -189,9 +188,8 @@ TEST_F(TestPidFaultErrorCodeCollector, QueryPidMemDistribution_PendingNumaStored
     MOCKER_CPP(&MpConfiguration::GetMpSceneType, MpSceneType(*)(MpConfiguration*))
         .stubs()
         .will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(&ubse::com::UbseRpcSend,
-               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
-                           const ubse::com::UbseComRespHandler&))
+    MOCKER_CPP(&ubse::com::UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                                    const ubse::com::UbseComRespHandler&))
         .stubs()
         .will(invoke(MockRpcSendWithPendingNuma));
 
