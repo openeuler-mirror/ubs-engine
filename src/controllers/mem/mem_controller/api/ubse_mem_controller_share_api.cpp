@@ -133,7 +133,7 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
     }
     auto ret = ForwardExportObjToExecutor(exportObj, exportObj.algoResult.exportNumaInfos[0].nodeId);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, req.name, MemType::SHM, req.size,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_EX_SEND_FAILED, req.name, MemType::SHM, req.size,
                             exportObj.algoResult.exportNumaInfos[0].nodeId, "", req.requestNodeId});
         return HandleBorrowExportError(store, exportObj, req, resp);
     }
@@ -221,6 +221,8 @@ static uint32_t PrepareAttachPreconditions(const UbseMemShareAttachReq &req,
         return UBSE_ERR_AUTH_FAILED;
     }
     if (ExistImportObj(req.name, req.importNodeId, importObjs, importObj)) {
+        BorrowFailedAdvice(
+            {MemFault::SHARED_ATTACH_EXIST, req.name, MemType::SHM, req.size, "", req.importNodeId, req.importNodeId});
         ExistImportObjHandler(req, importObj, resp, req.name, req.importNodeId);
         return UBSE_ERR_EXISTED;
     }
@@ -282,7 +284,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
     if (auto ret = ForwardImportObjToExecutor(importObj, req.importNodeId); ret != UBSE_OK) {
         store.RemoveImport(importObj);
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, req.name, MemType::SHM, req.size,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_IM_SEND_FAILED, req.name, MemType::SHM, req.size,
                             importObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, req.requestNodeId});
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to Send import", UBSE_ERR_INTERNAL,
                                           MemOperationType::SHARED_ATTACH);
@@ -348,11 +350,13 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     resp.requestId = req.requestId;
     resp.name = req.name;
     if (!IsMemShareFeatureSupported()) {
+        BorrowFailedAdvice(
+            {MemFault::SHARED_RETURN_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_DETACH);
     }
     if (req.unImportNodeId.empty()) {
         return ShareDetachFailed(req, resp, "Detach with no valid node.", UBSE_ERR_SHM_NODE_EMPTY,
-                                 MemFault::SHARED_DETACH_CHECK_FAILED);
+                                 MemFault::SHARED_FAULT_DETACH_INTERNAL);
     }
     auto waitResult = WaitInitLedgerSuccess(req.unImportNodeId);
     if (waitResult != UBSE_OK) {
@@ -370,6 +374,9 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     //  下发importObj;
     if (auto ret = ForwardImportObjToExecutor(importObj, req.unImportNodeId); ret != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_IM_SEND_FAILED, req.name, MemType::SHM, 0,
+                            importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos[0].nodeId,
+                            req.unImportNodeId, req.requestNodeId});
         return ShareDetachRollback(importObj, req, resp, ret);
     }
     return UBSE_OK;
@@ -439,8 +446,8 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShar
     if (auto ret = UbseMmiInterface::GetInstance().ShmExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to export, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << exportObj.req.requestId;
-        BorrowFailedAdvice(
-    {MemFault::BORROW_OBMM_EXPORT_FAILED, name, MemType::SHM, 0, exportNodeId, "", requestNodeId});
+        BorrowFailedAdvice({MemFault::BORROW_OBMM_EXPORT_FAILED, name, MemType::SHM, exportObj.req.size, exportNodeId,
+                            "", requestNodeId});
         exportObj.errorCode = ret;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
         EraseShareExport(exportObj);
@@ -554,8 +561,8 @@ static uint32_t ShareExportReturnCallback(const std::string &exportNodeId, UbseM
             return UBSE_OK;
         }
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_RETURN); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, exportObj.req.name, MemType::SHM, 0, exportNodeId,
-                                "", exportObj.req.requestNodeId});
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, exportObj.req.name, MemType::SHM, 0,
+                                exportNodeId, "", exportObj.req.requestNodeId});
             return ret;
         }
         return UBSE_OK;
@@ -569,8 +576,8 @@ static uint32_t ShareExportReturnCallback(const std::string &exportNodeId, UbseM
     if (auto ret = BuildOperationRespWhenFail(resp, exportObj.req.name, requestNodeId, "Failed to unexport",
                                               exportObj.errorCode, MemOperationType::SHARED_RETURN);
         ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, exportObj.req.name, MemType::SHM, 0, exportNodeId, "",
-                            exportObj.req.requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, exportObj.req.name, MemType::SHM, 0,
+                            exportNodeId, "", exportObj.req.requestNodeId});
         return ret;
     }
     return UBSE_OK;
@@ -605,7 +612,12 @@ uint32_t ShareExportMasterCallback(const std::string &exportNodeId, UbseMemShare
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
         UBSE_LOG_INFO << "this is shm callback before shm exportObjstateChange, name=" << exportObj.req.name
                       << ", requestId=" << exportObj.req.requestId;
-        return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_BORROW);
+        auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_BORROW);
+        if (ret != UBSE_OK) {
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, exportObj.req.name, MemType::SHM,
+                                exportObj.req.size, exportNodeId, "", exportObj.req.requestNodeId});
+        }
+        return ret;
     }
     // 归还逻辑
     if (exportObj.status.expectState == UBSE_MEM_EXPORT_DESTROYED) {
@@ -749,7 +761,7 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShar
         ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
     }
     if (res = ReportImportObjToLocalMaster(importObj); res != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_IMPORT_SEND_FAILED, importObj.req.name, MemType::SHM, importObj.req.size,
+        BorrowFailedAdvice({MemFault::BORROW_IMPORT_SEND_FAILED, importObj.req.name, MemType::SHM, importObj.req.size,
                             importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, requestNodeId});
     }
     return res;
@@ -847,7 +859,7 @@ static uint32_t ShareImportMasterCreateCallback(UbseMemShareBorrowImportObj &imp
                       << ", requestId=" << importObj.req.requestId;
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_ATTACH); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, importObj.req.name, MemType::SHM,
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, importObj.req.name, MemType::SHM,
                                 importObj.req.size, importObj.algoResult.exportNumaInfos[0].nodeId,
                                 importObj.importNodeId, importObj.req.requestNodeId});
             return ret;
@@ -858,8 +870,8 @@ static uint32_t ShareImportMasterCreateCallback(UbseMemShareBorrowImportObj &imp
     auto ret = BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId, "Failed to import.",
                                           importObj.errorCode, MemOperationType::SHARED_ATTACH);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, importObj.req.name, MemType::SHM, importObj.req.size,
-                            importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, importObj.req.name, MemType::SHM,
+                            importObj.req.size, importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId,
                             importObj.req.requestNodeId});
     }
     return ret;
@@ -882,7 +894,7 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj &im
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
         if (ret != UBSE_OK) {
             BorrowFailedAdvice(
-                {MemFault::RETURN_MASTER_SEND_FAILED, importObj.req.name, MemType::SHM, 0,
+                {MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, importObj.req.name, MemType::SHM, 0,
                  importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos[0].nodeId,
                  importObj.importNodeId, importObj.req.requestNodeId});
         }
@@ -893,7 +905,7 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj &im
                                           importObj.errorCode, MemOperationType::SHARED_DETACH);
     if (ret != UBSE_OK) {
         BorrowFailedAdvice(
-            {MemFault::RETURN_MASTER_SEND_FAILED, importObj.req.name, MemType::SHM, 0,
+            {MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, importObj.req.name, MemType::SHM, 0,
              importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos[0].nodeId,
              importObj.importNodeId, importObj.req.requestNodeId});
     }
@@ -944,12 +956,12 @@ uint32_t DealSendShareUnExportObjFailed(UbseMemShareBorrowExportObj &exportObj, 
 }
 
 static uint32_t ShareReturnFail(const UbseMemReturnReq &req, UbseMemOperationResp &resp, const std::string &msg,
-                                uint32_t errCode, MemFault faultCode, const std::string &exportNodeId = "",
-                                const std::string &importNodeId = "")
+                                uint32_t errCode)
 {
     auto ret = BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::SHARED_RETURN);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice({faultCode, req.name, MemType::SHM, 0, exportNodeId, importNodeId, req.requestNodeId});
+        BorrowFailedAdvice(
+            {MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
     }
     return ret;
 }
@@ -1004,7 +1016,9 @@ static uint32_t ValidateReqPermission(const UbseMemReturnReq &req, const std::st
                        << ", objUid=" << exportObj.req.udsInfo.uid << ", realRequestNodeId=" << realRequestNodeId
                        << ", shmRegionIds=" << shmRegionIds;
         auto enode = exportObj.algoResult.exportNumaInfos.empty() ? "" : exportObj.algoResult.exportNumaInfos[0].nodeId;
-        ShareReturnFail(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemFault::RETURN_AUTH_FAILED, enode);
+        BorrowFailedAdvice(
+            {MemFault::SHARED_RETURN_REG_FAILED, req.name, MemType::SHM, 0, enode, "", req.requestNodeId});
+        ShareReturnFail(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED);
         return UBSE_ERR_AUTH_FAILED;
     }
     return UBSE_OK;
@@ -1018,7 +1032,8 @@ static uint32_t PrepareReturnPreconditions(const UbseMemReturnReq &req, const st
     FindShareBorrowObjByName(req.name, exportObjs, importObjs);
     if (exportObjs.empty() || exportObjs[0].algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "resource not found, name=" << req.name << ", size of exportObjs = " << exportObjs.size();
-        ShareReturnFail(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemFault::RETURN_NAME_NOT_EXIST);
+        BorrowFailedAdvice({MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        ShareReturnFail(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST);
         return UBSE_ERR_NOT_EXIST;
     }
     std::string enode = exportObjs[0].algoResult.exportNumaInfos.begin()->nodeId;
@@ -1065,7 +1080,7 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &r
     PrepareReturnExport(req, store, exportObj);
     if (auto ret = ForwardExportObjToExecutor(exportObj, exportObj.algoResult.exportNumaInfos[0].nodeId);
         ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::SHM, 0,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, req.name, MemType::SHM, 0,
                             exportObj.algoResult.exportNumaInfos[0].nodeId, "", req.requestNodeId});
         return DealSendShareUnExportObjFailed(exportObj, req, resp, req.name);
     }
@@ -1142,6 +1157,8 @@ uint32_t UbseMemShareBorrowClos(UbseMemShareBorrowReq &req, UbseMemOperationResp
     if (!IsMemShareFeatureSupported()) {
         resp.name = req.name;
         resp.requestId = req.requestId;        
+        BorrowFailedAdvice(
+            {MemFault::SHARED_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_BORROW);
     }
     auto lock = LoggingLockGuard(req.name);
@@ -1154,7 +1171,7 @@ uint32_t UbseMemShareBorrowClos(UbseMemShareBorrowReq &req, UbseMemOperationResp
     auto ret = ForwardExportObjToCascade(exportObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to send ExportObj to Cascade Master, name=" << req.name << ", " << FormatRetCode(ret);
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, req.name, MemType::SHM, req.size,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_EX_SEND_FAILED, req.name, MemType::SHM, req.size,
                             exportObj.algoResult.exportNumaInfos[0].nodeId, "", req.requestNodeId});
         return HandleBorrowExportError(store, exportObj, req, resp);
     }
@@ -1271,7 +1288,7 @@ uint32_t GlobalMasterHandlerDeleteExportCallback(const UbseMemShareBorrowExportO
         auto copy = exportObj;
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_RETURN); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::SHM, 0, exportNodeId,
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::SHM, 0, exportNodeId,
                     "", exportObj.req.requestNodeId});
             return ret;
         }
@@ -1290,7 +1307,7 @@ uint32_t GlobalMasterHandlerDeleteExportCallback(const UbseMemShareBorrowExportO
     if (auto ret = BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to unexport", exportObj.errorCode,
                                               MemOperationType::SHARED_RETURN);
         ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::SHM, 0, exportNodeId,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::SHM, 0, exportNodeId,
                 "", exportObj.req.requestNodeId});
         return ret;
     }
@@ -1556,7 +1573,7 @@ uint32_t UbseMemShareCascadeDetach(const UbseMemShareDetachReq &req, UbseMemOper
 
     if (req.unImportNodeId.empty()) {
         return ShareDetachFailed(req, resp, "Detach with no node is valid.", UBSE_ERR_SHM_NODE_EMPTY,
-                                 MemFault::SHARED_DETACH_CHECK_FAILED);
+                                 MemFault::SHARED_FAULT_DETACH_INTERNAL);
     }
 
     UbseMemShareBorrowImportObj importObj{};
@@ -1753,7 +1770,7 @@ static uint32_t ExecuteClosReturnForwardDelete(GlobalMasterStore &store, const U
     if (auto ret = ForwardDeleteToCascade(fullExportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to send Delete to export Cascade Master, name=" << req.name;
         store.UpdateExportState(fullExportObj, UBSE_MEM_EXPORT_SUCCESS);
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::SHM, 0, "", "",
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "",
                             req.requestNodeId});
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to send delete to export Group master.",
                                    ret, MemOperationType::SHARED_RETURN);
