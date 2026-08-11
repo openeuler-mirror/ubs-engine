@@ -43,6 +43,7 @@
 #include "mp_parse_util.h"
 #include "mp_sync_data_helper.h"
 #include "over_commit_msg_handler.h"
+#include "over_commit_pid_fault_state_store.h"
 #include "rmrs_serialize.h"
 #include "securec.h"
 
@@ -3177,6 +3178,13 @@ uint32_t DataReloadInit()
         return MEM_POOLING_ERROR;
     }
     ResetAndDeleteBuffer(buffer);
+
+    // 初始化PID粒度故障处理状态（仅加载到内存，不自动执行）
+    if (PidFaultStateStore::Instance().Init() != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] Failed to init PidFaultStateStore.";
+        return MEM_POOLING_ERROR;
+    }
+
     return MEM_POOLING_OK;
 }
 
