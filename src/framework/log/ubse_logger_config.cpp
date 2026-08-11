@@ -50,9 +50,7 @@ UbseResult UbseLoggerConfig::Initialize()
     // 调用配置管理接口
     auto& ctxRef = UbseContext::GetInstance();
     pImpl_->cfgRef_ = ctxRef.GetModule<UbseConfModule>();
-    if (pImpl_->cfgRef_ == nullptr) {
-        return UBSE_ERROR;
-    }
+    // 配置模块未就绪不视为失败，相关getter会使用默认值，保证日志模块初始化不依赖配置模块
     return UBSE_OK;
 }
 
@@ -62,8 +60,7 @@ std::string UbseLoggerConfig::GetLogCfgLevel()
     std::string logCfgLevel;
     const std::unordered_set<std::string> validLogLevels = {"DEBUG", "INFO", "WARN", "ERROR", "CRIT"};
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
-        return "";
+        return "INFO"; // 配置模块未就绪时的默认日志级别
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<std::string>("ubse.log", "log.level", logCfgLevel);
     if (code != UBSE_OK) {
@@ -83,8 +80,7 @@ uint32_t UbseLoggerConfig::GetLogCfgFileSize()
 {
     uint32_t logCfgFileSize;
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
-        return UBSE_ERROR_NULLPTR;
+        return DEFAULT_LOG_FILESIZE; // 配置模块未就绪时使用默认文件大小
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.max.fileSize", logCfgFileSize);
     if (code != UBSE_OK) {
@@ -104,8 +100,7 @@ uint32_t UbseLoggerConfig::GetLogCfgFileNums()
 {
     uint32_t logCfgFileNums;
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
-        return UBSE_ERROR_NULLPTR;
+        return DEFAULT_LOG_FILENUM; // 配置模块未就绪时使用默认文件个数
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.fileNums", logCfgFileNums);
     if (code != UBSE_OK) {
@@ -125,8 +120,7 @@ uint32_t UbseLoggerConfig::GetLogCfgQueueItems()
 {
     uint32_t logCfgQueueItems;
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
-        return UBSE_ERROR_NULLPTR;
+        return DEFAULT_LOG_ITEM; // 配置模块未就绪时使用默认队列容量
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.queue.maxItem", logCfgQueueItems);
     if (code != UBSE_OK) {
@@ -146,7 +140,6 @@ bool UbseLoggerConfig::GetSyslogSwitch()
 {
     bool syslogOpen;
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
         return DEFAULT_SYSLOG_OPEN;
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<bool>("ubse.log", "log.sys.open", syslogOpen);
@@ -167,7 +160,6 @@ uint32_t UbseLoggerConfig::GetSyslogType()
         {"local0", LOG_LOCAL0}, {"local1", LOG_LOCAL1}, {"local2", LOG_LOCAL2},     {"local3", LOG_LOCAL3},
         {"local4", LOG_LOCAL4}, {"local5", LOG_LOCAL5}, {"local6", LOG_LOCAL6},     {"local7", LOG_LOCAL7}};
     if (pImpl_->cfgRef_ == nullptr) {
-        std::cerr << "Please get ubse logger instance first" << std::endl;
         return LOG_USER;
     }
     uint32_t code = pImpl_->cfgRef_->GetConf<std::string>("ubse.log", "log.sys.type", syslogTypeStr);

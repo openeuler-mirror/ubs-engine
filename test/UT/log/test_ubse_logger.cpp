@@ -444,14 +444,15 @@ TEST_F(TestUbseLogger, TestDecodeData)
  */
 TEST_F(TestUbseLogger, TestUbseIsLog)
 {
+    UbseLoggerManager::gInstance = nullptr;
     UbseLogLevel level = UbseLogLevel::INFO;
-    LoggerOptions options{UbseLoggerManager::StringToLogLevel("INFO"), 30, 20,
-                          1024}; // 设置30为filesize，20为fileNums，1024为maxItem
-    UbseLoggerManager::gInstance = UbseLoggerManager::Instance();
-    UbseLoggerManager::gInstance->SetLogLevel(options.minLogLevel);
+    // 未初始化时懒创建管理器，日志调用不再被静默丢弃
     EXPECT_TRUE(UbseIsLog(level));
-    UbseLoggerManager::gInstance->Destroy();
-    EXPECT_FALSE(UbseIsLog(level));
+    EXPECT_NE(UbseLoggerManager::gInstance, nullptr);
+    UbseLoggerManager::Destroy();
+    // Destroy后再次调用会重新创建管理器（新语义：日志不丢失）
+    EXPECT_TRUE(UbseIsLog(level));
+    UbseLoggerManager::Destroy();
 }
 /*
  * 用例描述：
