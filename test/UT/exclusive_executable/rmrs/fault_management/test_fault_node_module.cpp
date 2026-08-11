@@ -596,9 +596,8 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeSuccess3)
     std::string curDealNodeId;
     std::vector<BorrowRecord> borrowRecords;
     std::vector<BorrowExecuteParam> borrowExecuteParamCollectList;
-    MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeIdList,
-               MpResult(*)(FaultNodeModule*, std::string curDealNodeId,
-                           std::vector<std::string> & borrowAbleNodeIdList))
+    MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeIdList, MpResult(*)(FaultNodeModule*, std::string curDealNodeId,
+                                                                      std::vector<std::string> & borrowAbleNodeIdList))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize,
@@ -611,11 +610,10 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeSuccess3)
                         std::vector<NodeBorrowRecord> & nodeBorrowRecordList))
         .stubs()
         .will(invoke(TestMergeBorrowRecords1));
-    MOCKER_CPP(
-        &FaultNodeModule::NodeMayBorrowFromOtherNode,
-        MpResult(*)(FaultNodeModule*, NodeBorrowRecord nodeBorrowRecord,
-                    std::vector<NodeMemoryInfoWithReservedMem> & ableNodeMemInfoList,
-                    std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList))
+    MOCKER_CPP(&FaultNodeModule::NodeMayBorrowFromOtherNode,
+               MpResult(*)(FaultNodeModule*, NodeBorrowRecord nodeBorrowRecord,
+                           std::vector<NodeMemoryInfoWithReservedMem> & ableNodeMemInfoList,
+                           std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
