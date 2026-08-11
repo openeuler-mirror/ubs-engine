@@ -150,12 +150,12 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node& masterNode)
     }
     masterNode.id = role->GetMasterNode();
     if (masterNode.id.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] masterNode Id is Empty";
+        UBSE_LOG_WARN << "[ELECTION] masterNode Id is Empty";
         return UBSE_ERROR;
     }
     auto ret = ubseElectionNodeMgr.GetNodeInfoByID(masterNode.id, masterNode.ip, masterNode.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] master nodeId =" << masterNode.id << " not in currentAllNodes.";
+        UBSE_LOG_WARN << "[ELECTION] master nodeId =" << masterNode.id << " not in currentAllNodes.";
         masterNode.ip = NODE_IP_NULL;
         masterNode.port = NODE_PORT_NULL;
     }
@@ -172,12 +172,12 @@ UbseResult UbseElectionModule::UbseGetStandbyNode(Node& standbyNode)
     }
     standbyNode.id = role->GetStandbyNode();
     if (standbyNode.id.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] standbyNode Id is Empty";
+        UBSE_LOG_WARN << "[ELECTION] standbyNode Id is Empty";
         return UBSE_ERROR;
     }
     auto ret = ubseElectionNodeMgr.GetNodeInfoByID(standbyNode.id, standbyNode.ip, standbyNode.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] standby nodeId =" << standbyNode.id << " not in currentAllNodes.";
+        UBSE_LOG_WARN << "[ELECTION] standby nodeId =" << standbyNode.id << " not in currentAllNodes.";
         standbyNode.ip = NODE_IP_NULL;
         standbyNode.port = NODE_PORT_NULL;
     }

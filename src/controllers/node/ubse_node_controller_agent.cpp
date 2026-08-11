@@ -160,7 +160,7 @@ UbseResult UbseNodeInfoReport()
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "ubse get master node failed, skip report.";
+        UBSE_LOG_WARN << "ubse get master node failed, skip report.";
         return ret;
     }
     // 若当前节点为主节点，不上报
