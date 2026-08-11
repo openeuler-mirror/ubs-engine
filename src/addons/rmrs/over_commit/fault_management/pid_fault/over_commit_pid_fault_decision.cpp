@@ -376,8 +376,7 @@ MpResult PidFaultDecision::MakeDecisions(const std::string& faultNodeId, const s
     // 集群借出容量快照（所有借入节点共享，master串行扣减，避免并行借用碎片化）；
     // 排除集复用Phase 1账本查询收集的实际借入节点（防借用成环）
     std::vector<LenderNumaCapacity> snapshot;
-    bool snapshotValid =
-        (BuildClusterCapacitySnapshot(faultNodeId, actualBorrowInNodeIds, snapshot) == MEM_POOLING_OK);
+    bool snapshotValid = (BuildClusterCapacitySnapshot(faultNodeId, actualBorrowInNodeIds, snapshot) == MEM_POOLING_OK);
     if (!snapshotValid) {
         LOG_WARN << "BuildClusterCapacitySnapshot failed, NEW tasks will be deferred this round.";
     }
