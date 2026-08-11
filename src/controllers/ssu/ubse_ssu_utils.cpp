@@ -169,4 +169,20 @@ std::string GenerateHostNqn()
     return oss.str();
 }
 
+bool IsValidDevName(const std::string &devName)
+{
+    constexpr size_t MAX_DEV_NAME_LEN = 33; // 与ubse_ssu_obj_message.h中协议上限保持一致，含结尾'\0'
+    if (devName.empty() || devName.size() >= MAX_DEV_NAME_LEN) {
+        return false;
+    }
+    for (char c : devName) {
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace ubse::ssu::utils

@@ -20,8 +20,6 @@ import (
 
 const (
 	UbsSsuMaxNameLength     = 48 // 请求标识最大48个字符, 含结尾字符'\0'
-	UbsSsuMaxResultNameLen  = 32 // 结果名称最大32个字符, 含结尾字符'\0'
-	UbsSsuMaxUserNameLength = 32 // 使用方进程运行用户名称最大长度, 含结尾字符'\0'
 	UbsSsuMaxTenantLength   = 17 // 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
 	UbsSsuMaxNqnLength      = 69 // NVMe NQN最大长度69个字符, 含结尾字符'\0'
 	UbsSsuMaxEidLength      = 17 // EID最大长度, 含结尾字符'\0'
@@ -244,10 +242,7 @@ func UbsSsuFreeSpace(name string) error {
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuAddAccessPermission(name string, nqn string) error {
-	if err := validateName(name); err != nil {
-		return err
-	}
-	if err := validateNqn(nqn); err != nil {
+	if err := validateAccessPermission(name, nqn); err != nil {
 		return err
 	}
 	request := pack.NewBinaryPacker().
@@ -270,10 +265,7 @@ func UbsSsuAddAccessPermission(name string, nqn string) error {
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuRemoveAccessPermission(name string, nqn string) error {
-	if err := validateName(name); err != nil {
-		return err
-	}
-	if err := validateNqn(nqn); err != nil {
+	if err := validateAccessPermission(name, nqn); err != nil {
 		return err
 	}
 	request := pack.NewBinaryPacker().
@@ -295,13 +287,7 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error {
 //   - []string: 挂载后的命名空间设备路径列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
-	if err := validateName(req.Name); err != nil {
-		return nil, err
-	}
-	if err := validateNqn(req.Nqn); err != nil {
-		return nil, err
-	}
-	if err := validateEid(req.SrcEid); err != nil {
+	if err := validateSpaceReq(req); err != nil {
 		return nil, err
 	}
 	request := packSpaceReq(req)
@@ -322,13 +308,7 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
-	if err := validateName(req.Name); err != nil {
-		return err
-	}
-	if err := validateNqn(req.Nqn); err != nil {
-		return err
-	}
-	if err := validateEid(req.SrcEid); err != nil {
+	if err := validateSpaceReq(req); err != nil {
 		return err
 	}
 	request := packSpaceReq(req)
@@ -348,16 +328,7 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
 //   - string: 挂载后的聚合设备路径
 //   - error: 错误信息；成功返回 nil
 func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error) {
-	if err := validateName(req.Name); err != nil {
-		return nil, "", err
-	}
-	if err := validateNqn(req.Nqn); err != nil {
-		return nil, "", err
-	}
-	if err := validateEid(req.SrcEid); err != nil {
-		return nil, "", err
-	}
-	if err := validateDevName(req.DevName); err != nil {
+	if err := validateLinearSpaceReq(req); err != nil {
 		return nil, "", err
 	}
 	request := packLinearSpaceReq(req)
@@ -378,16 +349,7 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
-	if err := validateName(req.Name); err != nil {
-		return err
-	}
-	if err := validateNqn(req.Nqn); err != nil {
-		return err
-	}
-	if err := validateEid(req.SrcEid); err != nil {
-		return err
-	}
-	if err := validateDevName(req.DevName); err != nil {
+	if err := validateLinearSpaceReq(req); err != nil {
 		return err
 	}
 	request := packLinearSpaceReq(req)
@@ -429,16 +391,7 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
-	if err := validateName(req.Name); err != nil {
-		return err
-	}
-	if err := validateNqn(req.Nqn); err != nil {
-		return err
-	}
-	if err := validateEid(req.SrcEid); err != nil {
-		return err
-	}
-	if err := validateDevName(req.DevName); err != nil {
+	if err := validateDetachStripedSpaceReq(req); err != nil {
 		return err
 	}
 	request := packStripedSpaceReq(req)
@@ -514,7 +467,9 @@ func UbsSsuGetFeDeviceList() ([]UbsSsuFe, error) {
 // 参数：
 //   - upi: 租户隔离标识
 //   - vfe: 要绑定的VFE信息
-//   - busInstanceGuid: 总线实例GUID，标识目标虚拟机，长度为UbsSsuMaxGuidLength
+//   - busInstanceGuid: 总线实例GUID，标识目标虚拟机，可传空，非空的话长度须为UbsSsuMaxGuidLength
+//   - 为空：ubse内部创建vm busInstance,
+//   - 非空: 绑定指定虚拟机
 //
 // 返回值：
 //   - string: 分配后的总线实例GUID

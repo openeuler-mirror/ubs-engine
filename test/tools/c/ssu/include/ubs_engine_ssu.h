@@ -257,13 +257,11 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_EXISTED:存储空间已存在;
- * UBS_ENGINE_ERR_ALREADY_ALLOCATED:存储空间已分配, 重复分配报错;
  * UBS_ENGINE_ERR_ALLOCATE:算法分配失败;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
  * @note 当ns_num为1时, strategy参数不生效
- * @note 空间已分配时重复分配将报错, 不再幂等返回成功
  */
 int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t **result);
 /**
@@ -286,11 +284,10 @@ void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result);
  * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
- * UBS_ENGINE_ERR_NO_NEED_FREE:存储空间不存在或已释放, 无需释放报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
- * @note 释放操作不再幂等, 释放不存在的空间将报错(UBS_ENGINE_ERR_NO_NEED_FREE)
+ * @note 释放操作具有幂等性, 释放不存在的空间应返回成功
  */
 int32_t ubs_ssu_space_free(const char *name);
 
@@ -311,8 +308,7 @@ int32_t ubs_ssu_space_free(const char *name);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
- * @note 重复添加同一Host的访问权限是否成功取决于底层适配器实现(适配器不幂等时重复添加可能报错),
- *       调用方不应依赖幂等性保证进行重试
+ * @note 重复添加同一Host的访问权限应返回成功(幂等性保证)
  */
 int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn);
 
@@ -333,8 +329,7 @@ int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
- * @note 命名空间已被删除(不在设备缓存中)时, 移除操作幂等跳过;
- *       重复移除访问权限是否成功取决于底层适配器实现
+ * @note 移除不存在的访问权限应返回成功(幂等性保证)
  * @note 移除权限前应确保该Host已断开与对应命名空间的连接
  */
 int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
@@ -353,7 +348,6 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
@@ -372,7 +366,6 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -395,7 +388,6 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -417,7 +409,6 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
@@ -440,7 +431,6 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -462,7 +452,6 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */

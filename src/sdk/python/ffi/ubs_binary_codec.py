@@ -86,11 +86,11 @@ class BinaryPacker:
             max_len: 字符串最大长度（字节数），超过则截断
         """
         encoded = s.encode('utf-8') if isinstance(s, str) else bytes(s)
-        write_len = min(len(encoded), max_len)
-        self.pack_uint32(write_len)
         if len(encoded) > max_len:
             raise UbsLengthExceededError(
                 f"string length {len(encoded)} exceeds maximum allowed {max_len}")
+        self.pack_uint32(len(encoded))
+        self._buf += encoded
         return self
 
     def pack_bytes(self, data: bytes, max_len: int) -> 'BinaryPacker':
@@ -103,11 +103,11 @@ class BinaryPacker:
             max_len: 字节最大长度，超过则截断
         """
         encoded = bytes(data)
-        write_len = min(len(encoded), max_len)
-        self.pack_uint32(write_len)
         if len(encoded) > max_len:
             raise UbsLengthExceededError(
-                f"string length {len(encoded)} exceeds maximum allowed {max_len}")
+                f"bytes length {len(encoded)} exceeds maximum allowed {max_len}")
+        self.pack_uint32(len(encoded))
+        self._buf += encoded
         return self
 
     def pack_raw(self, data: bytes) -> 'BinaryPacker':
@@ -199,7 +199,7 @@ class BinaryUnpacker:
         """
         length = self.unpack_uint32()
         if length > max_len:
-            raise UbsDecodeError(
+            raise UbsLengthExceededError(
                 f"string length {length} exceeds maximum allowed {max_len}")
         if length == 0:
             return ""
@@ -230,7 +230,7 @@ class BinaryUnpacker:
         """
         length = self.unpack_uint32()
         if length > max_len:
-            raise UbsDecodeError(
+            raise UbsLengthExceededError(
                 f"bytes length {length} exceeds maximum allowed {max_len}")
         if length == 0:
             return b""
@@ -264,6 +264,6 @@ def unpack_list(unpacker: BinaryUnpacker, max_count: int,
     """
     count = unpacker.unpack_uint32()
     if count > max_count:
-        raise UbsDecodeError(
+        raise UbsLengthExceededError(
             f"count {count} exceeds maximum allowed {max_count}")
     return [item_fn(unpacker) for _ in range(count)]

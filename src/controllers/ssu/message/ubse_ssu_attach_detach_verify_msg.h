@@ -61,6 +61,7 @@ struct UbseSsuAttachDetachVerifyResp {
     std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
     // agent无本地账本，attach/detach时需从这里获取namespace列表
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList;
+    std::string devName; // 聚合块设备名称（Linear/Striped场景），master账本记录；agent重复挂载时据此回填devPath，序列化在末尾
 };
 
 class UbseSsuAttachDetachVerifyReqMsg : public ubse::com::UbseRpcMessage {

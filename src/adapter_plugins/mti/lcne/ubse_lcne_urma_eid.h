@@ -38,6 +38,9 @@ public:
     UbseResult GetUrmaEid(
         std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& allMtiComEid);
 
+    void OutPutUrmaEidResultToLog(
+        std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& urmaEidMap);
+
 private:
     UbseLcneUrmaEid(std::string host, int port) : host_(std::move(host)), port_(port) {}
 

@@ -145,6 +145,20 @@ bool IsSafePath(const std::string &path)
     return true;
 }
 
+// 去掉字符串尾部的空白/制表/换行字符，供 pvs、mdadm --detail 等命令输出解析复用。
+std::string TrimTrailingWhitespace(std::string s)
+{
+    while (!s.empty()) {
+        char c = s.back();
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            s.pop_back();
+        } else {
+            break;
+        }
+    }
+    return s;
+}
+
 uint32_t ExecWithSudo(const std::string &cmd, std::string &output)
 {
     std::string sudoCmd = "sudo " + cmd + " 2>&1";
@@ -168,6 +182,19 @@ uint32_t ExecWithSudo(const std::string &cmd, std::string &output)
         UBSE_LOG_INFO << "ExecWithSudo success, cmd=" << cmd;
     }
     return UBSE_OK;
+}
+
+// 回滚：对已创建的物理卷逐个执行 pvremove -ff 并记录失败警告。
+// scenario 用于区分各回滚场景的日志上下文。
+void RollbackCreatedPVs(const std::vector<std::string> &createdPVs, const std::string &scenario)
+{
+    for (const auto &pvPath : createdPVs) {
+        std::string pvOut;
+        if (ExecWithSudo("pvremove -ff " + pvPath, pvOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to pvremove on " << pvPath
+                          << " during " << scenario << ", output=" << pvOut;
+        }
+    }
 }
 
 // 解析 SSU_NVME_SERVER_IP_LIST 的单条条目（格式: IP:PORT/EID）。
@@ -1001,9 +1028,10 @@ uint32_t UbseSsuAdapterImpl::CreateLinearBlockDevice(const std::string& deviceNa
     for (const auto& devPath : devicePathList) {
         if (ExecWithSudo("pvcreate -y " + devPath, output) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to create PV for " << devPath << ", output=" << output;
-            for (const auto& pvPath : createdPVs) {
-                ExecWithSudo("pvremove -ff " + pvPath, output);
-            }
+            // pvcreate 失败不代表完全没写入（部分写入 label 后失败、盘上已有残留 PV 等都可能
+            // 退出非 0），对失败盘也尝试 pvremove 兜底，与已成功盘一并清理。
+            createdPVs.push_back(devPath);
+            RollbackCreatedPVs(createdPVs, "PV create rollback");
             return UBSE_ERROR;
         }
         createdPVs.push_back(devPath);
@@ -1016,20 +1044,24 @@ uint32_t UbseSsuAdapterImpl::CreateLinearBlockDevice(const std::string& deviceNa
     }
     if (ExecWithSudo(vgCmd, output) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to create VG " << vgName << ", output=" << output;
-        for (const auto& pvPath : createdPVs) {
-            ExecWithSudo("pvremove -ff " + pvPath, output);
-        }
+        RollbackCreatedPVs(createdPVs, "VG create rollback");
         return UBSE_ERROR;
     }
 
     // 创建逻辑卷（线性模式，分配全部空间）
     if (ExecWithSudo("lvcreate -y -l 100%FREE -n " + deviceName + " " + vgName, output) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to create LV " << deviceName << " in VG " << vgName << ", output=" << output;
-        ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output);
-        ExecWithSudo("vgremove -f " + vgName, output);
-        for (const auto& pvPath : createdPVs) {
-            ExecWithSudo("pvremove -ff " + pvPath, output);
+        std::string lvOut;
+        if (ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, lvOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to lvremove " << vgName << "/" << deviceName
+                          << " during LV create rollback, output=" << lvOut;
         }
+        std::string vgOut;
+        if (ExecWithSudo("vgremove -f " + vgName, vgOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to vgremove " << vgName
+                          << " during LV create rollback, output=" << vgOut;
+        }
+        RollbackCreatedPVs(createdPVs, "LV create rollback");
         return UBSE_ERROR;
     }
 
@@ -1038,11 +1070,17 @@ uint32_t UbseSsuAdapterImpl::CreateLinearBlockDevice(const std::string& deviceNa
     if (CreateSsuDevSymlink(deviceName, actualPath, devicePath) != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to create symlink for " << deviceName
                       << ", rolling back LVM (vg=" << vgName << ")";
-        ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output);
-        ExecWithSudo("vgremove -f " + vgName, output);
-        for (const auto& pvPath : createdPVs) {
-            ExecWithSudo("pvremove -ff " + pvPath, output);
+        std::string lvOut;
+        if (ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, lvOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to lvremove " << vgName << "/" << deviceName
+                          << " during symlink rollback, output=" << lvOut;
         }
+        std::string vgOut;
+        if (ExecWithSudo("vgremove -f " + vgName, vgOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to vgremove " << vgName
+                          << " during symlink rollback, output=" << vgOut;
+        }
+        RollbackCreatedPVs(createdPVs, "symlink rollback");
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -1074,7 +1112,7 @@ uint32_t UbseSsuAdapterImpl::CreateStripedBlockDevice(const std::string& deviceN
     std::string cmd = "mdadm --create " + mdPath + " --auto=yes --run --level=" + md_level_str +
                       " --raid-devices=" + std::to_string(devicePathList.size());
     // options.chunkSize 单位为 KB（见 ubse_ssu_def.h），mdadm --chunk 同样以 KB 为单位，
-    // 二者单位一致，无需再乘 1024（原先 * 1024 会将值放大 1024 倍导致 mdadm 失败）。
+    // 二者单位一致，直接透传即可。
     uint64_t chunkKb = static_cast<uint64_t>(options.chunkSize);
     if (chunkKb != 0) {
         cmd += " --chunk=" + std::to_string(chunkKb);
@@ -1187,33 +1225,127 @@ uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
         UBSE_LOG_INFO << "Block device " << deviceName << " does not exist, returning success (idempotent)";
         return UBSE_OK;
     }
-    std::string output;
-    // 如果LVM设备存在，尝试删除LVM
+
     if (lvmDeviceExists) {
-        if (ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output) == UBSE_OK) {
-            ExecWithSudo("vgremove -f " + vgName, output);
-            RemoveSsuDevSymlink(deviceName);
-            UBSE_LOG_INFO << "Successfully deleted LVM block device " << deviceName;
-            return UBSE_OK;
-        }
-        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ", output=" << output;
-        return UBSE_ERROR;
+        return DeleteLvmBlockDevice(deviceName, vgName);
     }
-    // 如果md设备存在，尝试删除md
     if (mdDeviceExists) {
-        if (ExecWithSudo("mdadm --stop --force " + mdDevicePath, output) == UBSE_OK) {
-            RemoveSsuDevSymlink(deviceName);
-            UBSE_LOG_INFO << "Successfully deleted mdadm block device " << deviceName;
-            return UBSE_OK;
-        }
-        UBSE_LOG_ERROR << "Failed to delete mdadm block device " << deviceName << ", output=" << output;
-        return UBSE_ERROR;
+        return DeleteMdBlockDevice(deviceName, mdDevicePath);
     }
     // 底层设备不存在但符号链接残留，清理符号链接
     if (ssuLinkExists) {
         RemoveSsuDevSymlink(deviceName);
         UBSE_LOG_INFO << "Removed orphan symlink for block device " << deviceName;
     }
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::DeleteLvmBlockDevice(const std::string &deviceName, const std::string &vgName)
+{
+    // 删除前先查询 VG 的成员盘列表。vgremove/lvremove 不会清除成员盘上的 PV 元数据，
+    // 必须显式 pvremove，否则成员盘残留 LVM label/metadata，重启后 pvscan 可能重组 VG，
+    // 并影响后续对同一批盘的 pvcreate（与 mdadm 漏 zero-superblock 同类问题）。
+    std::vector<std::string> memberPVs;
+    std::string output;
+    {
+        std::string pvsOutput;
+        // pvs 输出形如 "  /dev/sda1\n  /dev/sda2\n"，-S vg_name=<vg> 精确过滤该 VG 成员。
+        if (ExecWithSudo("pvs --noheadings -o pv_name -S vg_name=" + vgName, pvsOutput) == UBSE_OK) {
+            std::istringstream iss(pvsOutput);
+            std::string line;
+            while (std::getline(iss, line)) {
+                auto first = line.find_first_not_of(" \t");
+                if (first == std::string::npos) {
+                    continue;
+                }
+                std::string pvPath = TrimTrailingWhitespace(line.substr(first));
+                if (IsSafePath(pvPath)) {
+                    memberPVs.push_back(pvPath);
+                }
+            }
+        } else {
+            UBSE_LOG_WARN << "Failed to query PVs for VG " << vgName
+                          << ", will still remove LV/VG but skip pvremove, output=" << pvsOutput;
+        }
+    }
+
+    if (ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ", output=" << output;
+        return UBSE_ERROR;
+    }
+
+    std::string vgOut;
+    if (ExecWithSudo("vgremove -f " + vgName, vgOut) != UBSE_OK) {
+        // vgremove 失败说明 VG 仍存在（如残留 LV、metadata 损坏等）。此时不再执行
+        // pvremove，否则会把 VG 变成无成员盘的"空壳 VG"，形成更难排查的不一致状态。
+        // 返回错误让调用方知晓删除未完全成功，符号链接一并清理。
+        UBSE_LOG_ERROR << "Failed to vgremove " << vgName
+                       << " during delete, output=" << vgOut
+                       << ", LV already removed but VG metadata may remain";
+        RemoveSsuDevSymlink(deviceName);
+        return UBSE_ERROR;
+    }
+    for (const auto& pv : memberPVs) {
+        std::string pvOut;
+        if (ExecWithSudo("pvremove -ff " + pv, pvOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to pvremove on " << pv
+                          << " during delete, output=" << pvOut;
+        }
+    }
+    RemoveSsuDevSymlink(deviceName);
+    UBSE_LOG_INFO << "Successfully deleted LVM block device " << deviceName;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::DeleteMdBlockDevice(const std::string &deviceName, const std::string &mdDevicePath)
+{
+    // stop 之前先用 --detail 查询成员盘列表，stop 后 --detail 不可用。
+    // 成员盘路径来自 mdadm 输出（非 RPC 输入），但拼入 ExecWithSudo 前仍走 IsSafePath
+    // 白名单校验，避免异常输出被注入 shell 命令。
+    std::vector<std::string> memberDevs;
+    std::string output;
+    {
+        std::string detailOutput;
+        if (ExecWithSudo("mdadm --detail " + mdDevicePath, detailOutput) == UBSE_OK) {
+            std::istringstream iss(detailOutput);
+            std::string line;
+            while (std::getline(iss, line)) {
+                // 成员盘行形如 "  0   8   1   0   active sync   /dev/sda1"
+                auto pos = line.find("/dev/");
+                if (pos == std::string::npos) {
+                    continue;
+                }
+                std::string devPath = TrimTrailingWhitespace(line.substr(pos));
+                // mdadm 首行 /dev/md/<name>: 末尾带 ':'，无法通过 IsSafePath，会被自动排除，无需特判。
+                if (IsSafePath(devPath)) {
+                    memberDevs.push_back(devPath);
+                }
+            }
+        } else {
+            UBSE_LOG_WARN << "Failed to query md detail for " << mdDevicePath
+                          << ", will still stop md but skip zero-superblock, output=" << detailOutput;
+        }
+    }
+
+    if (ExecWithSudo("mdadm --stop --force " + mdDevicePath, output) != UBSE_OK) {
+        // stop 失败说明阵列仍在运行（成员盘仍在阵列中，zero-superblock 无意义），
+        // 补充说明成员盘 superblock 尚未清理，便于运维判断残留状态。
+        UBSE_LOG_ERROR << "Failed to stop mdadm device " << mdDevicePath
+                       << ", member superblocks not cleaned (" << memberDevs.size()
+                       << " devices pending), output=" << output;
+        return UBSE_ERROR;
+    }
+    // stop 仅卸载阵列运行态，成员盘 superblock 仍残留，必须 zero-superblock 彻底清理，
+    // 否则重启后 mdadm 增量装配可能将成员盘重组为幽灵阵列，并影响后续对同一批盘的 create。
+    for (const auto& dev : memberDevs) {
+        std::string zeroOut;
+        if (ExecWithSudo("mdadm --zero-superblock " + dev, zeroOut) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to zero superblock on " << dev
+                          << " during delete, output=" << zeroOut;
+        }
+    }
+    RemoveSsuDevSymlink(deviceName);
+    UBSE_LOG_INFO << "Successfully deleted mdadm block device " << deviceName;
     return UBSE_OK;
 }
 

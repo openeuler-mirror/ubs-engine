@@ -105,12 +105,6 @@ typedef enum
     UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID = 1040,          // URMA设备名称无效
 
     UBS_ENGINE_ERR_IMPORT_LEDGERING = 1041, // 导入节点对账中
-
-    /* ====================== 重复操作错误码 (2000-2099) ====================== */
-    UBS_ENGINE_ERR_ALREADY_ALLOCATED = 2000, // 空间已分配, 重复分配报错
-    UBS_ENGINE_ERR_ALREADY_ATTACHED = 2001,  // 空间已挂载, 重复挂载报错
-    UBS_ENGINE_ERR_NO_NEED_FREE = 2002,      // 空间不存在或已释放, 无需释放报错
-    UBS_ENGINE_ERR_NO_NEED_DETACH = 2003,    // 空间已卸载或未挂载, 无需卸载报错
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */

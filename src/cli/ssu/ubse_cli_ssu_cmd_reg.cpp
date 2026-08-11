@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "ubse_cli_buffer_guard.h"
+#include "ubse_cli_ssu_error.h"
 #include "ubse_cli_ssu_limits.h"
 #include "ubse_cli_ssu_struct.h"
 #include "ubse_error.h"
@@ -100,11 +101,6 @@ const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
-std::string InternalError(uint32_t code)
-{
-    return "ERROR: Internal error with error code " + std::to_string(code) + ".";
-}
-
 // ns_num 的合法区间随 SSU_CLI_DEFAULT_NS_NUM/SSU_CLI_MAX_NS_NUM 变化，故区间按常量动态拼接，
 // 避免改契约时错误文案与实际校验脱节（与 ParseNsNum 的判定保持单一来源）。
 std::string InvalidNsNumError()
@@ -149,24 +145,72 @@ bool IsValidDevName(const std::string &devName);
 bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level);
 bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize);
 std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key);
-std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response);
-std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response);
+std::string FormatAttachOutput(const UbseCliSsuAttachSpaceRsp &response);
+std::string FormatAttachOutput(const UbseCliSsuAttachAggregatedRsp &response);
 
+/**
+ * @brief 调用底层 SSU IPC，并将返回码和原始响应缓冲区交给回调处理。
+ *
+ * @tparam PostCall 回调类型，签名应兼容 `(uint32_t, const ubse_api_buffer_t &)`。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU 操作码。
+ * @param [IN] reqBuffer 已序列化的请求缓冲区，须在同步调用返回前保持有效。
+ * @param [IN] postCall IPC 调用完成后的处理回调；响应缓冲区仅在回调执行期间有效。
+ * @return CLI 回显结果，具体成功或错误内容由 postCall 生成。
+ */
 template <typename PostCall>
-std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
-                                                const ubse_api_buffer_t &reqBuffer, PostCall postCall)
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpcRaw(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                   const ubse_api_buffer_t &reqBuffer, PostCall postCall)
 {
     ubse_api_buffer_t resBuffer{};
     uint32_t ret = ubse_invoke_call(static_cast<uint16_t>(module), static_cast<uint16_t>(op), &reqBuffer, &resBuffer);
     UbseCliBufferGuard guard(resBuffer);
-    if (ret != UBSE_OK) {
-        return UbseCliRegModule::UbseCliStringPromptReply(InternalError(ret));
-    }
-
-    return postCall(resBuffer);
+    return postCall(ret, resBuffer);
 }
 
-// 请求 payload 在同步 ubse_invoke_call 返回前由本函数的 vector 持有。
+/**
+ * @brief 调用 SSU IPC，统一拦截非零返回码，并在成功时将原始响应交给回调处理。
+ *
+ * 使用场景：请求缓冲区已经完成序列化，且调用方需要自行处理成功响应的原始字节；同时作为其他InvokeSsuIpc 重载复用的公共入口
+ * 该重载适用于普通 IPC 语义，即非零返回码直接转换为 CLI 错误，
+ *
+ * @tparam PostCall 成功回调类型，签名应兼容 `(const ubse_api_buffer_t &)`。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU 操作码。
+ * @param [IN] reqBuffer 已序列化的请求缓冲区，须在同步调用返回前保持有效。
+ * @param [IN] postCall IPC 成功后的响应处理回调；响应缓冲区仅在回调执行期间有效。
+ * @return CLI 回显结果；IPC 失败时包含错误信息，成功时返回 postCall 生成的结果。
+ */
+template <typename PostCall>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                const ubse_api_buffer_t &reqBuffer, PostCall postCall)
+{
+    return InvokeSsuIpcRaw(module, op, reqBuffer,
+                           [postCall = std::move(postCall)](uint32_t ret,
+                                                           const ubse_api_buffer_t &resBuffer) mutable {
+                               if (ret != UBSE_OK) {
+                                   return UbseCliRegModule::UbseCliStringPromptReply(GetSsuErrorMessage(ret));
+                               }
+                               return postCall(resBuffer);
+                           });
+}
+
+/**
+ * @brief 序列化请求并调用 SSU IPC，在成功后反序列化响应并构造 CLI 输出。
+ *
+ * 使用场景：同时具有请求体和响应体的常规命令
+ *
+ * 请求 payload 在同步 ubse_invoke_call 返回前由本函数的 vector 持有。
+ *
+ * @tparam ReqT 请求类型，须提供 Serialize 接口。
+ * @tparam RspT 响应类型，须提供 Deserialize 接口。
+ * @tparam BuildOutput 输出构造回调类型，签名应兼容 `(const RspT &)`。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU 操作码。
+ * @param [IN] request 待序列化的请求对象。
+ * @param [IN] buildOutput 响应反序列化成功后的 CLI 输出构造回调。
+ * @return CLI 回显结果；可能包含序列化、IPC 或反序列化错误，也可能是 buildOutput 生成的成功结果。
+ */
 template <typename ReqT, typename RspT, typename BuildOutput>
 std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
                                                 const ReqT &request, BuildOutput buildOutput)
@@ -186,7 +230,65 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, u
                         });
 }
 
-// 无请求体、有响应体：内部生成长度为 0 的请求，不创建伪序列化协议头。
+/**
+ * @brief 序列化 attach 请求并调用 SSU IPC，同时处理成功响应和重复挂载响应中的设备路径。
+ *
+ * 使用场景：仅用于 attach 命令。UBSE_ERR_ALREADY_ATTACHED 可携带与成功响应相同的路径信息，
+ * 因此该错误码需要继续反序列化响应；其他非零返回码仍直接转换为 CLI 错误。若重复挂载响应体
+ * 尚未提供或已损坏，则保留明确的重复挂载错误，不将其覆盖为客户端反序列化错误。
+ *
+ * @tparam ReqT attach 请求类型，须提供 Serialize 接口。
+ * @tparam RspT attach 响应类型，须提供 Deserialize 接口和对应的 FormatAttachOutput 重载。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU attach 操作码。
+ * @param [IN] request 待序列化的 attach 请求对象。
+ * @return CLI 回显结果；成功时包含设备路径，重复挂载时包含可用设备路径和业务错误，
+ *         其他失败场景包含对应的序列化、IPC 或反序列化错误。
+ */
+template <typename ReqT, typename RspT>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuAttachIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                      const ReqT &request)
+{
+    std::vector<uint8_t> payload;
+    if (!request.Serialize(payload)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_SERIALIZATION);
+    }
+    const ubse_api_buffer_t reqBuffer{payload.data(), static_cast<uint32_t>(payload.size())};
+    return InvokeSsuIpcRaw(module, op, reqBuffer, [](uint32_t ret, const ubse_api_buffer_t &resBuffer) {
+        if (ret != UBSE_OK && ret != UBSE_ERR_ALREADY_ATTACHED) {
+            return UbseCliRegModule::UbseCliStringPromptReply(GetSsuErrorMessage(ret));
+        }
+
+        RspT response;
+        // 反序列化失败但返回码为"已挂载"时，优先显示已挂载的明确报错，避免被反序列化错误掩盖。
+        if (!response.Deserialize(resBuffer.buffer, resBuffer.length)) {
+            const std::string message =
+                ret == UBSE_ERR_ALREADY_ATTACHED ? GetSsuErrorMessage(ret) : ERR_DESERIALIZATION;
+            return UbseCliRegModule::UbseCliStringPromptReply(message);
+        }
+
+        std::string output = FormatAttachOutput(response);
+        if (ret == UBSE_ERR_ALREADY_ATTACHED) {
+            output += "\n" + GetSsuErrorMessage(ret);
+        }
+        return UbseCliRegModule::UbseCliStringPromptReply(output);
+    });
+}
+
+/**
+ * @brief 调用无请求体、有响应体的 SSU IPC，并在成功后反序列化响应和构造 CLI 输出。
+ *
+ * 使用场景：命令无需向 service 传递业务参数，但需要消费响应体
+ *
+ * 内部生成长度为 0 的请求，不创建伪序列化协议头。
+ *
+ * @tparam RspT 响应类型，须提供 Deserialize 接口。
+ * @tparam BuildOutput 输出构造回调类型，签名应兼容 `(const RspT &)`。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU 操作码。
+ * @param [IN] buildOutput 响应反序列化成功后的 CLI 输出构造回调。
+ * @return CLI 回显结果；可能包含 IPC 或反序列化错误，也可能是 buildOutput 生成的成功结果。
+ */
 template <typename RspT, typename BuildOutput>
 std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
                                                 BuildOutput buildOutput)
@@ -202,7 +304,17 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, u
                         });
 }
 
-// 有请求体、无响应体：默认序列化请求，IPC 成功后直接返回空输出。
+/**
+ * @brief 调用有请求体、无响应体的 SSU IPC，成功后返回空的 CLI 输出。
+ *
+ * 使用场景：service 成功时无需返回业务数据的操作
+ *
+ * @tparam ReqT 请求类型，须提供 Serialize 接口。
+ * @param [IN] module IPC 模块码。
+ * @param [IN] op SSU 操作码。
+ * @param [IN] request 待序列化的请求对象。
+ * @return CLI 回显结果；序列化或 IPC 失败时包含错误信息，成功时内容为空。
+ */
 template <typename ReqT>
 std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
                                                 const ReqT &request)
@@ -227,9 +339,8 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachSpace(const std::map<std::string,
     request.name = params.at(NAME_OPT);
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
     request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
-    return InvokeSsuIpc<UbseCliSsuAttachSpaceReq, UbseCliSsuAttachSpaceRsp>(
-        UBSE_SSU, UBSE_IPC_SSU_ATTACH_SPACE, request,
-        [](const UbseCliSsuAttachSpaceRsp &response) { return BuildAttachOutput(response); });
+    return InvokeSsuAttachIpc<UbseCliSsuAttachSpaceReq, UbseCliSsuAttachSpaceRsp>(UBSE_SSU,
+                                                                                UBSE_IPC_SSU_ATTACH_SPACE, request);
 }
 
 std::shared_ptr<UbseCliResultEcho> HandleAttachLinear(const std::map<std::string, std::string> &params)
@@ -250,9 +361,8 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachLinear(const std::map<std::string
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
     request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
     request.devName = devName->second;
-    return InvokeSsuIpc<UbseCliSsuAttachLinearReq, UbseCliSsuAttachAggregatedRsp>(
-        UBSE_SSU, UBSE_IPC_SSU_ATTACH_LINEAR_SPACE, request,
-        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+    return InvokeSsuAttachIpc<UbseCliSsuAttachLinearReq, UbseCliSsuAttachAggregatedRsp>(
+        UBSE_SSU, UBSE_IPC_SSU_ATTACH_LINEAR_SPACE, request);
 }
 
 std::shared_ptr<UbseCliResultEcho> HandleAttachStriped(const std::map<std::string, std::string> &params)
@@ -285,9 +395,8 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachStriped(const std::map<std::strin
     if (!ParseChunkSize(chunkSize->second, request.chunkSize)) {
         return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_CHUNK_SIZE);
     }
-    return InvokeSsuIpc<UbseCliSsuAttachStripedReq, UbseCliSsuAttachAggregatedRsp>(
-        UBSE_SSU, UBSE_IPC_SSU_ATTACH_STRIPED_SPACE, request,
-        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+    return InvokeSsuAttachIpc<UbseCliSsuAttachStripedReq, UbseCliSsuAttachAggregatedRsp>(
+        UBSE_SSU, UBSE_IPC_SSU_ATTACH_STRIPED_SPACE, request);
 }
 
 std::shared_ptr<UbseCliResultEcho> HandleDetachSpace(const std::map<std::string, std::string> &params)
@@ -828,15 +937,14 @@ std::string JoinNsDevPaths(const std::vector<std::string> &paths)
     return output;
 }
 
-std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response)
+std::string FormatAttachOutput(const UbseCliSsuAttachSpaceRsp &response)
 {
-    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths));
+    return "ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths);
 }
 
-std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response)
+std::string FormatAttachOutput(const UbseCliSsuAttachAggregatedRsp &response)
 {
-    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths) +
-                                                      "\ndev_path: " + response.devPath);
+    return "ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths) + "\ndev_path: " + response.devPath;
 }
 
 } // namespace

@@ -282,13 +282,13 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
             eidGroups[GetEidGroupId(eid)].portEids[std::to_string(portId)] = eid;
             ubseEidXml->Previous();
         } else {
-            UBSE_LOG_ERROR << "[MTI] Xml parse communication-info failed, which label is not supported";
+            UBSE_LOG_ERROR << "[MTI] Xml parse urma-communication-info failed, which label is not supported";
             return UBSE_ERROR;
         }
         i++;
         ubseEidXml->Previous();
     }
-    UBSE_LOG_DEBUG << "ubpuId=" << feInfo.ubpuId << ", entityId=" << feInfo.entityId
+    UBSE_LOG_DEBUG << "[MTI] ubpuId=" << feInfo.ubpuId << ", entityId=" << feInfo.entityId
                    << ", eidGroups.size=" << eidGroups.size();
     for (auto& group : eidGroups) {
         group.second.entityId = feInfo.entityId;
@@ -391,9 +391,6 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
 
 std::string UbseLcneFeEid::GetEidGroupId(std::string eid)
 {
-    if (!UbseSmbios::GetInstance().IsClosType()) {
-        return eid.substr(NO_0, NO_20);
-    }
     // EID 128位bit字符串，第121位到第125位为EID组ID
     std::string bitStr;
     if (ParseBaseEid(eid, bitStr) != UBSE_OK) {

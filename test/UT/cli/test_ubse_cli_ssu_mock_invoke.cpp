@@ -468,6 +468,34 @@ uint32_t mock_ssu_attach_space_invoke_call_bad_response(uint16_t moduleCode, uin
                          [](UbsePackUtil& pack) { return pack.UbsePackUint32(UINT32_MAX); });
 }
 
+uint32_t mock_ssu_attach_space_invoke_call_already_attached(uint16_t moduleCode, uint16_t opCode,
+                                                            const ubse_api_buffer_t* requestData,
+                                                            ubse_api_buffer_t* responseData)
+{
+    auto ret = mock_ssu_attach_space_invoke_call_normal(moduleCode, opCode, requestData, responseData);
+    return ret == UBSE_OK ? UBSE_ERR_ALREADY_ATTACHED : ret;
+}
+
+uint32_t mock_ssu_attach_space_invoke_call_bad_already_attached(uint16_t moduleCode, uint16_t opCode,
+                                                                const ubse_api_buffer_t* requestData,
+                                                                ubse_api_buffer_t* responseData)
+{
+    auto ret = mock_ssu_attach_space_invoke_call_bad_response(moduleCode, opCode, requestData, responseData);
+    return ret == UBSE_OK ? UBSE_ERR_ALREADY_ATTACHED : ret;
+}
+
+uint32_t mock_ssu_attach_space_invoke_call_already_attached_without_response(uint16_t moduleCode, uint16_t opCode,
+                                                                             const ubse_api_buffer_t* requestData,
+                                                                             ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    if (responseData != nullptr) {
+        responseData->buffer = nullptr;
+        responseData->length = 0;
+    }
+    return UBSE_ERR_ALREADY_ATTACHED;
+}
+
 uint32_t mock_ssu_attach_linear_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
                                                    const ubse_api_buffer_t* requestData,
                                                    ubse_api_buffer_t* responseData)
@@ -476,12 +504,38 @@ uint32_t mock_ssu_attach_linear_invoke_call_normal(uint16_t moduleCode, uint16_t
     return BuildAttachAggregatedResponse({"/dev/nvme0n1", "/dev/nvme1n1"}, "/dev/ubse_ssu0", responseData);
 }
 
+uint32_t mock_ssu_attach_linear_invoke_call_already_attached(uint16_t moduleCode, uint16_t opCode,
+                                                             const ubse_api_buffer_t* requestData,
+                                                             ubse_api_buffer_t* responseData)
+{
+    auto ret = mock_ssu_attach_linear_invoke_call_normal(moduleCode, opCode, requestData, responseData);
+    return ret == UBSE_OK ? UBSE_ERR_ALREADY_ATTACHED : ret;
+}
+
+uint32_t mock_ssu_attach_linear_invoke_call_bad_already_attached(uint16_t moduleCode, uint16_t opCode,
+                                                                 const ubse_api_buffer_t* requestData,
+                                                                 ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    auto ret = BuildResponse(sizeof(uint32_t), responseData,
+                             [](UbsePackUtil& pack) { return pack.UbsePackUint32(UINT32_MAX); });
+    return ret == UBSE_OK ? UBSE_ERR_ALREADY_ATTACHED : ret;
+}
+
 uint32_t mock_ssu_attach_striped_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
                                                     const ubse_api_buffer_t* requestData,
                                                     ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAttachAggregatedResponse({"/dev/nvme0n1", "/dev/nvme1n1"}, "/dev/ubse_ssu0", responseData);
+}
+
+uint32_t mock_ssu_attach_striped_invoke_call_already_attached(uint16_t moduleCode, uint16_t opCode,
+                                                              const ubse_api_buffer_t* requestData,
+                                                              ubse_api_buffer_t* responseData)
+{
+    auto ret = mock_ssu_attach_striped_invoke_call_normal(moduleCode, opCode, requestData, responseData);
+    return ret == UBSE_OK ? UBSE_ERR_ALREADY_ATTACHED : ret;
 }
 
 uint32_t mock_ssu_detach_invoke_call_normal(uint16_t moduleCode, uint16_t opCode, const ubse_api_buffer_t* requestData,
