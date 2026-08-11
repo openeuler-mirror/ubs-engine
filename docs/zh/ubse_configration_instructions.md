@@ -68,7 +68,7 @@ section取值：[ubse.election]
 | 1  | heartbeat.timeInterval  | 发送心跳间隔时间，单位毫秒。  | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 |
 | 2  | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。    | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。                   |
 | 3  | election.candidate | 节点是否参与选主。       | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
-| 4  | election.candidateNodes | 候选主节点ID列表（逗号分隔）。<br>⚠ 集群内所有节点该配置项必须配置一致。 | 默认值：用#注释（不配置）<br>配置且非空时，仅列表内节点可升主，election.candidate 开关不再生效；<br>未配置/为空/解析非法时，回退到 election.candidate 开关。 |
+| 4  | election.candidateNodes | 候选主节点ID列表（逗号分隔）。<br>⚠ 集群内所有节点该配置项必须配置一致。 | 默认值：用#注释（不配置）<br>配置且非空时，仅列表内节点可升主，election.candidate 开关不再生效；<br>未配置/为空/解析非法时，该配置不生效，election.candidate 生效。 |
 | 5  | election.wait | 节点是否等待最小节点发起选主。 | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
 
 ## rpc通信配置说明
@@ -82,6 +82,8 @@ section取值：[ubse.rpc]
 | 1    | request.timeout | rpc通信接口的超时时间。          | 默认值：60<br>单位：秒<br>取值范围：[0,65535]<br>如果取值超过范围，则取默认值60。                                       |
 | 2    | cluster.ipList  | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：用#注释<br>打开此配置时（取消注释），使用tcp通信，此配置注释时使用urma通信。<br>tcp通信参考值：192.168.100.100-192.168.100.103<br>上述参考值等同于配置192.168.100.100,192.168.100.101,192.168.100.102,192.168.100.103。|
 | 3    | cert.use        | rpc安全证书能力开关。           | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。                                |
+
+**证书 otherName OID 传 nodeId 示例：** 开启 `cert.use=true` 后，需导入本节点身份证书；证书 SAN 的 otherName（OID `1.3.6.1.4.1.2011.999.1`，UTF8String）值必须等于**本节点 nodeId**，否则握手被拒。第三方/自建 CA 完整生成示例见 [ubse_security_description.md：证书 otherName OID 传 nodeId 示例](./ubse_security_description.md#证书-othername-oid-传-nodeid-示例)。
 
 ## UBFM对接配置说明
 

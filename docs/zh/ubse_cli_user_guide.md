@@ -130,6 +130,8 @@ Enter certificate password:
 Certificates imported successfully
 ```
 
+**证书 otherName OID 传 nodeId 示例：** `-s` 指定的 server.pem 中 SAN 的 otherName（OID `1.3.6.1.4.1.2011.999.1`，UTF8String）值**必须等于本节点 nodeId**，否则 TLS 握手被拒。第三方/自建 CA 完整生成示例见 [ubse_security_description.md：证书 otherName OID 传 nodeId 示例](./ubse_security_description.md#证书-othername-oid-传-nodeid-示例)。
+
 ### 移除证书
 
 **描述**
