@@ -429,9 +429,12 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     auto existingEntry = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    // 已存在CREATED状态条目，拒绝重复alloc
-    if (existingEntry != nullptr && existingEntry->state == UbseSsuNsState::CREATED) {
-        UBSE_LOG_WARN << "ExecuteAlloc: ledger entry already exists in CREATED state, name=" << req.name;
+    // 已存在非CREATING状态条目（CREATED/ATTACHING/ATTACHED等）时，说明该name已被占用
+    // CREATED为已分配待挂载、ATTACHING为挂载进行中、ATTACHED为已挂载，此时再收到alloc请求即属于重复分配，一律拒绝
+    // CREATING是agent RPC路径预置的在途分配标记，需放行由本函数继续完成分配
+    if (existingEntry != nullptr && existingEntry->state != UbseSsuNsState::CREATING) {
+        UBSE_LOG_WARN << "ExecuteAlloc: ledger entry already exists, name=" << req.name
+                      << ", state=" << static_cast<int>(existingEntry->state);
         // 重复分配一律报错
         return UBSE_ERR_ALREADY_ALLOCATED;
     }
