@@ -267,12 +267,19 @@ void GlobalMaster::DealNodeUpdate()
     for (const auto &nodeId : removeNodes) {
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
-        for (const auto &kv : managingToCascadeNodeId_) {
-            uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
-            uint16_t cascadeGroupId = static_cast<uint16_t>(std::stoul(kv.first)) + managingGroupCount;
-            auto it = downstreamRouteEntries_.find(std::to_string(cascadeGroupId));
-            if (it != downstreamRouteEntries_.end() && it->second.nextHopNodeId == nodeId) {
-                DeleteDownstreamGroupRoute(std::to_string(cascadeGroupId));
+        std::vector<std::pair<UBSE_ID_TYPE, UBSE_ID_TYPE>> routesToDelete;                    // ← 先收集
+        for (const auto &entry : downstreamRouteEntries_) {                                   // ← 直接遍历路由表
+            if (entry.second.nextHopNodeId == nodeId) {
+                routesToDelete.emplace_back(entry.first, entry.second.dstNodeId);
+            }
+        }
+        for (const auto &r : routesToDelete) {                                                // ← 后删除
+            UBSE_LOG_INFO << "[ELECTION] DealNodeUpdate delete downstream route, groupId=" << r.first
+                          << ", nextHopNodeId=" << nodeId << ", dstNodeId=" << r.second;
+            downstreamRouteEntries_.erase(r.first);
+            auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+            if (comModule != nullptr) {
+                comModule->DelRoute(r.second);
             }
         }
     }
@@ -576,6 +583,21 @@ void GlobalMaster::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
         auto it = std::find(globalStandbyAgentNodes_.begin(), globalStandbyAgentNodes_.end(), nodeId);
         if (it != globalStandbyAgentNodes_.end()) {
             globalStandbyAgentNodes_.erase(it);
+        }
+        std::vector<std::pair<UBSE_ID_TYPE, UBSE_ID_TYPE>> routesToDelete;
+        for (const auto &entry : downstreamRouteEntries_) {
+            if (entry.second.nextHopNodeId == nodeId) {
+                routesToDelete.emplace_back(entry.first, entry.second.dstNodeId);
+            }
+        }
+        for (const auto &r : routesToDelete) {
+            UBSE_LOG_INFO << "[ELECTION] SetNodeDownStatus delete downstream route, groupId=" << r.first
+                          << ", nextHopNodeId=" << nodeId << ", dstNodeId=" << r.second;
+            downstreamRouteEntries_.erase(r.first);
+            auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+            if (comModule != nullptr) {
+                comModule->DelRoute(r.second);
+            }
         }
     }
     if (nodeId == globalStandbyId_) {
