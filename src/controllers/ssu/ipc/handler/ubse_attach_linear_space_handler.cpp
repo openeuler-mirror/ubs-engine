@@ -31,12 +31,35 @@ UbseResult UbseAttachLinearSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->AttachLinearSpace(req, nsDevPaths, devPath);
+    if (ret == UBSE_ERR_ALREADY_ATTACHED) {
+        UBSE_LOG_WARN << "AttachSpace already attached, ret:" << log::FormatRetCode(ret);
+        LogResponse();
+        return ret;
+    }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseAttachLinearSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "AttachLinearSpace req: name=" << req.name << ", nqn=" << req.nqn
+                   << ", srcEid=" << req.srcEid << ", devName=" << req.devName
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
+}
+
+void UbseAttachLinearSpaceHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "AttachLinearSpace resp: nsDevPaths.size=" << nsDevPaths.size();
+    for (size_t i = 0; i < nsDevPaths.size(); i++) {
+        UBSE_LOG_DEBUG << "  nsDevPaths[" << i << "]=" << nsDevPaths[i];
+    }
+    UBSE_LOG_DEBUG << "AttachLinearSpace resp: devPath=" << devPath;
 }
 
 UbseResult UbseAttachLinearSpaceHandler::Unpack()

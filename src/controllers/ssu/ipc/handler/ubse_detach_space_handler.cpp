@@ -31,12 +31,19 @@ UbseResult UbseDetachSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->DetachSpace(req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseDetachSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "DetachSpace req: name=" << req.name << ", nqn=" << req.nqn << ", srcEid=" << req.srcEid
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
 }
 
 UbseResult UbseDetachSpaceHandler::Unpack()

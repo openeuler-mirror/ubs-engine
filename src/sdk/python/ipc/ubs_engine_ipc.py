@@ -16,14 +16,16 @@
 典型用法:
     response = invoke_call(module_code, op_code, request_bytes)
 """
+import logging
 import os
 import socket
 import struct
 import threading
-from typing import Optional
+from typing import Optional, Tuple
 from ubse.ffi.ubs_engine_exceptions import UbsErrInvalidArg, UbsEngineConnectionError, UbsEngineReceiveError, \
     UbsEngineTimeoutError
-from ubse.ffi.ubs_error_registry import raise_for_status
+
+logger = logging.getLogger(__name__)
 
 # IPC相关常量
 UBSE_IPC_SOCKET_PATH = "/var/run/ubse/ubse.sock"
@@ -86,9 +88,11 @@ def connect_to_unix_socket() -> socket.socket:
         sock.settimeout(DEFAULT_TIMEOUT)
         sock.connect(path)
     except FileNotFoundError as e:
+        logger.error("ubse daemon not running: socket path %s does not exist", path)
         raise UbsEngineConnectionError(
             f"ubse daemon not running: socket path {path} does not exist") from e
     except (OSError, socket.error) as e:
+        logger.error("failed to connect to ubse daemon: %s", e)
         raise UbsEngineConnectionError(f"failed to connect to ubse daemon: {e}") from e
 
     return sock
@@ -112,6 +116,7 @@ def send_request(sock: socket.socket, module_code: int, op_code: int,
         UbsEngineConnectionError: 连接UBSE服务端失败
     """
     if len(request) > MAX_MESSAGE_SIZE:
+        logger.error("request body length %d exceeds maximum size %d", len(request), MAX_MESSAGE_SIZE)
         raise UbsErrInvalidArg(
             f"request body length {len(request)} exceeds maximum size {MAX_MESSAGE_SIZE}")
 
@@ -123,66 +128,66 @@ def send_request(sock: socket.socket, module_code: int, op_code: int,
     try:
         sock.sendall(message)
     except socket.error as e:
+        logger.error("failed to send request message: %s", e)
         raise UbsEngineConnectionError(f"failed to send request message: {e}") from e
 
 
-def receive_response(sock: socket.socket, module_code: int = -1, op_code: int = -1) -> bytes:
+def receive_response(sock: socket.socket) -> Tuple[int, bytes]:
     """接收UBSE守护进程的响应消息。
+
+    IPC 层只做原数据透传，不根据状态码做业务判断。
+    无论成功与否，都返回 ``(status_code, body)`` 给调用方自行处理。
 
     消息格式: isResp(1字节) + 响应头(16字节) + 响应体
     响应头: statusCode(4) + responseLen(4) + clientRequestId(8)
 
-    当 status_code 非0时，通过错误码注册表 (:mod:`ubs_error_registry`)
-    按 module_code 路由到对应模块注册的异常类抛出，使上层能按服务类型
-    精准捕获异常。
-
     Args:
         sock: 已连接的套接字
-        module_code: 模块码，用于错误码路由（默认 -1 表示未知）
-        op_code: 操作码，仅用于异常消息定位（默认 -1 表示未知）
 
     Returns:
-        响应体字节数据
+        (status_code, body) 元组，status_code 为 0 表示成功
 
     Raises:
         UbsEngineReceiveError: 响应消息接收失败
         UbsErrInvalidArg: 响应体长度超出最大允许大小
-        UbsError及其子类: 服务端返回非0状态码时，按模块注册的异常类型抛出
     """
 
     # 读取响应头 (isResp + header = 17字节)
     header_data = _recv_exactly(sock, _HEADER_SIZE)
     if header_data is None:
+        logger.error("failed to read response message header: connection closed")
         raise UbsEngineReceiveError("failed to read response message header: connection closed")
 
     # 解析isResp标志
     is_resp = header_data[0]
     if is_resp != 1:
+        logger.error("invalid response message: isResp flag is not set")
         raise UbsEngineReceiveError("invalid response message: isResp flag is not set")
 
     # 解析响应头
     status_code, response_len = struct.unpack_from('<I I', header_data, 1)
 
-    if status_code != UBS_SUCCESS:
-        raise_for_status(module_code, status_code, op_code)
-
     if response_len > MAX_MESSAGE_SIZE:
+        logger.error("response body length %d exceeds maximum size %d", response_len, MAX_MESSAGE_SIZE)
         raise UbsErrInvalidArg(
             f"response body length {response_len} exceeds maximum size {MAX_MESSAGE_SIZE}")
 
-    # 读取响应体
-    if response_len == 0:
-        return b''
+    # 读取响应体（无论成功与否都读取，服务端可能在错误时附带错误详情）
+    body = b''
+    if response_len > 0:
+        body = _recv_exactly(sock, response_len)
+        if body is None:
+            logger.error("failed to read response body: connection closed")
+            raise UbsEngineReceiveError("failed to read response body: connection closed")
 
-    response = _recv_exactly(sock, response_len)
-    if response is None:
-        raise UbsEngineReceiveError("failed to read response body: connection closed")
-
-    return response
+    return status_code, body
 
 
-def invoke_call(module_code: int, op_code: int, request: Optional[bytes] = None) -> bytes:
+def invoke_call(module_code: int, op_code: int, request: Optional[bytes] = None) -> Tuple[int, bytes]:
     """调用UBSE守护进程的IPC接口。
+
+    IPC 层只做原数据透传，不根据状态码做业务判断。
+    无论成功与否，都返回 ``(status_code, body)`` 给调用方自行处理。
 
     完整流程: 连接 -> 发送请求 -> 接收响应 -> 关闭连接
 
@@ -192,7 +197,7 @@ def invoke_call(module_code: int, op_code: int, request: Optional[bytes] = None)
         request: 请求体字节数据，可为None
 
     Returns:
-        响应体字节数据
+        (status_code, body) 元组，status_code 为 0 表示成功
 
     Raises:
         UbsEngineConnectionError: 连接UBSE服务端失败
@@ -203,8 +208,7 @@ def invoke_call(module_code: int, op_code: int, request: Optional[bytes] = None)
     sock = connect_to_unix_socket()
     try:
         send_request(sock, module_code, op_code, request)
-        response = receive_response(sock, module_code, op_code)
-        return response
+        return receive_response(sock)
     finally:
         sock.close()
 
@@ -227,6 +231,8 @@ def _recv_exactly(sock: socket.socket, size: int) -> Optional[bytes]:
                 return None
             data.extend(chunk)
     except socket.timeout as e:
-        raise UbsEngineTimeoutError(f"timeout while reading response header: {e}") from e
-
+        logger.error("timeout while reading response: %s", e)
+        raise UbsEngineTimeoutError(f"timeout while reading response: {e}") from e
+    except OSError as e:
+        raise UbsEngineConnectionError(f"Connection error during recv: {e}") from e
     return bytes(data)

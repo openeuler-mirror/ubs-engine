@@ -31,12 +31,22 @@ UbseResult UbseDetachStripedSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->DetachStripedSpace(req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachStripedSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseDetachStripedSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "DetachStripedSpace req: name=" << req.name << ", nqn=" << req.nqn
+                   << ", srcEid=" << req.srcEid << ", devName=" << req.devName
+                   << ", level=" << static_cast<uint32_t>(req.level)
+                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize)
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
 }
 
 UbseResult UbseDetachStripedSpaceHandler::Unpack()

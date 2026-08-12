@@ -277,8 +277,13 @@ func stripedReq(args []string) (ssu.UbsSsuStripedSpaceReq, error) {
 }
 
 // printOne 以 JSON 对象输出 SDK 的单个返回值，并保留原始错误。
+// ErrAlreadyAttached 时 SDK 依然返回已挂载的设备路径, 输出数据并附带 warning。
 func printOne(out io.Writer, value any, err error) error {
 	if err != nil {
+		if errors.Is(err, errcode.ErrAlreadyAttached) {
+			_ = printResponse(out, value)
+			return printWarning(out, err)
+		}
 		return err
 	}
 	return printResponse(out, value)
@@ -287,6 +292,10 @@ func printOne(out io.Writer, value any, err error) error {
 // printTwo 以 JSON 数组按 SDK 返回顺序输出两个返回值。
 func printTwo(out io.Writer, first any, second string, err error) error {
 	if err != nil {
+		if errors.Is(err, errcode.ErrAlreadyAttached) {
+			_ = printResponse(out, []any{first, second})
+			return printWarning(out, err)
+		}
 		return err
 	}
 	return printResponse(out, []any{first, second})
@@ -312,6 +321,14 @@ func printSuccess(out io.Writer, err error) error {
 		return err
 	}
 	return printResponse(out, "success")
+}
+
+// printWarning 输出统一的 JSON 告警应答对象。
+// 用于 ErrAlreadyAttached 等场景: 数据已通过 printResponse 输出, 错误以 warning 形式附带。
+func printWarning(out io.Writer, err error) error {
+	return json.NewEncoder(out).Encode(struct {
+		Warning string `json:"warning"`
+	}{Warning: err.Error()})
 }
 
 // splitLine 按 shell 引用与反斜线规则拆分交互输入，但不执行任何展开。

@@ -31,12 +31,20 @@ UbseResult UbseDetachLinearSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->DetachLinearSpace(req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachLinearSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseDetachLinearSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "DetachLinearSpace req: name=" << req.name << ", nqn=" << req.nqn
+                   << ", srcEid=" << req.srcEid << ", devName=" << req.devName
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
 }
 
 UbseResult UbseDetachLinearSpaceHandler::Unpack()

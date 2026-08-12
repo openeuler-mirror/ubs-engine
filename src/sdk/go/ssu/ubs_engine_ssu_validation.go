@@ -13,9 +13,7 @@
 // Package ssu 提供SSU(存储服务单元)的Go客户端SDK校验功能。
 package ssu
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // ==================== 参数校验函数 ====================
 // validateBufferString 校验字符串非空且内容长度不超过 bufferSize-1。
@@ -86,7 +84,8 @@ func validateNqnNotEmpty(nqn string) error {
 		return fmt.Errorf("nqn is empty")
 	}
 	if len(nqn) >= UbsSsuMaxNqnLength {
-		return fmt.Errorf("nqn length %d exceeds maximum %d (buffer size %d)", len(nqn), UbsSsuMaxNqnLength-1, UbsSsuMaxNqnLength)
+		return fmt.Errorf("nqn length %d exceeds maximum %d (buffer size %d)",
+			len(nqn), UbsSsuMaxNqnLength-1, UbsSsuMaxNqnLength)
 	}
 	return nil
 }

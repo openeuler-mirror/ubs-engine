@@ -26,6 +26,8 @@ protected:
     common::def::UbseResult Unpack() override;
 
 private:
+    void LogRequest();
+
     plugin::service::ssu::UbseSsuLinearSpaceReq req;
 };
 

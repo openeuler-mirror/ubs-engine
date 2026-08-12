@@ -44,10 +44,12 @@ static bool is_valid_dev_name_char(int ch)
 static uint32_t ubs_ssu_optional_string_is_valid(const char *s, size_t max_len)
 {
     if (s == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: optional_string, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(s);
     if (len > 0 && len >= max_len) {
+        IPC_LOG_ERROR << "validate failed, attr: optional_string, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     return UBS_SUCCESS;
@@ -57,14 +59,17 @@ static uint32_t ubs_ssu_optional_string_is_valid(const char *s, size_t max_len)
 uint32_t ubs_ssu_name_is_valid(const char *name)
 {
     if (name == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: name, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(name);
     if (len == 0 || len >= UBS_SSU_MAX_NAME_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: name, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     for (const char *p = name; *p; p++) {
         if (!is_valid_name_char(static_cast<unsigned char>(*p))) {
+            IPC_LOG_ERROR << "validate failed, attr: name, ret: " << UBS_ERR_INVALID_ARG;
             return UBS_ERR_INVALID_ARG;
         }
     }
@@ -75,14 +80,17 @@ uint32_t ubs_ssu_name_is_valid(const char *name)
 uint32_t ubs_ssu_dev_name_is_valid(const char *dev_name)
 {
     if (dev_name == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: dev_name, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(dev_name);
     if (len == 0 || len >= UBS_SSU_MAX_DEV_NAME_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: dev_name, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     for (const char *p = dev_name; *p; p++) {
         if (!is_valid_dev_name_char(static_cast<unsigned char>(*p))) {
+            IPC_LOG_ERROR << "validate failed, attr: dev_name, ret: " << UBS_ERR_INVALID_ARG;
             return UBS_ERR_INVALID_ARG;
         }
     }
@@ -93,10 +101,12 @@ uint32_t ubs_ssu_dev_name_is_valid(const char *dev_name)
 uint32_t ubs_ssu_nqn_is_valid(const char *nqn)
 {
     if (nqn == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: nqn, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(nqn);
     if (len == 0 || len >= UBS_SSU_MAX_NQN_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: nqn, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     return UBS_SUCCESS;
@@ -106,10 +116,12 @@ uint32_t ubs_ssu_nqn_is_valid(const char *nqn)
 uint32_t ubs_ssu_eid_is_valid(const char *eid)
 {
     if (eid == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: eid, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(eid);
     if (len == 0 || len >= UBS_SSU_MAX_EID_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: eid, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     return UBS_SUCCESS;
@@ -119,10 +131,12 @@ uint32_t ubs_ssu_eid_is_valid(const char *eid)
 uint32_t ubs_ssu_uuid_is_valid(const char *uuid)
 {
     if (uuid == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: uuid, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(uuid);
     if (len == 0 || len >= UBS_SSU_MAX_UUID_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: uuid, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     return UBS_SUCCESS;
@@ -132,6 +146,7 @@ uint32_t ubs_ssu_uuid_is_valid(const char *uuid)
 uint32_t ubs_ssu_tenant_is_valid(const char *tenant)
 {
     if (tenant == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: tenant, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(tenant);
@@ -139,10 +154,12 @@ uint32_t ubs_ssu_tenant_is_valid(const char *tenant)
         return UBS_SUCCESS;
     }
     if (len >= UBS_SSU_MAX_TENANT_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: tenant, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     for (const char *p = tenant; *p; p++) {
         if (!is_valid_name_char(static_cast<unsigned char>(*p))) {
+            IPC_LOG_ERROR << "validate failed, attr: tenant, ret: " << UBS_ERR_INVALID_ARG;
             return UBS_ERR_INVALID_ARG;
         }
     }
@@ -153,6 +170,7 @@ uint32_t ubs_ssu_tenant_is_valid(const char *tenant)
 uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req)
 {
     if (req == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: alloc_space_req, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -161,23 +179,28 @@ uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req)
         return ret;
     }
     if (req->ns_num == 0) {
+        IPC_LOG_ERROR << "validate failed, attr: ns_num, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
     // ns_size 须为 1G 的整数倍
     const uint64_t ONE_G = 1024ULL * 1024 * 1024;
     if (req->ns_size == 0 || req->ns_size % ONE_G != 0) {
+        IPC_LOG_ERROR << "validate failed, attr: ns_size, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
     // 仅条带化策略时, ns_size 须能整除 ns_num (与头文件文档一致)
     if (req->strategy == UBS_SSU_ALLOC_STRATEGY_STRIPED && req->ns_size % req->ns_num != 0) {
+        IPC_LOG_ERROR << "validate failed, attr: striped_ns_size, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
 
     if (req->lba_format != UBS_SSU_LBA_FORMAT_512 && req->lba_format != UBS_SSU_LBA_FORMAT_4K) {
+        IPC_LOG_ERROR << "validate failed, attr: lba_format, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
 
     if (req->strategy != UBS_SSU_ALLOC_STRATEGY_STRIPED && req->strategy != UBS_SSU_ALLOC_STRATEGY_LINEAR) {
+        IPC_LOG_ERROR << "validate failed, attr: strategy, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
     return ubs_ssu_tenant_is_valid(req->tenant);
@@ -187,6 +210,7 @@ uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req)
 uint32_t ubs_ssu_space_req_validate(const ubs_ssu_space_req_t *req)
 {
     if (req == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: space_req, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -209,6 +233,7 @@ uint32_t ubs_ssu_space_req_validate(const ubs_ssu_space_req_t *req)
 uint32_t ubs_ssu_linear_space_req_validate(const ubs_ssu_linear_space_req_t *req)
 {
     if (req == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: linear_space_req, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -235,6 +260,7 @@ uint32_t ubs_ssu_linear_space_req_validate(const ubs_ssu_linear_space_req_t *req
 uint32_t ubs_ssu_vfe_is_valid(const ubs_ub_vfe_t *vfe)
 {
     if (vfe == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: vfe, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     return UBS_SUCCESS;
@@ -244,10 +270,12 @@ uint32_t ubs_ssu_vfe_is_valid(const ubs_ub_vfe_t *vfe)
 uint32_t ubs_ssu_upi_is_valid(const char *upi)
 {
     if (upi == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: upi, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
     size_t len = strlen(upi);
     if (len == 0 || len >= UBS_SSU_MAX_TENANT_LENGTH) {
+        IPC_LOG_ERROR << "validate failed, attr: upi, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
     }
     return UBS_SUCCESS;
@@ -301,6 +329,7 @@ uint32_t ubs_ssu_linear_space_detach_req_validate(const ubs_ssu_linear_space_req
 uint32_t ubs_ssu_striped_space_attach_req_validate(const ubs_ssu_striped_space_req_t *req)
 {
     if (req == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: striped_space_req, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -322,6 +351,7 @@ uint32_t ubs_ssu_striped_space_attach_req_validate(const ubs_ssu_striped_space_r
     }
 
     if (req->level != UBS_SSU_RAID0 && req->level != UBS_SSU_RAID5) {
+        IPC_LOG_ERROR << "validate failed, attr: level, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
 
@@ -335,6 +365,7 @@ uint32_t ubs_ssu_striped_space_attach_req_validate(const ubs_ssu_striped_space_r
         case UBS_SSU_CHUNK_SIZE_512K:
             break;
         default:
+            IPC_LOG_ERROR << "validate failed, attr: chunk_size, ret: " << UBS_ERR_INVALID_ARG;
             return UBS_ERR_INVALID_ARG;
     }
 
@@ -345,6 +376,7 @@ uint32_t ubs_ssu_striped_space_attach_req_validate(const ubs_ssu_striped_space_r
 uint32_t ubs_ssu_striped_space_detach_req_validate(const ubs_ssu_striped_space_req_t *req)
 {
     if (req == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: striped_space_req, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -374,6 +406,7 @@ uint32_t ubs_ssu_fe_device_alloc_validate(const ubs_ub_vfe_t *vfe, uint8_t *bus_
         return ret;
     }
     if (bus_instance_guid == nullptr) {
+        IPC_LOG_ERROR << "validate failed, attr: bus_instance_guid, ret: " << UBS_ERR_NULL_POINTER;
         return UBS_ERR_NULL_POINTER;
     }
 
@@ -396,6 +429,7 @@ uint32_t ubs_ssu_fe_device_free_validate(const ubs_ub_vfe_t *vfe)
         }
     }
     if (allZero) {
+        IPC_LOG_ERROR << "validate failed, attr: bind_bus_instance_guid, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
     return UBS_SUCCESS;

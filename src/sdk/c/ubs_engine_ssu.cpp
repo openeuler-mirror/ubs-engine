@@ -88,23 +88,25 @@ static int32_t ssu_call(uint32_t opcode, const std::function<int32_t(ubse_api_bu
             return ret;
         }
     }
-    auto ret = static_cast<ubs_error_t>(ubse_invoke_call(UBSE_SSU,
+    auto invokeRet = static_cast<ubs_error_t>(ubse_invoke_call(UBSE_SSU,
         opcode, &request_buffer, &response_buffer));
     ubse_api_buffer_free(&request_buffer);
-    if (ret != UBS_SUCCESS) {
-        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ret;
+    if (invokeRet != UBS_SUCCESS && invokeRet != UBS_ENGINE_ERR_ALREADY_ATTACHED) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << invokeRet;
         ubse_api_buffer_free(&response_buffer);
-        return ubs_ssu_daemon_error(ret);
+        return ubs_ssu_daemon_error(invokeRet);
     }
 
     if (unpack_fn != nullptr) {
-        ret = static_cast<ubs_error_t>(unpack_fn(response_buffer));
+        auto ret = static_cast<ubs_error_t>(unpack_fn(response_buffer));
         if (ret != UBS_SUCCESS) {
             IPC_LOG_ERROR << "Failed to unpack response buffer, error: " << ret;
+            ubse_api_buffer_free(&response_buffer);
+            return ret;
         }
     }
     ubse_api_buffer_free(&response_buffer);
-    return ret;
+    return invokeRet;
 }
 
 int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *result_cnt)

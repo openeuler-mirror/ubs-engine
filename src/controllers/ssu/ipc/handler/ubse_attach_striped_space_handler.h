@@ -26,6 +26,9 @@ protected:
     common::def::UbseResult Unpack() override;
 
 private:
+    void LogRequest();
+    void LogResponse();
+
     plugin::service::ssu::UbseSsuStripedSpaceReq req;
     std::vector<std::string> nsDevPaths;
     std::string devPath;

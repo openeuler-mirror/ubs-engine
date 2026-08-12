@@ -30,12 +30,24 @@ UbseResult UbseFeDeviceFreeHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->FeDeviceFree(upi, vfe);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FeDeviceFree failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseFeDeviceFreeHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "FeDeviceFree req: upi=" << upi
+                   << ", vfe.slotId=" << static_cast<uint32_t>(vfe.slotId)
+                   << ", vfe.chipId=" << static_cast<uint32_t>(vfe.chipId)
+                   << ", vfe.dieId=" << static_cast<uint32_t>(vfe.dieId)
+                   << ", vfe.pfeId=" << vfe.pfeId << ", vfe.vfeId=" << vfe.vfeId
+                   << ", vfe.vfeGuid=" << vfe.vfeGuid
+                   << ", vfe.bindBusInstanceGuid=" << vfe.bindBusInstanceGuid;
 }
 
 UbseResult UbseFeDeviceFreeHandler::Unpack()

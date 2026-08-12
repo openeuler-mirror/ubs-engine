@@ -30,12 +30,19 @@ UbseResult UbseRemoveAccessPermissionHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->RemoveAccessPermission(name, nqn, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RemoveAccessPermission failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseRemoveAccessPermissionHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "RemoveAccessPermission req: name=" << name << ", nqn=" << nqn
+                   << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
 }
 
 UbseResult UbseRemoveAccessPermissionHandler::Unpack()

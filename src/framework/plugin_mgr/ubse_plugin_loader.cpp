@@ -25,7 +25,6 @@ namespace ubse::plugin {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string PLUGIN_DIR = "/usr/lib64/ubse_plugin";
-const std::string DEFAULT_PLUGIN = "mem_plugin";
 constexpr size_t SO_EXTENSION_LENGTH = 3;
 constexpr std::string_view PLUGIN_EXTENSION = ".so";
 constexpr std::string_view LIB_PREFIX = "lib";
@@ -36,12 +35,9 @@ bool IsSoFile(const std::string &path)
            path.substr(path.size() - SO_EXTENSION_LENGTH) == PLUGIN_EXTENSION;
 }
 
-bool IsPluginAllowed(const std::string &pluginName, bool admissionEnabled, const std::map<std::string, uint16_t> &allowedPlugins)
+bool IsPluginAllowed(const std::string &pluginName, const std::map<std::string, uint16_t> &allowedPlugins)
 {
-    if (admissionEnabled) {
-        return allowedPlugins.find(pluginName) != allowedPlugins.end();
-    }
-    return pluginName == DEFAULT_PLUGIN;
+    return allowedPlugins.find(pluginName) != allowedPlugins.end();
 }
 
 std::string PluginNameFromSoPath(const std::string &path)
@@ -61,9 +57,7 @@ std::string PluginNameFromSoPath(const std::string &path)
  * 插件发现规则：
  * 1. 插件目录必须存在
  * 2. 插件文件必须以 "lib" 开头， ".so" 结尾
- * 3. 准入过滤逻辑 ：
- *    - 准入配置加载成功 且 白名单非空 → 只加载白名单中的插件
- *    - 其他情况（配置加载失败 或 白名单为空）→ 仅加载 mem_plugin
+ * 3. 准入过滤逻辑 ：只加载白名单中的插件
  */
 void UbsePluginLoader::DiscoverAndLoad()
 {
@@ -74,8 +68,14 @@ void UbsePluginLoader::DiscoverAndLoad()
 
     UbsePluginAdmission admission;
     UbseResult loadRet = admission.LoadAdmissionConfig();
-    bool admissionEnabled = (loadRet == UBSE_OK && !admission.GetAllowedPlugins().empty());
     const auto &allowedPlugins = admission.GetAllowedPlugins();
+    if (loadRet != UBSE_OK || allowedPlugins.empty()) {
+        UBSE_LOG_ERROR << "Plugin admission config load failed or empty, ret: "
+                       << log::FormatRetCode(loadRet)
+                       << ", allowedPlugins size: " << allowedPlugins.size()
+                       << ", no plugins will be loaded";
+        return;
+    }
 
     std::cout  << "Scanning plugin directory: " << PLUGIN_DIR << std::endl;
 
@@ -87,7 +87,7 @@ void UbsePluginLoader::DiscoverAndLoad()
         const std::string path = entry.path().string();
         std::string pluginName = PluginNameFromSoPath(path);
 
-        if (!IsPluginAllowed(pluginName, admissionEnabled, allowedPlugins)) {
+        if (!IsPluginAllowed(pluginName, allowedPlugins)) {
             std::cerr << "Plugin denied: " << pluginName << " (" << path << ")" << std::endl;
             continue;
         }

@@ -14,6 +14,10 @@
 package ssu
 
 import (
+	"errors"
+	"fmt"
+
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/errcode"
 	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/ipc"
 	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/pack"
 )
@@ -293,6 +297,15 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
 	request := packSpaceReq(req)
 	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachSpaceReq, request)
 	if err != nil {
+		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
+		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
+		if errors.Is(err, errcode.ErrAlreadyAttached) {
+			if paths, unpackErr := unpackNsDevPathsResponse(response); unpackErr == nil {
+				return paths, err
+			} else {
+				return nil, fmt.Errorf("already attached but failed to unpack response: %w (original: %v)", unpackErr, err)
+			}
+		}
 		return nil, err
 	}
 	return unpackNsDevPathsResponse(response)
@@ -334,6 +347,15 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 	request := packLinearSpaceReq(req)
 	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachLinearSpaceReq, request)
 	if err != nil {
+		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
+		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
+		if errors.Is(err, errcode.ErrAlreadyAttached) {
+			if paths, devPath, unpackErr := unpackNsDevPathsAndDevPathResponse(response); unpackErr == nil {
+				return paths, devPath, err
+			} else {
+				return nil, "", fmt.Errorf("already attached but failed to unpack response: %w (original: %v)", unpackErr, err)
+			}
+		}
 		return nil, "", err
 	}
 	return unpackNsDevPathsAndDevPathResponse(response)
@@ -376,6 +398,15 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 	request := packStripedSpaceReq(req)
 	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachStripedSpaceReq, request)
 	if err != nil {
+		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
+		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
+		if errors.Is(err, errcode.ErrAlreadyAttached) {
+			if paths, devPath, unpackErr := unpackNsDevPathsAndDevPathResponse(response); unpackErr == nil {
+				return paths, devPath, err
+			} else {
+				return nil, "", fmt.Errorf("already attached but failed to unpack response: %w (original: %v)", unpackErr, err)
+			}
+		}
 		return nil, "", err
 	}
 	return unpackNsDevPathsAndDevPathResponse(response)

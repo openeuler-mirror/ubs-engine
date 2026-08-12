@@ -30,12 +30,19 @@ UbseResult UbseFreeSpaceHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->FreeSpace(name, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FreeSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseFreeSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "FreeSpace req: name=" << name
+                   << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
 }
 
 UbseResult UbseFreeSpaceHandler::Unpack()

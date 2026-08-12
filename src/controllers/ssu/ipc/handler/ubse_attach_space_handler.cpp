@@ -31,12 +31,33 @@ UbseResult UbseAttachSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->AttachSpace(req, nsDevPaths);
+    if (ret == UBSE_ERR_ALREADY_ATTACHED) {
+        UBSE_LOG_WARN << "AttachSpace already attached, ret:" << log::FormatRetCode(ret);
+        LogResponse();
+        return ret;
+    }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseAttachSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "AttachSpace req: name=" << req.name << ", nqn=" << req.nqn << ", srcEid=" << req.srcEid
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
+}
+
+void UbseAttachSpaceHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "AttachSpace resp: nsDevPaths.size=" << nsDevPaths.size();
+    for (size_t i = 0; i < nsDevPaths.size(); i++) {
+        UBSE_LOG_DEBUG << "  nsDevPaths[" << i << "]=" << nsDevPaths[i];
+    }
 }
 
 UbseResult UbseAttachSpaceHandler::Unpack()

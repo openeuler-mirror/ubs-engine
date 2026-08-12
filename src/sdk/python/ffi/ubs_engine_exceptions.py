@@ -9,6 +9,9 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+from typing import Any
+
+
 class UbsError(Exception):
     """UBS引擎基础异常"""
     pass
@@ -101,6 +104,21 @@ class UbsErrInvalidArg(UbsError):
 class UbsEngineExistedError(UbsError):
     """实例已存在"""
     pass
+
+
+class UbsEngineAlreadyAttachedError(UbsEngineExistedError):
+    """存储空间已挂载，携带已解包的挂载数据。
+
+    Attributes:
+        data: 已挂载的数据，类型与对应 attach 函数正常返回值一致
+            - space_attach: List[str]（设备路径列表）
+            - linear_space_attach: Tuple[List[str], str]（命名空间路径列表, 聚合设备路径）
+            - striped_space_attach: Tuple[List[str], str]（同上）
+    """
+
+    def __init__(self, message: str, data: Any = None) -> None:
+        super().__init__(message)
+        self.data = data
 
 
 class UbsEngineAllocateError(UbsError):

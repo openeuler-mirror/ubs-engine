@@ -16,7 +16,6 @@
 """
 from typing import List, Optional, Tuple
 
-from ubse.ffi.ubs_binary_codec import BinaryUnpacker
 from ubse.ffi.ubs_engine_binding_ssu import (
     pack_string, pack_connect_info_req,
     pack_alloc_space_req, pack_space_req,
@@ -25,13 +24,15 @@ from ubse.ffi.ubs_engine_binding_ssu import (
     unpack_alloc_result, unpack_alloc_result_list,
     unpack_ns_dev_paths_response,
     unpack_ns_stats_list, unpack_connect_info_list,
-    unpack_fe_device_list, unpack_ns_dev_paths,
+    unpack_fe_device_list,
+    unpack_ns_dev_paths_with_dev_path,
     validate_name, validate_alloc_space_req,
     validate_nqn, validate_space_req, validate_access_permission,
     validate_linear_space_req, validate_striped_space_req, validate_detach_striped_space_req,
     validate_fe_device_alloc_params, validate_fe_device_free_params
 )
-from ubse.ffi.ubs_engine_exceptions import UbsEngineInternalError
+from ubse.ffi.ubs_engine_exceptions import UbsEngineInternalError, UbsEngineAlreadyAttachedError
+from ubse.ffi.ubs_error_registry import raise_for_status
 from ubse.ipc.ubs_engine_ipc import invoke_call
 from ubse.ipc.ubs_engine_ipc_codes import (
     UBSE_SSU_MODULE_CODE,
@@ -45,12 +46,13 @@ from ubse.ipc.ubs_engine_ipc_codes import (
 )
 from ubse.models.ubs_engine_model_ssu import (
     UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
-    UBS_SSU_MAX_DEV_PATH_LENGTH,
     UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
     UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
     UbsUbVfe, UbsUbFe,
 )
 
+# 重复操作错误码 (与 ubse_error.h 对齐)
+_ERR_ALREADY_ATTACHED = 2001
 
 # ====================== 主函数（核心业务逻辑） ======================
 
@@ -68,7 +70,8 @@ def ubs_ssu_alloc_info_list() -> List[UbsSsuAllocResult]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_LIST_ALLOC_INFO_REQ)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_LIST_ALLOC_INFO_REQ)
+    raise_for_status(status_code)
     return unpack_alloc_result_list(response)
 
 
@@ -98,7 +101,8 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
     """
     validate_alloc_space_req(req)
     request = pack_alloc_space_req(req)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ALLOC_REQ, request)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ALLOC_REQ, request)
+    raise_for_status(status_code)
     return unpack_alloc_result(response)
 
 
@@ -123,7 +127,8 @@ def ubs_ssu_space_free(name: str) -> None:
     """
     validate_name(name)
     request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_FREE_REQ, request)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_FREE_REQ, request)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
@@ -148,7 +153,8 @@ def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
     """
     validate_access_permission(name, nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
@@ -173,7 +179,8 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
     """
     validate_access_permission(name, nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
@@ -191,13 +198,18 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineExistedError: 空间已挂载, 重复挂载报错
+        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
     validate_space_req(req)
     request = pack_space_req(req)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
+    if status_code == _ERR_ALREADY_ATTACHED:
+        raise UbsEngineAlreadyAttachedError(
+            f"[op={OP_ATTACH_SPACE_REQ}] UBSE_ERR_ALREADY_ATTACHED ({_ERR_ALREADY_ATTACHED})",
+            data=unpack_ns_dev_paths_response(response))
+    raise_for_status(status_code)
     return unpack_ns_dev_paths_response(response)
 
 
@@ -223,7 +235,8 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
     """
     validate_space_req(req)
     request = pack_space_req(req)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], str]:
@@ -242,7 +255,7 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
-        UbsEngineExistedError: 空间已挂载, 重复挂载报错
+        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -252,11 +265,13 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
     """
     validate_linear_space_req(req)
     request = pack_linear_space_req(req)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
-    u = BinaryUnpacker(response)
-    ns_dev_paths = unpack_ns_dev_paths(u)
-    dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
-    return ns_dev_paths, dev_path
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
+    if status_code == _ERR_ALREADY_ATTACHED:
+        raise UbsEngineAlreadyAttachedError(
+            f"[op={OP_ATTACH_LINEAR_SPACE_REQ}] UBSE_ERR_ALREADY_ATTACHED ({_ERR_ALREADY_ATTACHED})",
+            data=unpack_ns_dev_paths_with_dev_path(response))
+    raise_for_status(status_code)
+    return unpack_ns_dev_paths_with_dev_path(response)
 
 
 def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
@@ -280,7 +295,8 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
     """
     validate_linear_space_req(req)
     request = pack_linear_space_req(req)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str], str]:
@@ -299,7 +315,7 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineExistedError: 空间已挂载, 重复挂载报错
+        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -309,11 +325,13 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
     """
     validate_striped_space_req(req)
     request = pack_striped_space_req(req)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
-    u = BinaryUnpacker(response)
-    ns_dev_paths = unpack_ns_dev_paths(u)
-    dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
-    return ns_dev_paths, dev_path
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
+    if status_code == _ERR_ALREADY_ATTACHED:
+        raise UbsEngineAlreadyAttachedError(
+            f"[op={OP_ATTACH_STRIPED_SPACE_REQ}] UBSE_ERR_ALREADY_ATTACHED ({_ERR_ALREADY_ATTACHED})",
+            data=unpack_ns_dev_paths_with_dev_path(response))
+    raise_for_status(status_code)
+    return unpack_ns_dev_paths_with_dev_path(response)
 
 
 def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
@@ -337,7 +355,8 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
     """
     validate_detach_striped_space_req(req)
     request = pack_striped_space_req(req)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
+    raise_for_status(status_code)
 
 
 def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
@@ -361,7 +380,8 @@ def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
     """
     validate_name(name)
     request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_NS_STATS_REQ, request)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_NS_STATS_REQ, request)
+    raise_for_status(status_code)
     return unpack_ns_stats_list(response)
 
 
@@ -387,7 +407,8 @@ def ubs_ssu_connect_info_get(name: str, vfe: Optional[UbsUbVfe] = None) -> List[
     """
     validate_name(name)
     request = pack_connect_info_req(name, vfe)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_CONNECT_INFO_REQ, request)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_CONNECT_INFO_REQ, request)
+    raise_for_status(status_code)
     return unpack_connect_info_list(response)
 
 
@@ -405,7 +426,8 @@ def ubs_ssu_fe_device_list() -> List[UbsUbFe]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_FE_DEVICE_LIST_REQ)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_FE_DEVICE_LIST_REQ)
+    raise_for_status(status_code)
     return unpack_fe_device_list(response)
 
 
@@ -433,7 +455,8 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: str) -> str:
     """
     validate_fe_device_alloc_params(vfe, guid)
     request = pack_fe_device_req(upi, vfe, guid)
-    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_ALLOC_REQ, request)
+    status_code, response = invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_ALLOC_REQ, request)
+    raise_for_status(status_code)
     if len(response) < UBS_SSU_GUID_LENGTH:
         raise UbsEngineInternalError("invalid response length for fe_device_alloc")
     return response[:UBS_SSU_GUID_LENGTH].decode('utf-8', errors='replace')
@@ -458,4 +481,5 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe) -> None:
     """
     validate_fe_device_free_params(vfe)
     request = pack_fe_device_free_req(upi, vfe)
-    invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)
+    status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)
+    raise_for_status(status_code)
