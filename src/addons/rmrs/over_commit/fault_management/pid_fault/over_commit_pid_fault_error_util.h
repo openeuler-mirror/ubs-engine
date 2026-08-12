@@ -29,7 +29,7 @@ namespace mempooling {
  */
 
 // 错误码排障优先级: 数值越大越优先上报
-static inline int GetFaultErrorCodePriority(MpResult code)
+static inline int GetFaultErrorCodePriority(MpResult code) noexcept
 {
     switch (code) {
         case MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR: // 数据面不可信，后续动作无意义，最先报
@@ -50,7 +50,7 @@ static inline int GetFaultErrorCodePriority(MpResult code)
 }
 
 // 从本轮出现的错误码集合中取优先级最高者; 空集合返回MEM_POOLING_OK
-static inline MpResult AggregateFaultErrorCodes(const std::set<MpResult>& codes)
+static inline MpResult AggregateFaultErrorCodes(const std::set<MpResult>& codes) noexcept
 {
     MpResult aggregated = MEM_POOLING_OK;
     for (const auto& code : codes) {
@@ -61,7 +61,8 @@ static inline MpResult AggregateFaultErrorCodes(const std::set<MpResult>& codes)
     return aggregated;
 }
 
-// 把错误码集合拼成"[ 18 19 ]"形式，日志里一行看清本轮出现的全部码
+// 把错误码集合拼成"[ 5 6 ]"形式，日志里一行看清本轮出现的全部码
+// 注: 不加noexcept——ostringstream可能抛bad_alloc，标记后异常会直接terminate
 static inline std::string JoinFaultErrorCodes(const std::set<MpResult>& codes)
 {
     std::ostringstream oss;

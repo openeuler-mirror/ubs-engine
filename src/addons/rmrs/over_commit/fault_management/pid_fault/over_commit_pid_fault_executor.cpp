@@ -22,6 +22,7 @@
 #include "mempool_borrow_module.h"
 #include "mempooling_message.h"
 #include "over_commit_fault_memid_module.h"
+#include "over_commit_pid_fault_common.h"
 #include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_state_store.h"
 #include "rmrs_serialize.h"
@@ -42,19 +43,6 @@ static const std::string TAG = "[OverCommit][PidFault][Executor] ";
 // 随task下发供借入节点设置smap远端numa借用信息（免重复查账本）
 static constexpr uint64_t MIN_BORROW_SIZE_KB = 4 * 1024;
 
-// 调试用: 把列表拼成"[a b c]"形式，方便日志里一行看清集合内容
-template <typename T>
-static std::string JoinToString(const std::vector<T>& values)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (const auto& v : values) {
-        oss << " " << v;
-    }
-    oss << " ]";
-    return oss.str();
-}
-
 // RPC响应回调
 static void FaultPidExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t retCode)
 {
@@ -67,7 +55,12 @@ static void FaultPidExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
         return;
     }
     RmrsInStream in(respData.data, respData.len);
-    FaultPidExecuteResponseDeserialization(in, *result);
+    if (FaultPidExecuteResponseDeserialization(in, *result) != MEM_POOLING_OK) {
+        // 响应截断/损坏: 丢弃部分填充数据，按失败处理等下轮重试
+        LOG_ERROR << "FaultPidExecuteResHandler deserialization incomplete, drop partial data.";
+        *result = FaultPidExecuteResponse{};
+        result->retCode = MEM_POOLING_ERROR;
+    }
 }
 
 MpResult PidFaultExecutor::BorrowForGroup(const FaultExecutePlan& plan, const PlanBorrowGroup& group,
@@ -293,8 +286,13 @@ void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const F
         }
 
         if (taskResult.completedPhase == TaskPhase::COMPLETED) {
-            PidFaultStateStore::Instance().RemoveCompletedTask(faultNodeId, task.taskId);
-            LOG_INFO << "Task " << task.taskId << " COMPLETED, state removed.";
+            if (PidFaultStateStore::Instance().RemoveCompletedTask(faultNodeId, task.taskId) == MEM_POOLING_OK) {
+                LOG_INFO << "Task " << task.taskId << " COMPLETED, state removed.";
+            } else {
+                // 持久化删除失败: 状态残留下轮会作为RESUME重新加载，幂等链路可收敛，但需告警
+                LOG_ERROR << "RemoveCompletedTask failed for task " << task.taskId << ", state may linger.";
+                (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+            }
             continue;
         }
         if (taskResult.completedPhase >= TaskPhase::BORROWED) {

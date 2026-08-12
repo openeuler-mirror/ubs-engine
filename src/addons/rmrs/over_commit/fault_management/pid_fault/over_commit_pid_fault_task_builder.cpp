@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include "ubse_logger.h"
 #include "mp_configuration.h"
+#include "over_commit_pid_fault_common.h"
 #include "over_commit_pid_fault_state_store.h"
 
 namespace mempooling {
@@ -27,18 +28,7 @@ static const std::string TAG = "[OverCommit][PidFault][TaskBuilder] ";
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
 
-// 调试用: 把数值列表拼成"[a b c]"形式，方便日志里一行看清集合内容
-template <typename T>
-static std::string JoinToString(const std::vector<T>& values)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (const auto& v : values) {
-        oss << " " << v;
-    }
-    oss << " ]";
-    return oss.str();
-}
+// JoinToString见over_commit_pid_fault_common.h
 
 // 调试用: 打印单个迁移任务的完整画像，真实运行时可据此核对任务构建是否符合预期
 static void PrintTaskDetail(const MigrationTask& task)
@@ -259,7 +249,8 @@ void PidFaultTaskBuilder::AggregateContainerTasks(const std::vector<PidMemInfo>&
 
     for (const auto& [instanceId, infos] : containerMap) {
         MigrationTask task;
-        // HDWTODO:这里需要防御一下，因为万一containerId包含pid_前缀，会导致后续逻辑错误
+        // 容器ID解析失败时分组key为"pid_<pid>"（非64位hex，真实containerId必为64位hex，不会冲突），
+        // 此类任务无容器归属，containerId置空
         task.containerId = (instanceId.find("pid_") == 0) ? "" : instanceId;
         task.migrationSizeKB = 0;
         task.relatedBorrowIds = borrowIds;

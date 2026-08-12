@@ -21,6 +21,7 @@
 #include "ubse_mem_controller.h"
 #include "ubse_node_controller.h"
 #include "mp_configuration.h"
+#include "over_commit_pid_fault_common.h"
 #include "over_commit_pid_fault_state_store.h"
 #include "over_commit_storage.h"
 
@@ -52,19 +53,6 @@ static constexpr uint64_t MIN_BORROW_SIZE_KB = 4 * 1024;
 static inline uint64_t EffectiveBorrowKB(uint64_t demandKB)
 {
     return demandKB < MIN_BORROW_SIZE_KB ? MIN_BORROW_SIZE_KB : demandKB;
-}
-
-// 调试用: 把列表拼成"[a b c]"形式，方便日志里一行看清集合内容
-template <typename T>
-static std::string JoinToString(const std::vector<T>& values)
-{
-    std::ostringstream oss;
-    oss << "[";
-    for (const auto& v : values) {
-        oss << " " << v;
-    }
-    oss << " ]";
-    return oss.str();
 }
 
 // 调试用: 打印单个借用组画像（约束/归属numa/需求/成员/预分配借出节点），真实运行时可据此追踪分组-预分配链路
@@ -509,8 +497,12 @@ MpResult PidFaultDecision::MakeDecisions(const std::string& faultNodeId, const s
         for (const auto& task : selectedTasks) {
             shrunkDemandKB += task.migrationSizeKB;
         }
-        // 缩量后仍低于4MB时借用层会取整到4MB，同步抬升保证BestFit容量校验口径一致
-        shrunkDemandKB = EffectiveBorrowKB(shrunkDemandKB);
+        // 无可选task(所有task均超单numa容量)时保持需求为0直接跳过分配:
+        // 否则EffectiveBorrowKB会把0抬到4MB下限，扣减快照容量却无task受益，挤占其他组额度
+        if (shrunkDemandKB > 0) {
+            // 缩量后仍低于4MB时借用层会取整到4MB，同步抬升保证BestFit容量校验口径一致
+            shrunkDemandKB = EffectiveBorrowKB(shrunkDemandKB);
+        }
 
         plan.tasks = std::move(otherTasks);
         group.taskIds.clear();

@@ -24,6 +24,9 @@ using namespace ubse::storage;
 static const std::string TAG = "[OverCommit][PidFault][StateStore] ";
 static const std::string KEY_PREFIX = "mempooling";
 static const std::string KEY_NAME = "_oc_fault_pid_state";
+// 持久化数据中故障节点数量的防御上限: 存储数据可能因写入时崩溃而损坏，
+// 损坏的超大count会导致反序列化循环空转挂死，超上限直接判损坏
+static constexpr size_t MAX_FAULT_NODE_STATES = 1024;
 
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
 #define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
@@ -68,6 +71,9 @@ MpResult PidFaultStateStore::LoadFromStorage()
     UbseByteBuffer buffer{};
     MpResult ret = UbseStorageQueryData(KEY_PREFIX, KEY_NAME, &buffer, LoadStateCallback);
     if (ret != MEM_POOLING_OK) {
+        // 存储层对"无数据"与"I/O错误"返回同样的非OK码无法区分，按首次启动从头开始处理;
+        // 记WARN便于排障时区分静默启动与存储异常
+        LOG_WARN << "LoadFromStorage query failed, ret=" << ret << ", starting fresh.";
         if (buffer.data != nullptr) {
             delete[] buffer.data;
         }
@@ -81,13 +87,27 @@ MpResult PidFaultStateStore::LoadFromStorage()
     rmrs::serialize::RmrsInStream in(buffer.data, buffer.len);
     size_t stateCount = 0;
     in >> stateCount;
+    // stateCount来自持久化数据（可能因写入时进程崩溃而损坏）: 超上限直接判损坏，
+    // 防止超大count导致循环空转挂死；反序列化失败同样判损坏，丢弃全部状态从头开始
+    if (!in.IsValid() || stateCount > MAX_FAULT_NODE_STATES) {
+        LOG_ERROR << "LoadFromStorage corrupted, stateCount=" << stateCount << ", drop all states.";
+        delete[] buffer.data;
+        return MEM_POOLING_ERROR;
+    }
+    // 先加载到临时map: 反序列化中途失败时不残留部分状态，整体判损坏从头开始
+    std::unordered_map<std::string, FaultProcessState> loadedMap;
     for (size_t i = 0; i < stateCount; ++i) {
         FaultProcessState state;
-        FaultProcessStateDeserialization(in, state);
+        if (FaultProcessStateDeserialization(in, state) != MEM_POOLING_OK) {
+            LOG_ERROR << "LoadFromStorage deserialization failed at index=" << i << ", drop all states.";
+            delete[] buffer.data;
+            return MEM_POOLING_ERROR;
+        }
         if (!state.faultNodeId.empty()) {
-            stateMap_[state.faultNodeId] = state;
+            loadedMap[state.faultNodeId] = state;
         }
     }
+    stateMap_.insert(loadedMap.begin(), loadedMap.end());
 
     delete[] buffer.data;
     LOG_INFO << "Loaded " << stateMap_.size() << " fault states from storage.";

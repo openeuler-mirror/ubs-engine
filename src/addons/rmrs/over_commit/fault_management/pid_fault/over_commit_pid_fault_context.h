@@ -13,12 +13,14 @@
 #ifndef MEMPOOLING_OVER_COMMIT_PID_FAULT_CONTEXT_H
 #define MEMPOOLING_OVER_COMMIT_PID_FAULT_CONTEXT_H
 
+#include <sys/types.h>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "mp_configuration.h"
+#include "mp_error.h"
 #include "over_commit_storage.h"
 #include "rmrs_serialize.h"
 

@@ -414,6 +414,18 @@ MpResult MpSmapHelper::IdempotentAllocateHugePages(uint64_t numaId, uint64_t bor
         retryCnt++;
     } while (retryCnt < MAX_RETRY);
 
+    // 末轮TryAllocateHugePagesOnce成功时，达标校验只发生在下一轮循环顶部而不会再进入:
+    // 与AllocateHugePagesWithRetry同口径，退出后复核页数，避免把已成功的分配误报为失败
+    if (ret == MEM_POOLING_OK) {
+        uint64_t verifyPages = 0;
+        if (GetOriginalHugePages(filePath, verifyPages) == MEM_POOLING_OK && verifyPages >= requiredPages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] IdempotentAllocateHugePages success at last retry, numaId=" << numaId
+                << ", pages=" << verifyPages << ", retryCnt=" << retryCnt << ".";
+            return MEM_POOLING_OK;
+        }
+    }
+
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MpSmapHelper] IdempotentAllocateHugePages final failed after " << MAX_RETRY
         << " retries, numaId=" << numaId << ", requiredPages=" << requiredPages << ".";
