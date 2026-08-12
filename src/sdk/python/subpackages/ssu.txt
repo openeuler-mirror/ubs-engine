@@ -1,0 +1,6 @@
+# SSU Python SDK 子包清单
+# 每行一个相对 src/sdk/python/ 的 .py 路径,由 build_subpackage.py ssu 读取
+# 该清单文件同时作为主 setup.py 排除列表的单一数据源
+ubs_engine_ssu.py
+ffi/ubs_engine_binding_ssu.py
+models/ubs_engine_model_ssu.py
