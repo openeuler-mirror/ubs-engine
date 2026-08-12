@@ -446,8 +446,15 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmReturnDispatcher)
         .stubs()
         .with(outBound(localNodeId), outBound(masterNodeId))
         .will(returnValue(UBSE_OK));
+    // 构造合法的请求对象，由invoke stub在调用时填充出参，避免生产代码解引用空消息
+    UbseMemReturnReq returnReq{};
+    returnReq.name = "test";
+    UbseMemReturnReqSimpoPtr returnReqPtr = new (std::nothrow) UbseMemReturnReqSimpo();
+    ASSERT_NE(returnReqPtr, nullptr);
+    returnReqPtr->SetUbseMesgInfo(returnReq);
     MOCKER(&UbseMemControllerDispatcher::BufferToShmReturnReq)
         .stubs()
+        .with(mockcpp::any(), outBound(returnReqPtr), mockcpp::any(), mockcpp::any())
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_ERROR);

@@ -11,6 +11,9 @@
  */
 
 #include "test_ubse_logger_manager.h"
+#include <mutex>
+#include <thread>
+#include <vector>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "gtest/gtest.h"
@@ -18,6 +21,27 @@
 
 namespace ubse::ut::log {
 using namespace ubse::log;
+
+namespace {
+class RecordingLoggerWriter : public UbseLoggerWriter {
+public:
+    bool Write(UbseLoggerEntry& loggerEntry) override
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        moduleNames_.push_back(loggerEntry.GetModuleName());
+        return true;
+    }
+
+    size_t Count()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return moduleNames_.size();
+    }
+
+    std::vector<std::string> moduleNames_;
+    std::mutex mutex_;
+};
+} // namespace
 
 void TestUbseLoggerManager::SetUp()
 {
@@ -179,5 +203,118 @@ TEST_F(TestUbseLoggerManager, Push)
     MOCKER(&LogBuffer::Push).stubs().will(ignoreReturnValue());
     UbseLoggerEntry loggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
     EXPECT_NO_THROW(ubseLoggerManager.Push(std::move(loggerEntry)));
+}
+
+/*
+ * 用例描述
+ * 测试多线程并发首次调用Instance时只创建一个实例
+ */
+TEST_F(TestUbseLoggerManager, testLazyInstanceThreadSafe)
+{
+    UbseLoggerManager::gInstance = nullptr;
+    constexpr int THREAD_NUM = 8;
+    std::vector<std::thread> threads;
+    std::vector<UbseLoggerManager*> results(THREAD_NUM, nullptr);
+    for (int i = 0; i < THREAD_NUM; ++i) {
+        threads.emplace_back([&results, i] { results[i] = UbseLoggerManager::Instance(); });
+    }
+    for (auto& t : threads) {
+        t.join();
+    }
+    EXPECT_NE(results[0], nullptr);
+    for (int i = 1; i < THREAD_NUM; ++i) {
+        EXPECT_EQ(results[i], results[0]);
+    }
+    EXPECT_EQ(UbseLoggerManager::gInstance, results[0]);
+    UbseLoggerManager::Destroy();
+}
+
+/*
+ * 用例描述
+ * 测试初始化前的日志先入启动缓冲，Init后按FIFO顺序输出
+ */
+TEST_F(TestUbseLoggerManager, testEarlyBufferFlushedInOrder)
+{
+    UbseLoggerManager::gInstance = nullptr;
+    auto* manager = UbseLoggerManager::Instance();
+    ASSERT_NE(manager, nullptr);
+    auto* writer = new (std::nothrow) RecordingLoggerWriter();
+    ASSERT_NE(writer, nullptr);
+    manager->Push(UbseLoggerEntry("moduleA", UbseLogLevel::INFO, "fileA", "funcA", 1));
+    manager->Push(UbseLoggerEntry("moduleB", UbseLogLevel::INFO, "fileB", "funcB", 2));
+    manager->Push(UbseLoggerEntry("moduleC", UbseLogLevel::INFO, "fileC", "funcC", 3));
+    LoggerOptions options{UbseLogLevel::INFO, 2, 2, 64};
+    UbseLoggerManager::gInited_ = false; // gInited_为静态状态，避免受前面用例影响
+    EXPECT_EQ(manager->Init(options, writer), UBSE_OK);
+    constexpr int MAX_WAIT_MS = 1000; // 等待异步写线程输出全部启动缓冲日志
+    int waitedMs = 0;
+    while (writer->Count() < 3 && waitedMs < MAX_WAIT_MS) {
+        usleep(1000);
+        waitedMs++;
+    }
+    EXPECT_EQ(writer->Count(), 3u);
+    const std::vector<std::string> expect = {"moduleA", "moduleB", "moduleC"};
+    EXPECT_EQ(writer->moduleNames_, expect);
+    UbseLoggerManager::Destroy();
+    delete writer;
+}
+
+/*
+ * 用例描述
+ * 测试配置容量非默认时，Init按配置重建缓冲并迁移早期日志（FIFO顺序、容量不足丢最新）
+ */
+TEST_F(TestUbseLoggerManager, testInitResizePreservesEarlyLogs)
+{
+    UbseLoggerManager::gInstance = nullptr;
+    auto* manager = UbseLoggerManager::Instance();
+    ASSERT_NE(manager, nullptr);
+    auto* writer = new (std::nothrow) RecordingLoggerWriter();
+    ASSERT_NE(writer, nullptr);
+    manager->Push(UbseLoggerEntry("moduleA", UbseLogLevel::INFO, "fileA", "funcA", 1));
+    manager->Push(UbseLoggerEntry("moduleB", UbseLogLevel::INFO, "fileB", "funcB", 2));
+    manager->Push(UbseLoggerEntry("moduleC", UbseLogLevel::INFO, "fileC", "funcC", 3));
+    LoggerOptions options{UbseLogLevel::INFO, 2, 2, 2}; // 配置容量2，非默认，触发迁移
+    UbseLoggerManager::gInited_ = false;
+    EXPECT_EQ(manager->Init(options, writer), UBSE_OK);
+    constexpr int MAX_WAIT_MS = 1000; // 等待异步写线程输出迁移后的日志
+    int waitedMs = 0;
+    while (writer->Count() < 2 && waitedMs < MAX_WAIT_MS) {
+        usleep(1000);
+        waitedMs++;
+    }
+    EXPECT_EQ(writer->Count(), 2u);
+    const std::vector<std::string> expect = {"moduleA", "moduleB"};
+    EXPECT_EQ(writer->moduleNames_, expect);
+    UbseLoggerManager::Destroy();
+    delete writer;
+}
+
+/*
+ * 用例描述
+ * 测试启动缓冲容量满时丢弃最新日志，最早日志保留
+ */
+TEST_F(TestUbseLoggerManager, testEarlyBufferOverflowDropNewest)
+{
+    UbseLoggerManager::gInstance = nullptr;
+    auto* manager = UbseLoggerManager::Instance();
+    ASSERT_NE(manager, nullptr);
+    manager->logBuffer_ = std::make_unique<LogBuffer>(2);
+    manager->Push(UbseLoggerEntry("moduleA", UbseLogLevel::INFO, "file", "func", 1));
+    manager->Push(UbseLoggerEntry("moduleB", UbseLogLevel::INFO, "file", "func", 2));
+    manager->Push(UbseLoggerEntry("moduleC", UbseLogLevel::INFO, "file", "func", 3));
+    EXPECT_EQ(manager->logBuffer_->writeBuffer_.right_.load(), 2u);
+    UbseLoggerManager::Destroy();
+}
+
+/*
+ * 用例描述
+ * 测试从未初始化（无sink）时Destroy安全且不崩溃
+ */
+TEST_F(TestUbseLoggerManager, testDestroyWithoutInit)
+{
+    UbseLoggerManager::gInstance = nullptr;
+    EXPECT_NO_THROW(UbseLoggerManager::Destroy());
+    EXPECT_NE(UbseLoggerManager::Instance(), nullptr);
+    EXPECT_NO_THROW(UbseLoggerManager::Destroy());
 }
 } // namespace ubse::ut::log

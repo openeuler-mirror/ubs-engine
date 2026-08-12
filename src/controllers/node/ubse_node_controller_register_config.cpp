@@ -25,6 +25,7 @@ std::string GetCmdLineResult(std::string_view cmd)
     std::string cmdlineOutput;
     FILE* rawPipe = popen(cmd.data(), "r");
     if (!rawPipe) {
+        UBSE_LOG_ERROR << "popen failed, cmd=" << std::string(cmd);
         return cmdlineOutput;
     }
     std::unique_ptr<FILE, decltype(&pclose)> pipe(rawPipe, pclose);
@@ -65,6 +66,7 @@ std::optional<ConfigItem> RegisterPmdMappingConfig()
     std::optional<ConfigItem> result;
     std::ifstream cmdlineFile("/proc/cmdline", std::ios::binary);
     if (!cmdlineFile.is_open()) {
+        UBSE_LOG_ERROR << "open /proc/cmdline failed";
         return result;
     }
     std::string cmdlineOutput((std::istreambuf_iterator<char>(cmdlineFile)), std::istreambuf_iterator<char>());
@@ -76,11 +78,13 @@ std::optional<ConfigItem> RegisterPmdMappingConfig()
         }
     }
     if (cmdlineOutput.empty()) {
+        UBSE_LOG_WARN << "read /proc/cmdline content is empty";
         return result;
     }
     std::regex pattern(R"((?:^|[[:space:]])(pmd_mapping=([0-9]+)%)(?=[[:space:]]|$))");
     std::smatch match;
     if (!std::regex_search(cmdlineOutput, match, pattern)) {
+        UBSE_LOG_WARN << "pmd_mapping not found in cmdline, use default 100%";
         return result;
     }
     std::string percentStr = match[2].str();
@@ -88,9 +92,11 @@ std::optional<ConfigItem> RegisterPmdMappingConfig()
     try {
         percentage = std::stoi(percentStr);
     } catch (const std::exception& e) {
+        UBSE_LOG_WARN << "invalid pmd_mapping value=" << percentStr;
         return result;
     }
     if (percentage <= 0 || percentage > 100) {
+        UBSE_LOG_WARN << "invalid pmd_mapping percentage=" << percentStr;
         return result;
     }
     result = {"os", "pmd_mapping", std::move(percentStr)};
@@ -103,11 +109,13 @@ std::optional<ConfigItem> RegisterAllocatorConfig()
 
     std::string cmdlineOutput = GetCmdLineResult("cat /sys/module/obmm/parameters/mempool_allocator 2>/dev/null");
     if (cmdlineOutput.empty()) {
+        UBSE_LOG_WARN << "obmm module not loaded, mempool_allocator absent";
         return result;
     }
 
     cmdlineOutput = trim(cmdlineOutput);
     if (!in_strings(cmdlineOutput, {"hugetlb_pmd", "hugetlb_pud", "buddy_highmem"})) {
+        UBSE_LOG_WARN << "invalid mempool_allocator value=" << cmdlineOutput;
         return result;
     }
 
@@ -121,11 +129,13 @@ std::optional<ConfigItem> RegisterOsPageSize()
 
     std::string cmdlineOutput = GetCmdLineResult("getconf PAGE_SIZE");
     if (cmdlineOutput.empty()) {
+        UBSE_LOG_WARN << "getconf PAGE_SIZE output is empty";
         return result;
     }
 
     cmdlineOutput = trim(cmdlineOutput);
     if (!in_strings(cmdlineOutput, {PAGE_SIZE_4K, PAGE_SIZE_64K})) {
+        UBSE_LOG_WARN << "invalid os page_size value=" << cmdlineOutput;
         return result;
     }
 

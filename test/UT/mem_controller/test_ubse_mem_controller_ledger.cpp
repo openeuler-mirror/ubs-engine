@@ -861,6 +861,9 @@ TEST_F(TestUbseMemControllerLedger, ExecuteShareMemoryClean)
     std::vector<UbseMemShareBorrowExportObj> toClean;
     EXPECT_NO_THROW(ExecuteShareMemoryClean(toClean));
     UbseMemShareBorrowExportObj shareBorrowExportObj;
+    shareBorrowExportObj.req.name = "test";
+    shareBorrowExportObj.algoResult.exportNumaInfos.emplace_back();
+    shareBorrowExportObj.algoResult.exportNumaInfos.back().nodeId = "1";
     toClean.push_back(shareBorrowExportObj);
     EXPECT_NO_THROW(ExecuteShareMemoryClean(toClean));
 }

@@ -12,39 +12,68 @@
 
 #include "ubse_logger_manager.h"
 #include <iostream>
+#include <mutex>
 
 #include "ubse_error.h"
 #include "ubse_logger_ringbuffer.h"
 #include "sys/syslog.h"
 
 namespace ubse::log {
-UbseLoggerManager* UbseLoggerManager::gInstance = nullptr;
+std::atomic<UbseLoggerManager*> UbseLoggerManager::gInstance{nullptr};
 bool UbseLoggerManager::gInited_ = false;
 std::atomic<bool> UbseLoggerManager::threadRunning_;
+constexpr uint32_t kDefaultBufferMaxItem = 4096; // 未初始化时启动缓冲容量，与默认配置 log.queue.maxItem 一致
+static std::mutex g_instanceMutex;
+
+UbseLoggerManager::UbseLoggerManager()
+{
+    // 构造时即分配缓冲，保证配置模块/日志模块初始化之前的日志也能先缓存，不因依赖未就绪而丢失
+    logBuffer_ = std::make_unique<LogBuffer>(kDefaultBufferMaxItem);
+}
 
 UbseLoggerManager* UbseLoggerManager::Instance()
 {
     /* already created */
-    if (gInstance != nullptr) {
-        return gInstance;
+    auto* instance = gInstance.load(std::memory_order_acquire);
+    if (instance != nullptr) {
+        return instance;
     }
-    gInstance = new (std::nothrow) UbseLoggerManager();
-    if (gInstance == nullptr) {
-        std::cerr << "Failed to new UbseLogger object, probably out of memory";
-        return nullptr;
+    std::lock_guard<std::mutex> lock(g_instanceMutex);
+    instance = gInstance.load(std::memory_order_relaxed);
+    if (instance == nullptr) {
+        try {
+            instance = new (std::nothrow) UbseLoggerManager();
+        } catch (...) {
+            instance = nullptr;
+        }
+        if (instance == nullptr) {
+            std::cerr << "Failed to new UbseLogger object, probably out of memory" << std::endl;
+            return nullptr;
+        }
+        gInstance.store(instance, std::memory_order_release);
     }
-    return gInstance;
+    return instance;
 }
 
 void UbseLoggerManager::Destroy()
 {
     /* un-initialize and delete logger */
-    if (gInstance != nullptr) {
+    auto* instance = gInstance.load(std::memory_order_acquire);
+    if (instance != nullptr) {
         if (gInited_) {
-            gInstance->Exit();
+            instance->Exit();
+        } else {
+            uint32_t pending = instance->logBuffer_->PendingCount();
+            if (pending > 0) {
+                std::cerr << "Discard " << pending << " buffered log entries: logger sink is not initialized."
+                          << std::endl;
+            }
         }
-        delete gInstance;
-        gInstance = nullptr;
+        // 重置初始化标记，支持 Stop/Start 周期或测试场景下重新初始化
+        gInited_ = false;
+        std::lock_guard<std::mutex> lock(g_instanceMutex);
+        gInstance.store(nullptr, std::memory_order_release);
+        delete instance;
     }
 }
 
@@ -57,13 +86,16 @@ UbseResult UbseLoggerManager::Init(const LoggerOptions& options, UbseLoggerWrite
     if (logWriter == nullptr) {
         return UBSE_ERROR;
     }
+    // 配置容量与默认不同时，按配置重建缓冲并迁移启动期日志，保证配置生效且早期日志不丢
+    if (options.bufferMaxItem != kDefaultBufferMaxItem) {
+        ResizeBuffer(options.bufferMaxItem);
+    }
     this->minLogLevel_ = options.minLogLevel;
     this->syslogOpen_ = options.syslogOpen;
     this->syslogType_ = options.syslogType;
-    gInstance->writer_ = logWriter;
+    this->writer_ = logWriter;
     threadRunning_.store(true);
     try {
-        logBuffer_ = std::make_unique<LogBuffer>(options.bufferMaxItem);
         loggingThread_ = std::thread([this] { UbseLoggerManager::Pop(); });
     } catch (...) {
         std::cerr << "Out of memory or create thread failed." << std::endl;
@@ -72,6 +104,19 @@ UbseResult UbseLoggerManager::Init(const LoggerOptions& options, UbseLoggerWrite
 
     gInited_ = true;
     return UBSE_OK;
+}
+
+void UbseLoggerManager::ResizeBuffer(uint32_t newCapacity)
+{
+    auto oldBuffer = std::move(logBuffer_);
+    auto newBuffer = std::make_unique<LogBuffer>(newCapacity);
+    // 启动期无消费者，条目都积在writeBuffer_；复用Swap()换入readBuffer_后统一按FIFO迁移
+    oldBuffer->Swap();
+    UbseLoggerEntry entry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
+    while (oldBuffer->Pop(entry)) {
+        newBuffer->Push(std::move(entry)); // 容量不足时丢最新并复用"缓冲满"告警
+    }
+    logBuffer_ = std::move(newBuffer);
 }
 
 void UbseLoggerManager::Exit()
