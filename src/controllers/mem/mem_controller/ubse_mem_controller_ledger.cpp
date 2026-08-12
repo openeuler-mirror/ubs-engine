@@ -580,10 +580,6 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
         return UBSE_OK;
     }
     auto nodeId = node.nodeId;
-    if (!CheckNodeIsMaster()) {
-        UBSE_LOG_INFO << "current node not master, skip ledger.";
-        return UBSE_OK;
-    }
     auto masterDebtInfo = GetMasterCtxLedger(nodeId);
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;

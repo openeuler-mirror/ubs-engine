@@ -417,19 +417,21 @@ void PrintAllLinkNodes(const std::vector<UbseRoleInfo> &roleInfos)
 void UbseNodeControllerMaster::UbseNodeLedgerTimerHandler()
 {
     UBSE_LOG_INFO << "cycle reconciliation";
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "ubse get master node failed, skip smoothing.";
+
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "election module not load, skip smoothing.";
         return;
     }
-    // 若当前节点不是主节点，不执行smoothing
-    if (masterInfo.nodeId != UbseNodeController::GetInstance().GetCurrentNodeId()) {
-        UBSE_LOG_INFO << "current node not master, skip smoothing.";
+
+    // 仅当前选主组的主节点执行本组周期对账
+    if (!module->IsLeader()) {
+        UBSE_LOG_INFO << "current node not local master, skip smoothing.";
         return;
     }
+
     std::vector<UbseRoleInfo> roleInfos{};
-    ret = UbseNodeGetLinkUpNodes(roleInfos);
+    auto ret = UbseNodeGetLinkUpNodes(roleInfos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "get all link nodes failed, " << FormatRetCode(ret);
         return;

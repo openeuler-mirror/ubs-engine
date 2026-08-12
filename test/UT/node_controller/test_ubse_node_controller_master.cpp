@@ -84,14 +84,29 @@ TEST_F(TestUbseNodeControllerMaster, PrintAllLinkNodes)
     EXPECT_NO_THROW(PrintAllLinkNodes(roles));
 }
 
-TEST_F(TestUbseNodeControllerMaster, UbseNodeLedgerTimerHandler)
+TEST_F(TestUbseNodeControllerMaster, UbseNodeLedgerTimerHandler_NotLocalMaster)
+{
+    auto ubseElectionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(ubseElectionModule));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+    MOCKER(UbseNodeGetLinkUpNodes).expects(never());
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.UbseNodeLedgerTimerHandler());
+}
+
+TEST_F(TestUbseNodeControllerMaster, UbseNodeLedgerTimerHandler_LocalMaster)
 {
     std::vector<UbseRoleInfo> roles{{"node0", "master", 1}, {"node1", "agent", 1}};
-    MOCKER(UbseNodeGetLinkUpNodes).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(roles));
+    auto ubseElectionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(ubseElectionModule));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(UbseNodeGetLinkUpNodes).stubs().with(outBound(roles)).will(returnValue(UBSE_OK));
+
     UbseNodeControllerMaster master{};
     master.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
     bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
-    MOCKER(func).stubs().will(returnValue(true));
+    MOCKER(func).expects(exactly(2)).will(returnValue(true));
     EXPECT_NO_THROW(master.UbseNodeLedgerTimerHandler());
 }
 
