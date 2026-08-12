@@ -22,8 +22,8 @@
 #include "mempool_borrow_module.h"
 #include "mempooling_message.h"
 #include "over_commit_fault_memid_module.h"
-#include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_common.h"
+#include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_state_store.h"
 #include "rmrs_serialize.h"
 
@@ -42,7 +42,6 @@ static const std::string TAG = "[OverCommit][PidFault][Executor] ";
 // UBSE单笔借用下限4MB: 实际借用量=max(需求,4MB)，与借用层LiftFaultBorrowSizeKB口径一致，
 // 随task下发供借入节点设置smap远端numa借用信息（免重复查账本）
 static constexpr uint64_t MIN_BORROW_SIZE_KB = 4 * 1024;
-
 
 // RPC响应回调
 static void FaultPidExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t retCode)

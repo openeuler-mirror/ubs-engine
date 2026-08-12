@@ -17,8 +17,8 @@
 #include <unordered_set>
 #include "ubse_logger.h"
 #include "mp_configuration.h"
-#include "over_commit_pid_fault_state_store.h"
 #include "over_commit_pid_fault_common.h"
+#include "over_commit_pid_fault_state_store.h"
 
 namespace mempooling {
 
