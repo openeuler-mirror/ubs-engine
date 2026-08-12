@@ -12,15 +12,18 @@
 
 #include "ubse_ras_handler.h"
 #include <dlfcn.h>
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <regex>
 #include <set>
 #include <sstream>
 #include <utility>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -395,6 +398,7 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
     }
     auto xalarmReportFunc = (XalarmReportEventFunc)dlsym(xalarmHandle, "xalarm_report_event");
     if (xalarmReportFunc == nullptr) {
+        UBSE_LOG_WARN << "[RAS] Resolve xalarm_report_event failed, alarmFaultType=" << alarmFaultType;
         SafeDeleteArray(ack, size);
         dlclose(xalarmHandle);
         return UBSE_RAS_ERROR_DLSYM_XALARMD;
@@ -411,53 +415,202 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
     return UBSE_OK;
 }
 
-// 如果curRole=master，发消息给standby节点，让其进行主备倒换，返回非0
-// 如果curRole！=master 返回0
-UbseResult SendSwitchRoleToStandby(const UbseRoleInfo& curRoleInfo, const std::string& msg)
+// 判断当前是否采用分层选举。
+// 指定根节点沿用单层主备语义；无指定根节点时分别查询组内备和全局备。
+static bool IsHierarchicalElection()
 {
-    if (curRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
-        return UBSE_OK;
+    if (!ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        return false;
     }
+    return ubse::nodeMgr::GetRootIpList().empty();
+}
+
+// 向单个备节点发送升主报文，并同时检查远端执行结果和 RPC 传输结果。
+UbseResult SendSwitchRoleMessage(const std::shared_ptr<UbseComModule>& comModule, const std::string& targetNodeId)
+{
+    // 不复用报文对象，避免多个备节点之间相互污染 RPC 响应状态。
     UbseRasMessagePtr request = new (std::nothrow) UbseRasMessage();
     if (request == nullptr) {
-        UBSE_LOG_ERROR << "request is nullptr. ";
+        UBSE_LOG_ERROR << "Allocate switch-role request failed, targetNodeId=" << targetNodeId;
         return UBSE_ERROR_NULLPTR;
     }
     UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
     if (response == nullptr) {
-        UBSE_LOG_ERROR << "create mxe ras message response failed. ";
+        UBSE_LOG_ERROR << "Allocate switch-role response failed, targetNodeId=" << targetNodeId;
         return UBSE_ERROR_NULLPTR;
     }
-    UbseRoleInfo standbyRoleInfo;
-    auto ret = UbseGetStandbyInfo(standbyRoleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get standby node info failed, " << FormatRetCode(ret);
-        return ret;
-    }
-    auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<UbseElectionModule>();
-    if (electionModule == nullptr) {
-        UBSE_LOG_ERROR << "Get election module failed. ";
-        return UBSE_ERROR_NULLPTR;
-    }
-    electionModule->SwitchAgentFromMaster();
-    SendParam param{standbyRoleInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::RAS),
+    SendParam param{targetNodeId, static_cast<uint16_t>(UbseModuleCode::RAS),
                     static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_SWITCH_ROLE)};
-    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Get com module failed. ";
-        return UBSE_ERROR_NULLPTR;
+    // 远端执行失败优先返回；远端成功但 RPC 异常时返回传输错误。
+    const auto rpcRet = comModule->RpcSend(param, request, response);
+    const auto responseRet = response->GetResult();
+    if (responseRet != UBSE_OK || rpcRet != UBSE_OK) {
+        UBSE_LOG_WARN << "Switch-role RPC failed, targetNodeId=" << targetNodeId << ", "
+                      << "response" << FormatRetCode(responseRet) << ", rpc" << FormatRetCode(rpcRet);
+        return responseRet != UBSE_OK ? responseRet : rpcRet;
     }
-    ret = comModule->RpcSend(param, request, response);
-    if (response->GetResult() != UBSE_OK || ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Fault execute may fail, " << FormatRetCode(response->GetResult());
-        UBSE_LOG_WARN << "RpcSend may fail, " << FormatRetCode(ret);
-        if (response->GetResult() != UBSE_OK) {
-            return response->GetResult();
-        }
+    UBSE_LOG_INFO << "Switch-role RPC succeeded, targetNodeId=" << targetNodeId;
+    return UBSE_OK;
+}
+
+// 查询组内备节点 ID；由调用方按组网模式决定查询失败是否可忽略。
+static UbseResult GetLocalStandbyId(const std::shared_ptr<UbseElectionModule>& electionModule,
+                                    const std::string& currentNodeId, std::string& standbyId)
+{
+    Node localStandby;
+    const auto ret = electionModule->GetLocalStandbyNode(localStandby);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Get local standby failed, currentNodeId=" << currentNodeId << ", " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "[RAS] Switch role success. ";
+    standbyId = localStandby.id;
+    if (standbyId.empty()) {
+        UBSE_LOG_WARN << "Local standby lookup returned an empty node ID, currentNodeId=" << currentNodeId;
+    }
+    return UBSE_OK;
+}
+
+// 仅当当前机柜主也是全局主时查询全局备；查询失败只告警，不阻断组内倒换。
+static std::string GetGlobalStandbyId(const UbseRoleInfo& curRoleInfo, const std::string& localStandbyId)
+{
+    UbseRoleInfo globalMaster;
+    auto ret = UbseGetMasterInfo(globalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Get global master failed, currentNodeId=" << curRoleInfo.nodeId << ", " << FormatRetCode(ret);
+        return {};
+    }
+    // 机柜主不是全局主时，只需要处理组内倒换。
+    if (curRoleInfo.nodeId != globalMaster.nodeId) {
+        UBSE_LOG_INFO << "Skip global standby lookup for non-global local master, currentNodeId=" << curRoleInfo.nodeId
+                      << ", globalMasterNodeId=" << globalMaster.nodeId;
+        return {};
+    }
+    UbseRoleInfo globalStandby;
+    ret = UbseGetStandbyInfo(globalStandby);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Get global standby failed, currentNodeId=" << curRoleInfo.nodeId << ", "
+                      << FormatRetCode(ret);
+        return {};
+    }
+    if (globalStandby.nodeId.empty()) {
+        UBSE_LOG_WARN << "Global standby lookup returned an empty node ID, currentNodeId=" << curRoleInfo.nodeId;
+        return {};
+    }
+    // 同一节点同时是组内备和全局备时只发送一次。
+    if (globalStandby.nodeId == localStandbyId) {
+        UBSE_LOG_INFO << "Deduplicate identical local and global standby, currentNodeId=" << curRoleInfo.nodeId
+                      << ", targetNodeId=" << localStandbyId;
+        return {};
+    }
+    return globalStandby.nodeId;
+}
+
+// 在降主前解析全部通知目标，避免角色切换后无法取得原选举信息。
+// 单层查询失败沿用原逻辑返回错误；分层缺少一类备节点时继续解析另一类备节点。
+static UbseResult GetSwitchRoleTargets(const UbseRoleInfo& curRoleInfo,
+                                       const std::shared_ptr<UbseElectionModule>& electionModule,
+                                       std::string& standbyId, std::string& globalStandbyId)
+{
+    if (!IsHierarchicalElection()) {
+        // 1D 和指定根节点沿用原单层备节点查询。
+        UbseRoleInfo standby;
+        const auto ret = UbseGetStandbyInfo(standby);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Get single-layer standby failed, currentNodeId=" << curRoleInfo.nodeId << ", "
+                           << FormatRetCode(ret);
+            return ret;
+        }
+        standbyId = standby.nodeId;
+        if (standbyId.empty()) {
+            UBSE_LOG_WARN << "Single-layer standby lookup returned an empty node ID, currentNodeId="
+                          << curRoleInfo.nodeId;
+        }
+        return UBSE_OK;
+    }
+    // 分层选举中组内备不存在是允许场景，继续判断是否需要通知全局备。
+    const auto localRet = GetLocalStandbyId(electionModule, curRoleInfo.nodeId, standbyId);
+    if (localRet != UBSE_OK) {
+        UBSE_LOG_INFO << "Continue resolving global standby after local standby lookup failed, currentNodeId="
+                      << curRoleInfo.nodeId << ", " << FormatRetCode(localRet);
+    }
+    globalStandbyId = GetGlobalStandbyId(curRoleInfo, standbyId);
+    UBSE_LOG_INFO << "Resolved hierarchical switch-role targets, currentNodeId=" << curRoleInfo.nodeId
+                  << ", localStandbyNodeId=" << standbyId << ", globalStandbyNodeId=" << globalStandbyId;
+    return UBSE_OK;
+}
+
+// 完成一次主动降主并分别通知组内/单层备和全局备，全局失败只记录告警。
+static UbseResult SwitchRoleToTargets(const std::shared_ptr<UbseElectionModule>& electionModule,
+                                      const std::string& currentNodeId, const std::string& standbyId,
+                                      const std::string& globalStandbyId)
+{
+    if (standbyId.empty() && globalStandbyId.empty()) {
+        UBSE_LOG_INFO << "No standby target found; continue BMC fault handling, currentNodeId=" << currentNodeId;
+        return UBSE_OK;
+    }
+    // 所有目标已在降主前解析完成，避免角色对象清理后丢失全局备信息。
+    UBSE_LOG_INFO << "Demote local master before notifying standby nodes, currentNodeId=" << currentNodeId
+                  << ", localOrSingleStandbyNodeId=" << standbyId << ", globalStandbyNodeId=" << globalStandbyId;
+    electionModule->SwitchAgentFromMaster();
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Communication module is unavailable after local master demotion, currentNodeId="
+                       << currentNodeId << ", localOrSingleStandbyNodeId=" << standbyId
+                       << ", globalStandbyNodeId=" << globalStandbyId;
+        // 仅有全局备时沿用“全局倒换失败只告警”；单层/组内目标无法通知时返回模块错误。
+        return standbyId.empty() ? UBSE_RAS_ERROR_SWITCH_ROLE : UBSE_ERROR_NULLPTR;
+    }
+    // 组内/单层通知失败不阻止全局通知尝试，最终仍优先返回组内/单层错误。
+    auto standbyRet = UBSE_OK;
+    if (!standbyId.empty()) {
+        UBSE_LOG_INFO << "Notify standby to take over, currentNodeId=" << currentNodeId
+                      << ", targetType=local-or-single-layer-standby, targetNodeId=" << standbyId;
+        standbyRet = SendSwitchRoleMessage(comModule, standbyId);
+    }
+    if (!globalStandbyId.empty()) {
+        UBSE_LOG_INFO << "Notify standby to take over, currentNodeId=" << currentNodeId
+                      << ", targetType=global-standby, targetNodeId=" << globalStandbyId;
+        const auto globalRet = SendSwitchRoleMessage(comModule, globalStandbyId);
+        if (globalRet != UBSE_OK) {
+            UBSE_LOG_WARN << "Notify global standby failed, currentNodeId=" << currentNodeId
+                          << ", targetNodeId=" << globalStandbyId << ", " << FormatRetCode(globalRet);
+        }
+    }
+    if (standbyRet != UBSE_OK) {
+        UBSE_LOG_WARN << "Switch-role notification finished with a local or single-layer target failure, "
+                      << "currentNodeId=" << currentNodeId << ", targetNodeId=" << standbyId << ", "
+                      << FormatRetCode(standbyRet);
+        return standbyRet;
+    }
+    UBSE_LOG_INFO << "Switch-role notification completed, currentNodeId=" << currentNodeId;
+    // 已尝试通知可接管节点，用专用返回码阻止故障节点继续以原主角色处理本机故障。
     return UBSE_RAS_ERROR_SWITCH_ROLE;
+}
+
+// 当前节点的 master 表示组内主角色；存在接管目标时主动降主并发送升主报文。
+// 非主节点或没有任何备节点时返回成功，让后续正常主节点继续处理 BMC 故障。
+UbseResult SendSwitchRoleToStandby(const UbseRoleInfo& curRoleInfo, const std::string& msgId)
+{
+    // 非组内主不持有需要让出的本地角色，直接继续故障处理。
+    if (curRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
+        UBSE_LOG_INFO << "Skip switch-role notification for non-master node, currentNodeId=" << curRoleInfo.nodeId;
+        return UBSE_OK;
+    }
+    auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "Get election module failed, currentNodeId=" << curRoleInfo.nodeId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 必须先收集全部目标，再执行唯一一次主动降主。
+    std::string standbyId;
+    std::string globalStandbyId;
+    const auto ret = GetSwitchRoleTargets(curRoleInfo, electionModule, standbyId, globalStandbyId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Resolve switch-role targets failed, currentNodeId=" << curRoleInfo.nodeId
+                       << ", msgId=" << msgId << ", " << FormatRetCode(ret);
+        return ret;
+    }
+    return SwitchRoleToTargets(electionModule, curRoleInfo.nodeId, standbyId, globalStandbyId);
 }
 
 void ClearFaultHandlerResult(const std::string& msgId)
@@ -528,6 +681,183 @@ bool IsOnlyOneNodeInCluster()
     return false;
 }
 
+// 判断指定根节点场景是否没有单层主备可以处理故障。
+// 指定根节点不存在全局备概念，沿用原单层选举的主、备角色进行 ACK 决策。
+static bool ShouldSkipSpecifiedRootNodeBmcFault(const UbseRoleInfo& curRoleInfo,
+                                                const std::vector<std::string>& rootIps)
+{
+    // 当前节点为主时，只要存在备节点就必须先执行主备倒换
+    UbseRoleInfo standby;
+    const auto standbyRet = UbseGetStandbyInfo(standby);
+    if (curRoleInfo.nodeRole == ELECTION_ROLE_MASTER) {
+        if (standbyRet != UBSE_OK) {
+            UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=specified-root-node, nodeId=" << curRoleInfo.nodeId
+                          << ", reason=master-without-standby, standby" << FormatRetCode(standbyRet);
+            return true;
+        }
+        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=specified-root-node, nodeId=" << curRoleInfo.nodeId
+                      << ", reason=standby-available, standbyNodeId=" << standby.nodeId;
+        return false;
+    }
+    // 当前节点是根节点时，本身仍可能参与选举，不能直接 ACK
+    UbseRoleInfo master;
+    const auto masterRet = UbseGetMasterInfo(master);
+    const auto currentNode = ubse::nodeMgr::GetCurrentNode();
+    const bool isRoot = std::find(rootIps.begin(), rootIps.end(), currentNode.addr) != rootIps.end();
+    if (!isRoot && masterRet != UBSE_OK && standbyRet != UBSE_OK) {
+        UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=specified-root-node, nodeId=" << curRoleInfo.nodeId
+                      << ", nodeAddr=" << currentNode.addr << ", reason=non-root-without-master-or-standby, master"
+                      << FormatRetCode(masterRet) << ", standby" << FormatRetCode(standbyRet);
+        return true;
+    }
+    UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=specified-root-node, nodeId=" << curRoleInfo.nodeId
+                  << ", nodeAddr=" << currentNode.addr << ", isRoot=" << isRoot << ", masterNodeId=" << master.nodeId
+                  << ", standbyNodeId=" << standby.nodeId << ", master" << FormatRetCode(masterRet) << ", standby"
+                  << FormatRetCode(standbyRet);
+    return false;
+}
+
+// 判断故障机柜是否存在可接管的组内备；仅机柜主需要执行该判断。
+static bool HasLocalStandbyForBmcFault(const UbseRoleInfo& curRoleInfo,
+                                       const std::shared_ptr<UbseElectionModule>& electionModule)
+{
+    if (curRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
+        return false;
+    }
+    std::string localStandbyId;
+    const auto ret = GetLocalStandbyId(electionModule, curRoleInfo.nodeId, localStandbyId);
+    if (ret != UBSE_OK || localStandbyId.empty()) {
+        return false;
+    }
+    UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
+                  << ", reason=local-standby-available, standbyNodeId=" << localStandbyId;
+    return true;
+}
+
+// 仅统计管理组内除故障节点外的主、备和 agent；挂载组节点不能参与全局选举。
+static bool HasGlobalElectionCandidate(const std::shared_ptr<UbseElectionModule>& electionModule,
+                                       const std::string& faultNodeId)
+{
+    HaTopologyInfo topology;
+    const auto ret = electionModule->GetCurNodeGlobalTopoInfo(topology);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Get global topology failed while evaluating BMC fault, electionMode=hierarchical, nodeId="
+                      << faultNodeId << ", reason=global-election-candidate-unknown, " << FormatRetCode(ret);
+        return false;
+    }
+    const auto hasCandidate = [&faultNodeId](const GroupTopology& group) {
+        if (!group.isManagingGroup) {
+            return false;
+        }
+        const auto valid = [&faultNodeId](const std::string& nodeId) {
+            return !nodeId.empty() && nodeId != faultNodeId;
+        };
+        return valid(group.groupMasterId) || valid(group.groupStandbyId) ||
+               std::any_of(group.groupNodes.begin(), group.groupNodes.end(), valid);
+    };
+    const bool found = hasCandidate(topology.currentGroup) ||
+                       std::any_of(topology.groups.begin(), topology.groups.end(), hasCandidate);
+    if (found) {
+        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << faultNodeId
+                      << ", reason=visible-managing-group-candidate";
+    }
+    return found;
+}
+
+// 判断分层选举是否可直接 ACK：仍有组内备或全局候选时继续处理，否则允许故障节点下电。
+static bool ShouldSkipHierarchicalElectionBmcFault(const UbseRoleInfo& curRoleInfo,
+                                                   const std::shared_ptr<UbseElectionModule>& electionModule)
+{
+    UbseRoleInfo globalMaster, globalStandby;
+    auto masterRet = UbseGetMasterInfo(globalMaster);
+    auto standbyRet = UbseGetStandbyInfo(globalStandby);
+    if (masterRet != UBSE_OK && standbyRet != UBSE_OK) {
+        if (HasGlobalElectionCandidate(electionModule, curRoleInfo.nodeId)) {
+            return false;
+        }
+        // ACK 前再查一次全局主备，避免切主窗口内误判为没有接管节点。
+        masterRet = UbseGetMasterInfo(globalMaster);
+        standbyRet = UbseGetStandbyInfo(globalStandby);
+        if (masterRet != UBSE_OK && standbyRet != UBSE_OK) {
+            if (HasLocalStandbyForBmcFault(curRoleInfo, electionModule)) {
+                return false;
+            }
+            UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=hierarchical, reason=no-confirmed-global-"
+                          << "election-candidate, nodeId=" << curRoleInfo.nodeId << ", master"
+                          << FormatRetCode(masterRet) << ", standby" << FormatRetCode(standbyRet);
+            return true;
+        }
+    }
+    // 全局主尚未产生但已有全局备时，等待全局主产生后继续处理
+    if (masterRet != UBSE_OK) {
+        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
+                      << ", reason=global-standby-available, standbyNodeId=" << globalStandby.nodeId << ", master"
+                      << FormatRetCode(masterRet);
+        return false;
+    }
+    // 已有全局主时：健康主直接处理；故障节点为全局主时继续判断全局备。
+    if (curRoleInfo.nodeId != globalMaster.nodeId) {
+        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
+                      << ", reason=healthy-global-master-available, masterNodeId=" << globalMaster.nodeId;
+        return false;
+    }
+    if (standbyRet == UBSE_OK) {
+        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
+                      << ", reason=global-standby-available, standbyNodeId=" << globalStandby.nodeId;
+        return false;
+    }
+    // 故障节点是全局主且没有全局备时，最后确认是否存在组内备。
+    if (HasLocalStandbyForBmcFault(curRoleInfo, electionModule)) {
+        return false;
+    }
+    UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
+                  << ", reason=global-master-without-local-or-global-standby, globalStandby"
+                  << FormatRetCode(standbyRet);
+    return true;
+}
+
+// 按 1D、指定根节点和分层选举的角色语义判断是否直接 ACK
+static bool ShouldSkipBmcFaultHandling(const UbseRoleInfo& curRoleInfo)
+{
+    // 选举模块为空时无法判断接管节点，直接 ACK 允许 SysSentry 执行下电。
+    auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "Skip BMC fault handling because election module is unavailable, topology=clos, nodeId="
+                       << curRoleInfo.nodeId << ", reason=election-module-unavailable";
+        return true;
+    }
+    const auto rootIps = ubse::nodeMgr::GetRootIpList();
+    if (!rootIps.empty()) {
+        return ShouldSkipSpecifiedRootNodeBmcFault(curRoleInfo, rootIps);
+    }
+    return ShouldSkipHierarchicalElectionBmcFault(curRoleInfo, electionModule);
+}
+
+// 尝试直接回复 BMC 故障：有返回值表示本次处理已结束，空值表示继续主备倒换和故障转发。
+static std::optional<UbseResult> TryAcknowledgeBmcFault(const std::string& msgId, UbseRoleInfo& curRoleInfo)
+{
+    const bool isClosType = ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
+    // 1D 单节点直接 ACK 且无需查询当前角色。
+    bool shouldAck = !isClosType && IsOnlyOneNodeInCluster();
+    if (!shouldAck) {
+        const auto ret = UbseGetCurrentNodeInfo(curRoleInfo);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Get current node info failed, msgId=" << msgId << ", " << FormatRetCode(ret);
+            return ret;
+        }
+        shouldAck = isClosType && ShouldSkipBmcFaultHandling(curRoleInfo);
+    }
+    if (!shouldAck) {
+        return std::nullopt;
+    }
+    // 所有组网共用唯一提前 ACK 出口，避免重复拼接和上报。
+    UBSE_LOG_INFO << "Acknowledge BMC fault without role switch, topology=" << (isClosType ? "clos" : "one-dimensional")
+                  << ", nodeId=" << curRoleInfo.nodeId << ", msgId=" << msgId;
+    const std::string ackStr = msgId + "_" + std::to_string(UBSE_OK);
+    return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+}
+
+// 处理 BMC 故障：必要时先完成主备倒换，再由正常主节点处理故障并回复 SysSentry。
 UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
 {
     uint64_t validateMsgId; // 仅用于外部数据校验，无需使用
@@ -535,19 +865,12 @@ UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
         UBSE_LOG_ERROR << "Invalid msg id, expect integer represented as a string";
         return UBSE_ERROR_INVAL;
     }
-    if (IsOnlyOneNodeInCluster()) {
-        UBSE_LOG_INFO << "Only one node in cluster, no need to handle BMC fault";
-        const std::string ackStr = info + "_" + std::to_string(UBSE_OK);
-        return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
-    }
     UbseRoleInfo curRoleInfo;
-    UbseRoleInfo masterRoleInfo;
-    auto ret = UbseGetCurrentNodeInfo(curRoleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get current node info failed, " << FormatRetCode(ret);
-        return ret;
+    if (const auto ackRet = TryAcknowledgeBmcFault(info, curRoleInfo); ackRet.has_value()) {
+        return ackRet.value();
     }
-    ret = SendSwitchRoleToStandby(curRoleInfo, info);
+    UbseRoleInfo masterRoleInfo;
+    auto ret = SendSwitchRoleToStandby(curRoleInfo, info);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Do switch role failed, " << FormatRetCode(ret);
         return ret;
@@ -560,6 +883,8 @@ UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
     UBSE_LOG_INFO << "master nodeId=" << masterRoleInfo.nodeId << ", current nodeId=" << curRoleInfo.nodeId;
     ret = ReportBMCFaultToMaster(info, curRoleInfo.nodeId, masterRoleInfo.nodeId);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Report BMC fault to master failed, msgId=" << info << ", faultNodeId=" << curRoleInfo.nodeId
+                       << ", masterNodeId=" << masterRoleInfo.nodeId << ", " << FormatRetCode(ret);
         return ret;
     }
     auto ackStr = std::to_string(ret);
