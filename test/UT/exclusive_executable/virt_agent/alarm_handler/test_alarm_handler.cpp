@@ -639,4 +639,249 @@ TEST_F(TestAlarmHandler, OomEventHandlerNoAsyncBorrow)
     MOCKER(&StatusManager::StillInTask).reset();
 }
 
+// ===================== WaitForFreeHugePage Tests =====================
+
+TEST_F(TestAlarmHandler, WaitForFreeHugePageTimeout)
+{
+    VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
+    VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
+    EXPECT_EQ(ret, VM_ERROR);
+}
+
+TEST_F(TestAlarmHandler, WaitForFreeHugePageSuccess)
+{
+    HostNumaCpuInfo hostNumaCpuInfo;
+    hostNumaCpuInfo.nodeId = "node0";
+    NumaCpuInfo numaCpuInfo;
+    numaCpuInfo.hostName = "host0";
+    numaCpuInfo.socketId = 0;
+    numaCpuInfo.numaId = 1;
+    numaCpuInfo.nrHugePage = 10;
+    numaCpuInfo.freeHugePage = 5;
+    numaCpuInfo.status = "normal";
+    hostNumaCpuInfo.numaCpuInfos.push_back(numaCpuInfo);
+
+    HostVmDomainInfo hostVmDomainInfo;
+    hostVmDomainInfo.nodeId = "node0";
+    std::vector<HostVmDomainInfo> vmList{hostVmDomainInfo};
+    std::vector<HostNumaCpuInfo> numaList{hostNumaCpuInfo};
+    ASSERT_EQ(ResourceCollect::GetInstance().VmResourceCollectInfoHandle(vmList, numaList), VM_OK);
+
+    VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
+    VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
+    EXPECT_EQ(ret, VM_OK);
+}
+
+TEST_F(TestAlarmHandler, WaitForFreeHugePageInsufficientFree)
+{
+    HostNumaCpuInfo hostNumaCpuInfo;
+    hostNumaCpuInfo.nodeId = "node0";
+    NumaCpuInfo numaCpuInfo;
+    numaCpuInfo.hostName = "host0";
+    numaCpuInfo.socketId = 0;
+    numaCpuInfo.numaId = 1;
+    numaCpuInfo.nrHugePage = 10;
+    numaCpuInfo.freeHugePage = 0;
+    numaCpuInfo.status = "normal";
+    hostNumaCpuInfo.numaCpuInfos.push_back(numaCpuInfo);
+
+    HostVmDomainInfo hostVmDomainInfo;
+    hostVmDomainInfo.nodeId = "node0";
+    std::vector<HostVmDomainInfo> vmList{hostVmDomainInfo};
+    std::vector<HostNumaCpuInfo> numaList{hostNumaCpuInfo};
+    ASSERT_EQ(ResourceCollect::GetInstance().VmResourceCollectInfoHandle(vmList, numaList), VM_OK);
+
+    VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
+    VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
+    EXPECT_EQ(ret, VM_ERROR); // ~30s timeout
+}
+
+// ===================== OomEventHandler new paths (concurrent borrow) =====================
+
+std::shared_ptr<std::shared_future<VmResult>> MockMakeSatisfiedFuture()
+{
+    std::promise<VmResult> promise;
+    promise.set_value(VM_OK);
+    return std::make_shared<std::shared_future<VmResult>>(promise.get_future().share());
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerPreLockConcurrentBorrow)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).stubs().will(invoke(MockMakeSatisfiedFuture));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerPostLockConcurrentBorrow)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).stubs().will(invoke(MockMakeSatisfiedFuture));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+// ===================== ProcessOomActions direct tests =====================
+
+TEST_F(TestAlarmHandler, ProcessOomActionsGetVirtDebtInfosFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+TEST_F(TestAlarmHandler, ProcessOomActionsGenAlarmNumaInfoFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+TEST_F(TestAlarmHandler, ProcessOomActionsNoUsedBorrowIds)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(false));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+TEST_F(TestAlarmHandler, ProcessOomActionsAlarmEventHandlerFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::SetBorrowCompletionState).stubs();
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_ERROR));
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState)
+        .stubs()
+        .will(returnValue(std::shared_ptr<BorrowCompletionState>()));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(&StatusManager::SetBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+TEST_F(TestAlarmHandler, ProcessOomActionsFullSuccess)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::SetBorrowCompletionState).stubs();
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_OK));
+    auto state = std::make_shared<BorrowCompletionState>();
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).stubs().will(returnValue(state));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(&StatusManager::SetBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+// ===================== OomEventHandler WaitForFreeHugePage timeout log =====================
+
+TEST_F(TestAlarmHandler, OomEventHandlerPreLockWaitForFreeHugePageFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).stubs().will(invoke(MockMakeSatisfiedFuture));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK); // returns the future's result, not WaitForFreeHugePage's
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerPostLockWaitForFreeHugePageFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).stubs().will(invoke(MockMakeSatisfiedFuture));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetInFlightBorrowSharedFuture).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+// ===================== ProcessOomActions async borrow path =====================
+namespace {
+std::shared_ptr<BorrowCompletionState> g_asyncBorrowState;
+} // namespace
+
+void MockSetBorrowCompletionStateCapture(std::shared_ptr<BorrowCompletionState> state)
+{
+    g_asyncBorrowState = std::move(state);
+}
+
+VmResult MockAlarmEventHandlerSatisfyPromise(AlarmNumaInfo&, std::vector<UbsVirtNumaMemoryDebtInfo>&,
+                                             WatermarkWarningType)
+{
+    if (g_asyncBorrowState) {
+        g_asyncBorrowState->promise.set_value(VM_OK);
+    }
+    return VM_OK;
+}
+
+TEST_F(TestAlarmHandler, ProcessOomActionsAsyncBorrowSuccess)
+{
+    g_asyncBorrowState.reset();
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+
+    MOCKER(&StatusManager::SetBorrowCompletionState).stubs().will(invoke(MockSetBorrowCompletionStateCapture));
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(invoke(MockAlarmEventHandlerSatisfyPromise));
+
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState)
+        .stubs()
+        .will(returnValue(std::shared_ptr<BorrowCompletionState>()));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
+
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_OK);
+
+    g_asyncBorrowState.reset();
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(&StatusManager::SetBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
 } // namespace ubse::vm::ut
