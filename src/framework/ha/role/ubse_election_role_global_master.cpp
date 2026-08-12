@@ -224,6 +224,7 @@ void GlobalMaster::ProcTimer()
         globalStandbyAgentNodes_ = GetActiveNodes();
         lastTimeMs_ = current;
     }
+    DetectCascadeGroupTimeout();
 }
 
 void GlobalMaster::DealNodeUpdate()
@@ -353,6 +354,17 @@ void ProcessGlobalReply(GlobalCallbackCtx* context, int32_t result, void* recv, 
             reply.cascadeMasterId,
             reply.cascadeStandbyId,
             reply.cascadeGroupNodeIds};
+    } else if (!reply.groupId.empty()) {
+        uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
+        if (managingGroupCount > 0) {
+            uint16_t cascadeGroupId = std::stoi(reply.groupId) + managingGroupCount;
+            auto it = globalCascadeGroupTopologies.find(std::to_string(cascadeGroupId));
+            if (it != globalCascadeGroupTopologies.end()) {
+                UBSE_LOG_INFO << "[ELECTION] cascade group removed by managing group report, groupId="
+                              << reply.groupId << ", cascadeGroupId=" << cascadeGroupId;
+                globalCascadeGroupTopologies.erase(it);
+            }
+        }
     }
 }
 
@@ -589,6 +601,7 @@ GlobalRoleType GlobalMaster::GetGlobalRoleType()
 void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
 {
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        GetBootTime(lastCascadeReportTime_);
         UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
         cascadeGroupReport_ = rcvInfo;
         UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
@@ -759,7 +772,7 @@ void GlobalMaster::DetectCascadeGroupTimeout()
     }
     uint32_t timeoutThreshold = UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL * NO_10 * NO_1000; // 10s
     if (bootTime - lastCascadeReportTime_ > timeoutThreshold) {
-        UBSE_LOG_ERROR << "[ELECTION] Cascade group report timeout, masterId="
+        UBSE_LOG_INFO << "[ELECTION] Cascade group report timeout, masterId="
                        << cascadeGroupReport_.groupMasterId;
         if (!g_globalStop.load()) {
             RoleMgr::GetInstance().RoleChangeNotifyAsync(
