@@ -152,11 +152,6 @@ uint32_t UbseElectionCommMgr::ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, c
         UBSE_LOG_ERROR << "[ELECTION] get UbseComModule failed";
         return UBSE_ERROR;
     }
-    if (!oldNodeId.empty() && oldNodeId != dstId) {
-        ubseComModule->RemoveChannel(oldNodeId, UbseChannelType::NORMAL);
-        UBSE_LOG_INFO << "[ELECTION] Discovery target changed for group " << groupId
-                      << ": " << oldNodeId << " -> " << dstId;
-    }
     ConnectOption option;
     option.nodeId = dstId;
     option.ip = dstIp;
@@ -167,6 +162,12 @@ uint32_t UbseElectionCommMgr::ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, c
     if (retCode != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] Connect failed: " << option.ip;
         return UBSE_ERROR;
+    }
+    // 成功后再断链
+    if (!oldNodeId.empty() && oldNodeId != dstId && oldNodeId != remoteId) {
+        ubseComModule->RemoveChannel(oldNodeId, UbseChannelType::NORMAL);
+        UBSE_LOG_INFO << "[ELECTION] Discovery target changed for group " << groupId
+                      << ": " << oldNodeId << " -> " << dstId;
     }
     {
         std::unique_lock<std::shared_mutex> writeLock(interMgmtGroupLinkMtx_);

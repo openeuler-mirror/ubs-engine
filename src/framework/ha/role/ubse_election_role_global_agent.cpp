@@ -120,7 +120,7 @@ void GlobalAgent::DetectCascadeGroupTimeout()
     }
     uint32_t timeoutThreshold = UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL * NO_10 * NO_1000; // 10s
     if (bootTime - lastCascadeReportTime_ > timeoutThreshold) {
-        UBSE_LOG_ERROR << "[ELECTION] Cascade group report timeout, masterId="
+        UBSE_LOG_INFO << "[ELECTION] Cascade group report timeout, masterId="
                        << cascadeGroupReport_.groupMasterId;
         if (!g_globalStop.load()) {
             RoleMgr::GetInstance().RoleChangeNotifyAsync(
