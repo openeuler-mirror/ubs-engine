@@ -857,7 +857,8 @@ private:
         char** nsDevPaths = nullptr;
         uint32_t nsDevPathCnt = 0;
         int32_t ret = ubs_ssu_space_attach(&req, &nsDevPaths, &nsDevPathCnt);
-        if (ret == UBS_SUCCESS) {
+        // UBS_ENGINE_ERR_ALREADY_ATTACHED 时服务端依然返回已挂载的设备路径, 需输出并释放
+        if (ret == UBS_SUCCESS || ret == UBS_ENGINE_ERR_ALREADY_ATTACHED) {
             EmitResponse(NsDevPathsToJson(nsDevPaths, nsDevPathCnt));
             ubs_ssu_ns_dev_paths_free(&nsDevPaths, nsDevPathCnt);
         } else {
@@ -913,7 +914,7 @@ private:
         uint32_t nsDevPathCnt = 0;
         char devPath[UBS_SSU_MAX_DEV_PATH_LENGTH] = {0};
         int32_t ret = ubs_ssu_linear_space_attach(&req, &nsDevPaths, &nsDevPathCnt, devPath);
-        if (ret == UBS_SUCCESS) {
+        if (ret == UBS_SUCCESS || ret == UBS_ENGINE_ERR_ALREADY_ATTACHED) {
             // 两个业务返回值: [ns_dev_paths 数组, dev_path 字符串]
             EmitResponse(JArray({NsDevPathsToJson(nsDevPaths, nsDevPathCnt), JStr(devPath)}));
             ubs_ssu_ns_dev_paths_free(&nsDevPaths, nsDevPathCnt);
@@ -976,7 +977,7 @@ private:
         uint32_t nsDevPathCnt = 0;
         char devPath[UBS_SSU_MAX_DEV_PATH_LENGTH] = {0};
         int32_t ret = ubs_ssu_striped_space_attach(&req, &nsDevPaths, &nsDevPathCnt, devPath);
-        if (ret == UBS_SUCCESS) {
+        if (ret == UBS_SUCCESS || ret == UBS_ENGINE_ERR_ALREADY_ATTACHED) {
             EmitResponse(JArray({NsDevPathsToJson(nsDevPaths, nsDevPathCnt), JStr(devPath)}));
             ubs_ssu_ns_dev_paths_free(&nsDevPaths, nsDevPathCnt);
         } else {

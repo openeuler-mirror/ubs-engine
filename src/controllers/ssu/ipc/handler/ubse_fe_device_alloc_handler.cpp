@@ -30,12 +30,31 @@ UbseResult UbseFeDeviceAllocHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->FeDeviceAlloc(upi, vfe, busInstanceGuid);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FeDeviceAlloc failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseFeDeviceAllocHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "FeDeviceAlloc req: upi=" << upi
+                   << ", vfe.slotId=" << static_cast<uint32_t>(vfe.slotId)
+                   << ", vfe.chipId=" << static_cast<uint32_t>(vfe.chipId)
+                   << ", vfe.dieId=" << static_cast<uint32_t>(vfe.dieId)
+                   << ", vfe.pfeId=" << vfe.pfeId << ", vfe.vfeId=" << vfe.vfeId
+                   << ", vfe.vfeGuid=" << vfe.vfeGuid
+                   << ", vfe.bindBusInstanceGuid=" << vfe.bindBusInstanceGuid
+                   << ", busInstanceGuid(in)=" << busInstanceGuid;
+}
+
+void UbseFeDeviceAllocHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "FeDeviceAlloc resp: busInstanceGuid(out)=" << busInstanceGuid;
 }
 
 UbseResult UbseFeDeviceAllocHandler::Unpack()

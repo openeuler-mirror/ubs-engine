@@ -30,12 +30,19 @@ UbseResult UbseAddAccessPermissionHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->AddAccessPermission(name, nqn, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AddAccessPermission failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
+}
+
+void UbseAddAccessPermissionHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "AddAccessPermission req: name=" << name << ", nqn=" << nqn
+                   << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
 }
 
 UbseResult UbseAddAccessPermissionHandler::Unpack()

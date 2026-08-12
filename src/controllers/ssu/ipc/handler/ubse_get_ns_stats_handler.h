@@ -23,6 +23,9 @@ protected:
     common::def::UbseResult Handle() override;
     common::def::UbseResult Pack(api::server::UbseIpcMessage &response) override;
 private:
+    void LogRequest();
+    void LogResponse();
+
     std::string name;
     std::vector<plugin::service::ssu::UbseSsuNsStats> statsList;
 };

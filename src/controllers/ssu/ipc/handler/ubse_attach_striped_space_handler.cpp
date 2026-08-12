@@ -31,12 +31,37 @@ UbseResult UbseAttachStripedSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity = identity_;
+    LogRequest();
     auto ret = ssuService->AttachStripedSpace(req, nsDevPaths, devPath);
+    if (ret == UBSE_ERR_ALREADY_ATTACHED) {
+        UBSE_LOG_WARN << "AttachSpace already attached, ret:" << log::FormatRetCode(ret);
+        LogResponse();
+        return ret;
+    }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseAttachStripedSpaceHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "AttachStripedSpace req: name=" << req.name << ", nqn=" << req.nqn
+                   << ", srcEid=" << req.srcEid << ", devName=" << req.devName
+                   << ", level=" << static_cast<uint32_t>(req.level)
+                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize)
+                   << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
+}
+
+void UbseAttachStripedSpaceHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "AttachStripedSpace resp: nsDevPaths.size=" << nsDevPaths.size();
+    for (size_t i = 0; i < nsDevPaths.size(); i++) {
+        UBSE_LOG_DEBUG << "  nsDevPaths[" << i << "]=" << nsDevPaths[i];
+    }
+    UBSE_LOG_DEBUG << "AttachStripedSpace resp: devPath=" << devPath;
 }
 
 UbseResult UbseAttachStripedSpaceHandler::Unpack()

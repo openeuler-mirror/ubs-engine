@@ -35,7 +35,30 @@ UbseResult UbseGetFeDeviceListHandler::Handle()
         UBSE_LOG_ERROR << "GetFeDeviceList failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseGetFeDeviceListHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "GetFeDeviceList resp: feList.size=" << feList.size();
+    for (size_t i = 0; i < feList.size(); i++) {
+        const auto &fe = feList[i];
+        UBSE_LOG_DEBUG << "  fe[" << i << "]: slotId=" << static_cast<uint32_t>(fe.slotId)
+                       << ", chipId=" << static_cast<uint32_t>(fe.chipId)
+                       << ", dieId=" << static_cast<uint32_t>(fe.dieId)
+                       << ", pfeId=" << fe.pfeId << ", pfeGuid=" << fe.pfeGuid
+                       << ", vfeList.size=" << fe.vfeList.size();
+        for (size_t j = 0; j < fe.vfeList.size(); j++) {
+            const auto &vfe = fe.vfeList[j];
+            UBSE_LOG_DEBUG << "    vfe[" << j << "]: slotId=" << static_cast<uint32_t>(vfe.slotId)
+                           << ", chipId=" << static_cast<uint32_t>(vfe.chipId)
+                           << ", dieId=" << static_cast<uint32_t>(vfe.dieId)
+                           << ", pfeId=" << vfe.pfeId << ", vfeId=" << vfe.vfeId
+                           << ", vfeGuid=" << vfe.vfeGuid
+                           << ", bindBusInstanceGuid=" << vfe.bindBusInstanceGuid;
+        }
+    }
 }
 
 UbseResult UbseGetFeDeviceListHandler::Unpack()

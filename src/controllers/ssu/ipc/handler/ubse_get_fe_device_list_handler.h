@@ -26,6 +26,8 @@ protected:
     common::def::UbseResult Unpack() override;
 
 private:
+    void LogResponse();
+
     uint32_t upi;
     plugin::service::ssu::UbseSsuVfe vfe;
     std::vector<plugin::service::ssu::UbseSsuFe> feList;

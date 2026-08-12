@@ -30,12 +30,39 @@ UbseResult UbseListAllocInfoHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->ListAllocInfo(result, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "ListAllocInfo failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseListAllocInfoHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "ListAllocInfo req: identity.userName=" << identity_.userName
+                   << ", identity.uid=" << identity_.uid;
+}
+
+void UbseListAllocInfoHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "ListAllocInfo resp: result.size=" << result.size();
+    for (size_t i = 0; i < result.size(); i++) {
+        const auto &r = result[i];
+        UBSE_LOG_DEBUG << "  result[" << i << "]: name=" << r.name
+                       << ", strategy=" << static_cast<uint32_t>(r.strategy)
+                       << ", nameSpaceList.size=" << r.nameSpaceList.size();
+        for (size_t j = 0; j < r.nameSpaceList.size(); j++) {
+            const auto &ns = r.nameSpaceList[j];
+            UBSE_LOG_DEBUG << "    ns[" << j << "]: tgtEid=" << ns.tgtEid << ", tgtNqn=" << ns.tgtNqn
+                           << ", nsUuid=" << ns.nsUuid << ", namespaceId=" << ns.namespaceId
+                           << ", nsDevPath=" << ns.nsDevPath << ", nsSize=" << ns.nsSize
+                           << ", lbaFormat=" << static_cast<uint32_t>(ns.lbaFormat)
+                           << ", allowHostNqnList.size=" << ns.allowHostNqnList.size();
+        }
+    }
 }
 
 UbseResult UbseListAllocInfoHandler::Unpack()

@@ -26,6 +26,9 @@ protected:
     common::def::UbseResult Pack(api::server::UbseIpcMessage &response) override;
 
 private:
+    void LogRequest();
+    void LogResponse();
+
     std::string name;
     plugin::service::ssu::UbseSsuAllocResult result;
 };

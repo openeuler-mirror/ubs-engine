@@ -70,10 +70,10 @@ UbseResult UbseSsuHandler::Execute(const api::server::UbseIpcMessage &buffer,
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
-    ret = Handle();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "handle failed, ret: " << log::FormatRetCode(ret);
-        return ret;
+    auto handleRet = Handle();
+    if (handleRet != UBSE_OK && handleRet != UBSE_ERR_ALREADY_ATTACHED) {
+        UBSE_LOG_ERROR << "handle failed, ret: " << log::FormatRetCode(handleRet);
+        return handleRet;
     }
 
     UbseIpcMessage response{nullptr, 0};
@@ -85,7 +85,7 @@ UbseResult UbseSsuHandler::Execute(const api::server::UbseIpcMessage &buffer,
         return ret;
     }
 
-    ret = SendResponse(UBSE_OK, context.requestId, response);
+    ret = SendResponse(handleRet, context.requestId, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "response send failed, ret: " << log::FormatRetCode(ret);
     }

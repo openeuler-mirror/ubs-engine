@@ -26,6 +26,9 @@ protected:
     common::def::UbseResult Unpack() override;
 
 private:
+    void LogRequest();
+    void LogResponse();
+
     uint32_t upi;
     plugin::service::ssu::UbseSsuVfe vfe;
     std::string busInstanceGuid;

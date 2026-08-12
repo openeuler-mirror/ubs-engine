@@ -31,12 +31,41 @@ UbseResult UbseGetConnectInfoHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     UbseSsuVfe *vfePtr = vfe.has_value() ? &(*vfe) : nullptr;
+    LogRequest();
     auto ret = ssuService->GetConnectInfo(name, vfePtr, connectInfoList, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "GetConnectInfo failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseGetConnectInfoHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "GetConnectInfo req: name=" << name << ", vfe.has_value=" << vfe.has_value();
+    if (vfe.has_value()) {
+        const auto &vfeRef = *vfe;
+        UBSE_LOG_DEBUG << "  vfe.slotId=" << static_cast<uint32_t>(vfeRef.slotId)
+                       << ", vfe.chipId=" << static_cast<uint32_t>(vfeRef.chipId)
+                       << ", vfe.dieId=" << static_cast<uint32_t>(vfeRef.dieId)
+                       << ", vfe.pfeId=" << vfeRef.pfeId << ", vfe.vfeId=" << vfeRef.vfeId
+                       << ", vfe.vfeGuid=" << vfeRef.vfeGuid
+                       << ", vfe.bindBusInstanceGuid=" << vfeRef.bindBusInstanceGuid;
+    }
+    UBSE_LOG_DEBUG << "  identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
+}
+
+void UbseGetConnectInfoHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "GetConnectInfo resp: connectInfoList.size=" << connectInfoList.size();
+    for (size_t i = 0; i < connectInfoList.size(); i++) {
+        const auto &ci = connectInfoList[i];
+        UBSE_LOG_DEBUG << "  connectInfo[" << i << "]: srcEid=" << ci.srcEid
+                       << ", tgtEid=" << ci.tgtEid << ", tgtNqn=" << ci.tgtNqn
+                       << ", hostNqn=" << ci.hostNqn << ", nsUuid=" << ci.nsUuid
+                       << ", nsId=" << ci.nsId;
+    }
 }
 
 UbseResult UbseGetConnectInfoHandler::Unpack()

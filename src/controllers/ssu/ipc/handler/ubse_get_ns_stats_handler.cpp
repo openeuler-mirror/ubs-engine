@@ -30,12 +30,30 @@ UbseResult UbseGetNsStatsHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    LogRequest();
     auto ret = ssuService->GetNsStats(name, statsList, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "GetNsStats failed, ret:" << log::FormatRetCode(ret);
         return ret;
     }
+    LogResponse();
     return UBSE_OK;
+}
+
+void UbseGetNsStatsHandler::LogRequest()
+{
+    UBSE_LOG_DEBUG << "GetNsStats req: name=" << name
+                   << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
+}
+
+void UbseGetNsStatsHandler::LogResponse()
+{
+    UBSE_LOG_DEBUG << "GetNsStats resp: statsList.size=" << statsList.size();
+    for (size_t i = 0; i < statsList.size(); i++) {
+        const auto &s = statsList[i];
+        UBSE_LOG_DEBUG << "  stats[" << i << "]: nsUuid=" << s.nsUuid << ", nsId=" << s.nsId
+                       << ", totalSize=" << s.totalSize << ", usedSize=" << s.usedSize;
+    }
 }
 
 UbseResult UbseGetNsStatsHandler::Unpack()

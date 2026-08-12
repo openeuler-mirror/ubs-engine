@@ -4,36 +4,30 @@
 # ubs-engine is licensed under Mulan PSL v2.
 """UBSE python sdk错误码注册表。
 
-按模块注册服务端返回的错误码到 Python 异常类的映射，IPC 层根据
-``module_code`` 查表抛出对应的异常。
+服务端返回的错误码到 Python 异常类的扁平映射，IPC 层根据状态码查表抛出对应的异常。
+所有错误码统一在 ``_ERROR_MAP`` 中定义，与 ``src/include/ubse_error.h`` 对齐，无模块区分。
 
 设计要点:
-    - 公共错误码（所有模块共享）集中在 ``_COMMON_ERROR_MAP``
-    - 模块专属错误码通过 :func:`register_module_errors` 注册
-    - 解析时模块映射优先于公共映射，未命中则回退到 ``UbsEngineInternalError``
-
-典型用法::
-
-    # 业务模块导入时注册专属错误码抛出自定义异常
-    from ubse.ffi.ubs_error_registry import register_module_errors
-    register_module_errors(MODULE_SSU, {
-        1006: ("UBSE_ERR_EXISTED", UbsEngineExistedError),
-        1013: ("UBSE_ERR_ALLOCATE", UbsEngineAllocateError),
-    })
+    - 所有错误码集中在一张扁平映射表，与 C 端 ubse_error.h 一致
+    - 未命中时：>=10000 内部错误码统一映射为 ``UbsEngineInternalError``，其余兜底
 """
-import threading
+import logging
 from typing import Dict, Tuple, Type
 
 from .ubs_engine_exceptions import (
     UbsErrInvalidArg, UbsEngineConnectionError, UbsEngineReceiveError,
     UbsEngineAuthError, UbsEngineTimeoutError, UbsEngineInternalError,
-    UbsEngineOutOfRangeError, UbsEngineExistedError, )
+    UbsEngineOutOfRangeError, UbsEngineExistedError, UbsEngineNotExistError,
+    UbsEngineAllocateError,
+)
+
+logger = logging.getLogger(__name__)
 
 # 错误码映射项: (错误码名称, 异常类)
 _ErrorEntry = Tuple[str, Type[Exception]]
 
-# 公共错误码（所有模块共享），与 ubse_error.h 的对外错误码对齐
-_COMMON_ERROR_MAP: Dict[int, _ErrorEntry] = {
+# 错误码映射表，与 ubse_error.h 的对外错误码对齐，扁平结构无模块区分。
+_ERROR_MAP: Dict[int, _ErrorEntry] = {
     # 参数错误 (1-9)
     1: ("UBSE_ERR_INVALID_ARG", UbsErrInvalidArg),
     4: ("UBSE_ERR_BUFFER_TOO_SMALL", UbsEngineReceiveError),
@@ -69,71 +63,73 @@ _COMMON_ERROR_MAP: Dict[int, _ErrorEntry] = {
     1004: ("UBSE_ERR_TIMEOUT", UbsEngineTimeoutError),
     1005: ("UBSE_ERR_INTERNAL", UbsEngineInternalError),
     1006: ("UBSE_ERR_EXISTED", UbsEngineExistedError),
+    1007: ("UBSE_ERR_NOT_EXIST", UbsEngineNotExistError),
+    1008: ("UBSE_ERR_UDSINFO_MISMATCH", UbsEngineInternalError),
+    1009: ("UBSE_ERR_IMPORT_ABSENT", UbsEngineInternalError),
+    1010: ("UBSE_ERR_CREATING", UbsEngineInternalError),
+    1011: ("UBSE_ERR_DELETING", UbsEngineInternalError),
+    1012: ("UBSE_ERR_UNIMPORT_SUCCESS", UbsEngineInternalError),
+    1013: ("UBSE_ERR_ALLOCATE", UbsEngineAllocateError),
+    1014: ("UBSE_ERR_SHM_NO_CREATE", UbsEngineInternalError),
+    1015: ("UBSE_ERR_SHM_NO_ATTACH", UbsEngineInternalError),
+    1016: ("UBSE_ERR_SHM_ATTACHING", UbsEngineInternalError),
+    1017: ("UBSE_ERR_SHM_DETACHING", UbsEngineInternalError),
+    1018: ("UBSE_ERR_LINK_NOT_ALLOWED", UbsEngineInternalError),
+    1019: ("UBSE_ERR_LINK_NOT_EXIST", UbsEngineInternalError),
+    1020: ("UBSE_ERR_SHM_NODE_EMPTY", UbsEngineInternalError),
+    1021: ("UBSE_ERR_COM_FAILED", UbsEngineInternalError),
+    1022: ("UBSE_ERR_FIND_SRC_NUMA", UbsEngineInternalError),
+    1023: ("UBSE_ERR_SHM_DESTROYED", UbsEngineInternalError),
+    1024: ("UBSE_ERR_SHM_ATTACH_USING", UbsEngineInternalError),
+    1025: ("UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL", UbsEngineInternalError),
+    1026: ("UBSE_ERR_NUMA_ID_IS_NOT_IN_SOCKET", UbsEngineInternalError),
+    1027: ("UBSE_ERR_NODE_NOT_EXIST", UbsEngineInternalError),
+    1028: ("UBSE_ERR_NODE_FAULT", UbsEngineInternalError),
+    1029: ("UBSE_ENGINE_ERR_EXPORT_LEDGERING", UbsEngineInternalError),
+    1041: ("UBSE_ENGINE_ERR_IMPORT_LEDGERING", UbsEngineInternalError),
+    # Node Controller错误 (1100-1199)
+    1100: ("UBSE_ERR_NODE_NOT_FOUND", UbsEngineInternalError),
+    1101: ("UBSE_ERR_NODE_UNREACHABLE", UbsEngineInternalError),
+    1102: ("UBSE_ERR_NODE_NOT_ACTIVE", UbsEngineInternalError),
+    1103: ("UBSE_ERR_NODE_NOT_RESPONDING", UbsEngineInternalError),
+    # 重复操作错误 (2000-2099)
+    2000: ("UBSE_ERR_ALREADY_ALLOCATED", UbsEngineExistedError),
+    2001: ("UBSE_ERR_ALREADY_ATTACHED", UbsEngineExistedError),
+    2002: ("UBSE_ERR_NO_NEED_FREE", UbsEngineNotExistError),
+    2003: ("UBSE_ERR_NO_NEED_DETACH", UbsEngineNotExistError),
 }
 
-# 按模块注册的专属错误码: {module_code: {err_code: (name, exc_cls)}}
-_module_error_maps: Dict[int, Dict[int, _ErrorEntry]] = {}
-_module_error_lock = threading.Lock()
 
-
-def register_module_errors(module_code: int, error_map: Dict[int, _ErrorEntry]) -> None:
-    """注册模块专属错误码映射。
-
-    模块映射在解析时优先于公共映射，允许模块对同一错误码定义更具体的异常类型。
-
-    Args:
-        module_code: 模块码（与 ``invoke_call`` 的 module_code 一致）
-        error_map: 错误码到映射项的字典，形如 ``{1006: ("UBSE_ERR_EXISTED", UbsEngineExistedError)}``
-    """
-    with _module_error_lock:
-        _module_error_maps[module_code] = dict(error_map)
-
-
-def resolve_error(module_code: int, status_code: int) -> _ErrorEntry:
+def resolve_error(status_code: int) -> _ErrorEntry:
     """解析错误码，返回 (错误码名称, 异常类)。
 
-    解析优先级: 模块专属映射 > 公共映射 > 兜底 ``UbsEngineInternalError``。
-
     Args:
-        module_code: 模块码
         status_code: 服务端返回的状态码
 
     Returns:
         (错误码名称, 异常类) 元组
     """
-    with _module_error_lock:
-        module_map = _module_error_maps.get(module_code, {})
-        if status_code in module_map:
-            return module_map[status_code]
-        if status_code in _COMMON_ERROR_MAP:
-            return _COMMON_ERROR_MAP[status_code]
+    if status_code in _ERROR_MAP:
+        return _ERROR_MAP[status_code]
     # 内部错误码 (>=10000) 统一映射为 UbsEngineInternalError
     if status_code >= 10000:
-        return f"UBSE_INTERNAL_ERROR_{status_code}", UbsEngineInternalError
+        return f"UBSE_INTERNAL_ERROR", UbsEngineInternalError
     return f"UBSE_UNKNOWN_ERROR_{status_code}", UbsEngineInternalError
 
 
-def raise_for_status(module_code: int, status_code: int, op_code: int = -1) -> None:
+def raise_for_status(status_code: int) -> None:
     """状态码非0时抛出对应异常。
 
-    供 IPC 层 ``receive_response`` 调用，根据模块码和状态码路由到注册的异常类。
-    ``status_code == 0`` 时直接返回，不抛异常。
+    供业务层调用。
 
     Args:
-        module_code: 模块码，用于查找模块专属映射
         status_code: 服务端返回的状态码
-        op_code: 操作码，仅用于异常消息定位（默认 -1 表示未知）
 
     Raises:
         根据错误码映射抛出对应的 ``UbsError`` 子类异常
     """
     if status_code == 0:
         return
-    name, exc_cls = resolve_error(module_code, status_code)
-    raise exc_cls(f"[module={module_code} op={op_code}] {name} ({status_code})")
-
-
-def clear_registry() -> None:
-    """清空所有已注册的模块错误码映射（仅供测试使用）。"""
-    with _module_error_lock:
-        _module_error_maps.clear()
+    logger.error("ubse daemon returned status_code: %d", status_code)
+    name, exc_cls = resolve_error(status_code)
+    raise exc_cls(f"{name} ({status_code})")

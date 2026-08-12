@@ -23,6 +23,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/errcode"
 )
 
 // IPC related constants
@@ -212,29 +214,31 @@ func ReceiveResponse(conn net.Conn) ([]byte, error) {
 	responseLen := binary.LittleEndian.Uint32(responseMessageHeader[5:])
 	// clientRequestId is at responseMessageHeader[9:], but we don't need it for now
 
-	// Check status code
-	if statusCode != UbsSuccess {
-		return nil, fmt.Errorf("ubse daemon returned error: %d", statusCode)
-	}
-
 	// Check if response body length exceeds maximum message size
 	if responseLen > MaxMessageSize {
 		return nil, fmt.Errorf("response body length %d exceeds maximum size %d", responseLen, MaxMessageSize)
 	}
 
-	// Read response body
-	response := make([]byte, responseLen)
-
-	bytesRead = 0
-	for bytesRead < int(responseLen) {
-		n, err := conn.Read(response[bytesRead:])
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response: %v", err)
+	// Read response body (always, even on error — server may attach error details)
+	var body []byte
+	if responseLen > 0 {
+		body = make([]byte, responseLen)
+		bytesRead = 0
+		for bytesRead < int(responseLen) {
+			n, err := conn.Read(body[bytesRead:])
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response: %v", err)
+			}
+			bytesRead += n
 		}
-		bytesRead += n
 	}
 
-	return response, nil
+	// Check status code
+	if statusCode != UbsSuccess {
+		return body, errcode.StatusCodeToError(statusCode)
+	}
+
+	return body, nil
 }
 
 // InvokeCall invokes a call to the UBSE daemon via IPC.
@@ -242,6 +246,9 @@ func ReceiveResponse(conn net.Conn) ([]byte, error) {
 // opCode: The operation code for the request.
 // request: The request body.
 // Returns the response body and an error if the call fails.
+//
+// 注意: 某些错误码(如 ErrAlreadyAttached)场景下, 服务端会在错误响应中附带业务数据,
+// 此时 body 和 err 会同时非空, 调用方需根据具体错误码决定是否使用 body。
 func InvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 	// Connect to the socket
 	conn, err := ConnectToUnixSocket()
@@ -255,11 +262,7 @@ func InvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Receive response
-	response, err := ReceiveResponse(conn)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
+	// 直接透传 ReceiveResponse 的结果: 错误场景下 body 可能携带业务数据,
+	// 不能在 err != nil 时丢弃 body, 否则上层的 AlreadyAttached 数据回传逻辑会失效
+	return ReceiveResponse(conn)
 }
