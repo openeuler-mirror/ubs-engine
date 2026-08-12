@@ -11,6 +11,7 @@
  */
 #include "ubse_mem_service_impl.h"
 
+#include <cstddef>
 #include <securec.h>
 #include <map>
 #include <string>
@@ -20,6 +21,7 @@
 #include "message/ubse_mem_opt_req_simpo.h"
 #include "message/ubse_mem_opt_result_simpo.h"
 #include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
+#include "src/controllers/mem/mem_controller/ubse_mem_advice.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_com_module.h"
@@ -630,6 +632,22 @@ UbseResult UbseMemServiceImpl::UbseGetNodeNumaInfoByNodeId(const std::string &no
     }
     return ret;
 }
+
+std::string GetReqNodeId()
+{
+    ubse::election::UbseRoleInfo currentRoleInfo{};
+    UbseGetCurrentNodeInfo(currentRoleInfo); // 内部记录是否获取 ID 失败
+    return currentRoleInfo.nodeId;
+}
+
+size_t GetTotalSize(const std::vector<UbseMemNumaLender>& lenders)
+{
+    size_t totalSize = 0;
+    for (const auto& lender : lenders) {
+        totalSize += lender.size;
+    }
+    return totalSize;
+}
 UbseResult UbseMemServiceImpl::UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBorrower &borrower,
                                                            const std::vector<UbseMemNumaLender> &lenders,
                                                            uint8_t usrInfo[controller::UBSE_MAX_USR_INFO_LEN],
@@ -638,6 +656,8 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreateWithLender(const std::string &na
     // 参数校验
     auto ret = UbseMemCreateWithLenderReqIsValid(name, borrower, lenders);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::BORROW_FAULT_INTERNAL, name, MemType::NUMA, GetTotalSize(lenders), "",
+                            borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换
@@ -645,6 +665,9 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreateWithLender(const std::string &na
     UbseMemOperationResp resp;
     ret = ConvertUbseMemNumaCreateWithLenderReq(name, borrower, lenders, usrInfo, numaBorrowReq);
     if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, name, MemType::NUMA, GetTotalSize(lenders), "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 调用内部ubse_mem_controller_api_agent.h接口
@@ -665,6 +688,8 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreate(const std::string &name, const 
     // 参数校验
     auto ret = UbseMemCreateReqIsValid(name, borrower, opt);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::BORROW_FAULT_INTERNAL, name, MemType::NUMA, opt.size, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换
@@ -672,6 +697,9 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreate(const std::string &name, const 
     UbseMemOperationResp resp;
     ret = ConvertUbseMemNumaCreateReq(name, borrower, opt, numaBorrowReq);
     if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, name, MemType::NUMA, opt.size, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 调用内部ubse_mem_controller_api_agent.h接口
@@ -693,6 +721,8 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreateWithCandidate(const std::string 
     // 参数校验
     auto ret = UbseMemCreateWithCandidateReqIsValid(name, borrower, opt);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::BORROW_FAULT_INTERNAL, name, MemType::NUMA, opt.size, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换
@@ -700,6 +730,9 @@ UbseResult UbseMemServiceImpl::UbseMemNumaCreateWithCandidate(const std::string 
     UbseMemOperationResp resp;
     ret = ConvertUbseMemNumaCreateWithCandidateReq(name, borrower, opt, numaBorrowReq);
     if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, name, MemType::NUMA, opt.size, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 调用内部ubse_mem_controller_api_agent.h接口
@@ -720,6 +753,8 @@ UbseResult UbseMemServiceImpl::UbseMemNumaDelete(const std::string &name, const 
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::RETURN_FAULT_INTERNAL, name, MemType::NUMA, 0, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换
@@ -735,18 +770,35 @@ UbseResult UbseMemServiceImpl::UbseMemNumaDelete(const std::string &name, const 
     return resp.errorCode;
 }
 
+size_t GetTotalSize(const UbseMemProcessLender& lender)
+{
+    size_t totalSize = 0;
+    for (const auto& vaList : lender.vaLists) {
+        totalSize += vaList.size;
+    }
+    return totalSize;
+}
+
 UbseResult UbseMemServiceImpl::UbseMemAddrCreate(const std::string &name, const UbseMemAddrCreateOpt &opt,
                                                  UbseMemAddrDesc &desc)
 {
     // 参数校验
     auto ret = UbseMemAddrCreateReqIsValid(name, opt.borrower, opt.lender);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::BORROW_FAULT_INTERNAL, name, MemType::ADDR, GetTotalSize(opt.lender), "",
+                            opt.borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换
     UbseMemAddrBorrowReq addrBorrowReq;
     UbseMemOperationResp resp;
-    ConvertUbseMemAddrCreateReq(name, opt.borrower, opt.lender, opt.flag, opt.exportAccessMode, addrBorrowReq);
+    ret = ConvertUbseMemAddrCreateReq(name, opt.borrower, opt.lender, opt.flag, opt.exportAccessMode, addrBorrowReq);
+    if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, name, MemType::ADDR, GetTotalSize(opt.lender), "", opt.borrower.nodeId, GetReqNodeId()});
+        return ret;
+    }
     // 调用内部ubse_mem_controller_api_agent.h接口
     UbseMemAddrBorrow(addrBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
@@ -765,6 +817,8 @@ UbseResult UbseMemServiceImpl::UbseMemAddrDelete(const std::string &name, const 
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::RETURN_FAULT_INTERNAL, name, MemType::ADDR, 0, "", borrower.nodeId, GetReqNodeId()});
         return ret;
     }
     // 请求转换

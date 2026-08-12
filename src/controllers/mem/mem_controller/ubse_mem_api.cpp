@@ -727,7 +727,7 @@ uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage& buffer, cons
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, name, MemType::SHM, 0, "", currentNodeInfo.nodeId,
+        BorrowFailedAdvice({MemFault::SHARED_FAULT_ATTACH_INTERNAL, name, MemType::SHM, 0, "", currentNodeInfo.nodeId,
                             currentNodeInfo.nodeId});
         return ret;
     }
@@ -768,8 +768,9 @@ uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage& buffer, cons
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice(
-            {MemFault::BORROW_PARAM_INVALID, req.name, MemType::SHM, req.size, "", "", currentNodeInfo.nodeId});
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::SHARED_CHIP_MODE_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, req.name, MemType::SHM, req.size, "", "", currentNodeInfo.nodeId});
         return ret;
     }
 
@@ -895,7 +896,7 @@ bool CheckLinkInfo(const std::string& str)
 }
 
 UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
-                                   UbseMemNumaBorrowReq& req)
+                                   UbseMemNumaBorrowReq& req, std::string& errorMsg)
 {
     // 解析请求参数
     UbseDeSerialization deserialization{buffer.buffer, buffer.length};
@@ -919,7 +920,6 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage& buffer, const UbseReque
     if (!linkInfo.empty()) {
         req.lowWatermark = 0;
         req.highWatermark = 100; // 指定端口借用走水线，高水线填值为100
-        std::string errorMsg{};
         ubse::election::UbseRoleInfo currentNodeInfo;
         if (auto ret = UbseGetCurrentNodeInfo(currentNodeInfo); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get current node info.";
@@ -940,15 +940,18 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage& buffer, const UbseReque
 uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "CLI numa create dispatch, requestId: " << context.requestId;
+    std::string errorMsg{};
 
     // 解序列化和构造请求体
     UbseMemNumaBorrowReq req{};
-    auto ret = FillNumaInfoToCreateReq(buffer, context, req);
+    auto ret = FillNumaInfoToCreateReq(buffer, context, req, errorMsg);
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, req.name, MemType::NUMA, req.size, "",
-                            currentNodeInfo.nodeId, currentNodeInfo.nodeId});
+        auto fault = errorMsg == "Link not exist." ? MemFault::BORROW_CHECK_FAILED : MemFault::BORROW_FAULT_INTERNAL;
+        fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED : fault;
+        BorrowFailedAdvice(
+            {fault, req.name, MemType::NUMA, req.size, "", currentNodeInfo.nodeId, currentNodeInfo.nodeId});
         return ret;
     }
 
@@ -987,8 +990,10 @@ uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage& buffer, const Ubse
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, req.name, MemType::FD, req.size, "", currentNodeInfo.nodeId,
-                            currentNodeInfo.nodeId});
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice(
+            {fault, req.name, MemType::FD, req.size, "", currentNodeInfo.nodeId, currentNodeInfo.nodeId});
         return ret;
     }
 
