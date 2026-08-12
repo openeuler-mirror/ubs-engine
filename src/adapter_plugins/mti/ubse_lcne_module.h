@@ -77,6 +77,8 @@ private:
 
     UbseResult FillNodeComInfo();
 
+    UbseResult SetAndVerifyEidRule();
+
     bool IsPrimaryEidExist(const std::string& slotId);
 
     void UpdateClusterIpListAndLocalIp();

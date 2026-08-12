@@ -24,6 +24,7 @@
 #include "ubse_http_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_mti_eid_interface.h"
+#include "ubse_mti_eid_internal.h"
 #include "ubse_net_util.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
@@ -215,6 +216,35 @@ UbseResult UbseLcneModule::GetComUrmaEid()
             UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << dev.first.ubpuId << ", entity=" << fe.entityId
                           << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();
         }
+        if (SetAndVerifyEidRule() != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MTI] Failed to set and verify EID rule.";
+            return UBSE_ERROR;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneModule::SetAndVerifyEidRule()
+{
+    // 初始化serverIdx位段信息，当前使用默认位段{7,19}，后续由外部接口解析结果替换
+    utils::SetEidCnaRule({std::make_tuple(static_cast<uint8_t>(7), static_cast<uint8_t>(19), static_cast<uint8_t>(0))});
+
+    if (allSocketComEid.empty()) {
+        UBSE_LOG_ERROR << "[MTI] allSocketComEid is empty, cannot verify EID";
+        return UBSE_ERROR;
+    }
+    auto& firstEidGroup = allSocketComEid.begin()->second;
+    uint32_t serverIdx = 0;
+    if (adapter_plugins::smbios::UbseSmbios::GetInstance().GetServerIdx(serverIdx) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MTI] Failed to get server index.";
+        return UBSE_ERROR;
+    }
+    std::string validStr{};
+    if (utils::OverwriteEid(serverIdx, firstEidGroup.primaryEid, validStr) != UBSE_OK ||
+        validStr != firstEidGroup.primaryEid) {
+        UBSE_LOG_ERROR << "[MTI] Failed to overwrite eid, before=" << firstEidGroup.primaryEid
+                       << ", after=" << validStr;
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }

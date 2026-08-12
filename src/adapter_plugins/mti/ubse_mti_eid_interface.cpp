@@ -15,6 +15,7 @@
 
 #include <array>
 #include <bitset>
+#include <tuple>
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_logger_module.h"
@@ -25,7 +26,15 @@ namespace ubse::utils {
 using namespace common::def;
 constexpr uint8_t CNA_BIT_OFFSET = 96;
 constexpr uint8_t CNA_BIT_LEN = 24;
-constexpr uint8_t CNA_PLANAR_LEN = 4;
+
+static std::vector<std::tuple<uint8_t, uint8_t, uint8_t>> g_serverIdxBitRanges = {
+    std::make_tuple(static_cast<uint8_t>(7), static_cast<uint8_t>(15), static_cast<uint8_t>(0)),
+    std::make_tuple(static_cast<uint8_t>(20), static_cast<uint8_t>(23), static_cast<uint8_t>(1))};
+
+void SetEidCnaRule(const std::vector<std::tuple<uint8_t, uint8_t, uint8_t>>& ranges)
+{
+    g_serverIdxBitRanges = ranges;
+}
 
 std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe0Id, uint16_t fe1Id)
 {
@@ -110,39 +119,45 @@ void ConstructEid(const std::string& bitStr, std::string& eid)
 
 UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::string& result)
 {
-    // 从第97位开始，4位part1, 101-104为不变，9位part2
-    uint8_t serverIdxHigh = NO_4;
-    uint8_t serverIdxLow = NO_9;
-    // 取serverIdx低13bit, 高4bit为part1, 低9bit为part2
-    uint16_t serverIdLow13 = serverIdx & ((1 << (serverIdxHigh + serverIdxLow)) - 1);
-    uint16_t part2 = serverIdLow13 & ((1 << serverIdxLow) - 1);                          // bits [0:8]
-    uint16_t part1 = ((serverIdLow13 >> serverIdxLow) & ((1 << serverIdxHigh) - 1)) + 1; // bits [9:12]
+    if (g_serverIdxBitRanges.empty()) {
+        return UBSE_ERROR;
+    }
+
+    // 计算serverIdx总位宽并校验位段合法性（位段需落在CNA 24位字段内）
+    uint32_t serverIdxLen = 0;
+    for (const auto& range : g_serverIdxBitRanges) {
+        uint8_t start = std::get<0>(range);
+        uint8_t end = std::get<1>(range);
+        if (start > end || end >= CNA_BIT_LEN) {
+            return UBSE_ERROR;
+        }
+        serverIdxLen += static_cast<uint32_t>(end - start) + 1;
+    }
 
     std::string bitStr;
-
     if (ParseBaseEid(baseEid, bitStr) != UBSE_OK) {
         return UBSE_ERROR;
     }
-    // 检查替换区域是否超出bitStr范围
-    if (CNA_BIT_OFFSET + serverIdxHigh + CNA_PLANAR_LEN + serverIdxLow > bitStr.size()) {
-        return UBSE_ERROR;
+
+    // 从低比特位0开始，将serverIdx逐位写入各位段对应的CNA位，写入时叠加各位段基础值偏移
+    uint32_t serverId = serverIdx & ((1u << serverIdxLen) - 1);
+    uint32_t bitIdx = 0;
+    for (const auto& range : g_serverIdxBitRanges) {
+        uint8_t start = std::get<0>(range);
+        uint8_t end = std::get<1>(range);
+        uint8_t offset = std::get<2>(range);
+        uint8_t fieldLen = end - start + 1;
+        // 提取该位段承载的serverIdx比特位并叠加位段偏移，得到该位段的实际写入值
+        uint32_t fieldVal = ((serverId >> bitIdx) & ((1u << fieldLen) - 1)) + offset;
+        for (uint8_t i = 0; i < fieldLen; ++i) {
+            // 位段低比特位0对应EID绝对位 CNA_BIT_OFFSET + CNA_BIT_LEN - 1
+            size_t absPos = CNA_BIT_OFFSET + CNA_BIT_LEN - 1 - (start + i);
+            bitStr[absPos] = ((fieldVal >> i) & 0x1) ? '1' : '0';
+        }
+        bitIdx += fieldLen;
     }
-    // part1和part2转bit字符串
-    std::bitset<NO_16> part1Bits(part1);
-    std::bitset<NO_16> part2Bits(part2);
-    std::string part1BitStr = part1Bits.to_string().substr(NO_16 - serverIdxHigh);
-    std::string part2BitStr = part2Bits.to_string().substr(NO_16 - serverIdxLow);
 
-    // 128位bitStr中：
-    // (positions 104-112) 替换为part2 (9位)
-    // (positions 100-103) 不变 (4位)
-    // (positions 96-99)  替换为part1 (4位)
-    // 其余部分不变
-    std::string eidBitStr = bitStr.substr(0, CNA_BIT_OFFSET) + part1BitStr +
-                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh, CNA_PLANAR_LEN) + part2BitStr +
-                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh + CNA_PLANAR_LEN + serverIdxLow);
-
-    ConstructEid(eidBitStr, result);
+    ConstructEid(bitStr, result);
     return UBSE_OK;
 }
 
