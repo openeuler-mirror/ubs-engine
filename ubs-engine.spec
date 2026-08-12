@@ -105,15 +105,6 @@ Requires: %{name} = %{version}-%{release}
 Development package for ucache plugin
 
 # ========================================================
-#                   SUBPACKAGE: ubs-engine-ssu
-# ========================================================
-%package ssu
-Summary: ssu
-Requires: %{name} = %{version}-%{release}
-%description ssu
-Package for ssu
-
-# ========================================================
 #                   SUBPACKAGE: ubs-engine-rmrs
 # ========================================================
 %package rmrs
@@ -130,6 +121,62 @@ if id "ubse" > /dev/null 2>&1; then
 else
     echo "Warning: ubse user does not exist, skip group addition" >&2
 fi
+
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-ssu
+# ========================================================
+%package ssu
+Summary: ssu
+Requires: %{name} = %{version}-%{release}
+%description ssu
+Package for ssu
+
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-ssu-client-libs
+# ========================================================
+%define ssu_lib_name libubse-ssu-client
+%define ssu_lib_soversion 1
+
+%package ssu-client-libs
+Summary: UBSE SSU client shared library for third-party integration
+Provides: %{ssu_lib_name}.so.%{ssu_lib_soversion}
+Requires: libboundscheck, libstdc++
+Conflicts: %{name} < %{version}-%{release}
+%description ssu-client-libs
+UBSE SSU client shared library (%{ssu_lib_name}.so.%{ssu_lib_soversion}) for third-party
+applications to access UBSE SSU services. This package is fully self-contained and does NOT
+require ubs-engine-client-libs to be installed. The shared library embeds common pack/unpack
+utilities and IPC client code, only depends on system libc/libstdc++/libboundscheck at runtime.
+
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-ssu-client-devel
+# ========================================================
+%package ssu-client-devel
+Summary: Development package for UBSE SSU client SDK
+Requires: %{name}-ssu-client-libs = %{version}-%{release}
+Requires: pkgconfig
+Provides: %{name}-ssu-client-devel = %{version}-%{release}
+%description ssu-client-devel
+Header files and static libraries for developing applications that use the UBSE SSU client SDK.
+This package is required for compiling programs that link against UBSE SSU. It is fully
+self-contained and does NOT require ubs-engine-client-devel to be installed. Both
+ubs_engine_ssu.h and its dependency ubs_error.h are shipped in this package.
+
+
+# ========================================================
+#                   SUBPACKAGE: python3-ubs-engine-ssu
+# ========================================================
+%package -n python3-%{name}-ssu
+Summary: Development package for UBSE python SSU SDK
+BuildArch: noarch
+Requires: python3-%{name} = %{version}-%{release}
+%description -n python3-%{name}-ssu
+Development package for UBSE python SSU SDK. Extends the ubse namespace package
+with SSU-specific modules (ubs_engine_ssu, ubs_engine_binding_ssu, ubs_engine_model_ssu).
+
 
 %define project_dir %{name}-%{version}
 %define cmake_build_dir cmake-build-relwithdebinfo
@@ -213,6 +260,8 @@ fi
 cd %{_builddir}/%{project_dir}/
 bash build.sh -T RelWithDebInfo
 %py3_build
+# 通过清单驱动构建所有 Python 子包(新增子包只需在 subpackages/ 加清单,这里加一行)
+python3 build_subpackage.py ssu build
 
 %install
 #install main package
@@ -265,11 +314,6 @@ cp -r %{_builddir}/%{project_dir}/src/include/* %{buildroot}/usr/include/ubse
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
 
-#install ssu
-mkdir -p %{buildroot}/usr/lib64/ubse_plugin
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libssu_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
-
 #install mem
 mkdir -p %{buildroot}/usr/lib64/ubse_plugin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmem_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
@@ -289,6 +333,28 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildr
 
 #install python-sdk
 %py3_install
+
+# ---- SSU install group (4 sub-packages) ----
+#install ssu-client-libs (SSU SDK 自包含,不依赖主 client-libs;只装动态库)
+cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
+    --component ubse_ssu_sdk \
+    --prefix %{buildroot}/usr
+ln -sf libubse-ssu-client.so.%{version} %{buildroot}/usr/lib64/libubse-ssu-client.so.1
+
+#install ssu-client-devel (只装静态库 + 头文件)
+cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
+    --component ubse_ssu_sdk_devel \
+    --prefix %{buildroot}/usr
+ln -sf libubse-ssu-client.so.1 %{buildroot}/usr/lib64/libubse-ssu-client.so
+chmod 644 %{buildroot}/usr/lib64/libubse-ssu-client.a
+
+#install ssu
+mkdir -p %{buildroot}/usr/lib64/ubse_plugin
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libssu_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
+
+#install python-ssu (通过清单驱动,扩展 ubse namespace)
+python3 build_subpackage.py ssu install --root=%{buildroot} --prefix=/usr --no-compile
 
 
 %pre
@@ -483,10 +549,17 @@ fi
 /usr/lib64/libubse-client.a
 %defattr(644,root,root,755)
 /usr/include/ubse/
+%exclude /usr/include/ubse/ubs_engine_ssu.h
 
 %files -n python3-%{name}
 %{python3_sitelib}/ubse/
 %{python3_sitelib}/ubse-%{version}*.egg-info
+%exclude %{python3_sitelib}/ubse/ubs_engine_ssu.py
+%exclude %{python3_sitelib}/ubse/__pycache__/ubs_engine_ssu.*
+%exclude %{python3_sitelib}/ubse/ffi/ubs_engine_binding_ssu.py
+%exclude %{python3_sitelib}/ubse/ffi/__pycache__/ubs_engine_binding_ssu.*
+%exclude %{python3_sitelib}/ubse/models/ubs_engine_model_ssu.py
+%exclude %{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_ssu.*
 
 %files virtagent
 %defattr(644,root,root,-)
@@ -508,11 +581,6 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libucache_plugin.so
 
-%files ssu
-%defattr(755,root,root,-)
-/usr/lib64/ubse_plugin/libssu_plugin.so
-/usr/bin/ubsectl-ssu
-
 %files rmrs
 %defattr(644,root,root,-)
 %config(noreplace) /etc/ubse/plugins/plugin_mempooling.conf
@@ -524,3 +592,34 @@ fi
 %files processmem
 %config(noreplace) %{_sysconfdir}/ubse/plugins/plugin_process_mem.conf
 %{_libdir}/libprocess_mem.so
+
+# ========================================================
+#                   SSU %files group
+# ========================================================
+%files ssu
+%defattr(755,root,root,-)
+/usr/lib64/ubse_plugin/libssu_plugin.so
+/usr/bin/ubsectl-ssu
+
+%files ssu-client-libs
+%defattr(755,root,root,-)
+/usr/lib64/libubse-ssu-client.so.%{version}
+%defattr(-,root,root,-)
+/usr/lib64/libubse-ssu-client.so.1
+
+%files ssu-client-devel
+%defattr(-,root,root,-)
+/usr/lib64/libubse-ssu-client.so
+/usr/lib64/libubse-ssu-client.a
+%defattr(644,root,root,755)
+/usr/include/ubse/ubs_engine_ssu.h
+/usr/include/ubse/ubs_error.h
+
+%files -n python3-%{name}-ssu
+%{python3_sitelib}/ubse/ubs_engine_ssu.py
+%{python3_sitelib}/ubse/__pycache__/ubs_engine_ssu.*
+%{python3_sitelib}/ubse/ffi/ubs_engine_binding_ssu.py
+%{python3_sitelib}/ubse/ffi/__pycache__/ubs_engine_binding_ssu.*
+%{python3_sitelib}/ubse/models/ubs_engine_model_ssu.py
+%{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_ssu.*
+%{python3_sitelib}/ubse_ssu-%{version}*.egg-info
