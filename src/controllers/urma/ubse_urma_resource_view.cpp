@@ -398,12 +398,19 @@ UbseResult GetUrmaProjectionMode(UrmaProjectionMode& mode)
     if (UbseSmbios::GetInstance().IsClosType()) {
         return UBSE_OK;
     }
-    auto module = UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
-    if (module == nullptr) {
+    auto uvsModule = UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
+    if (uvsModule == nullptr) {
         UBSE_LOG_ERROR << "Failed to get URMA UVS module while selecting projection mode";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    if (module->IsEidSharingModeEnabled()) {
+    bool enabled = false;
+    const auto ret = uvsModule->EnsureEidSharingConfigured(enabled);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to ensure URMA EID sharing configuration while selecting projection mode, ret="
+                       << ret;
+        return ret;
+    }
+    if (enabled) {
         mode = UrmaProjectionMode::EID_SHARING;
     }
     return UBSE_OK;

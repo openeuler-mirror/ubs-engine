@@ -11,6 +11,8 @@
  */
 
 #include "ubse_smbios.h"
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include "ubse_logger.h"
 #include "ubse_smbios_def.h"
@@ -43,6 +45,24 @@ bool UbseSmbios::IsClosType()
     }
     auto meshType = static_cast<UbseMeshType>(basicInfo->meshType);
     return meshType == UbseMeshType::CLOS;
+}
+
+bool UbseSmbios::Is1650V100Cpu()
+{
+    auto cpuInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>();
+    if (cpuInfo == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS processor information";
+        return false;
+    }
+    if (cpuInfo->version.empty()) {
+        UBSE_LOG_ERROR << "SMBIOS processor version is empty";
+        return false;
+    }
+    auto normalizedVersion = cpuInfo->version;
+    std::transform(normalizedVersion.begin(), normalizedVersion.end(), normalizedVersion.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return normalizedVersion.find("kunpeng 950 7592c") != std::string::npos ||
+           normalizedVersion.find("1650v100") != std::string::npos;
 }
 
 UbseResult UbseSmbios::GetSuperPodId(uint16_t& superPodId)

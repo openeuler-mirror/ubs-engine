@@ -65,7 +65,11 @@ std::shared_ptr<UbseUrmaUvsModule> StubSharedGetMode()
     auto module = std::make_shared<UbseUrmaUvsModule>();
     MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    MOCKER_CPP(&UbseUrmaUvsModule::IsEidSharingModeEnabled).stubs().will(returnValue(true));
+    const bool enabled = true;
+    MOCKER_CPP(&UbseUrmaUvsModule::EnsureEidSharingConfigured)
+        .stubs()
+        .with(outBound(enabled))
+        .will(returnValue(UBSE_OK));
     return module;
 }
 
@@ -614,6 +618,60 @@ TEST_F(TestUbseUrmaController, SharedGetProjectsOnlyHostBonding)
     EXPECT_TRUE(std::all_of(states.begin(), states.end(),
                             [](uint32_t state) { return state == static_cast<uint32_t>(UrmaDevState::ACTIVED); }));
     EXPECT_TRUE(std::all_of(hwIds.begin(), hwIds.end(), [](uint64_t id) { return id == ((uint64_t{3} << 32) | 11); }));
+}
+
+TEST_F(TestUbseUrmaController, EidSharingConfigurationFailureRejectsNorthboundRequests)
+{
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
+    const bool enabled = false;
+    MOCKER_CPP(&UbseUrmaUvsModule::EnsureEidSharingConfigured)
+        .stubs()
+        .with(outBound(enabled))
+        .will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(QueryAllPortsDown).expects(never());
+
+    std::vector<std::string> names{"stale"};
+    std::vector<uint32_t> states{1};
+    std::vector<uint64_t> hwIds{1};
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseUrmaGetDevs(names, states, hwIds), UBSE_ERROR);
+    EXPECT_TRUE(names.empty());
+    EXPECT_TRUE(states.empty());
+    EXPECT_TRUE(hwIds.empty());
+
+    std::vector<UbseUrmaDevBrief> infos(1);
+    EXPECT_EQ(UbseUrmaController::GetInstance().GetLocalUrmaDevs({}, infos), UBSE_ERROR);
+    EXPECT_TRUE(infos.empty());
+
+    UbseUrmaDevPath paths;
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseAllocUrmaDev("bonding_dev_1", paths), UBSE_ERROR);
+}
+
+TEST_F(TestUbseUrmaController, UnsupportedCpuGetUsesOneToOneProjection)
+{
+    InsertBacking("bonding_dev_7", MakeBacking("dev-eid-7", "fe-7-a", "fe-7-b", 707));
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
+    const bool enabled = false;
+    MOCKER_CPP(&UbseUrmaUvsModule::EnsureEidSharingConfigured)
+        .stubs()
+        .with(outBound(enabled))
+        .will(returnValue(UBSE_OK));
+    UbseNodeInfo node;
+    node.nodeId = "1";
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(node));
+    bool isAllPortDown = false;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(IsUdmaDevHealthy).stubs().will(returnValue(true));
+
+    std::vector<std::string> names;
+    std::vector<uint32_t> states;
+    std::vector<uint64_t> hwIds;
+    ASSERT_EQ(UbseUrmaController::GetInstance().UbseUrmaGetDevs(names, states, hwIds), UBSE_OK);
+    EXPECT_EQ(names, std::vector<std::string>{"bonding_dev_7"});
+    EXPECT_EQ(hwIds, std::vector<uint64_t>{707});
 }
 
 TEST_F(TestUbseUrmaController, SharedGetMZeroReturnsEmptySuccess)

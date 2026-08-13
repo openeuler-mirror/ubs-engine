@@ -44,6 +44,11 @@ public:
     bool IsClosType();
 
     /**
+     * @brief 判断CPU是否为支持EID共享的1650v100型号
+     */
+    bool Is1650V100Cpu();
+
+    /**
      * @brief 获取二层超节点Id
      * @param superPodId 二层超节点Id
      * @return UBSE_OK 标识成功
