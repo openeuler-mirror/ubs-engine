@@ -34,8 +34,14 @@ bash build.sh clean
 若动态库不在系统默认搜索路径，运行时可指定完整路径：
 
 ```bash
-UBSE_CLIENT_LIBRARY=/opt/ubse/lib64/libubse-client.so ./build/ubse_ssu_test_c
+UBSE_CLIENT_LIBRARY=/opt/ubse/lib64/libubse-client.so \
+UBSE_SSU_CLIENT_LIBRARY=/opt/ubse/lib64/libubse-ssu-client.so \
+./build/ubse_ssu_test_c
 ```
+
+`UBSE_CLIENT_LIBRARY` 指定通用 SDK 库，`UBSE_SSU_CLIENT_LIBRARY` 指定 SSU SDK 库。
+未设置时分别默认加载 `libubse-client.so` 和 `libubse-ssu-client.so`。符号会在两个库中查找，
+因此也兼容 SSU API 未拆库的旧版 SDK。
 
 构建结果位于 `test/tools/c/ssu/build/`：
 
