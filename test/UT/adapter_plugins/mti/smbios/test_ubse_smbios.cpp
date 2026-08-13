@@ -34,6 +34,11 @@ public:
     using SmbiosStructureType1::FillSmbiosStructFromBuf;
 };
 
+class TestableSmbiosStructureType4 : public SmbiosStructureType4 {
+public:
+    using SmbiosStructure::DecodeDmiTable;
+};
+
 class TestableSmbiosSuperPodBasicInfo : public SmbiosSuperPodBasicInfo {
 public:
     using SmbiosStructure::DecodeDmiTable;
@@ -110,6 +115,23 @@ static std::vector<uint8_t> MakeSkipEntry(const std::vector<uint8_t>& stringTabl
 {
     std::vector<uint8_t> buf = {0x01, 0x06, 0x01, 0x00, 0xff, 0xff};
     buf.insert(buf.end(), stringTable.begin(), stringTable.end());
+    return buf;
+}
+
+static std::vector<uint8_t> MakeProcessorInfo(uint8_t versionStringNumber, const std::vector<std::string>& strings)
+{
+    constexpr uint8_t processorInfoLength = 0x11;
+    constexpr size_t processorVersionOffset = 0x10;
+    std::vector<uint8_t> buf(processorInfoLength, 0);
+    buf[0] = static_cast<uint8_t>(UbseSmbiosType::TYPE_4);
+    buf[1] = processorInfoLength;
+    buf[2] = 0x01;
+    buf[processorVersionOffset] = versionStringNumber;
+    for (const auto& value : strings) {
+        buf.insert(buf.end(), value.begin(), value.end());
+        buf.push_back('\0');
+    }
+    buf.push_back('\0');
     return buf;
 }
 
@@ -206,6 +228,42 @@ TEST_F(TestUbseSmbios, Type1_LogAndDefaults)
     EXPECT_EQ(t.productName.size(), 64u);
     EXPECT_EQ(t.serialNumber.size(), 32u);
     EXPECT_EQ(SmbiosStructureType1::type, UbseSmbiosType::TYPE_1);
+}
+
+// ==================== SmbiosStructureType4 ====================
+
+TEST_F(TestUbseSmbios, Type4_DecodeProcessorVersion)
+{
+    TestableSmbiosStructureType4 info;
+    auto dmi = MakeProcessorInfo(2, {"Huawei", "Kunpeng 950 7592C"});
+
+    EXPECT_EQ(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_4), UBSE_OK);
+    EXPECT_EQ(info.version, "Kunpeng 950 7592C");
+}
+
+TEST_F(TestUbseSmbios, Type4_DecodeProcessorVersionAfterEmptyLeadingString)
+{
+    TestableSmbiosStructureType4 info;
+    auto dmi = MakeProcessorInfo(2, {"", "Kunpeng 950 7592C"});
+
+    EXPECT_EQ(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_4), UBSE_OK);
+    EXPECT_EQ(info.version, "Kunpeng 950 7592C");
+}
+
+TEST_F(TestUbseSmbios, Type4_RejectsEmptyProcessorVersionNumber)
+{
+    TestableSmbiosStructureType4 info;
+    auto dmi = MakeProcessorInfo(0, {"Huawei"});
+
+    EXPECT_NE(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_4), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, Type4_RejectsMissingProcessorVersionString)
+{
+    TestableSmbiosStructureType4 info;
+    auto dmi = MakeProcessorInfo(2, {"Huawei"});
+
+    EXPECT_NE(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_4), UBSE_OK);
 }
 
 // ==================== SmbiosSuperPodBasicInfo::FillSmbiosStructFromBuf ====================
@@ -593,6 +651,10 @@ TEST_F(TestUbseSmbios, CreateSmbiosStruct)
     ASSERT_NE(p1, nullptr);
     EXPECT_NE(std::dynamic_pointer_cast<SmbiosStructureType1>(p1), nullptr);
 
+    auto p4 = CreateSmbiosStruct<UbseSmbiosType::TYPE_4>();
+    ASSERT_NE(p4, nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<SmbiosStructureType4>(p4), nullptr);
+
     auto p131 = CreateSmbiosStruct<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     ASSERT_NE(p131, nullptr);
     EXPECT_NE(std::dynamic_pointer_cast<SmbiosSuperPodBasicInfo>(p131), nullptr);
@@ -605,6 +667,7 @@ TEST_F(TestUbseSmbios, CreateSmbiosStruct)
 TEST_F(TestUbseSmbios, SmbiosTypeMap)
 {
     EXPECT_TRUE((std::is_same_v<SmbiosStructType<UbseSmbiosType::TYPE_1>, SmbiosStructureType1>));
+    EXPECT_TRUE((std::is_same_v<SmbiosStructType<UbseSmbiosType::TYPE_4>, SmbiosStructureType4>));
     EXPECT_TRUE((std::is_same_v<SmbiosStructType<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>, SmbiosSuperPodBasicInfo>));
 }
 
@@ -663,6 +726,50 @@ TEST_F(TestUbseSmbios, IsClosType_FalseForFullMesh)
     auto full = MockSuperPodInfo(0x80, 0, 0, 0);
     MOCK_GET_SMBIOS_TYPE_INFO(full);
     EXPECT_FALSE(UbseSmbios::GetInstance().IsClosType());
+}
+
+TEST_F(TestUbseSmbios, Is1650V100Cpu_MatchesKunpengModelCaseInsensitively)
+{
+    auto cpu = std::make_shared<SmbiosStructureType4>();
+    cpu->version = "kUnPeNg 950 7592c";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>).stubs().will(returnValue(cpu));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().Is1650V100Cpu());
+}
+
+TEST_F(TestUbseSmbios, Is1650V100Cpu_MatchesDecoratedKunpengModel)
+{
+    auto cpu = std::make_shared<SmbiosStructureType4>();
+    cpu->version = "Huawei Kunpeng 950 7592C ES";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>).stubs().will(returnValue(cpu));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().Is1650V100Cpu());
+}
+
+TEST_F(TestUbseSmbios, Is1650V100Cpu_MatchesAliasCaseInsensitively)
+{
+    auto cpu = std::make_shared<SmbiosStructureType4>();
+    cpu->version = "Huawei CPU 1650V100 ES";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>).stubs().will(returnValue(cpu));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().Is1650V100Cpu());
+}
+
+TEST_F(TestUbseSmbios, Is1650V100Cpu_RejectsOtherProcessor)
+{
+    auto cpu = std::make_shared<SmbiosStructureType4>();
+    cpu->version = "Kunpeng 920";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>).stubs().will(returnValue(cpu));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().Is1650V100Cpu());
+}
+
+TEST_F(TestUbseSmbios, Is1650V100Cpu_RejectsMissingProcessorInfo)
+{
+    std::shared_ptr<SmbiosStructureType4> cpu;
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_4>).stubs().will(returnValue(cpu));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().Is1650V100Cpu());
 }
 
 TEST_F(TestUbseSmbios, GetSuperPodId_Success)
@@ -737,6 +844,7 @@ TEST_F(TestUbseSmbios, Constants)
     EXPECT_EQ(PRODUCT_NAME_MAX_LEN, 64u);
     EXPECT_EQ(SUPER_POD_BASIC_T_RESERVED_SIZE, 64u);
     EXPECT_EQ(static_cast<int>(UbseSmbiosType::TYPE_1), 1);
+    EXPECT_EQ(static_cast<int>(UbseSmbiosType::TYPE_4), 4);
     EXPECT_EQ(static_cast<int>(UbseSmbiosType::SUPER_POD_BASIC_INFO_T), 131);
 }
 

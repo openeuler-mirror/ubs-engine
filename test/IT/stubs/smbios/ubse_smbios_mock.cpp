@@ -50,6 +50,12 @@ bool UbseSmbios::IsClosType()
     return static_cast<UbseMeshType>(GetEnvInt("UBSE_IT_MESH_TYPE", 1)) == UbseMeshType::CLOS;
 }
 
+bool UbseSmbios::Is1650V100Cpu()
+{
+    // IT环境暂不模拟1650v100，避免测试进程操作宿主机的EID共享sysfs节点。
+    return false;
+}
+
 uint32_t UbseSmbios::GetSuperPodId(uint16_t& superPodId)
 {
     superPodId = static_cast<uint16_t>(GetEnvInt("UBSE_IT_SUPER_POD_ID", 1));

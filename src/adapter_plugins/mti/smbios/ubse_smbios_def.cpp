@@ -167,6 +167,11 @@ void SmbiosStructureType1::LogSmbiosStructTypeInfo()
     UBSE_LOG_WARN << "Smbios structure type 1 info not supported";
 }
 
+void SmbiosStructureType4::LogSmbiosStructTypeInfo()
+{
+    UBSE_LOG_INFO << "Smbios processor information: version=" << version;
+}
+
 void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
 {
     UBSE_LOG_INFO << "SmbiosSuperPodBasicInfo: "
@@ -200,6 +205,90 @@ void SmbiosHeader::FillHeaderFromBuf(uint8_t* buf)
 UbseResult SmbiosStructureType1::FillSmbiosStructFromBuf()
 {
     return UBSE_ERR_NOT_SUPPORTED;
+}
+
+UbseResult SmbiosStructure::GetSmbiosString(uint8_t stringNumber, std::string& value) const
+{
+    value.clear();
+    if (stringNumber == 0) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS string because string number is zero";
+        return UBSE_ERROR_INVAL;
+    }
+    if (header.data == nullptr || availableLength <= header.length) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS string because structure data is incomplete";
+        return UBSE_ERROR_INVAL;
+    }
+    const auto* cursor = header.data + header.length;
+    const auto* stringTableStart = cursor;
+    const auto* end = header.data + availableLength;
+    for (uint32_t currentStringNumber = 1; currentStringNumber <= stringNumber; ++currentStringNumber) {
+        if (cursor >= end) {
+            UBSE_LOG_ERROR << "Failed to find SMBIOS string, string number=" << static_cast<uint32_t>(stringNumber);
+            return UBSE_ERROR_INVAL;
+        }
+        // 字符串表以双'\0'结束；表首的单个'\0'可能是空字符串，不能直接判定为表结束。
+        const bool isStringTableEnd = *cursor == '\0' && ((cursor != stringTableStart && *(cursor - 1) == '\0') ||
+                                                          cursor + 1 >= end || *(cursor + 1) == '\0');
+        if (isStringTableEnd) {
+            UBSE_LOG_ERROR << "Failed to find SMBIOS string, string number=" << static_cast<uint32_t>(stringNumber);
+            return UBSE_ERROR_INVAL;
+        }
+        const auto* terminator = std::find(cursor, end, static_cast<uint8_t>('\0'));
+        if (terminator == end) {
+            UBSE_LOG_ERROR << "Failed to find SMBIOS string terminator, string number="
+                           << static_cast<uint32_t>(stringNumber);
+            return UBSE_ERROR_INVAL;
+        }
+        if (currentStringNumber == stringNumber) {
+            value.assign(reinterpret_cast<const char*>(cursor), reinterpret_cast<const char*>(terminator));
+            return UBSE_OK;
+        }
+        cursor = terminator + 1;
+    }
+    return UBSE_ERROR_INVAL;
+}
+
+UbseResult SmbiosStructureType4::FillSmbiosStructFromBuf()
+{
+    constexpr size_t PROCESSOR_VERSION_OFFSET = 0x10;
+    if (header.data == nullptr) {
+        UBSE_LOG_ERROR << "SMBIOS processor information data is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (header.length <= PROCESSOR_VERSION_OFFSET) {
+        UBSE_LOG_ERROR << "SMBIOS processor information is too short, length=" << static_cast<uint32_t>(header.length);
+        return UBSE_ERROR_INVAL;
+    }
+    /*
+     * SMBIOS Type 4由格式化区域和紧随其后的字符串表组成，Version字段与Version字符串位于不同区域。
+     * 以下示例假设header.length为0x11：
+     *
+     * 1. 格式化区域：[header.data, header.data + header.length)
+     * +--------+------+----------------------------------+
+     * | 偏移   | 值   | 含义                             |
+     * +--------+------+----------------------------------+
+     * | 0x10   | 0x02 | Version引用字符串表第2项         |
+     * +--------+------+----------------------------------+
+     *
+     * 2. 字符串表：从header.data + header.length开始
+     * +------+------------------------+------------------+
+     * | 编号 | 字符串                 | 含义             |
+     * +------+------------------------+------------------+
+     * | 1    | "Huawei\0"             | 第1项            |
+     * | 2    | "Kunpeng 950 7592C\0" | 第2项，即Version |
+     * | 结束 | "\0"                   | 结束字符串表     |
+     * +------+------------------------+------------------+
+     *
+     * 映射关系：格式化区域Version值0x02 -> 字符串表编号2 -> "Kunpeng 950 7592C"。
+     */
+    const uint8_t versionStringNumber = header.data[PROCESSOR_VERSION_OFFSET];
+    const auto ret = GetSmbiosString(versionStringNumber, version);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS processor version, ret=" << ret;
+        return ret;
+    }
+    LogSmbiosStructTypeInfo();
+    return UBSE_OK;
 }
 
 const size_t NO_24 = 24;
@@ -287,6 +376,7 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_
                            << len - (cursor - dmiBuf.data());
             return UBSE_ERROR_INVAL;
         }
+        availableLength = len - static_cast<uint32_t>(cursor - dmiBuf.data());
         // 调用子类的解析函数，如果返回成功，直接返回
         auto ret = this->FillSmbiosStructFromBuf();
         if (ret == UBSE_OK) {
