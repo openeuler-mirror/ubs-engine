@@ -18,7 +18,7 @@
 //   - 枚举值填写 SDK 底层十进制数值 (lba_format/strategy/level/chunk_size)
 //   - SDK 调用结果以 JSON 应答输出; help/prompt 为普通文本
 // 编译示例 (见 build.sh):
-//   bash build.sh          # 运行时 dlopen 真实 libubse-client.so
+//   bash build.sh          # 运行时 dlopen 真实 libubse-ssu-client.so
 
 #include <cstdlib>
 #include <cstdint>
@@ -39,7 +39,7 @@ inline void* LibraryHandle()
 {
     static void* handle = [] {
         const char* configured = std::getenv("UBSE_CLIENT_LIBRARY");
-        const char* library = configured && *configured ? configured : "libubse-client.so";
+        const char* library = configured && *configured ? configured : "libubse-ssu-client.so";
         void* loaded = dlopen(library, RTLD_NOW | RTLD_LOCAL);
         if (loaded == nullptr) {
             std::cerr << "ERROR: 无法加载 " << library << ": " << dlerror() << std::endl;

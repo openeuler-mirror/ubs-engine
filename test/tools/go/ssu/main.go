@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/errcode"
 	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/ssu"
 )
 

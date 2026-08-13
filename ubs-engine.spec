@@ -142,13 +142,13 @@ Package for ssu
 %package ssu-client-libs
 Summary: UBSE SSU client shared library for third-party integration
 Provides: %{ssu_lib_name}.so.%{ssu_lib_soversion}
+Requires: %{name}-client-libs = %{version}-%{release}
 Requires: libboundscheck, libstdc++
 Conflicts: %{name} < %{version}-%{release}
 %description ssu-client-libs
 UBSE SSU client shared library (%{ssu_lib_name}.so.%{ssu_lib_soversion}) for third-party
-applications to access UBSE SSU services. This package is fully self-contained and does NOT
-require ubs-engine-client-libs to be installed. The shared library embeds common pack/unpack
-utilities and IPC client code, only depends on system libc/libstdc++/libboundscheck at runtime.
+applications to access UBSE SSU services. This package depends on ubs-engine-client-libs
+for the common IPC client code (libubse-client.so) at runtime.
 
 
 # ========================================================
@@ -157,13 +157,14 @@ utilities and IPC client code, only depends on system libc/libstdc++/libboundsch
 %package ssu-client-devel
 Summary: Development package for UBSE SSU client SDK
 Requires: %{name}-ssu-client-libs = %{version}-%{release}
+Requires: %{name}-client-devel = %{version}-%{release}
 Requires: pkgconfig
 Provides: %{name}-ssu-client-devel = %{version}-%{release}
 %description ssu-client-devel
 Header files and static libraries for developing applications that use the UBSE SSU client SDK.
-This package is required for compiling programs that link against UBSE SSU. It is fully
-self-contained and does NOT require ubs-engine-client-devel to be installed. Both
-ubs_engine_ssu.h and its dependency ubs_error.h are shipped in this package.
+This package is required for compiling programs that link against UBSE SSU. It depends on
+ubs-engine-client-devel for the common SDK headers (e.g. ubs_error.h) and libubse-client.so
+link symlink.
 
 
 # ========================================================
@@ -335,7 +336,7 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildr
 %py3_install
 
 # ---- SSU install group (4 sub-packages) ----
-#install ssu-client-libs (SSU SDK 自包含,不依赖主 client-libs;只装动态库)
+#install ssu-client-libs (依赖主 client-libs 提供 libubse-client.so;只装动态库)
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
     --component ubse_ssu_sdk \
     --prefix %{buildroot}/usr
@@ -613,7 +614,6 @@ fi
 /usr/lib64/libubse-ssu-client.a
 %defattr(644,root,root,755)
 /usr/include/ubse/ubs_engine_ssu.h
-/usr/include/ubse/ubs_error.h
 
 %files -n python3-%{name}-ssu
 %{python3_sitelib}/ubse/ubs_engine_ssu.py
