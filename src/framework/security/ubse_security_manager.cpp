@@ -81,6 +81,13 @@ void SetCapabilitiesData(__user_cap_data_struct* capData)
         CAP_AUDIT_WRITE,     // 允许写入审计日志 日志路径 /var/log/audit
         CAP_NET_ADMIN,       // 允许访问urma文件
         CAP_SYS_PTRACE,      // 允许访问其他进程的信息，如 /proc/pid/numa_maps
+        CAP_NET_RAW,
+        CAP_SYS_ADMIN,       // 允许mdadm/LVM 向内核驱动发送ioctl控制命令
+        CAP_SYS_RAWIO,      // 允许mdadm改写头部原始物理扇区
+        CAP_SETUID,         // 允许设置进程的有效 UID
+        CAP_SETGID,         // 允许设置进程的有效 GID
+        CAP_MKNOD,          // 允许创建设备文件
+        CAP_IPC_LOCK,       // 允许LVM在时操作锁定内存
     };
 
     const std::vector<__u32> eCapabilities = {
@@ -89,10 +96,24 @@ void SetCapabilitiesData(__user_cap_data_struct* capData)
         CAP_AUDIT_WRITE,     // 允许写入审计日志 日志路径 /var/log/audit
         CAP_NET_ADMIN,       // 允许访问urma文件
         CAP_SYS_PTRACE,      // 允许访问其他进程的信息，如 /proc/pid/numa_maps
+        CAP_NET_RAW,         
+        CAP_SYS_ADMIN,       // 允许mdadm/LVM 向内核驱动发送ioctl控制命令
+        CAP_SYS_RAWIO,       // 允许mdadm改写头部原始物理扇区
+        CAP_SETUID,          // 允许设置进程的有效 UID
+        CAP_SETGID,          // 允许设置进程的有效 GID
+        CAP_MKNOD,          // 允许创建设备文件
+        CAP_IPC_LOCK,       // 允许LVM在时操作锁定内存
     };
 
     const std::vector<__u32> iCapabilities = {
         CAP_DAC_OVERRIDE,
+        CAP_NET_RAW,     
+        CAP_SYS_ADMIN,
+        CAP_SYS_RAWIO,
+        CAP_SETUID,
+        CAP_SETGID,
+        CAP_MKNOD,
+        CAP_IPC_LOCK,    
     };
 
     // 设置能力
