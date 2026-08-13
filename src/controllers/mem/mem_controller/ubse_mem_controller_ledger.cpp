@@ -23,6 +23,7 @@
 #include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_debt_info.h"
 
+#include "api/ubse_mem_controller_helper.h"
 #include "api/ubse_mem_controller_share_api.h"
 #include "api/ubse_mem_share_forward.h"
 #include "logging_lock_guard.h"
@@ -90,6 +91,32 @@ bool CheckNodeIsMaster()
         return false;
     }
     return true;
+}
+
+static UbseResult ReportNodeLedgerSummaryAfterLedger(const std::string& nodeId)
+{
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        UBSE_LOG_INFO << "single-layer election does not use global ledger summary, skip reporting, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+
+    std::string globalMasterNodeId;
+    auto ret = UbseGetGlobalMasterNodeId(globalMasterNodeId);
+    if (ret == UBSE_ERR_NODE_NOT_EXIST) {
+        UBSE_LOG_WARN << "global master is not online, defer reporting global ledger summary, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "get global master node failed before reporting ledger summary, nodeId=" << nodeId << ", "
+                       << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = ReportNodeLedgerSummary(nodeId, globalMasterNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
+    }
+    return ret;
 }
 
 bool CheckHasZeroCleanPermission(bool &isGlobalMaster)
@@ -614,12 +641,7 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
             MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
-        auto summaryRet = ReportNodeLedgerSummary(nodeId);
-        if (summaryRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << node.nodeId << ", "
-                           << FormatRetCode(summaryRet);
-            ret |= summaryRet;
-        }
+        ret |= ReportNodeLedgerSummaryAfterLedger(nodeId);
     }
     return ret;
 }

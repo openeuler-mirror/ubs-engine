@@ -70,7 +70,7 @@ TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetNodeInfoByID)
     EXPECT_EQ(masterNode.port, NODE_PORT_NULL);
 }
 
-TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
+TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnNodeNotExist)
 {
     Node masterNode;
     UbseElectionModule module;
@@ -82,7 +82,7 @@ TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
     RoleMgr::GetInstance().SwitchRole(roleType, ctx);
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseResult result = module.UbseGetMasterNode(masterNode);
-    EXPECT_EQ(result, UBSE_ERROR);
+    EXPECT_EQ(result, UBSE_ERR_NODE_NOT_EXIST);
 }
 
 TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetStandbyNode)
