@@ -558,8 +558,6 @@ static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdent
                                << ", errorCode=" << resp.errorCode;
                 return resp.errorCode;
             }
-            // 更新agent侧账本
-            UbseSsuDebtLedger::GetInstance().Remove(name);
             UBSE_LOG_INFO << "FreeSpaceViaRpc success: name=" << name;
             return UBSE_OK;
         }
@@ -1096,12 +1094,20 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
         return UBSE_SSU_ERROR_NS_COUNT_MISMATCH;
     }
 
-    // identity验证通过后再删除聚合块设备（NS detach 之前），避免未授权删除导致状态不一致
-    if (deleteBlockDevice && !devName.empty()) {
-        auto deleteRet = UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(devName);
-        if (deleteRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "AgentDetach: DeleteBlockDevice failed, devName=" << devName << ", ret=" << deleteRet;
-            return UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED;
+    // identity验证通过后再删除聚合块设备（NS detach 之前），避免未授权删除导致状态不一致。
+    // 删除前校验请求devName与账本记录一致（账本为attach时写入的权威值），防止误删他人/无关聚合块设备；
+    if (deleteBlockDevice) {
+        if (!verifyResp.devName.empty() && devName != verifyResp.devName) {
+            UBSE_LOG_ERROR << "AgentDetach: devName mismatch, name=" << req.name << ", reqDevName=" << devName
+                           << ", ledgerDevName=" << verifyResp.devName;
+            return UBSE_ERR_INVALID_ARG;
+        }
+        if (!devName.empty()) {
+            auto deleteRet = UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(devName);
+            if (deleteRet != UBSE_OK) {
+                UBSE_LOG_ERROR << "AgentDetach: DeleteBlockDevice failed, devName=" << devName << ", ret=" << deleteRet;
+                return UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED;
+            }
         }
     }
 
@@ -1695,8 +1701,15 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 // 删除块设备 + detach所有NS + 账本状态回退（ATTACHED -> CREATED）
 static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
-                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                             const std::string &expectedDevName)
 {
+    // 删除前校验请求的devName与账本记录一致（账本为attach时写入的权威值），防止误删他人/无关聚合块设备；
+    if (!expectedDevName.empty() && req.devName != expectedDevName) {
+        UBSE_LOG_ERROR << tag << ": devName mismatch, name=" << req.name << ", reqDevName=" << req.devName
+                       << ", ledgerDevName=" << expectedDevName;
+        return UBSE_ERR_INVALID_ARG;
+    }
     auto deleteRet = UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(req.devName);
     if (deleteRet != UBSE_OK) {
         UBSE_LOG_ERROR << tag << ": DeleteBlockDevice failed, devName=" << req.devName << ", ret=" << deleteRet;
@@ -1783,7 +1796,8 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     }
 
     auto devMap = collector_.GetCachedDevMap();
-    auto ret = DetachNsAndDeleteBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap);
+    auto ret = DetachNsAndDeleteBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
+                                            entryPtr->devName);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -1842,7 +1856,8 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     }
 
     auto devMap = collector_.GetCachedDevMap();
-    auto ret = DetachNsAndDeleteBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap);
+    auto ret = DetachNsAndDeleteBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
+                                            entryPtr->devName);
     if (ret != UBSE_OK) {
         return ret;
     }
