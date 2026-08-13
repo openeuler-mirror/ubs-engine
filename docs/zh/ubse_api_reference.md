@@ -4792,6 +4792,1365 @@ int main(void)
 }
 ```
 
+## libubse-ssu-client
+
+**概述**
+
+UBSE SSU (Storage Service Unit) 存储服务单元提供了一组用于管理软件定义存储资源的接口，包括存储空间的分配与释放、已分配存储空间的查询、存储空间的挂载与卸载（普通模式 / 线性聚合 / 条带化聚合）、Host 访问权限的授予与撤销、命名空间统计信息查询以及 FE (Function Element) / VFE (Virtual Function Element) 设备的管理等能力。
+
+所有接口均为阻塞式调用，通过与 UBSE 服务端通信完成资源操作。调用方需关注返回值以判断操作结果。
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**头文件**
+
+`#include <ubs_engine_ssu.h>`
+
+**宏定义**
+
+| 宏名 | 值 | 说明 |
+| ---- | -- | ---- |
+| `UBS_SSU_MAX_NAME_LENGTH` | 48 | 请求标识最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_TENANT_LENGTH` | 17 | 请求方 UPI (租户隔离标识) 最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_NQN_LENGTH` | 69 | NVMe NQN 最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_EID_LENGTH` | 17 | EID 最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_UUID_LENGTH` | 37 | UUID 标准长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_DEV_PATH_LENGTH` | 63 | 设备路径最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_MAX_DEV_NAME_LENGTH` | 33 | 聚合块设备名称最大长度，含结尾字符 `'\0'` |
+| `UBS_SSU_RAID5_MIN_MEMBER_NUM` | 3 | RAID5 最少成员设备数 |
+| `UBS_SSU_GUID_LENGTH` | 32 | GUID 字节数组大小，定长，非字符串 |
+
+**枚举类型**
+
+```c
+// LBA 格式，值为对应字节数
+typedef enum {
+    UBS_SSU_LBA_FORMAT_512 = 512, // 512B
+    UBS_SSU_LBA_FORMAT_4K = 4096, // 4K
+} ubs_ssu_lba_format_t;
+
+// 聚合 RAID 级别
+typedef enum {
+    UBS_SSU_RAID0 = 0, // RAID0 条带化
+    UBS_SSU_RAID5 = 5, // RAID5 条带化带校验
+} ubs_ssu_raid_level_t;
+
+// 条带化 chunk 大小，值为对应 KB 数，需满足 ubs_ssu_lba_format_t 的整数倍
+typedef enum {
+    UBS_SSU_CHUNK_SIZE_4K = 4,
+    UBS_SSU_CHUNK_SIZE_16K = 16,
+    UBS_SSU_CHUNK_SIZE_32K = 32,
+    UBS_SSU_CHUNK_SIZE_64K = 64,
+    UBS_SSU_CHUNK_SIZE_128K = 128,
+    UBS_SSU_CHUNK_SIZE_256K = 256,
+    UBS_SSU_CHUNK_SIZE_512K = 512,
+} ubs_ssu_chunk_size_t;
+
+// 分配策略
+typedef enum {
+    UBS_SSU_ALLOC_STRATEGY_STRIPED = 0, // 分布式策略，尽量从多个设备均等分配，适用于条带化编址使用场景
+    UBS_SSU_ALLOC_STRATEGY_LINEAR = 1,  // 顺序策略，尽量从单个设备分配，适用于线性编址使用场景
+} ubs_ssu_alloc_strategy_t;
+```
+
+**结构体类型**
+
+```c
+// 分配存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];     // 请求标识，最大48个字符
+    uint64_t ns_size;                       // 申请总容量，单位字节；条带化策略时需整除 ns_num，
+                                            // 且整除后需为 chunk_size 的整数倍
+    uint32_t ns_num;                        // 命名空间数量，等于1时 strategy 不生效
+    ubs_ssu_lba_format_t lba_format;        // LBA 格式
+    ubs_ssu_alloc_strategy_t strategy;      // 分配策略
+    char tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
+} ubs_ssu_alloc_space_req_t;
+
+// 命名空间信息
+typedef struct {
+    char tgt_eid[UBS_SSU_MAX_EID_LENGTH];          // Target EID
+    char tgt_nqn[UBS_SSU_MAX_NQN_LENGTH];          // 子系统 NQN
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH];         // 物理设备 UUID
+    uint32_t ns_id;                                // 命名空间 ID
+    char ns_dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]; // 命名空间设备路径
+    uint64_t ns_size;                              // 分配的容量，单位字节
+    ubs_ssu_lba_format_t lba_format;               // LBA 格式
+    uint32_t nqn_count;                            // hostNqn 数量
+    char** host_nqns;                              // hostNqn 列表
+} ubs_ssu_namespace_info_t;
+
+// 分配存储空间结果
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];     // 请求标识，最大48个字符
+    ubs_ssu_alloc_strategy_t strategy;      // 分配策略
+    uint32_t namespace_cnt;                 // 命名空间信息数量
+    ubs_ssu_namespace_info_t *namespaces;    // 命名空间信息列表，由 SDK 内部动态分配，需通过释放接口回收
+} ubs_ssu_alloc_result_t;
+
+// 挂载|卸载存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];   // 需挂载|卸载的存储空间标识，最大48个字符
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];     // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH]; // 源 EID
+} ubs_ssu_space_req_t;
+
+// 挂载|卸载线性编址存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];         // 需挂载|卸载的存储空间标识
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];           // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];       // 源 EID
+    char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称，由外部指定
+} ubs_ssu_linear_space_req_t;
+
+// 挂载|卸载条带化编址存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];         // 需挂载|卸载的存储空间标识
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];           // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];       // 源 EID
+    char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称，由外部指定
+    ubs_ssu_raid_level_t level;                 // RAID 级别 (UBS_SSU_RAID0 或 UBS_SSU_RAID5)
+    ubs_ssu_chunk_size_t chunk_size;            // 条带化的 chunk 大小
+} ubs_ssu_striped_space_req_t;
+
+// 虚拟功能单元 (VFE) 信息
+typedef struct {
+    uint8_t slot_id;  // 槽位 ID
+    uint8_t chip_id;  // 芯片 ID
+    uint8_t die_id;   // Die ID
+    uint16_t pfe_id;  // 物理功能单元 ID
+    uint16_t vfe_id;  // 虚拟功能单元 ID
+    uint8_t vfe_guid[UBS_SSU_GUID_LENGTH];               // vfe GUID
+    uint8_t bind_bus_instance_guid[UBS_SSU_GUID_LENGTH]; // 绑定的总线实例 GUID
+} ubs_ub_vfe_t;
+
+// 功能单元 (FE) 信息，包含所属 PFE 及其下的 VFE 列表
+typedef struct {
+    uint8_t slot_id;        // 槽位 ID
+    uint8_t chip_id;        // 芯片 ID
+    uint8_t die_id;         // Die ID
+    uint16_t pfe_id;        // 物理功能单元 ID
+    uint8_t pfe_guid[UBS_SSU_GUID_LENGTH]; // pfe GUID
+    uint32_t vfe_cnt;       // VFE 数量
+    ubs_ub_vfe_t *vfe_list; // VFE 列表，由 SDK 内部动态分配，需通过释放接口回收
+} ubs_ub_fe_t;
+
+// 存储空间连接信息
+typedef struct {
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];  // Source EID
+    char tgt_eid[UBS_SSU_MAX_EID_LENGTH];  // Target EID
+    char tgt_nqn[UBS_SSU_MAX_NQN_LENGTH];  // Target NQN
+    char host_nqn[UBS_SSU_MAX_NQN_LENGTH]; // 默认 NQN
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 物理设备 UUID
+    uint32_t ns_id;                        // 命名空间 ID
+} ubs_ssu_connect_info_t;
+
+// 存储空间状态
+typedef struct {
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 物理设备 UUID
+    uint32_t ns_id;                        // 命名空间 ID
+    uint64_t total_size;                   // 总容量，单位字节
+    uint64_t used_size;                    // 已用容量，单位字节
+} ubs_ssu_ns_stats_t;
+```
+
+### ubs\_ssu\_alloc\_info\_list
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *result_cnt);
+```
+
+**描述 DESCRIPTION**
+
+获取系统中所有已分配的 SSU 存储空间详细信息，包括命名空间列表、容量、LBA 格式和使用类型等。
+
+**参数 PARAMETERS**
+
+| name         | IN/OUT | description                                                                                          |
+| ------------ | ------ | ---------------------------------------------------------------------------------------------------- |
+| results      | OUT    | 已分配空间信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_alloc_info_list_free` 释放内存 |
+| result\_cnt  | OUT    | 已分配空间信息数量                                                                                    |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+调用方需传入有效的二级指针用于接收结果列表。返回成功后，调用方需调用 `ubs_ssu_alloc_info_list_free` 释放 `results` 及其内部动态分配的子结构。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <ubs_engine.h>
+#include <ubs_engine_ssu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ssu_alloc_result_t *results = NULL;
+    uint32_t cnt = 0;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_ssu_alloc_info_list(&results, &cnt);
+    if (UBS_SUCCESS != ret) {
+        perror("alloc info list failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("alloc result count: %u\n", cnt);
+    for (uint32_t i = 0; i < cnt; i++) {
+        printf("  name=%s, ns_cnt=%u\n", results[i].name, results[i].namespace_cnt);
+    }
+
+    ubs_ssu_alloc_info_list_free(&results, cnt);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_ssu\_alloc\_info\_list\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t **results, uint32_t result_cnt);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_alloc_info_list` 返回的存储空间信息列表，包括列表本身及其内部动态分配的 `namespaces` 数组和 `host_nqns` 数组。
+
+**参数 PARAMETERS**
+
+| name         | IN/OUT | description                                                          |
+| ------------ | ------ | -------------------------------------------------------------------- |
+| results      | IN     | `ubs_ssu_alloc_info_list` 返回的列表指针                              |
+| result\_cnt  | IN     | 列表元素数量，与 `ubs_ssu_alloc_info_list` 输出的 `result_cnt` 一致   |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`result_cnt` 必须与 `ubs_ssu_alloc_info_list` 输出的值一致，否则可能造成内存泄漏或越界访问。`results` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_ns\_dev\_paths\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t ns_dev_path_cnt);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_space_attach` / `ubs_ssu_linear_space_attach` / `ubs_ssu_striped_space_attach` 返回的命名空间设备路径列表。
+
+**参数 PARAMETERS**
+
+| name              | IN/OUT | description                                                                |
+| ----------------- | ------ | -------------------------------------------------------------------------- |
+| ns\_dev\_paths    | IN     | 设备路径列表指针                                                            |
+| ns\_dev\_path\_cnt | IN     | 设备路径数量，与挂载接口输出的 `ns_dev_path_cnt` 一致                        |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`ns_dev_path_cnt` 必须与挂载接口输出的值一致。`ns_dev_paths` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_ns\_stats\_get
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_ns_stats_get(const char *name, ubs_ssu_ns_stats_t **ns_stats_list, uint32_t *ns_stats_cnt);
+```
+
+**描述 DESCRIPTION**
+
+查询指定存储空间下各命名空间的容量使用情况，包括总容量和已用容量。
+
+**参数 PARAMETERS**
+
+| name            | IN/OUT | description                                                                                          |
+| --------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| name            | IN     | 存储空间标识                                                                                          |
+| ns\_stats\_list | OUT    | 命名空间统计信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_stats_free` 释放内存     |
+| ns\_stats\_cnt  | OUT    | 命名空间统计信息数量                                                                                  |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | 存储空间不存在 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+`name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。返回成功后需调用 `ubs_ssu_ns_stats_free` 释放。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_ns\_stats\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_ns_stats_get` 返回的命名空间统计信息列表。
+
+**参数 PARAMETERS**
+
+| name            | IN/OUT | description                                        |
+| --------------- | ------ | -------------------------------------------------- |
+| ns\_stats\_list | IN     | `ubs_ssu_ns_stats_get` 返回的列表指针               |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`ns_stats_list` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_connect\_info\_get
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_connect_info_get(const char *name, ubs_ub_vfe_t *vfe,
+                                 ubs_ssu_connect_info_t **connect_info_list,
+                                 uint32_t *connect_info_cnt);
+```
+
+**描述 DESCRIPTION**
+
+查询指定存储空间在指定 VFE 上的 NVMe 连接信息，包括子系统 NQN、Host NQN、命名空间 ID 等。
+
+**参数 PARAMETERS**
+
+| name               | IN/OUT | description                                                                                                    |
+| ------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| name                | IN     | 存储空间标识                                                                                                    |
+| vfe                 | IN     | VFE 信息，可选参数；指定 vfe 时连接信息里的 `src_eid` 为指定 vfe 的 eid，否则 `src_eid` 为 host 侧分配给 ssu 的 fe 的 eid |
+| connect\_info\_list | OUT    | 连接信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_connect_info_free` 释放内存                   |
+| connect\_info\_cnt  | OUT    | 连接信息数量                                                                                                    |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | 存储空间或 VFE 不存在 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+`name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。返回成功后需调用 `ubs_ssu_connect_info_free` 释放。
+
+**附注 NOTES**
+
+`vfe` 参数可为 NULL，表示不限定 VFE。
+
+### ubs\_ssu\_connect\_info\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_connect_info_get` 返回的连接信息列表。
+
+**参数 PARAMETERS**
+
+| name               | IN/OUT | description                                       |
+| ------------------- | ------ | ------------------------------------------------- |
+| connect\_info\_list | IN     | `ubs_ssu_connect_info_get` 返回的列表指针          |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`connect_info_list` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_space\_alloc
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t **result);
+```
+
+**描述 DESCRIPTION**
+
+根据请求参数分配指定数量和大小的命名空间，支持顺序分配 (`UBS_SSU_ALLOC_STRATEGY_LINEAR`) 和分布式分配 (`UBS_SSU_ALLOC_STRATEGY_STRIPED`) 两种策略。
+
+**参数 PARAMETERS**
+
+| name   | IN/OUT | description                                                                                                |
+| ------ | ------ | ---------------------------------------------------------------------------------------------------------- |
+| req    | IN     | 分配请求参数                                                                                                |
+| result | OUT    | 分配结果指针的地址，由 SDK 内部动态分配整个 `ubs_ssu_alloc_result_t` 对象；调用方需通过 `ubs_ssu_alloc_info_free` 释放 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                          |
+| -------------------------------------- | ------------------------------------ |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                                |
+| UBS\_ERR\_OUT\_OF\_RANGE               | 参数超出范围 (ns_size 不满足整除条件或 name 超长等) |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败                    |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过                  |
+| UBS\_ENGINE\_ERR\_EXISTED              | 存储空间已存在                        |
+| UBS\_ENGINE\_ERR\_ALREADY\_ALLOCATED   | 存储空间已分配，重复分配报错           |
+| UBS\_ENGINE\_ERR\_ALLOCATE             | 算法分配失败                          |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时                    |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误                    |
+
+**约束 CONSTRAINTS**
+
+- 当 `ns_num` 为 1 时，`strategy` 参数不生效。
+- 空间已分配时重复分配将报错，不再幂等返回成功。
+- 条带化策略时 `ns_size` 需整除 `ns_num`，且整除后需为 `chunk_size` 的整数倍。
+- 返回成功后需调用 `ubs_ssu_alloc_info_free` 释放 `result`。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_ssu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ssu_alloc_space_req_t req = {0};
+    ubs_ssu_alloc_result_t *result = NULL;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    snprintf(req.name, sizeof(req.name), "space-001");
+    req.ns_size = 1ULL * 1024 * 1024 * 1024; /* 1 GiB */
+    req.ns_num = 2;
+    req.lba_format = UBS_SSU_LBA_FORMAT_4K;
+    req.strategy = UBS_SSU_ALLOC_STRATEGY_STRIPED;
+
+    ret = ubs_ssu_space_alloc(&req, &result);
+    if (UBS_SUCCESS != ret) {
+        perror("space alloc failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("alloc success, name=%s, ns_cnt=%u\n", result->name, result->namespace_cnt);
+    ubs_ssu_alloc_info_free(&result);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_ssu\_alloc\_info\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_space_alloc` 返回的分配结果，释放 `result` 指向的整个 `ubs_ssu_alloc_result_t` 对象（包括其内部动态分配的 `namespaces` 数组和 `host_nqns` 数组），并将调用方的指针置为 NULL。
+
+**参数 PARAMETERS**
+
+| name   | IN/OUT | description                                          |
+| ------ | ------ | ---------------------------------------------------- |
+| result | IN/OUT | 指向 `ubs_ssu_alloc_result_t*` 的指针，可为 NULL   |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`result` 为 NULL 或 `*result` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_space\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_free(const char *name);
+```
+
+**描述 DESCRIPTION**
+
+释放之前通过 `ubs_ssu_space_alloc` 分配的存储空间及其关联的所有命名空间。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                          |
+| ---- | ------ | ------------------------------------ |
+| name | IN     | 要释放的存储空间标识，与分配时的 name 参数一致 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description                  |
+| ------------------------------------ | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER              | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 参数超出范围             |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_FREE     | 存储空间不存在或已释放，无需释放报错 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- 释放操作不再幂等，释放不存在的空间将报错 (`UBS_ENGINE_ERR_NO_NEED_FREE`)。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_access\_permission\_add
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn);
+```
+
+**描述 DESCRIPTION**
+
+为指定的 Host 授予对已分配存储空间的访问权限，在 Target 侧将 Host NQN 添加到子系统的允许主机列表中，使该 Host 可以通过 NVMe-oF 协议访问对应命名空间。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                          |
+| ---- | ------ | ------------------------------------ |
+| name | IN     | 存储空间标识，与分配时的 name 参数一致 |
+| nqn  | IN     | Host 的 NVMe Qualified Name，标识被授权的主机 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 或 nqn 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | 存储空间不存在 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `nqn` 长度不能超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+
+**附注 NOTES**
+
+重复添加同一 Host 的访问权限是否成功取决于底层适配器实现（适配器不幂等时重复添加可能报错），调用方不应依赖幂等性保证进行重试。
+
+### ubs\_ssu\_access\_permission\_remove
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
+```
+
+**描述 DESCRIPTION**
+
+撤销指定 Host 对已分配存储空间的访问权限，在 Target 侧将 Host NQN 从子系统的允许主机列表中移除，使该 Host 无法再通过 NVMe-oF 协议访问对应命名空间。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                          |
+| ---- | ------ | ------------------------------------ |
+| name | IN     | 存储空间标识，与分配时的 name 参数一致 |
+| nqn  | IN     | Host 的 NVMe Qualified Name，标识被撤销权限的主机 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 或 nqn 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | 存储空间不存在 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `nqn` 长度不能超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+
+**附注 NOTES**
+
+- 命名空间已被删除（不在设备缓存中）时，移除操作幂等跳过；重复移除访问权限是否成功取决于底层适配器实现。
+- 移除权限前应确保该 Host 已断开与对应命名空间的连接。
+
+### ubs\_ssu\_space\_attach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_paths,
+                             uint32_t *ns_dev_path_cnt);
+```
+
+**描述 DESCRIPTION**
+
+将指定的存储空间挂载到系统，使其可被主机访问。
+
+**参数 PARAMETERS**
+
+| name              | IN/OUT | description                                                                                              |
+| ----------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| req               | IN     | 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源 EID                                      |
+| ns\_dev\_paths    | OUT    | 命名空间设备路径列表，由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_dev_paths_free` 释放                  |
+| ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 参数超出范围             |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+返回成功后需调用 `ubs_ssu_ns_dev_paths_free` 释放 `ns_dev_paths`。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_ssu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ssu_space_req_t req = {0};
+    char **dev_paths = NULL;
+    uint32_t dev_path_cnt = 0;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    snprintf(req.name, sizeof(req.name), "space-001");
+    snprintf(req.nqn, sizeof(req.nqn), "nqn.2024-01.com.huawei:host1");
+    snprintf(req.src_eid, sizeof(req.src_eid), "eid-source-01");
+
+    ret = ubs_ssu_space_attach(&req, &dev_paths, &dev_path_cnt);
+    if (UBS_SUCCESS != ret) {
+        perror("space attach failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < dev_path_cnt; i++) {
+        printf("dev_path[%u] = %s\n", i, dev_paths[i]);
+    }
+    ubs_ssu_ns_dev_paths_free(&dev_paths, dev_path_cnt);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_ssu\_space\_detach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
+```
+
+**描述 DESCRIPTION**
+
+将指定的存储空间从系统卸载，释放设备占用。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                |
+| ---- | ------ | ---------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源 EID |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 参数超出范围             |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+卸载前需确保没有进程正在使用该存储空间。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_linear\_space\_attach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
+                                    char ***ns_dev_paths, uint32_t *ns_dev_path_cnt,
+                                    char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+```
+
+**描述 DESCRIPTION**
+
+将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
+
+**参数 PARAMETERS**
+
+| name              | IN/OUT | description                                                                                              |
+| ----------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| req               | IN     | 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID 和聚合后的块设备名称                  |
+| ns\_dev\_paths    | OUT    | 命名空间设备路径列表，由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_dev_paths_free` 释放                  |
+| ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
+| dev\_path         | OUT    | 挂载后的聚合设备路径，调用方需分配不小于 `UBS_SSU_MAX_DEV_PATH_LENGTH` 字节的缓冲区                       |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 或 dev\_name 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- 线性编址模式下，数据按顺序填充各成员设备。
+- 返回成功后需调用 `ubs_ssu_ns_dev_paths_free` 释放 `ns_dev_paths`。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_linear\_space\_detach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
+```
+
+**描述 DESCRIPTION**
+
+将线性聚合的块设备卸载并释放。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                                 |
+| ---- | ------ | --------------------------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID 和聚合后的块设备名称 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 或 dev\_name 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+无。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_striped\_space\_attach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
+                                     char ***ns_dev_paths, uint32_t *ns_dev_path_cnt,
+                                     char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+```
+
+**描述 DESCRIPTION**
+
+将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，支持 RAID0 和 RAID5 两种级别。
+
+**参数 PARAMETERS**
+
+| name              | IN/OUT | description                                                                                              |
+| ----------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| req               | IN     | 条带化挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID、聚合后的块设备名称、RAID 级别和 chunk 大小 |
+| ns\_dev\_paths    | OUT    | 命名空间设备路径列表，由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_dev_paths_free` 释放                  |
+| ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
+| dev\_path         | OUT    | 挂载后的聚合设备路径，调用方需分配不小于 `UBS_SSU_MAX_DEV_PATH_LENGTH` 字节的缓冲区                       |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 参数超出范围             |
+| UBS\_ERR\_INVALID\_ARG                 | level 或 chunk\_size 参数无效 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- RAID5 至少需要 `UBS_SSU_RAID5_MIN_MEMBER_NUM` (3) 个成员设备。
+- 返回成功后需调用 `ubs_ssu_ns_dev_paths_free` 释放 `ns_dev_paths`。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_striped\_space\_detach
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
+```
+
+**描述 DESCRIPTION**
+
+将条带化聚合的块设备卸载并释放。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                                 |
+| ---- | ------ | --------------------------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID、聚合后的块设备名称、RAID 级别和 chunk 大小 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 或 dev\_name 参数超出范围 |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+无。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_fe\_device\_list
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_fe_device_list(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
+```
+
+**描述 DESCRIPTION**
+
+查询系统中所有 FE 设备信息，包括每个 PFE 下的 VFE 列表。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | description                                                                                          |
+| ------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| fe\_list | OUT    | FE 设备信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_fe_device_list_free` 释放内存 |
+| fe\_cnt | OUT    | FE 设备数量                                                                                          |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针        |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+返回成功后需调用 `ubs_ssu_fe_device_list_free` 释放 `fe_list`。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_fe\_device\_list\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t fe_cnt);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_ssu_fe_device_list` 返回的 FE 设备列表，包括列表本身及其内部动态分配的 `vfe_list` 数组。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | description                                                          |
+| ------- | ------ | -------------------------------------------------------------------- |
+| fe\_list | IN     | `ubs_ssu_fe_device_list` 返回的列表指针                               |
+| fe\_cnt | IN     | 列表元素数量，与 `ubs_ssu_fe_device_list` 输出的 `fe_cnt` 一致        |
+
+**返回值 RETURN VALUE**
+
+无返回值。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+`fe_cnt` 必须与 `ubs_ssu_fe_device_list` 输出的值一致。`fe_list` 为 NULL 时函数直接返回。
+
+**附注 NOTES**
+
+暂无。
+
+### ubs\_ssu\_fe\_device\_alloc
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi, const ubs_ub_vfe_t *vfe,
+                                uint8_t *bus_instance_guid);
+```
+
+**描述 DESCRIPTION**
+
+将指定的虚拟功能单元绑定到目标虚拟机，使虚拟机可通过该 VFE 访问存储资源。
+
+**参数 PARAMETERS**
+
+| name               | IN/OUT | description                                                                                                                                                     |
+| ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| upi                | IN     | 租户隔离标识                                                                                                                                                    |
+| vfe                | IN     | 要绑定的 VFE 信息                                                                                                                                               |
+| bus\_instance\_guid | IN/OUT | 总线实例 GUID，定长字节数组，调用方需保证缓冲区至少 `UBS_SSU_GUID_LENGTH` 字节，**不允许传 NULL**；详见下方约束                                                                 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description                              |
+| ------------------------------------ | ---------------------------------------- |
+| UBS\_ERR\_NULL\_POINTER              | 空指针 (bus\_instance\_guid 为 NULL 或 vfe 为 NULL) |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败                        |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过                      |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | VFE 或虚拟机不存在                        |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时                        |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误                        |
+
+**约束 CONSTRAINTS**
+
+`bus_instance_guid` 为 IN/OUT 复用参数：
+
+- **IN**：全 0 (`UBS_SSU_GUID_LENGTH` 字节全为 0) 表示由 ubse 内部创建 vm busInstance 并绑定到该 VFE；非全 0 表示绑定到指定的虚拟机。
+- **OUT**：操作成功后写入实际绑定的总线实例 GUID（内部创建场景下为新创建的 GUID）。
+- 不允许传 NULL（OUT 需要写回）。
+
+**附注 NOTES**
+
+- Go/Python 端 `busInstanceGuid`/`guid` 仅作为 IN 参数（可传空字符串），实际 GUID 通过返回值传出。
+- C 端因采用 IN/OUT 复用参数，不允许传 NULL，改以"全 0 缓冲区"表达"由 ubse 内部创建"的语义，与 Go/Python 端"空字符串"在协议层等价（均打包为 `UBS_SSU_GUID_LENGTH` 字节全 0）。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_ssu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ub_vfe_t vfe = {0};
+    uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH] = {0}; /* 全0表示由ubse内部创建 */
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    vfe.slot_id = 0;
+    vfe.chip_id = 0;
+    vfe.pfe_id = 1;
+    vfe.vfe_id = 1;
+    /* vfe_guid 需填充实际值 */
+
+    ret = ubs_ssu_fe_device_alloc(1, &vfe, bus_instance_guid);
+    if (UBS_SUCCESS != ret) {
+        perror("fe device alloc failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("bind success, bus_instance_guid set\n");
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_ssu\_fe\_device\_free
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_fe_device_free(uint32_t upi, const ubs_ub_vfe_t *vfe);
+```
+
+**描述 DESCRIPTION**
+
+将已分配的虚拟功能单元从目标虚拟机释放，回收 VFE 设备资源。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description           |
+| ---- | ------ | --------------------- |
+| upi  | IN     | 租户隔离标识          |
+| vfe  | IN     | 要释放的 VFE 信息     |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description              |
+| ------------------------------------ | ------------------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针                    |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败        |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过      |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | VFE 或虚拟机不存在        |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时        |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误        |
+
+**约束 CONSTRAINTS**
+
+无。
+
+**附注 NOTES**
+
+暂无。
+
+---
+
 ## UBSE 内存控制器接口说明文档
 
 **概述**

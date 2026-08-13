@@ -32,13 +32,26 @@ UBSE服务以ubse用户作为运行用户，特权的使用遵从最小化使用
 
 #### 文件及目录权限设计
 
-UBS Engine主要由三个发布件组成，用于不同的用途，各发布件的文件权限各不相同
+UBS Engine主要由多个发布件组成，用于不同的用途，各发布件的文件权限各不相同。其中主程序包、客户端运行库与开发包构成了对外暴露的核心 lib 库发布件，本节重点描述这些 lib 库发布件的权限设计。
 
 | RPM包                                                   | 说明                                   |
 | ------------------------------------------------------- | -------------------------------------- |
 | ubs-engine-\<version>-\<release>.aarch64.rpm              | 主程序包，包含服务、CLI、配置等        |
 | ubs-engine-client-libs-\<version>-\<release>.aarch64.rpm  | 客户端运行时库（供第三方程序动态链接） |
 | ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm | 开发包（含头文件与静态库）             |
+| ubs-engine-ssu-\<version>-\<release>.aarch64.rpm           | SSU 插件包（运行时插件 + 插件 CLI）    |
+| ubs-engine-ssu-client-libs-\<version>-\<release>.aarch64.rpm  | SSU 客户端运行时库（供第三方程序动态链接，依赖 `ubs-engine-client-libs`） |
+| ubs-engine-ssu-client-devel-\<version>-\<release>.aarch64.rpm | SSU 开发包（含 SSU 头文件与静态库，依赖 `ubs-engine-client-devel`） |
+| python3-ubs-engine-\<version>-\<release>.aarch64.rpm   | 主 SDK 的 Python 模块                  |
+| python3-ubs-engine-ssu-\<version>-\<release>.aarch64.rpm | SSU SDK 的 Python 模块（依赖 `python3-ubs-engine`） |
+
+> [!NOTE]说明
+> SSU 客户端库（`ubs-engine-ssu-client-libs` / `ubs-engine-ssu-client-devel`）按业务领域从主 SDK 拆分出来单独发布，**安装时需先安装对应的主 SDK 包**：
+>
+> - 安装 `ubs-engine-ssu-client-libs` 前需先安装 `ubs-engine-client-libs`
+> - 安装 `ubs-engine-ssu-client-devel` 前需先安装 `ubs-engine-client-devel`
+>
+> 运行时 `libubse-ssu-client.so` 依赖主 SDK 的 `libubse-client.so` 提供公共 IPC 客户端代码，故 `ubs-engine-ssu-client-libs` 在 RPM 中通过 `Requires` 声明对 `ubs-engine-client-libs` 的依赖，`dnf` 安装时会自动拉取。
 
 #### 主程序权限设计
 
@@ -75,6 +88,25 @@ ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm安装后的权限如�
 | `/usr/include/ubse`            | 目录         | `root:root` | `755` | 目录下头文件（`*.h`）权限：`644`             |
 | `/usr/lib64/libubse-client.so` | 软链接       | `root:root` | `777` | 软链接，指向`/usr/lib64/libubse-client.so.1` |
 | `/usr/lib64/libubse-client.a`  | 静态库二进制 | `root:root` | `644` | 二进制静态库                                 |
+
+#### SSU 客户端运行库权限设计
+
+ubs-engine-ssu-client-libs-\<version>-\<release>.aarch64.rpm安装后的权限如下：
+
+| 文件                                     | 类型         | owner       | 权限  | 其它说明                                                |
+| ---------------------------------------- | ------------ | ----------- | ----- | ------------------------------------------------------- |
+| `/usr/lib64/libubse-ssu-client.so.1.0.1` | 动态库二进制 | `root:root` | `755` | 二进制动态库实体                                        |
+| `/usr/lib64/libubse-ssu-client.so.1`     | 软链接       | `root:root` | `777` | 软链接，指向 `/usr/lib64/libubse-ssu-client.so.1.0.1` |
+
+#### SSU 客户端开发包权限设计
+
+ubs-engine-ssu-client-devel-\<version>-\<release>.aarch64.rpm安装后的权限如下：
+
+| 文件/目录                                | 类型         | owner       | 权限  | 其它说明                                                        |
+| ---------------------------------------- | ------------ | ----------- | ----- | --------------------------------------------------------------- |
+| `/usr/include/ubse/ubs_engine_ssu.h`     | 头文件       | `root:root` | `644` | SSU SDK 头文件                                                  |
+| `/usr/lib64/libubse-ssu-client.so`       | 软链接       | `root:root` | `777` | 软链接，指向 `/usr/lib64/libubse-ssu-client.so.1`，供链接器使用 |
+| `/usr/lib64/libubse-ssu-client.a`        | 静态库二进制 | `root:root` | `644` | 二进制静态库                                                    |
 
 ### 暴露面安全设计
 
