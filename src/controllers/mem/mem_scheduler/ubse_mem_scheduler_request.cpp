@@ -201,8 +201,8 @@ SchedulerRequest SchedulerRequest::SetupFromNodeConf(SchedulerRequest&& req, Sch
             req.params_["lenderBalance"] = true;
             break;
         case SchedulerMode::PerformancePriority:
-            req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowBandwidthScore",
-                               "DivideNumaScore"};
+            req.scoreNames_ = {"LatencyScore",           "RegionBalanceScore",   "BalanceScore",
+                               "BorrowReliabilityScore", "BorrowBandwidthScore", "DivideNumaScore"};
             req.weights_ = ScoreWeights::ForPerformancePriority();
             req.params_["schedulerMode"] = std::string("performance-priority");
             break;

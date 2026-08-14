@@ -22,6 +22,7 @@
 namespace ubse::mem::scheduler::ut {
 
 using namespace ubse::common::def;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestSchedulerScoreManager::SetUp()
 {
@@ -33,6 +34,33 @@ void TestSchedulerScoreManager::TearDown()
     GlobalMockObject::verify();
     Test::TearDown();
 }
+
+namespace {
+
+constexpr uint64_t MB = 1024 * 1024;
+
+UbseMemDebtNumaInfo MakeLoc(const std::string& nodeId, int socketId, int64_t numaId, uint64_t size = 0)
+{
+    UbseMemDebtNumaInfo loc{};
+    loc.nodeId = nodeId;
+    loc.socketId = socketId;
+    loc.numaId = numaId;
+    loc.size = size;
+    return loc;
+}
+
+void SeedLendAccount(SchedulerAccountManager& accMgr, const std::string& name, const std::string& lender,
+                     uint32_t socketId, uint64_t sizeMb)
+{
+    UbseMemAlgoResult result;
+    result.importNumaInfos = {MakeLoc("borrower1", static_cast<int>(socketId), 0)};
+    result.exportNumaInfos = {MakeLoc(lender, static_cast<int>(socketId), 0, sizeMb * MB)};
+    result.blockSize = 128;
+    auto ret = accMgr.UpdateSchedulerAccount(name, result, UBSE_MEM_SCHEDULING, BorrowedType::FD);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+} // namespace
 
 TEST_F(TestSchedulerScoreManager, InitRegistersAllScores)
 {
@@ -212,35 +240,100 @@ TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreNormalization)
 {
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
-    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init(); // register all scorers
+    accMgr.SetNodeManager(&nodeMgr);
+    nodeMgr.InitBandwidthTolerance(128); // tolerance 默认 = 2 * 128 = 256 MB
 
-    nodeMgr.InitBandwidthTolerance(128);
+    // 预置账本：lender1 的 socket 36/37/38 已向 borrower1 借出 100/500/900 MB
+    SeedLendAccount(accMgr, "b1", "lender1", 36, 100);
+    SeedLendAccount(accMgr, "b2", "lender1", 37, 500);
+    SeedLendAccount(accMgr, "b3", "lender1", 38, 900);
 
+    BorrowBandwidthScore scorer;
     NodeInfo n1;
     n1.nodeId = "lender1";
     n1.socketInfos = {{36, {0, 1}}, {37, {2, 3}}, {38, {4, 5}}};
-
     std::vector<NodeInfo> nodes = {n1};
-    SchedulerRequest req;
-    req.requestNodeId_ = "borrower1";
-    req.requestSize_ = 128 * 1024 * 1024;
-    req.scoreNames_ = {"BorrowBandwidthScore"};
-    req.weights_ = ScoreWeights::ForPerformancePriority();
-    std::vector<ScoredNode> results;
 
-    auto ret = mgr.ScoreAndRank(nodes, req, results, 3);
+    SchedulerRequest req;
+    req.importNodeId_ = "borrower1";
+    req.requestSize_ = 50 * MB;
+
+    std::vector<double> scores(3, 0.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
     EXPECT_EQ(ret, UBSE_OK);
-    ASSERT_EQ(results.size(), 3u);
-    EXPECT_GT(results[0].totalCost, 0.0);
-    EXPECT_GT(results[1].totalCost, 0.0);
-    EXPECT_GT(results[2].totalCost, 0.0);
+    // 借入后 spread：750/800/850 MB -> D = 2/3/3 -> 评分 [0.0, 1.0, 1.0]
+    EXPECT_DOUBLE_EQ(scores[0], 0.0);
+    EXPECT_DOUBLE_EQ(scores[1], 1.0);
+    EXPECT_DOUBLE_EQ(scores[2], 1.0);
+}
+
+TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreBoundaryExclusive)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    accMgr.SetNodeManager(&nodeMgr);
+    nodeMgr.InitBandwidthTolerance(128); // tolerance 默认 = 256 MB
+
+    // lender1 的 socket 36/37/38 已向 borrower1 借出 0/256/512 MB
+    SeedLendAccount(accMgr, "b1", "lender1", 36, 0);
+    SeedLendAccount(accMgr, "b2", "lender1", 37, 256);
+    SeedLendAccount(accMgr, "b3", "lender1", 38, 512);
+
+    BorrowBandwidthScore scorer;
+    NodeInfo n1;
+    n1.nodeId = "lender1";
+    n1.socketInfos = {{36, {0, 1}}, {37, {2, 3}}, {38, {4, 5}}};
+    std::vector<NodeInfo> nodes = {n1};
+
+    SchedulerRequest req;
+    req.importNodeId_ = "borrower1";
+    req.requestSize_ = 256 * MB;
+
+    std::vector<double> scores(3, 0.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
+    EXPECT_EQ(ret, UBSE_OK);
+    // 借入后 spread：256/512/768 MB -> D = 1/2/3（spread 等于 tolerance 算带外）-> 评分 [0.0, 0.5, 1.0]
+    EXPECT_DOUBLE_EQ(scores[0], 0.0);
+    EXPECT_DOUBLE_EQ(scores[1], 0.5);
+    EXPECT_DOUBLE_EQ(scores[2], 1.0);
+}
+
+TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreHundredthsRounding)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    accMgr.SetNodeManager(&nodeMgr);
+    nodeMgr.InitBandwidthTolerance(2); // tolerance 默认 = 2 * 2 = 4 MB
+
+    // lender1 的 socket 36/37/38 已向 borrower1 借出 0/4/12 MB
+    SeedLendAccount(accMgr, "b1", "lender1", 36, 0);
+    SeedLendAccount(accMgr, "b2", "lender1", 37, 4);
+    SeedLendAccount(accMgr, "b3", "lender1", 38, 12);
+
+    BorrowBandwidthScore scorer;
+    NodeInfo n1;
+    n1.nodeId = "lender1";
+    n1.socketInfos = {{36, {0, 1}}, {37, {2, 3}}, {38, {4, 5}}};
+    std::vector<NodeInfo> nodes = {n1};
+
+    SchedulerRequest req;
+    req.importNodeId_ = "borrower1";
+    req.requestSize_ = 8 * MB;
+
+    std::vector<double> scores(3, 0.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
+    EXPECT_EQ(ret, UBSE_OK);
+    // 借入后 spread：8/12/20 MB -> D = 2/3/5 -> 评分 [0.0, 0.33, 1.0]（1/3 四舍五入到百分位）
+    EXPECT_DOUBLE_EQ(scores[0], 0.0);
+    EXPECT_DOUBLE_EQ(scores[1], 0.33);
+    EXPECT_DOUBLE_EQ(scores[2], 1.0);
 }
 
 TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreDirectCall)
 {
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
+    accMgr.SetNodeManager(&nodeMgr);
     nodeMgr.InitBandwidthTolerance(128);
 
     BorrowBandwidthScore scorer;
@@ -250,14 +343,16 @@ TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreDirectCall)
     std::vector<NodeInfo> nodes = {n1};
 
     SchedulerRequest req;
-    req.requestNodeId_ = "borrower1";
+    req.importNodeId_ = "borrower1";
+    req.requestSize_ = 128 * MB;
 
     std::vector<double> scores(2, 0.0);
     auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
     EXPECT_EQ(ret, UBSE_OK);
-    // Both should be 1.0 (lend amount = 0, dist = 0 >= 0)
-    EXPECT_DOUBLE_EQ(scores[0], 1.0);
-    EXPECT_DOUBLE_EQ(scores[1], 1.0);
+    // 无账本：每个候选都成为新最大值，spread = requestSize（128 MB）<= tolerance，
+    // 全部同带 -> 评分全为 0.0
+    EXPECT_DOUBLE_EQ(scores[0], 0.0);
+    EXPECT_DOUBLE_EQ(scores[1], 0.0);
 }
 
 TEST_F(TestSchedulerScoreManager, GetWeightForBorrowBandwidthScore)
