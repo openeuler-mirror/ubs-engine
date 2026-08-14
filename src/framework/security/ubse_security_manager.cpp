@@ -107,6 +107,7 @@ void SetCapabilitiesData(__user_cap_data_struct* capData)
 
     const std::vector<__u32> iCapabilities = {
         CAP_DAC_OVERRIDE,
+        CAP_NET_ADMIN,
         CAP_NET_RAW,     
         CAP_SYS_ADMIN,
         CAP_SYS_RAWIO,
