@@ -35,35 +35,43 @@
 
 namespace ubse_dynamic {
 
-inline void* LibraryHandle()
+inline void* LoadLibrary(const char* environment, const char* fallback)
 {
-    static void* handle = [] {
-        const char* configured = std::getenv("UBSE_CLIENT_LIBRARY");
-        const char* library = configured && *configured ? configured : "libubse-ssu-client.so";
-        void* loaded = dlopen(library, RTLD_NOW | RTLD_LOCAL);
-        if (loaded == nullptr) {
-            std::cerr << "ERROR: 无法加载 " << library << ": " << dlerror() << std::endl;
-        }
-        return loaded;
-    }();
+    const char* configured = std::getenv(environment);
+    const char* library = configured && *configured ? configured : fallback;
+    return dlopen(library, RTLD_NOW | RTLD_LOCAL);
+}
+
+inline void* SsuLibraryHandle()
+{
+    static void* handle = LoadLibrary("UBSE_SSU_CLIENT_LIBRARY", "libubse-ssu-client.so");
+    return handle;
+}
+
+inline void* ClientLibraryHandle()
+{
+    static void* handle = LoadLibrary("UBSE_CLIENT_LIBRARY", "libubse-client.so");
     return handle;
 }
 
 template<typename T>
 T LoadSymbol(const char* name)
 {
-    void* handle = LibraryHandle();
-    if (handle == nullptr) {
-        return nullptr;
+    // 新版将 SSU API 拆到 libubse-ssu-client.so，通用初始化和错误码 API
+    // 仍在 libubse-client.so。先查 SSU 库再查主库，同时兼容旧版单库布局。
+    void* handles[] = {SsuLibraryHandle(), ClientLibraryHandle()};
+    for (void* handle : handles) {
+        if (handle == nullptr) {
+            continue;
+        }
+        dlerror();
+        void* symbol = dlsym(handle, name);
+        if (dlerror() == nullptr) {
+            return reinterpret_cast<T>(symbol);
+        }
     }
-    dlerror();
-    void* symbol = dlsym(handle, name);
-    const char* error = dlerror();
-    if (error != nullptr) {
-        std::cerr << "ERROR: 无法解析符号 " << name << ": " << error << std::endl;
-        return nullptr;
-    }
-    return reinterpret_cast<T>(symbol);
+    std::cerr << "ERROR: 无法从 libubse-ssu-client.so 或 libubse-client.so 解析符号 " << name << std::endl;
+    std::exit(EXIT_FAILURE);
 }
 
 } // namespace ubse_dynamic
@@ -1126,9 +1134,6 @@ private:
 //     空字符串用 "" 占位, 数值零用 0 占位, 枚举值填 SDK 底层十进制数值
 int main(int argc, char* argv[])
 {
-    if (ubse_dynamic::LibraryHandle() == nullptr) {
-        return 1;
-    }
     UbseSsuApp app;
     if (argc > 1) {
         return app.ExecuteOnce(argc, argv);

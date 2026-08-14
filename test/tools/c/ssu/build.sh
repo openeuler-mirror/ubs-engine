@@ -11,7 +11,7 @@ usage()
     cat <<'EOF'
 用法: bash build.sh [app|clean]
 
-  app    构建通过 dlopen 加载 libubse-client.so 的 CLI（默认）
+  app    构建通过 dlopen 加载 libubse-ssu-client.so 的 CLI（默认）
   clean  删除本示例的 build 目录
 
 可配置环境变量:
