@@ -12,6 +12,8 @@
 
 #include "test_ubse_ras_handler.h"
 #include <ubse_event.h>
+#include <chrono>
+#include <vector>
 #include "ubse_com_module.h"
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
@@ -23,6 +25,54 @@
 
 namespace ubse::ras::ut {
 using namespace ubse::com;
+
+using ManagingGroupInfoRpcSend = UbseResult (UbseComModule::*)(const SendParam&, UbseRasMessagePtr&, UbseRasMessagePtr&,
+                                                               const bool);
+const auto g_managingGroupInfoRpcSend =
+    static_cast<ManagingGroupInfoRpcSend>(&UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>);
+
+std::shared_ptr<UbseComModule> g_managingGroupInfoComModule;
+std::vector<std::string> g_managingGroupInfoTargets;
+std::string g_managingGroupInfoResponseData;
+UbseResult g_managingGroupInfoBusinessRet = UBSE_OK;
+UbseResult g_managingGroupInfoRpcRet = UBSE_OK;
+
+UbseResult CaptureManagingGroupInfoSend(UbseComModule*, const SendParam& param, UbseRasMessagePtr& request,
+                                        UbseRasMessagePtr& response, const bool)
+{
+    EXPECT_NE(request.Get(), nullptr);
+    EXPECT_EQ(param.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::RAS));
+    EXPECT_EQ(param.GetOpCode(), static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_QUERY_MANAGING_GROUP_INFO));
+    g_managingGroupInfoTargets.push_back(param.GetRemoteId());
+    response = new (std::nothrow) UbseRasMessage(g_managingGroupInfoResponseData);
+    if (response == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    response->SetResult(g_managingGroupInfoBusinessRet);
+    return g_managingGroupInfoRpcRet;
+}
+
+void ResetManagingGroupInfoTestData()
+{
+    g_managingGroupInfoTargets.clear();
+    g_managingGroupInfoResponseData.clear();
+    g_managingGroupInfoBusinessRet = UBSE_OK;
+    g_managingGroupInfoRpcRet = UBSE_OK;
+}
+
+void ExpectManagingGroupInfoSends(uint32_t sendCount, const std::string& data, UbseResult businessRet = UBSE_OK,
+                                  UbseResult rpcRet = UBSE_OK)
+{
+    g_managingGroupInfoResponseData = data;
+    g_managingGroupInfoBusinessRet = businessRet;
+    g_managingGroupInfoRpcRet = rpcRet;
+    g_managingGroupInfoComModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>)
+        .expects(exactly(sendCount))
+        .will(returnValue(g_managingGroupInfoComModule));
+    MOCKER(g_managingGroupInfoRpcSend).expects(exactly(sendCount)).will(invoke(CaptureManagingGroupInfoSend));
+}
+
 void MockMemService()
 {
     std::shared_ptr<UbseMemService> memService = std::make_shared<UbseMemServiceImpl>();
@@ -30,6 +80,8 @@ void MockMemService()
 }
 void TestUbseRasHandler::SetUp()
 {
+    ClearAllBmcManagingGroupMissingStates();
+    ResetManagingGroupInfoTestData();
     MockMemService();
     Test::SetUp();
 }
@@ -66,19 +118,74 @@ std::shared_ptr<UbseElectionModule> MockElectionModuleAvailable()
     return electionModule;
 }
 
-// 构造仅有挂载组节点的拓扑，用于验证挂载组节点不会被当作全局候选。
-UbseResult MockMountedGroupTopology(UbseElectionModule*, HaTopologyInfo& topology)
+void FillCascadeGroupTopology(HaTopologyInfo& topology, const NodeRoleInfo& currentNode)
 {
-    topology.currentGroup = {"mounted-group", false, "mounted-master", "", {"mounted-master", "mounted-agent"}};
+    topology = {};
+    topology.currentNode = currentNode;
+    topology.currentGroup = {"cascade-group", false, "cascade-master", "", {"cascade-master", ""}};
+    topology.groups.push_back(
+        {"another-cascade-group", false, "another-cascade-master", "", {"another-cascade-master", ""}});
+}
+
+UbseResult MockCascadeGroupMasterWithManagingGroup(UbseElectionModule*, HaTopologyInfo& topology)
+{
+    FillCascadeGroupTopology(topology, {"cascade-master", RoleType::MASTER, GlobalRoleType::GLOBAL_INITIALIZER});
+    topology.groups.push_back({"managing-group", true, "managing-master", "", {"managing-master", ""}});
     return UBSE_OK;
 }
 
-// 在挂载组视角中增加配对管理组候选节点。
-UbseResult MockMountedGroupTopologyWithManagingCandidate(UbseElectionModule* module, HaTopologyInfo& topology)
+UbseResult MockCascadeGroupMasterWithoutManagingGroup(UbseElectionModule*, HaTopologyInfo& topology)
 {
-    MockMountedGroupTopology(module, topology);
-    topology.groups.push_back({"managing-group", true, "managing-master", "", {"managing-master", "managing-agent"}});
+    FillCascadeGroupTopology(topology, {"cascade-master", RoleType::MASTER, GlobalRoleType::GLOBAL_INITIALIZER});
+    topology.groups.push_back({"", true, "", "", {}});
     return UBSE_OK;
+}
+
+UbseResult MockCascadeGroupAgent(UbseElectionModule*, HaTopologyInfo& topology)
+{
+    FillCascadeGroupTopology(topology, {"cascade-agent", RoleType::AGENT, GlobalRoleType::GLOBAL_NONE});
+    topology.currentGroup.groupNodes.push_back("cascade-agent");
+    return UBSE_OK;
+}
+
+// 构造当前节点为全局主、且没有组内备的管理组拓扑。
+UbseResult MockManagingGroupGlobalMasterWithoutLocalStandby(UbseElectionModule*, HaTopologyInfo& topology)
+{
+    topology.currentNode = {"global-master", RoleType::MASTER, GlobalRoleType::GLOBAL_MASTER};
+    topology.currentGroup = {"managing-group", true, "global-master", "", {"global-master", ""}};
+    return UBSE_OK;
+}
+
+UbseResult MockManagingGroupGlobalMasterWithLocalStandby(UbseElectionModule* module, HaTopologyInfo& topology)
+{
+    MockManagingGroupGlobalMasterWithoutLocalStandby(module, topology);
+    topology.currentGroup.groupStandbyId = "local-standby";
+    topology.currentGroup.groupNodes[1] = "local-standby";
+    return UBSE_OK;
+}
+
+UbseResult MockManagingGroupAgent(UbseElectionModule*, HaTopologyInfo& topology)
+{
+    topology.currentNode = {"managing-agent", RoleType::AGENT, GlobalRoleType::GLOBAL_NONE};
+    topology.currentGroup = {"managing-group", true, "managing-master", "", {"managing-master", "", "managing-agent"}};
+    return UBSE_OK;
+}
+
+void SetManagingGroupMissingDuration(const std::string& nodeId, std::chrono::seconds missingDuration)
+{
+    auto state = g_bmcManagingGroupMissingStates.find(nodeId);
+    ASSERT_NE(state, g_bmcManagingGroupMissingStates.end());
+    state->second.firstMissingAt = std::chrono::steady_clock::now() - missingDuration;
+}
+
+void ExpireManagingGroupMissingState(const std::string& nodeId)
+{
+    SetManagingGroupMissingDuration(nodeId, std::chrono::seconds(31));
+}
+
+void PrepareExpiredManagingGroupMissingState(const std::string& nodeId, const std::string& msgId)
+{
+    g_bmcManagingGroupMissingStates[nodeId] = {msgId, std::chrono::steady_clock::now() - std::chrono::seconds(31), 1};
 }
 
 TEST_F(TestUbseRasHandler, GetInstanceSame)
@@ -91,6 +198,68 @@ TEST_F(TestUbseRasHandler, GetInstanceSame)
 TEST_F(TestUbseRasHandler, IsDigitStringRejectsEmptyString)
 {
     EXPECT_FALSE(IsDigitString(""));
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryEmptyMasterDoesNotSend)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).expects(never());
+
+    EXPECT_EQ(QueryManagingGroupInfo(""), ManagingGroupInfoState::UNKNOWN);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsUnknownWhenComModuleIsUnavailable)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>)
+        .expects(once())
+        .will(returnValue(std::shared_ptr<UbseComModule>(nullptr)));
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::UNKNOWN);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsUnknownWhenRpcSendFails)
+{
+    ExpectManagingGroupInfoSends(1, "available", UBSE_OK, UBSE_ERROR);
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::UNKNOWN);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"master-a"}));
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsUnknownWhenRemoteQueryFails)
+{
+    ExpectManagingGroupInfoSends(1, "available", UBSE_ERROR);
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::UNKNOWN);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsUnknownForInvalidData)
+{
+    ExpectManagingGroupInfoSends(1, "invalid");
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::UNKNOWN);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsAvailableSynchronously)
+{
+    ExpectManagingGroupInfoSends(1, "available");
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::AVAILABLE);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"master-a"}));
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryReturnsMissingSynchronously)
+{
+    ExpectManagingGroupInfoSends(1, "missing");
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::MISSING);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupInfoQueryDoesNotCacheSuccessfulResult)
+{
+    ExpectManagingGroupInfoSends(2, "available");
+
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::AVAILABLE);
+    EXPECT_EQ(QueryManagingGroupInfo("master-a"), ManagingGroupInfoState::AVAILABLE);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"master-a", "master-a"}));
 }
 
 const ALARM_FAULT_TYPE g_alarmFaultType = ALARM_OOM_EVENT;
@@ -202,7 +371,7 @@ TEST_F(TestUbseRasHandler, StartRasHandlerSuccess)
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
     UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseRasMessage, UbseRasMessage>;
-    MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(func).expects(exactly(3)).will(returnValue(UBSE_OK));
     UbseResult (UbseComModule::*panicFunc)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseRasPanicRebootMessage, UbseRasPanicRebootMessage>;
     MOCKER_CPP(panicFunc).stubs().will(returnValue(UBSE_OK));
@@ -704,6 +873,28 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyNotifiesOnlyLocalStandbyForHie
     ASSERT_EQ(SendSwitchRoleToStandby(current, "1"), UBSE_RAS_ERROR_SWITCH_ROLE);
 }
 
+TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyNotifiesOnlyLocalStandbyForGlobalMasterWithoutGlobalStandby)
+{
+    UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    Node localStandby{"local-standby"};
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    auto comModule = std::make_shared<UbseComModule>();
+    MockHierarchicalElectionTopology();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode)
+        .expects(once())
+        .with(outBound(localStandby))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetMasterInfo).expects(once()).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
+    MOCKER(SendSwitchRoleMessage).expects(once()).with(_, std::string("local-standby")).will(returnValue(UBSE_OK));
+
+    ASSERT_EQ(SendSwitchRoleToStandby(current, "1"), UBSE_RAS_ERROR_SWITCH_ROLE);
+}
+
 TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyNotifiesLocalAndGlobalStandbyForHierarchicalGlobalMaster)
 {
     UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
@@ -724,7 +915,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyNotifiesLocalAndGlobalStandbyF
     MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
     MOCKER(SendSwitchRoleMessage).expects(once()).with(_, std::string("local-standby")).will(returnValue(UBSE_OK));
     MOCKER(SendSwitchRoleMessage).expects(once()).with(_, std::string("global-standby")).will(returnValue(UBSE_OK));
-
     ASSERT_EQ(SendSwitchRoleToStandby(current, "1"), UBSE_RAS_ERROR_SWITCH_ROLE);
 }
 
@@ -783,7 +973,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyIgnoresGlobalSendFailure)
     MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
     MOCKER(SendSwitchRoleMessage).expects(once()).with(_, std::string("local-standby")).will(returnValue(UBSE_OK));
     MOCKER(SendSwitchRoleMessage).expects(once()).with(_, std::string("global-standby")).will(returnValue(UBSE_ERROR));
-
     ASSERT_EQ(SendSwitchRoleToStandby(current, "1"), UBSE_RAS_ERROR_SWITCH_ROLE);
 }
 
@@ -1146,7 +1335,7 @@ TEST_F(TestUbseRasHandler, ShouldSkipBmcFaultHandlingForSpecifiedRootMasterWitho
     MockElectionModuleAvailable();
     MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
 
-    ASSERT_TRUE(ShouldSkipBmcFaultHandling(current));
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::ACKNOWLEDGE);
 }
 
 TEST_F(TestUbseRasHandler, ShouldSkipBmcFaultHandlingForSpecifiedRootNonRootWithoutMasterAndStandby)
@@ -1162,83 +1351,225 @@ TEST_F(TestUbseRasHandler, ShouldSkipBmcFaultHandlingForSpecifiedRootNonRootWith
     MOCKER_CPP(UbseGetMasterInfo).expects(once()).will(returnValue(UBSE_ERROR));
     MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
 
-    const bool shouldSkip = ShouldSkipBmcFaultHandling(current);
+    const auto decision = EvaluateBmcFaultAction(current, "1");
     nodeInfoMgr.SetCurrentNode(originalNode);
-    ASSERT_TRUE(shouldSkip);
+    ASSERT_EQ(decision.action, BmcFaultAction::ACKNOWLEDGE);
 }
 
-TEST_F(TestUbseRasHandler, ShouldSkipBmcFaultHandlingForHierarchicalElectionWithoutMasterAndStandby)
+TEST_F(TestUbseRasHandler, CascadeGroupMasterContinuesWhenTopologyContainsManagingGroupAndGlobalMaster)
 {
-    UbseRoleInfo current("agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
     MockHierarchicalElectionTopology();
-    const auto electionModule = MockElectionModuleAvailable();
-    MOCKER_CPP(UbseGetMasterInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(UbseGetStandbyInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockMountedGroupTopology));
-
-    ASSERT_TRUE(ShouldSkipBmcFaultHandling(current));
-}
-
-TEST_F(TestUbseRasHandler, ShouldContinueHierarchicalBmcFaultForLocalStandbyWhenGlobalRolesUnavailable)
-{
-    UbseRoleInfo current("mounted-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
-    Node localStandby{"mounted-standby"};
-    MockHierarchicalElectionTopology();
-    const auto electionModule = MockElectionModuleAvailable();
-    MOCKER_CPP(UbseGetMasterInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(UbseGetStandbyInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode)
-        .expects(once())
-        .with(outBound(localStandby))
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(returnValue(UBSE_ERROR));
-
-    ASSERT_FALSE(ShouldSkipBmcFaultHandling(current));
-}
-
-TEST_F(TestUbseRasHandler, ShouldContinueHierarchicalBmcFaultForVisibleManagingCandidate)
-{
-    UbseRoleInfo current("mounted-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
-    MockHierarchicalElectionTopology();
-    const auto electionModule = MockElectionModuleAvailable();
-    MOCKER_CPP(UbseGetMasterInfo).expects(once()).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
+    MockElectionModuleAvailable();
     MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
         .expects(once())
-        .will(invoke(MockMountedGroupTopologyWithManagingCandidate));
+        .will(invoke(MockCascadeGroupMasterWithManagingGroup));
+    MOCKER_CPP(UbseGetMasterInfo).expects(once()).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
 
-    ASSERT_FALSE(ShouldSkipBmcFaultHandling(current));
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::CONTINUE_HANDLING);
 }
 
-TEST_F(TestUbseRasHandler, ShouldContinueHierarchicalBmcFaultWhenGlobalMasterAppearsDuringFinalCheck)
+TEST_F(TestUbseRasHandler, CascadeGroupMasterTreatsEmptyManagingGroupPlaceholderAsMissing)
 {
-    UbseRoleInfo current("mounted-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
-    UbseRoleInfo globalMaster("managing-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
     MockHierarchicalElectionTopology();
-    const auto electionModule = MockElectionModuleAvailable();
-    MOCKER_CPP(UbseGetMasterInfo)
-        .expects(exactly(2))
-        .with(outBound(globalMaster))
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetStandbyInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(returnValue(UBSE_ERROR));
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockCascadeGroupMasterWithoutManagingGroup));
 
-    ASSERT_FALSE(ShouldSkipBmcFaultHandling(current));
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 1U);
 }
 
-TEST_F(TestUbseRasHandler, ShouldSkipBmcFaultHandlingForHierarchicalGlobalMasterWithoutAnyStandby)
+TEST_F(TestUbseRasHandler, CascadeGroupAgentContinuesImmediatelyWhenSynchronousQueryReturnsAvailable)
+{
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    PrepareExpiredManagingGroupMissingState(current.nodeId, "1");
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(1, "available");
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockCascadeGroupAgent));
+    MOCKER_CPP(UbseGetMasterInfo).expects(once()).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::CONTINUE_HANDLING);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"cascade-master"}));
+    EXPECT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+}
+
+TEST_F(TestUbseRasHandler, CascadeGroupAgentStartsMissingWindowFromSynchronousQuery)
+{
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(2, "missing");
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(exactly(2)).will(invoke(MockCascadeGroupAgent));
+
+    EXPECT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 1U);
+    ExpireManagingGroupMissingState(current.nodeId);
+    const auto decision = EvaluateBmcFaultAction(current, "1");
+    EXPECT_EQ(decision.action, BmcFaultAction::ACKNOWLEDGE);
+    EXPECT_TRUE(decision.managingGroupMissingAck);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"cascade-master", "cascade-master"}));
+}
+
+TEST_F(TestUbseRasHandler, CascadeGroupAgentRetriesWhenSynchronousQueryFails)
+{
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(1, "available", UBSE_OK, UBSE_ERROR);
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockCascadeGroupAgent));
+
+    EXPECT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+    EXPECT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+}
+
+TEST_F(TestUbseRasHandler, CascadeGroupMasterAcknowledgesAfterManagingGroupIsMissingForTwentySeconds)
+{
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(exactly(2))
+        .will(invoke(MockCascadeGroupMasterWithoutManagingGroup));
+
+    EXPECT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+    ExpireManagingGroupMissingState(current.nodeId);
+    const auto decision = EvaluateBmcFaultAction(current, "1");
+    EXPECT_EQ(decision.action, BmcFaultAction::ACKNOWLEDGE);
+    EXPECT_TRUE(decision.managingGroupMissingAck);
+}
+
+TEST_F(TestUbseRasHandler, CascadeGroupMasterRetriesWhenManagingGroupExistsWithoutGlobalMaster)
+{
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockCascadeGroupMasterWithManagingGroup));
+    MOCKER_CPP(UbseGetMasterInfo).expects(once()).will(returnValue(UBSE_ERROR));
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupGlobalMasterAcknowledgesWithoutLocalOrGlobalStandby)
 {
     UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
-    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
-    auto electionModule = std::make_shared<UbseElectionModule>();
     MockHierarchicalElectionTopology();
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
-    MOCKER_CPP(UbseGetMasterInfo).expects(once()).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockManagingGroupGlobalMasterWithoutLocalStandby));
     MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode).expects(once()).will(returnValue(UBSE_ERROR));
 
-    ASSERT_TRUE(ShouldSkipBmcFaultHandling(current));
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::ACKNOWLEDGE);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupGlobalMasterContinuesWhenLocalStandbyExists)
+{
+    UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockManagingGroupGlobalMasterWithLocalStandby));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(never());
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::CONTINUE_HANDLING);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupGlobalMasterContinuesWhenGlobalStandbyExists)
+{
+    UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    UbseRoleInfo globalStandby("global-standby", ELECTION_ROLE_STANDBY, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockManagingGroupGlobalMasterWithoutLocalStandby));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).with(outBound(globalStandby)).will(returnValue(UBSE_OK));
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::CONTINUE_HANDLING);
+}
+
+TEST_F(TestUbseRasHandler, ManagingGroupAgentContinuesNormalBmcHandling)
+{
+    UbseRoleInfo current("managing-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockManagingGroupAgent));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(never());
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::CONTINUE_HANDLING);
+}
+
+TEST_F(TestUbseRasHandler, BmcFaultAcknowledgesWhenElectionModuleIsUnavailable)
+{
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .expects(once())
+        .will(returnValue(std::shared_ptr<UbseElectionModule>(nullptr)));
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::ACKNOWLEDGE);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultAcknowledgesWhenElectionModuleIsUnavailable)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MockHierarchicalElectionTopology();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .expects(once())
+        .will(returnValue(std::shared_ptr<UbseElectionModule>(nullptr)));
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(never());
+    MOCKER(ReportAckToSysSentry).expects(once()).will(returnValue(UBSE_OK));
+
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+}
+
+TEST_F(TestUbseRasHandler, CascadeGroupMasterAcknowledgesAfterTopologyQueryFailsForTwentySeconds)
+{
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(exactly(2)).will(returnValue(UBSE_ERROR));
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::RETRY_LATER);
+    ExpireManagingGroupMissingState(current.nodeId);
+    const auto decision = EvaluateBmcFaultAction(current, "1");
+    ASSERT_EQ(decision.action, BmcFaultAction::ACKNOWLEDGE);
+    ASSERT_TRUE(decision.managingGroupMissingAck);
+}
+
+TEST_F(TestUbseRasHandler, SpecifiedRootPathKeepsManagingGroupMissingState)
+{
+    UbseRoleInfo current("root-node", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    PrepareExpiredManagingGroupMissingState(current.nodeId, "1");
+    MockSpecifiedRootNodeTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
+
+    ASSERT_EQ(EvaluateBmcFaultAction(current, "1").action, BmcFaultAction::ACKNOWLEDGE);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 1U);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultSpecifiedRootPathKeepsManagingGroupMissingState)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("root-node", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    PrepareExpiredManagingGroupMissingState(current.nodeId, "12345");
+    MockSpecifiedRootNodeTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
+    MOCKER(ReportAckToSysSentry).expects(once()).will(returnValue(UBSE_OK));
+
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 1U);
 }
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenMsgIdInvalid)
@@ -1258,23 +1589,141 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenOnlyOneNodeInCluster)
     ASSERT_EQ(res, UBSE_OK);
 }
 
+TEST_F(TestUbseRasHandler, HandleBMCFaultCascadeGroupAgentContinuesAfterSynchronousAvailableQuery)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(1, "available");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockCascadeGroupAgent));
+    MOCKER_CPP(UbseGetMasterInfo).expects(exactly(2)).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).expects(once()).will(returnValue(UBSE_OK));
+    MOCKER(ReportBMCFaultToMaster).expects(once()).will(returnValue(UBSE_OK));
+    MOCKER(ReportAckToSysSentry).expects(once()).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"cascade-master"}));
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultCascadeGroupAgentRetriesWhenSynchronousQueryFails)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(1, "available", UBSE_OK, UBSE_ERROR);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(invoke(MockCascadeGroupAgent));
+    MOCKER(SendSwitchRoleToStandby).expects(never());
+    MOCKER(ReportAckToSysSentry).expects(never());
+
+    EXPECT_EQ(handler.HandleBMCFault("12345"), UBSE_ERROR);
+    EXPECT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultCascadeGroupAgentAcknowledgesAfterSynchronousMissingQueries)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-agent", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    ExpectManagingGroupInfoSends(2, "missing");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(exactly(2)).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(exactly(2)).will(invoke(MockCascadeGroupAgent));
+    MOCKER(SendSwitchRoleToStandby).expects(never());
+    MOCKER(ReportAckToSysSentry)
+        .expects(once())
+        .with(ALARM_REBOOT_ACK_EVENT, std::string("12345_0"))
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(handler.HandleBMCFault("12345"), UBSE_ERROR);
+    ExpireManagingGroupMissingState(current.nodeId);
+    EXPECT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+    EXPECT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+    EXPECT_EQ(g_managingGroupInfoTargets, (std::vector<std::string>{"cascade-master", "cascade-master"}));
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultRetriesWithoutRoleSwitchWhenManagingGroupExistsWithoutGlobalMaster)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockCascadeGroupMasterWithManagingGroup));
+    MOCKER_CPP(UbseGetMasterInfo).expects(once()).will(returnValue(UBSE_ERROR));
+    MOCKER(SendSwitchRoleToStandby).expects(never());
+    MOCKER(ReportAckToSysSentry).expects(never());
+
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultAcknowledgesAfterManagingGroupMissingTimeout)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    PrepareExpiredManagingGroupMissingState(current.nodeId, "12345");
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockCascadeGroupMasterWithoutManagingGroup));
+    MOCKER(SendSwitchRoleToStandby).expects(never());
+    MOCKER(ReportAckToSysSentry)
+        .expects(once())
+        .with(ALARM_REBOOT_ACK_EVENT, std::string("12345_0"))
+        .will(returnValue(UBSE_OK));
+
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultRetriesManagingGroupMissingAckAfterAcknowledgementFails)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    PrepareExpiredManagingGroupMissingState(current.nodeId, "12345");
+    MockHierarchicalElectionTopology();
+    MockElectionModuleAvailable();
+    MOCKER_CPP(UbseGetCurrentNodeInfo).expects(exactly(2)).with(outBound(current)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(exactly(2))
+        .will(invoke(MockCascadeGroupMasterWithoutManagingGroup));
+    MOCKER(SendSwitchRoleToStandby).expects(never());
+    MOCKER(ReportAckToSysSentry).expects(exactly(2)).will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_ERROR);
+    ASSERT_NE(g_bmcManagingGroupMissingStates.find(current.nodeId), g_bmcManagingGroupMissingStates.end());
+    ASSERT_EQ(handler.HandleBMCFault("12345"), UBSE_OK);
+    ASSERT_EQ(g_bmcManagingGroupMissingStates.count(current.nodeId), 0U);
+}
+
 TEST_F(TestUbseRasHandler, HandleBMCFaultReportsToGlobalMasterWhenLocalMasterHasNoLocalStandby)
 {
     auto& handler = UbseRasHandler::GetInstance();
-    UbseRoleInfo current("local-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
+    UbseRoleInfo current("cascade-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
     UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
     auto electionModule = std::make_shared<UbseElectionModule>();
     MockHierarchicalElectionTopology();
     MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseGetMasterInfo).expects(exactly(3)).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(exactly(2)).will(returnValue(electionModule));
+    MOCKER_CPP(UbseGetStandbyInfo).expects(never());
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(exactly(3)).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockCascadeGroupMasterWithManagingGroup));
     MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode).expects(once()).will(returnValue(UBSE_ERROR));
     MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(never());
     MOCKER(SendSwitchRoleMessage).expects(never());
     MOCKER(ReportBMCFaultToMaster)
         .expects(once())
-        .with(std::string("12345"), std::string("local-master"), std::string("global-master"))
+        .with(std::string("12345"), std::string("cascade-master"), std::string("global-master"))
         .will(returnValue(UBSE_OK));
     MOCKER(ReportAckToSysSentry).expects(once()).will(returnValue(UBSE_OK));
 
@@ -1285,14 +1734,15 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultAcknowledgesHierarchicalGlobalMasterWit
 {
     auto& handler = UbseRasHandler::GetInstance();
     UbseRoleInfo current("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
-    UbseRoleInfo globalMaster("global-master", ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
     auto electionModule = std::make_shared<UbseElectionModule>();
     MockHierarchicalElectionTopology();
     MOCKER_CPP(UbseGetCurrentNodeInfo).expects(once()).with(outBound(current)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetMasterInfo).expects(once()).with(outBound(globalMaster)).will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseGetStandbyInfo).expects(once()).will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
-    MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode).expects(once()).will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(exactly(2)).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .will(invoke(MockManagingGroupGlobalMasterWithoutLocalStandby));
+    MOCKER_CPP(&UbseElectionModule::GetLocalStandbyNode).expects(never());
     MOCKER(SendSwitchRoleToStandby).expects(never());
     MOCKER(ReportAckToSysSentry).expects(once()).will(returnValue(UBSE_OK));
 

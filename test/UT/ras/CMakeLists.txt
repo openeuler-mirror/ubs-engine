@@ -11,6 +11,7 @@ target_link_libraries(ubs-engine_ubse_ras_ut
         ubse_node_controller
         ubse_http
         mem_plugin
+        ubse_vsock_client
         ubse_mti
         ubse_mmi
         ubse_controller

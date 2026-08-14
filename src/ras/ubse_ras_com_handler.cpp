@@ -1,4 +1,5 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+#include <algorithm>
 #include <mutex>
 
 #include "ubse_election_module.h"
@@ -131,6 +132,64 @@ UbseResult UbseRasSwitchRoleHandler::Handle(const UbseBaseMessagePtr& req, const
         return UBSE_ERROR_NULLPTR;
     }
     electionModule->SwitchMasterFromStandby();
+    return UBSE_OK;
+}
+
+// 仅非空的管理组条目表示管理组信息存在
+static bool ContainsManagingGroupInfo(const HaTopologyInfo& topology)
+{
+    return std::any_of(topology.groups.begin(), topology.groups.end(),
+                       [](const GroupTopology& group) { return group.isManagingGroup && !group.groupId.empty(); });
+}
+
+// 分别记录当前组类型与节点角色不符合查询要求的原因
+static bool IsCascadeGroupMasterTopology(const HaTopologyInfo& topology)
+{
+    if (topology.currentGroup.isManagingGroup) {
+        UBSE_LOG_WARN << "Reject managing group information query because current group is managing group, nodeId="
+                      << topology.currentNode.nodeId << ", groupId=" << topology.currentGroup.groupId
+                      << ", isManagingGroup=" << topology.currentGroup.isManagingGroup;
+        return false;
+    }
+    if (topology.currentNode.groupRole != RoleType::MASTER) {
+        UBSE_LOG_WARN << "Reject managing group information query because current topology node is not group master, "
+                      << "nodeId=" << topology.currentNode.nodeId
+                      << ", groupRole=" << static_cast<uint32_t>(topology.currentNode.groupRole);
+        return false;
+    }
+    return true;
+}
+
+UbseResult UbseRasManagingGroupInfoHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                                                   UbseComBaseMessageHandlerCtxPtr)
+{
+    const auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
+    const auto response = UbseBaseMessage::DeConvert<UbseRasMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid managing group information query message";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "Reject managing group information query because election module is unavailable";
+        response->SetResult(UBSE_ERROR_AGAIN);
+        return UBSE_OK;
+    }
+    HaTopologyInfo topology;
+    auto ret = electionModule->GetCurNodeGlobalTopoInfo(topology);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Treat topology query failure as missing managing group information, " << FormatRetCode(ret);
+        response->SetData(MANAGING_GROUP_INFO_MISSING);
+        response->SetResult(UBSE_OK);
+        return UBSE_OK;
+    }
+    if (!IsCascadeGroupMasterTopology(topology)) {
+        response->SetResult(UBSE_ERROR_AGAIN);
+        return UBSE_OK;
+    }
+    response->SetData(ContainsManagingGroupInfo(topology) ? MANAGING_GROUP_INFO_AVAILABLE :
+                                                            MANAGING_GROUP_INFO_MISSING);
+    response->SetResult(UBSE_OK);
     return UBSE_OK;
 }
 

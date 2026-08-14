@@ -244,11 +244,12 @@ enum class UbseMemFaultOpCode
 // RAS模块操作码
 enum class UbseRasOpCode
 {
-    UBSE_RAS_BMC_REBOOT = 0x0001,          // BMC重启
-    UBSE_RAS_SWITCH_ROLE = 0x0002,         // 切换角色
-    UBSE_RAS_OOM = 0x0003,                 // OOM处理
-    UBSE_RAS_PANIC_REBOOT = 0x0004,        // PANIC/内核重启故障转发
-    UBSE_RAS_PANIC_REBOOT_RESULT = 0x0005, // PANIC/内核重启故障处理结果通知
+    UBSE_RAS_BMC_REBOOT = 0x0001,                // BMC重启
+    UBSE_RAS_SWITCH_ROLE = 0x0002,               // 切换角色
+    UBSE_RAS_OOM = 0x0003,                       // OOM处理
+    UBSE_RAS_PANIC_REBOOT = 0x0004,              // PANIC/内核重启故障转发
+    UBSE_RAS_PANIC_REBOOT_RESULT = 0x0005,       // PANIC/内核重启故障处理结果通知
+    UBSE_RAS_QUERY_MANAGING_GROUP_INFO = 0x0006, // 查询管理组信息
 };
 
 // Urma controller模块操作码

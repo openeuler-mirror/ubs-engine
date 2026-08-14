@@ -62,6 +62,43 @@ using namespace ubse::nodeMgr;
 std::unordered_map<ALARM_FAULT_TYPE, std::set<std::string>> g_MSG_ID_MAP{};
 std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_HANDLER_RESULT{};
 
+constexpr auto BMC_MANAGING_GROUP_MISSING_TIMEOUT = std::chrono::seconds(20);
+constexpr uint32_t BMC_MANAGING_GROUP_MISSING_MIN_REPORTS = 2;
+
+enum class BmcFaultAction
+{
+    CONTINUE_HANDLING,
+    RETRY_LATER,
+    ACKNOWLEDGE,
+};
+
+struct BmcFaultDecision {
+    BmcFaultDecision(BmcFaultAction decisionAction, bool isManagingGroupMissingAck = false)
+        : action(decisionAction),
+          managingGroupMissingAck(isManagingGroupMissingAck)
+    {
+    }
+
+    BmcFaultAction action;
+    bool managingGroupMissingAck = false;
+};
+
+struct BmcManagingGroupMissingState {
+    std::string msgId;
+    std::chrono::steady_clock::time_point firstMissingAt;
+    uint32_t reportCount;
+};
+
+// SysSentry 单监听线程串行调用 HandleBMCFault，因此该状态不需要并发锁和代次号。
+static std::unordered_map<std::string, BmcManagingGroupMissingState> g_bmcManagingGroupMissingStates;
+
+enum class ManagingGroupInfoState
+{
+    UNKNOWN,
+    AVAILABLE,
+    MISSING,
+};
+
 struct HandlerResult {
     ALARM_FAULT_TYPE alarmFaultType; // 故障类型
     uint64_t timestamp;              // 记录时的时间戳
@@ -415,6 +452,48 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
     return UBSE_OK;
 }
 
+// 确认级联组节点不再满足管理组信息缺失计时条件时，清除本节点的计时状态。
+static void ClearBmcManagingGroupMissingState(const std::string& nodeId)
+{
+    g_bmcManagingGroupMissingStates.erase(nodeId);
+}
+
+// 统一清理进程内所有管理组信息缺失计时，避免消息状态重置后继承旧窗口。
+static void ClearAllBmcManagingGroupMissingStates()
+{
+    g_bmcManagingGroupMissingStates.clear();
+}
+
+// 级联组节点连续至少两次上报且管理组信息缺失满二十秒后，允许回复 ACK。
+static bool TryStartBmcManagingGroupMissingAck(const std::string& nodeId, const std::string& msgId)
+{
+    const auto now = std::chrono::steady_clock::now();
+    auto state = g_bmcManagingGroupMissingStates.find(nodeId);
+    if (state == g_bmcManagingGroupMissingStates.end() || state->second.msgId != msgId) {
+        g_bmcManagingGroupMissingStates[nodeId] = {msgId, now, 1};
+        UBSE_LOG_INFO << "Start waiting for managing group information, nodeId=" << nodeId << ", msgId=" << msgId;
+        return false;
+    }
+    ++state->second.reportCount;
+    if (state->second.reportCount < BMC_MANAGING_GROUP_MISSING_MIN_REPORTS ||
+        now - state->second.firstMissingAt < BMC_MANAGING_GROUP_MISSING_TIMEOUT) {
+        return false;
+    }
+    return true;
+}
+
+// 管理组信息缺失路径仅在 ACK 成功后删除状态，失败时保留状态供下次上报重试。
+static void FinishBmcManagingGroupMissingAck(const std::string& nodeId, const std::string& msgId, bool success)
+{
+    if (!success) {
+        return;
+    }
+    const auto state = g_bmcManagingGroupMissingStates.find(nodeId);
+    if (state != g_bmcManagingGroupMissingStates.end() && state->second.msgId == msgId) {
+        g_bmcManagingGroupMissingStates.erase(state);
+    }
+}
+
 // 判断当前是否采用分层选举。
 // 指定根节点沿用单层主备语义；无指定根节点时分别查询组内备和全局备。
 static bool IsHierarchicalElection()
@@ -717,135 +796,199 @@ static bool ShouldSkipSpecifiedRootNodeBmcFault(const UbseRoleInfo& curRoleInfo,
     return false;
 }
 
-// 判断故障机柜是否存在可接管的组内备；仅机柜主需要执行该判断。
-static bool HasLocalStandbyForBmcFault(const UbseRoleInfo& curRoleInfo,
-                                       const std::shared_ptr<UbseElectionModule>& electionModule)
+// 普通级联组节点同步查询当前组主，调用可能等待 RPC 超时；失败返回 UNKNOWN，由下次上报重新查询。
+static ManagingGroupInfoState QueryManagingGroupInfo(const std::string& masterId)
 {
-    if (curRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
-        return false;
+    if (masterId.empty()) {
+        UBSE_LOG_WARN << "Skip managing group info query because cascade group master ID is empty";
+        return ManagingGroupInfoState::UNKNOWN;
     }
-    std::string localStandbyId;
-    const auto ret = GetLocalStandbyId(electionModule, curRoleInfo.nodeId, localStandbyId);
-    if (ret != UBSE_OK || localStandbyId.empty()) {
-        return false;
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Get com module for managing group info query failed, targetMasterId=" << masterId;
+        return ManagingGroupInfoState::UNKNOWN;
     }
-    UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
-                  << ", reason=local-standby-available, standbyNodeId=" << localStandbyId;
-    return true;
+    UbseRasMessagePtr request = new (std::nothrow) UbseRasMessage();
+    if (request == nullptr) {
+        UBSE_LOG_ERROR << "Allocate managing group info request failed, targetMasterId=" << masterId;
+        return ManagingGroupInfoState::UNKNOWN;
+    }
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Allocate managing group info response failed, targetMasterId=" << masterId;
+        return ManagingGroupInfoState::UNKNOWN;
+    }
+    SendParam param{masterId, static_cast<uint16_t>(UbseModuleCode::RAS),
+                    static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_QUERY_MANAGING_GROUP_INFO)};
+    const auto ret = comModule->RpcSend(param, request, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Managing group info RPC failed, targetMasterId=" << masterId << ", " << FormatRetCode(ret);
+        return ManagingGroupInfoState::UNKNOWN;
+    }
+    if (response->GetResult() != UBSE_OK) {
+        UBSE_LOG_WARN << "Managing group info query failed, targetMasterId=" << masterId << ", response"
+                      << FormatRetCode(response->GetResult());
+        return ManagingGroupInfoState::UNKNOWN;
+    }
+    const auto data = response->GetData();
+    if (data == MANAGING_GROUP_INFO_AVAILABLE) {
+        return ManagingGroupInfoState::AVAILABLE;
+    }
+    if (data == MANAGING_GROUP_INFO_MISSING) {
+        return ManagingGroupInfoState::MISSING;
+    }
+    UBSE_LOG_WARN << "Invalid managing group info response, targetMasterId=" << masterId << ", data=" << data;
+    return ManagingGroupInfoState::UNKNOWN;
 }
 
-// 仅统计管理组内除故障节点外的主、备和 agent；挂载组节点不能参与全局选举。
-static bool HasGlobalElectionCandidate(const std::shared_ptr<UbseElectionModule>& electionModule,
-                                       const std::string& faultNodeId)
+// 当前阶段假设拓扑中非空的管理组信息有效；未来 HA 增加有效性字段后只需替换此判定。
+static bool ContainsManagingGroupInfo(const HaTopologyInfo& topology)
 {
+    return std::any_of(topology.groups.begin(), topology.groups.end(),
+                       [](const GroupTopology& group) { return group.isManagingGroup && !group.groupId.empty(); });
+}
+
+// 级联组存在有效管理组信息时，需能查询到全局主 ID 才进入原故障处理流程。
+static BmcFaultDecision EvaluateCascadeGroupWithManagingGroup(const UbseRoleInfo& curRoleInfo)
+{
+    ClearBmcManagingGroupMissingState(curRoleInfo.nodeId);
+    UbseRoleInfo globalMaster;
+    globalMaster.nodeId.clear();
+    const auto ret = UbseGetMasterInfo(globalMaster);
+    if (ret != UBSE_OK || globalMaster.nodeId.empty()) {
+        UBSE_LOG_WARN << "Retry BMC fault because global master is unavailable, nodeId=" << curRoleInfo.nodeId << ", "
+                      << "globalMasterNodeId=" << globalMaster.nodeId << ", " << FormatRetCode(ret);
+        return BmcFaultAction::RETRY_LATER;
+    }
+    UBSE_LOG_INFO << "Continue BMC fault handling through global master, nodeId=" << curRoleInfo.nodeId
+                  << ", globalMasterNodeId=" << globalMaster.nodeId;
+    return BmcFaultAction::CONTINUE_HANDLING;
+}
+
+// 管理组本节点为全局主、无组内备，且全局备查询失败或 ID 为空时直接 ACK，其余继续原流程。
+static BmcFaultDecision EvaluateManagingGroup(const UbseRoleInfo& curRoleInfo, const HaTopologyInfo& topology)
+{
+    ClearBmcManagingGroupMissingState(curRoleInfo.nodeId);
+    if (topology.currentNode.globalRole != GlobalRoleType::GLOBAL_MASTER) {
+        UBSE_LOG_INFO << "Continue BMC fault handling for non-global-master managing group node, nodeId="
+                      << curRoleInfo.nodeId;
+        return BmcFaultAction::CONTINUE_HANDLING;
+    }
+    if (!topology.currentGroup.groupStandbyId.empty()) {
+        UBSE_LOG_INFO << "Continue BMC fault handling with local standby, nodeId=" << curRoleInfo.nodeId
+                      << ", standbyNodeId=" << topology.currentGroup.groupStandbyId;
+        return BmcFaultAction::CONTINUE_HANDLING;
+    }
+    UbseRoleInfo globalStandby;
+    globalStandby.nodeId.clear();
+    const auto ret = UbseGetStandbyInfo(globalStandby);
+    if (ret == UBSE_OK && !globalStandby.nodeId.empty()) {
+        UBSE_LOG_INFO << "Continue BMC fault handling with global standby, nodeId=" << curRoleInfo.nodeId
+                      << ", standbyNodeId=" << globalStandby.nodeId;
+        return BmcFaultAction::CONTINUE_HANDLING;
+    }
+    UBSE_LOG_WARN << "Acknowledge BMC fault for global master without standby, nodeId=" << curRoleInfo.nodeId
+                  << ", globalStandbyNodeId=" << globalStandby.nodeId << ", globalStandby" << FormatRetCode(ret);
+    return BmcFaultAction::ACKNOWLEDGE;
+}
+
+// 对按管理组信息缺失处理的状态，须跨至少两次上报持续二十秒，避免单次状态触发下电。
+static BmcFaultDecision EvaluateMissingManagingGroup(const UbseRoleInfo& curRoleInfo, const std::string& msgId)
+{
+    if (!TryStartBmcManagingGroupMissingAck(curRoleInfo.nodeId, msgId)) {
+        UBSE_LOG_WARN << "Retry BMC fault while managing group information is missing, nodeId=" << curRoleInfo.nodeId
+                      << ", msgId=" << msgId;
+        return BmcFaultAction::RETRY_LATER;
+    }
+    UBSE_LOG_WARN << "Acknowledge BMC fault after managing group information remained missing, nodeId="
+                  << curRoleInfo.nodeId << ", msgId=" << msgId
+                  << ", timeoutSeconds=" << BMC_MANAGING_GROUP_MISSING_TIMEOUT.count();
+    return {BmcFaultAction::ACKNOWLEDGE, true};
+}
+
+// 级联组主复用本次拓扑，普通节点同步查询组主；查询失败时等待 SysSentry 下次上报。
+static BmcFaultDecision EvaluateCascadeGroup(const UbseRoleInfo& curRoleInfo, const HaTopologyInfo& topology,
+                                             const std::string& msgId)
+{
+    ManagingGroupInfoState state;
+    if (topology.currentNode.groupRole == RoleType::MASTER) {
+        state = ContainsManagingGroupInfo(topology) ? ManagingGroupInfoState::AVAILABLE :
+                                                      ManagingGroupInfoState::MISSING;
+    } else {
+        state = QueryManagingGroupInfo(topology.currentGroup.groupMasterId);
+    }
+    if (state == ManagingGroupInfoState::AVAILABLE) {
+        return EvaluateCascadeGroupWithManagingGroup(curRoleInfo);
+    }
+    if (state == ManagingGroupInfoState::MISSING) {
+        return EvaluateMissingManagingGroup(curRoleInfo, msgId);
+    }
+    UBSE_LOG_WARN << "Retry BMC fault because managing group information is unavailable or unknown, nodeId="
+                  << curRoleInfo.nodeId << ", groupMasterNodeId=" << topology.currentGroup.groupMasterId
+                  << ", msgId=" << msgId;
+    return BmcFaultAction::RETRY_LATER;
+}
+
+// 每次上报仅查询一次拓扑；拓扑查询失败按当前规则进入管理组信息缺失防抖计时。
+static BmcFaultDecision EvaluateHierarchicalBmcFaultAction(const UbseRoleInfo& curRoleInfo, const std::string& msgId)
+{
+    auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_WARN << "Acknowledge BMC fault because election module is unavailable, nodeId=" << curRoleInfo.nodeId;
+        return BmcFaultAction::ACKNOWLEDGE;
+    }
     HaTopologyInfo topology;
     const auto ret = electionModule->GetCurNodeGlobalTopoInfo(topology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Get global topology failed while evaluating BMC fault, electionMode=hierarchical, nodeId="
-                      << faultNodeId << ", reason=global-election-candidate-unknown, " << FormatRetCode(ret);
-        return false;
+        UBSE_LOG_WARN << "Treat global topology query failure as missing managing group information, nodeId="
+                      << curRoleInfo.nodeId << ", msgId=" << msgId << ", " << FormatRetCode(ret);
+        return EvaluateMissingManagingGroup(curRoleInfo, msgId);
     }
-    const auto hasCandidate = [&faultNodeId](const GroupTopology& group) {
-        if (!group.isManagingGroup) {
-            return false;
-        }
-        const auto valid = [&faultNodeId](const std::string& nodeId) {
-            return !nodeId.empty() && nodeId != faultNodeId;
-        };
-        return valid(group.groupMasterId) || valid(group.groupStandbyId) ||
-               std::any_of(group.groupNodes.begin(), group.groupNodes.end(), valid);
-    };
-    const bool found = hasCandidate(topology.currentGroup) ||
-                       std::any_of(topology.groups.begin(), topology.groups.end(), hasCandidate);
-    if (found) {
-        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << faultNodeId
-                      << ", reason=visible-managing-group-candidate";
+    if (topology.currentGroup.isManagingGroup) {
+        return EvaluateManagingGroup(curRoleInfo, topology);
     }
-    return found;
+    return EvaluateCascadeGroup(curRoleInfo, topology, msgId);
 }
 
-// 判断分层选举是否可直接 ACK：仍有组内备或全局候选时继续处理，否则允许故障节点下电。
-static bool ShouldSkipHierarchicalElectionBmcFault(const UbseRoleInfo& curRoleInfo,
-                                                   const std::shared_ptr<UbseElectionModule>& electionModule)
+// 返回 ACK、重试或继续原故障流程，避免用 bool 混淆后二者。
+static BmcFaultDecision EvaluateBmcFaultAction(const UbseRoleInfo& curRoleInfo, const std::string& msgId)
 {
-    UbseRoleInfo globalMaster, globalStandby;
-    auto masterRet = UbseGetMasterInfo(globalMaster);
-    auto standbyRet = UbseGetStandbyInfo(globalStandby);
-    if (masterRet != UBSE_OK && standbyRet != UBSE_OK) {
-        if (HasGlobalElectionCandidate(electionModule, curRoleInfo.nodeId)) {
-            return false;
-        }
-        // ACK 前再查一次全局主备，避免切主窗口内误判为没有接管节点。
-        masterRet = UbseGetMasterInfo(globalMaster);
-        standbyRet = UbseGetStandbyInfo(globalStandby);
-        if (masterRet != UBSE_OK && standbyRet != UBSE_OK) {
-            if (HasLocalStandbyForBmcFault(curRoleInfo, electionModule)) {
-                return false;
-            }
-            UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=hierarchical, reason=no-confirmed-global-"
-                          << "election-candidate, nodeId=" << curRoleInfo.nodeId << ", master"
-                          << FormatRetCode(masterRet) << ", standby" << FormatRetCode(standbyRet);
-            return true;
-        }
-    }
-    // 全局主尚未产生但已有全局备时，等待全局主产生后继续处理
-    if (masterRet != UBSE_OK) {
-        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
-                      << ", reason=global-standby-available, standbyNodeId=" << globalStandby.nodeId << ", master"
-                      << FormatRetCode(masterRet);
-        return false;
-    }
-    // 已有全局主时：健康主直接处理；故障节点为全局主时继续判断全局备。
-    if (curRoleInfo.nodeId != globalMaster.nodeId) {
-        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
-                      << ", reason=healthy-global-master-available, masterNodeId=" << globalMaster.nodeId;
-        return false;
-    }
-    if (standbyRet == UBSE_OK) {
-        UBSE_LOG_INFO << "Continue BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
-                      << ", reason=global-standby-available, standbyNodeId=" << globalStandby.nodeId;
-        return false;
-    }
-    // 故障节点是全局主且没有全局备时，最后确认是否存在组内备。
-    if (HasLocalStandbyForBmcFault(curRoleInfo, electionModule)) {
-        return false;
-    }
-    UBSE_LOG_WARN << "Skip BMC fault handling, electionMode=hierarchical, nodeId=" << curRoleInfo.nodeId
-                  << ", reason=global-master-without-local-or-global-standby, globalStandby"
-                  << FormatRetCode(standbyRet);
-    return true;
-}
-
-// 按 1D、指定根节点和分层选举的角色语义判断是否直接 ACK
-static bool ShouldSkipBmcFaultHandling(const UbseRoleInfo& curRoleInfo)
-{
-    // 选举模块为空时无法判断接管节点，直接 ACK 允许 SysSentry 执行下电。
-    auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
-    if (electionModule == nullptr) {
-        UBSE_LOG_ERROR << "Skip BMC fault handling because election module is unavailable, topology=clos, nodeId="
-                       << curRoleInfo.nodeId << ", reason=election-module-unavailable";
-        return true;
-    }
     const auto rootIps = ubse::nodeMgr::GetRootIpList();
     if (!rootIps.empty()) {
-        return ShouldSkipSpecifiedRootNodeBmcFault(curRoleInfo, rootIps);
+        return ShouldSkipSpecifiedRootNodeBmcFault(curRoleInfo, rootIps) ? BmcFaultAction::ACKNOWLEDGE :
+                                                                           BmcFaultAction::CONTINUE_HANDLING;
     }
-    return ShouldSkipHierarchicalElectionBmcFault(curRoleInfo, electionModule);
+    return EvaluateHierarchicalBmcFaultAction(curRoleInfo, msgId);
 }
 
-// 尝试直接回复 BMC 故障：有返回值表示本次处理已结束，空值表示继续主备倒换和故障转发。
+// 尝试提前结束 BMC 故障：返回值表示 ACK 或等待重试，空值表示继续原处理流程。
 static std::optional<UbseResult> TryAcknowledgeBmcFault(const std::string& msgId, UbseRoleInfo& curRoleInfo)
 {
     const bool isClosType = ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
     // 1D 单节点直接 ACK 且无需查询当前角色。
     bool shouldAck = !isClosType && IsOnlyOneNodeInCluster();
+    bool managingGroupMissingAck = false;
+    if (isClosType) {
+        const auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+        shouldAck = electionModule == nullptr;
+        if (shouldAck) {
+            UBSE_LOG_ERROR << "Acknowledge BMC fault because election module is unavailable, msgId=" << msgId;
+        }
+    }
     if (!shouldAck) {
         const auto ret = UbseGetCurrentNodeInfo(curRoleInfo);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Get current node info failed, msgId=" << msgId << ", " << FormatRetCode(ret);
             return ret;
         }
-        shouldAck = isClosType && ShouldSkipBmcFaultHandling(curRoleInfo);
+        if (isClosType) {
+            const auto decision = EvaluateBmcFaultAction(curRoleInfo, msgId);
+            if (decision.action == BmcFaultAction::RETRY_LATER) {
+                return UBSE_ERROR;
+            }
+            managingGroupMissingAck = decision.managingGroupMissingAck;
+            shouldAck = decision.action == BmcFaultAction::ACKNOWLEDGE;
+        }
     }
     if (!shouldAck) {
         return std::nullopt;
@@ -854,7 +997,11 @@ static std::optional<UbseResult> TryAcknowledgeBmcFault(const std::string& msgId
     UBSE_LOG_INFO << "Acknowledge BMC fault without role switch, topology=" << (isClosType ? "clos" : "one-dimensional")
                   << ", nodeId=" << curRoleInfo.nodeId << ", msgId=" << msgId;
     const std::string ackStr = msgId + "_" + std::to_string(UBSE_OK);
-    return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+    const auto ret = ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
+    if (managingGroupMissingAck) {
+        FinishBmcManagingGroupMissingAck(curRoleInfo.nodeId, msgId, ret == UBSE_OK);
+    }
+    return ret;
 }
 
 // 处理 BMC 故障：必要时先完成主备倒换，再由正常主节点处理故障并回复 SysSentry。
@@ -1032,20 +1179,24 @@ UbseResult UbseRasHandler::HandleMemoryFault(ALARM_FAULT_TYPE faultType, std::st
     return ret;
 }
 
-// 注册RAS模块全部RPC服务（BMC重启、主备切换、PANIC/内核重启转发与结果通知）
+// 注册RAS模块全部RPC服务（BMC重启、主备切换、管理组信息查询、PANIC/内核重启转发与结果通知）
 static UbseResult RegisterRasRpcServices(std::shared_ptr<UbseComModule>& comModulePtr)
 {
     UbseComBaseMessageHandlerPtr ubseRasComHandlerPtr = new (std::nothrow) UbseRasComHandler();
     UbseComBaseMessageHandlerPtr ubseRasSwitchHandlerPtr = new (std::nothrow) UbseRasSwitchRoleHandler();
+    UbseComBaseMessageHandlerPtr ubseRasManagingGroupInfoHandlerPtr = new (std::nothrow)
+        UbseRasManagingGroupInfoHandler();
     UbseComBaseMessageHandlerPtr ubseRasPanicRebootHandlerPtr = new (std::nothrow) UbseRasPanicRebootHandler();
     UbseComBaseMessageHandlerPtr ubseRasPanicResultHandlerPtr = new (std::nothrow) UbseRasPanicRebootResultHandler();
     if (ubseRasComHandlerPtr == nullptr || ubseRasSwitchHandlerPtr == nullptr ||
-        ubseRasPanicRebootHandlerPtr == nullptr || ubseRasPanicResultHandlerPtr == nullptr) {
+        ubseRasManagingGroupInfoHandlerPtr == nullptr || ubseRasPanicRebootHandlerPtr == nullptr ||
+        ubseRasPanicResultHandlerPtr == nullptr) {
         UBSE_LOG_ERROR << "Ubse ras com handler ptr is nullptr. ";
         return UBSE_ERROR_NULLPTR;
     }
     auto ret = comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasComHandlerPtr);
     ret |= comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasSwitchHandlerPtr);
+    ret |= comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasManagingGroupInfoHandlerPtr);
     ret |=
         comModulePtr->RegRpcService<UbseRasPanicRebootMessage, UbseRasPanicRebootMessage>(ubseRasPanicRebootHandlerPtr);
     ret |=
@@ -1272,10 +1423,12 @@ UbseResult UbseRasHandler::CallNodeHandle(const NodeHandlerType& handlerType, co
     return UBSE_OK;
 }
 
+// 清理全部消息处理状态时同步丢弃本进程内的管理组信息缺失计时。
 void UbseRasHandler::ClearAllMsgId()
 {
     UBSE_LOG_INFO << "Clear all processed msg id";
     ClearAllHandlerResults();
+    ClearAllBmcManagingGroupMissingStates();
 }
 
 bool UbseRasHandler::IsPendingFaultExisted(const std::string& faultId)
