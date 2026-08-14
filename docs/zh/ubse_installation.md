@@ -44,6 +44,12 @@
   sudo dnf install -y python3-ubs-engine
   # 安装插件子包（按需，通常由主包自动依赖拉取）
   sudo dnf install -y ubs-engine-rmrs ubs-engine-ucache ubs-engine-virtagent ubs-engine-processmem ubs-engine-ssu
+  # 安装 SSU 客户端运行时库（第三方使用 SSU C SDK 集成时必需）
+  sudo dnf install -y ubs-engine-ssu-client-libs
+  # 安装 SSU 客户端开发包（编译链接 SSU C SDK 时必需）
+  sudo dnf install -y ubs-engine-ssu-client-devel
+  # 安装 SSU Python 模块（可选，使用 UBSE SSU Python API 时需要安装）
+  sudo dnf install -y python3-ubs-engine-ssu
   ```
 
 - 离线安装
@@ -71,6 +77,12 @@
                       ubs-engine-virtagent-<version>-<release>.aarch64.rpm \
                       ubs-engine-processmem-<version>-<release>.aarch64.rpm \
                       ubs-engine-ssu-<version>-<release>.aarch64.rpm
+  # 安装 SSU 客户端运行时库（第三方使用 SSU C SDK 集成时必需，依赖 ubs-engine-client-libs）
+  sudo dnf install -y ubs-engine-ssu-client-libs-<version>-<release>.aarch64.rpm
+  # 安装 SSU 客户端开发包（编译链接 SSU C SDK 时必需，依赖 ubs-engine-client-devel）
+  sudo dnf install -y ubs-engine-ssu-client-devel-<version>-<release>.aarch64.rpm
+  # 安装 SSU Python 模块（可选，使用 UBSE SSU Python API 时需要安装，依赖 python3-ubs-engine）
+  sudo dnf install -y python3-ubs-engine-ssu-<version>-<release>.aarch64.rpm
   ```
 
 ## 安装结果
@@ -111,6 +123,40 @@
   | ------------------------------------------ | ----------------- |
   | `/usr/lib64/ubse_plugin/libssu_plugin.so` | ssu 插件动态库    |
   | `/usr/bin/ubsectl-ssu`                     | ssu 插件 CLI 工具 |
+
+- ubs-engine-ssu-client-libs 安装结果：
+
+  | 文件                                     | 其它说明                                                |
+  | ---------------------------------------- | ------------------------------------------------------- |
+  | `/usr/lib64/libubse-ssu-client.so.1.0.1` | 二进制动态库实体                                        |
+  | `/usr/lib64/libubse-ssu-client.so.1`     | 软链接，指向 `/usr/lib64/libubse-ssu-client.so.1.0.1` |
+
+  > [!NOTE]说明
+  > 该包运行时依赖 `ubs-engine-client-libs`（提供 `libubse-client.so.1`），安装时会自动拉取。
+
+- ubs-engine-ssu-client-devel 安装结果：
+
+  | 文件/目录                                | 其它说明                                                        |
+  | ---------------------------------------- | --------------------------------------------------------------- |
+  | `/usr/include/ubse/ubs_engine_ssu.h`     | SSU SDK 头文件                                                  |
+  | `/usr/lib64/libubse-ssu-client.so`       | 软链接，指向 `/usr/lib64/libubse-ssu-client.so.1`，供链接器使用 |
+  | `/usr/lib64/libubse-ssu-client.a`        | 二进制静态库                                                    |
+
+  > [!NOTE]说明
+  > 该包依赖 `ubs-engine-client-devel`（提供 `libubse-client.so`、`ubs_error.h` 等公共头文件），安装时会自动拉取。
+
+- python3-ubs-engine-ssu 安装结果：
+
+  | 文件/目录                                                            | 其它说明                                  |
+  | -------------------------------------------------------------------- | ----------------------------------------- |
+  | `/usr/lib/python3.x/site-packages/ubse/ubs_engine_ssu.py`            | SSU Python SDK 主模块                      |
+  | `/usr/lib/python3.x/site-packages/ubse/ffi/ubs_engine_binding_ssu.py` | SSU Python FFI 绑定                        |
+  | `/usr/lib/python3.x/site-packages/ubse/models/ubs_engine_model_ssu.py`| SSU Python 数据模型                        |
+  | `/usr/lib/python3.x/site-packages/ubse_ssu-xx.xx.xx-py3.x.egg-info`  | Python 包元数据                            |
+
+  > [!NOTE]说明
+  > 该包为 `noarch` 架构，依赖 `python3-ubs-engine`（提供 `ubse.ipc`、`ubse.ffi` 等公共命名空间），安装时会自动拉取。
+  > SSU Python 模块通过 PEP 420 隐式命名空间扩展 `ubse` 包，安装主 `python3-ubs-engine` 后即可使用 `from ubse.ubs_engine_ssu import ...`。
 
 ## （可选）修改配置
 

@@ -57,6 +57,7 @@
 ![image-20251009104000186](images/image-20251009104000186.png)
 
 - **libubse：**以动态库的方式，提供ubse的资源管理接口，供外部系统对接UBSE
+- **libubse-ssu-client：**SSU 客户端 SDK 动态库，独立于 `libubse` 单独发布，提供 SSU 存储资源的分配/释放/挂载/卸载等接口。第三方仅需使用 SSU 能力时，无需部署 UBSE 服务端主程序包，只需安装 SSU 客户端包（`ubs-engine-ssu-client-libs` / `ubs-engine-ssu-client-devel`）及其依赖的主 SDK 客户端包（`ubs-engine-client-libs` / `ubs-engine-client-devel`）即可
 - **ubsectl：**提供命令行功能，供外部系统对接UBSE
 - **ubse-daemon：**ubse工作主进程，提供ubse的资源管理核心功能
   - **api server：**为北向系统接入，提供统一接口
@@ -64,6 +65,14 @@
   - **adv controllers：**负责提供各种与业务强相关的资源管理能力，如NPU、DPU。
   - **base controllers：**提供基础类型（如内存借用归还）的资源管理能力
   - **adapter plugins：**提供各种南向对接能力（如UBFM、DPU-Driver等）
+
+> [!NOTE] SDK 包结构
+> UBSE SDK 按业务领域拆分为独立 RPM 子包，便于第三方按需集成：
+> - `ubs-engine-client-libs` / `ubs-engine-client-devel`：主 SDK（内存池化、NPU、URMA、拓扑等）
+> - `ubs-engine-ssu-client-libs` / `ubs-engine-ssu-client-devel`：SSU SDK（存储资源池化）
+> - `python3-ubs-engine` / `python3-ubs-engine-ssu`：对应的 Python SDK
+>
+> SSU SDK 运行时依赖主 SDK（`libubse-ssu-client.so` → `libubse-client.so`），公共的 IPC 客户端代码由主 SDK 提供。
 
 ## 4 外部依赖
 
