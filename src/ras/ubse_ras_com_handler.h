@@ -20,6 +20,11 @@ using ubse::com::UbseComBaseMessageHandler;
 using ubse::com::UbseComBaseMessageHandlerCtxPtr;
 using ubse::com::UbseModuleCode;
 using ubse::com::UbseRasOpCode;
+
+// 管理组信息查询的响应协议值，使用可读文本避免 0/1 隐含业务语义。
+inline constexpr char MANAGING_GROUP_INFO_AVAILABLE[] = "available";
+inline constexpr char MANAGING_GROUP_INFO_MISSING[] = "missing";
+
 class UbseRasComHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasComHandler() = default;
@@ -57,6 +62,26 @@ public:
     }
 };
 using UbseRasSwitchRoleHandlerPtr = Ref<UbseRasSwitchRoleHandler>;
+
+// 级联组主节点侧：查询当前拓扑中是否存在管理组信息
+class UbseRasManagingGroupInfoHandler : public UbseComBaseMessageHandler {
+public:
+    UbseRasManagingGroupInfoHandler() = default;
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_QUERY_MANAGING_GROUP_INFO);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::RAS);
+    }
+};
+using UbseRasManagingGroupInfoHandlerPtr = Ref<UbseRasManagingGroupInfoHandler>;
 
 class UbseOomHandler : public UbseComBaseMessageHandler {
 public:

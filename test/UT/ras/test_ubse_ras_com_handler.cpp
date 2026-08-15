@@ -122,6 +122,143 @@ TEST_F(TestUbseRasComHandler, TestSwitchRoleHandlerSuccess)
     ASSERT_EQ(res, UBSE_OK);
 }
 
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoHandlerUsesDedicatedOpcode)
+{
+    UbseRasManagingGroupInfoHandler handler;
+    EXPECT_EQ(handler.GetOpCode(), 0x0006);
+    EXPECT_EQ(handler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::RAS));
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryReturnsAvailableForCascadeGroupMaster)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    HaTopologyInfo topology;
+    topology.currentNode = {"cascade-master", RoleType::MASTER, GlobalRoleType::GLOBAL_INITIALIZER};
+    topology.currentGroup = {"cascade-group", false, "cascade-master", "", {"cascade-master", ""}};
+    topology.groups.push_back(
+        {"another-cascade-group", false, "another-cascade-master", "", {"another-cascade-master", ""}});
+    topology.groups.push_back({"managing-group", true, "managing-master", "", {"managing-master", ""}});
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .with(outBound(topology))
+        .will(returnValue(UBSE_OK));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    const auto typedResponse = UbseBaseMessage::DeConvert<UbseRasMessage>(response);
+    EXPECT_EQ(typedResponse->GetResult(), UBSE_OK);
+    EXPECT_EQ(typedResponse->GetData(), "available");
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryReturnsMissingForEmptyManagingGroupPlaceholder)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    HaTopologyInfo topology;
+    topology.currentNode = {"cascade-master", RoleType::MASTER, GlobalRoleType::GLOBAL_INITIALIZER};
+    topology.currentGroup = {"cascade-group", false, "cascade-master", "", {"cascade-master", ""}};
+    topology.groups.push_back(
+        {"another-cascade-group", false, "another-cascade-master", "", {"another-cascade-master", ""}});
+    topology.groups.push_back({"", true, "", "", {}});
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .with(outBound(topology))
+        .will(returnValue(UBSE_OK));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    const auto typedResponse = UbseBaseMessage::DeConvert<UbseRasMessage>(response);
+    EXPECT_EQ(typedResponse->GetResult(), UBSE_OK);
+    EXPECT_EQ(typedResponse->GetData(), "missing");
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryTreatsTopologyFailureAsMissing)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo).expects(once()).will(returnValue(UBSE_ERROR));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    const auto typedResponse = UbseBaseMessage::DeConvert<UbseRasMessage>(response);
+    EXPECT_EQ(typedResponse->GetResult(), UBSE_OK);
+    EXPECT_EQ(typedResponse->GetData(), "missing");
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryRejectsNullMessages)
+{
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    UbseRasManagingGroupInfoHandler handler;
+    UbseBaseMessagePtr request = new UbseRasMessage();
+    UbseBaseMessagePtr response = new UbseRasMessage();
+
+    EXPECT_EQ(handler.Handle(nullptr, response, &ctx), UBSE_ERROR_NULLPTR);
+    EXPECT_EQ(handler.Handle(request, nullptr, &ctx), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryRejectsUnavailableElectionModule)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    std::shared_ptr<UbseElectionModule> electionModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    EXPECT_EQ(UbseBaseMessage::DeConvert<UbseRasMessage>(response)->GetResult(), UBSE_ERROR_AGAIN);
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryRejectsManagingGroupMaster)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    HaTopologyInfo topology;
+    topology.currentNode = {"managing-master", RoleType::MASTER, GlobalRoleType::GLOBAL_MASTER};
+    topology.currentGroup = {"managing-group", true, "managing-master", "", {"managing-master", ""}};
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .with(outBound(topology))
+        .will(returnValue(UBSE_OK));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    EXPECT_EQ(UbseBaseMessage::DeConvert<UbseRasMessage>(response)->GetResult(), UBSE_ERROR_AGAIN);
+}
+
+TEST_F(TestUbseRasComHandler, ManagingGroupInfoQueryRejectsTopologyRoleMismatch)
+{
+    const UbseBaseMessagePtr request = new UbseRasMessage();
+    const UbseBaseMessagePtr response = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    HaTopologyInfo topology;
+    topology.currentNode = {"cascade-master", RoleType::AGENT, GlobalRoleType::GLOBAL_INITIALIZER};
+    topology.currentGroup = {"cascade-group", false, "cascade-master", "", {"cascade-master", ""}};
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).expects(once()).will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .expects(once())
+        .with(outBound(topology))
+        .will(returnValue(UBSE_OK));
+
+    UbseRasManagingGroupInfoHandler handler;
+    ASSERT_EQ(handler.Handle(request, response, &ctx), UBSE_OK);
+    EXPECT_EQ(UbseBaseMessage::DeConvert<UbseRasMessage>(response)->GetResult(), UBSE_ERROR_AGAIN);
+}
+
 TEST_F(TestUbseRasComHandler, TestUbseOomHandler)
 {
     const UbseBaseMessagePtr req = new UbseRasMessage();
