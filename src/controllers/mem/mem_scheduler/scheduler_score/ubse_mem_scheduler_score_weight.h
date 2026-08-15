@@ -57,12 +57,13 @@ struct ScoreWeights {
     static ScoreWeights ForPerformancePriority()
     {
         ScoreWeights w;
-        w.wLatency = 0.08;
-        w.wRegionBalance = 0.08;
-        w.wBalance = 0.25;
+        // 带宽 0.52 + 借用可靠性 0.25 + 内存利用率 0.12 = 0.89，剩余 0.11 由时延/区域均衡/NUMA 划分分摊（0.04/0.04/0.03）
+        w.wLatency = 0.04;
+        w.wRegionBalance = 0.04;
+        w.wBalance = 0.12;
         w.wBandwidth = 0.52;
-        w.wReliability = 0.0;
-        w.wDivideNuma = 0.07;
+        w.wReliability = 0.25;
+        w.wDivideNuma = 0.03;
         return w;
     }
 };

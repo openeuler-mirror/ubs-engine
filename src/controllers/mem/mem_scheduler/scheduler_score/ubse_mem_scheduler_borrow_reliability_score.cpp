@@ -19,7 +19,7 @@ UbseResult BorrowReliabilityScore::ScoreNodes(const std::vector<NodeInfo>& nodes
                                               const SchedulerAccountManager& account, const SchedulerRequest& request,
                                               std::vector<double>& scores)
 {
-    auto importNodeId = request.requestNodeId_;
+    auto importNodeId = request.importNodeId_;
 
     size_t idx = 0;
     for (const auto& node : nodes) {
