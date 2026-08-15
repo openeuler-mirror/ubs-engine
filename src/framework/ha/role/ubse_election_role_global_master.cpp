@@ -45,6 +45,9 @@ void GlobalMaster::SyncBroadcastMap()
     for (auto it = globalStandbyAgentBroadcast_.begin(); it != globalStandbyAgentBroadcast_.end();) {
         if (latestSet.find(it->first) == latestSet.end()) {
             UBSE_LOG_INFO << "[ELECTION] SyncBroadcastMap remove stale master: " << it->first;
+            if (it->first == globalStandbyId_) {
+                globalStandbyId_ = INVALID_NODE_ID;
+            }
             it = globalStandbyAgentBroadcast_.erase(it);
         } else {
             ++it;
@@ -173,17 +176,19 @@ void GlobalMaster::PrepareHeartBeatPkt(ElectionPkt &pkt)
 
 void GlobalMaster::ReplaceStandbyNode(ElectionPkt &pkt)
 {
-    if (globalStandbyId_ != INVALID_NODE_ID
-        && globalStandbyAgentBroadcast_[globalStandbyId_].heartBeatLossCnt >= GetHbLostTimes()) {
-        // 更换备节点
-        UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(GetActiveNodes(),
-            nodeId_, globalStandbyId_);
-        if (smallestId != INVALID_NODE_ID) {
-            globalStandbyId_ = smallestId;
-            pkt.standbyId = globalStandbyId_;
-            UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId = " << globalStandbyId_;
+    if (globalStandbyId_ != INVALID_NODE_ID) {
+        auto it = globalStandbyAgentBroadcast_.find(globalStandbyId_);
+        if (it != globalStandbyAgentBroadcast_.end() && it->second.heartBeatLossCnt >= GetHbLostTimes()) {
+            // 更换备节点
+            UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(GetActiveNodes(),
+                nodeId_, globalStandbyId_);
+            if (smallestId != INVALID_NODE_ID) {
+                globalStandbyId_ = smallestId;
+                pkt.standbyId = globalStandbyId_;
+                UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId = " << globalStandbyId_;
+            }
         }
-        }
+    }
 }
 
 void GlobalMaster::ProcTimer()
@@ -268,6 +273,9 @@ void GlobalMaster::DealNodeUpdate()
     for (const auto &nodeId : removeNodes) {
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
+        if (nodeId == globalStandbyId_) {
+            globalStandbyId_ = INVALID_NODE_ID;
+        }
         std::vector<std::pair<UBSE_ID_TYPE, UBSE_ID_TYPE>> routesToDelete;                    // ← 先收集
         for (const auto &entry : downstreamRouteEntries_) {                                   // ← 直接遍历路由表
             if (entry.second.nextHopNodeId == nodeId) {
