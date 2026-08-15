@@ -261,9 +261,12 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
     }
     UBSE_LOG_INFO << "Update node=" << nodeInfo.nodeId
                   << " scheduler cluster state, state=" << static_cast<int>(nodeInfo.clusterState);
+    auto nodeIt = nodeMap_.find(nodeInfo.nodeId);
 
-    if (nodeMap_.find(nodeInfo.nodeId) == nodeMap_.end() ||
-        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_INIT) {
+    // 节点初次上报 或 节点要求初始化 或 节点从未知/故障状态恢复（脱离集群重连或故障重启，需要重新初始化以防期间配置变更）
+    if (nodeIt == nodeMap_.end() || nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_INIT ||
+        nodeIt->second->GetClusterState() == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+        nodeIt->second->GetClusterState() == UbseNodeClusterState::UBSE_NODE_FAULT) {
         // nodecontroller不对等的设计，当节点收到sysentry故障时，要创建一个新的nodeinfo
         // 但是里面数据都是错误(socket和numa数据都是空的)，这时候不能构造对象
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
