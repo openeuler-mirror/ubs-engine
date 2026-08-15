@@ -269,9 +269,13 @@ UbseResult UbseGetGlobalMasterNodeId(std::string &globalMasterNodeId)
     }
     Node masterInfo{};
     auto ret = electionModule->UbseGetMasterNode(masterInfo);
-    if (ret != UBSE_OK || masterInfo.id.empty()) {
+    if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get global master node id, ret=" << ret;
-        return UBSE_ERROR;
+        return ret;
+    }
+    if (masterInfo.id.empty()) {
+        UBSE_LOG_ERROR << "Global master node id is empty";
+        return UBSE_ERR_NODE_NOT_EXIST;
     }
     globalMasterNodeId = masterInfo.id;
     return UBSE_OK;

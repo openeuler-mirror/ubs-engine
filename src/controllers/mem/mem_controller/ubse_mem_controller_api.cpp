@@ -134,7 +134,6 @@ uint32_t Init()
         UBSE_LOG_ERROR << "Failed to init scheduler, " << FormatRetCode(ret);
         return ret;
     }
-    UbseMemControllerMasterOnlineHandler::Initial();
     return UBSE_OK;
 }
 

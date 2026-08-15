@@ -12,6 +12,7 @@
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_master_online_handler.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
@@ -164,6 +165,7 @@ UbseResult UbseMemControllerModule::Initialize()
             << "Memory borrow and share features are unsupported, keep mem executor and skip background init.";
         return UBSE_OK;
     }
+    UbseMemControllerMasterOnlineHandler::Initial();
     RegisterNodeCtlNotify();
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
     ubse::timer::UbseTimerHandlerRegister(

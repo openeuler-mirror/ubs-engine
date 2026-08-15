@@ -46,7 +46,14 @@ static UbseResult MockUbseGetMasterNodeSuccess(UbseElectionModule*, Node& master
 
 static UbseResult MockUbseGetMasterNodeError(UbseElectionModule*, Node& masterNode)
 {
+    (void)masterNode;
     return UBSE_ERROR;
+}
+
+static UbseResult MockUbseGetMasterNodeNotExist(UbseElectionModule*, Node& masterNode)
+{
+    (void)masterNode;
+    return UBSE_ERR_NODE_NOT_EXIST;
 }
 
 static UbseResult MockTopoInfoWithoutGlobalMaster(UbseElectionModule*, HaTopologyInfo& topoInfo)
@@ -221,6 +228,26 @@ TEST_F(TestUbseMemControllerHelper, UbseGetGlobalMasterNodeId_NullModule_Error)
 {
     std::shared_ptr<UbseElectionModule> nullModule = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    std::string globalMasterNodeId;
+    auto ret = UbseGetGlobalMasterNodeId(globalMasterNodeId);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerHelper, UbseGetGlobalMasterNodeId_MasterNotExist)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetMasterNode).stubs().will(invoke(MockUbseGetMasterNodeNotExist));
+    std::string globalMasterNodeId;
+    auto ret = UbseGetGlobalMasterNodeId(globalMasterNodeId);
+    EXPECT_EQ(ret, UBSE_ERR_NODE_NOT_EXIST);
+}
+
+TEST_F(TestUbseMemControllerHelper, UbseGetGlobalMasterNodeId_QueryError)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetMasterNode).stubs().will(invoke(MockUbseGetMasterNodeError));
     std::string globalMasterNodeId;
     auto ret = UbseGetGlobalMasterNodeId(globalMasterNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);

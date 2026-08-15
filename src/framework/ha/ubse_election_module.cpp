@@ -181,7 +181,7 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node& masterNode)
 
     if (masterId.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] Master node ID is empty";
-        return UBSE_ERROR;
+        return UBSE_ERR_NODE_NOT_EXIST;
     }
 
     // 填充 masterNode 信息

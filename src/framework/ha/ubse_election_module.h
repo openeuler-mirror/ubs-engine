@@ -51,7 +51,7 @@ public:
     /* *
      * 查询全局唯一主节点信息
      * @param[out] 返回集群唯一主节点信息
-     * @return UBSE_OK 成功，UBSE_ERROR 失败
+     * @return UBSE_OK 成功，UBSE_ERR_NODE_NOT_EXIST 尚未选出主节点，其他错误码表示查询失败
      */
     UbseResult UbseGetMasterNode(Node& masterNode);
 
