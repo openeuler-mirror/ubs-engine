@@ -637,4 +637,87 @@ TEST_F(TestUbseNodeControllerMaster, CollectRemoteNodeInfo_RpcSendFail)
 
     EXPECT_EQ(ret, UBSE_ERROR);
 }
+
+// ============ FindCasCadeGroupId UT ============
+
+// pdGroupId=0: 命中 pdGroupId <= 0 分支，返回 ERROR
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_PdGroupIdZero_ReturnError)
+{
+    uint32_t cascadeGroupId = 0;
+    EXPECT_EQ(FindCasCadeGroupId(8, 0, cascadeGroupId), UBSE_ERROR);
+}
+
+// pdGroupId > groupSize: 命中第一个 if 失败分支
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_PdGroupIdExceedGroupSize_ReturnError)
+{
+    uint32_t cascadeGroupId = 0;
+    EXPECT_EQ(FindCasCadeGroupId(8, 9, cascadeGroupId), UBSE_ERROR);
+}
+
+// pdGroupId > half: 命中第二个 if 失败分支
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_PdGroupIdExceedHalf_ReturnError)
+{
+    uint32_t cascadeGroupId = 0;
+    // groupSize=8, half=4, pdGroupId=5 > 4
+    EXPECT_EQ(FindCasCadeGroupId(8, 5, cascadeGroupId), UBSE_ERROR);
+}
+
+// 正常路径-偶数 groupSize: cascadeGroupId = pdGroupId + groupSize - half
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_EvenGroupSize_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    // groupSize=8, half=4, pdGroupId=2, cascadeGroupId = 2 + 8 - 4 = 6
+    EXPECT_EQ(FindCasCadeGroupId(8, 2, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 6U);
+}
+
+// 正常路径-奇数 groupSize: 验证 int 除法截断
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_OddGroupSize_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    // groupSize=9, half=4 (int 除法截断), pdGroupId=3, cascadeGroupId = 3 + 9 - 4 = 8
+    EXPECT_EQ(FindCasCadeGroupId(9, 3, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 8U);
+}
+
+// 边界: pdGroupId=1 (最小有效值)
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_BoundaryPdGroupIdOne_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    // groupSize=8, half=4, pdGroupId=1, cascadeGroupId = 1 + 8 - 4 = 5
+    EXPECT_EQ(FindCasCadeGroupId(8, 1, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 5U);
+}
+
+// 边界: pdGroupId=half (最大有效值)
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_BoundaryPdGroupIdEqualsHalf_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    // groupSize=8, half=4, pdGroupId=4 (== half), cascadeGroupId = 4 + 8 - 4 = 8
+    EXPECT_EQ(FindCasCadeGroupId(8, 4, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 8U);
+}
+
+// 边界: groupSize=1, half=0, pdGroupId=1 > 0 (half), 返回 ERROR
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_GroupSizeOne_ReturnError)
+{
+    uint32_t cascadeGroupId = 0;
+    EXPECT_EQ(FindCasCadeGroupId(1, 1, cascadeGroupId), UBSE_ERROR);
+}
+
+// 边界: groupSize=2, half=1, pdGroupId=1, cascadeGroupId = 1 + 2 - 1 = 2
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_MinValidGroupSize_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    EXPECT_EQ(FindCasCadeGroupId(2, 1, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 2U);
+}
+
+// 典型场景: groupSize=16, pdGroupId=3, cascadeGroupId = 3 + 16 - 8 = 11
+TEST_F(TestUbseNodeControllerMaster, FindCasCadeGroupId_TypicalCase_Success)
+{
+    uint32_t cascadeGroupId = 0;
+    EXPECT_EQ(FindCasCadeGroupId(16, 3, cascadeGroupId), UBSE_OK);
+    EXPECT_EQ(cascadeGroupId, 11U);
+}
 } // namespace ubse::node_controller::ut

@@ -204,6 +204,36 @@ void UbseClusterList(std::vector<UbseNodeInfo>& nodeList)
     std::sort(nodeList.begin(), nodeList.end(), [](UbseNodeInfo& l, UbseNodeInfo& r) { return l.slotId < r.slotId; });
 }
 
+std::unordered_map<std::string, std::string> UbseGetLocalRoleMap(const UbseRequestContext& context)
+{
+    std::unordered_map<std::string, std::string> roleMap{};
+    roleMap.reserve(NO_2);
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", election module not load";
+        return roleMap;
+    }
+
+    Node masterNode{};
+    auto ret = module->GetLocalMasterNode(masterNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", get master node failed, " << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << UBSE_ROLE_MASTER << "=" << masterNode.id;
+        roleMap[masterNode.id] = UBSE_ROLE_MASTER;
+    }
+
+    Node standbyNode{};
+    ret = module->GetLocalStandbyNode(standbyNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", get standby node failed, " << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << UBSE_ROLE_SLAVE << "=" << standbyNode.id;
+        roleMap[standbyNode.id] = UBSE_ROLE_SLAVE;
+    }
+    return roleMap;
+}
+
 std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext& context)
 {
     std::unordered_map<std::string, std::string> roleMap{};
@@ -445,7 +475,8 @@ static uint32_t SendOriginalClusterInfo(const UbseRequestContext& context)
             }
         }
 
-        ubseSerial << node.bondingEid;
+        // 当前仅urma场景会下发bondingEid, tcp场景不应该展示
+        ubseSerial << (!nodeMgr::IsApplyUrmaDev() ? "-" : node.bondingEid);
         ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
     }
 
@@ -661,7 +692,8 @@ static void SerializeNodeFoundStrict(UbseSerialization& ubseSerial, const UbseNo
     }
     roleStrOut = roleStr;
 
-    std::string bondingEid = (UbseSmbios::GetInstance().IsClosType() ? "-" : targetNode.bondingEid);
+    // 在没有申请bonding0Eid场景下展示为 -
+    std::string bondingEid = !nodeMgr::IsApplyUrmaDev() ? "-" : targetNode.bondingEid;
 
     // 获取guid，如果离线或guid为空则显示"-"
     std::string guid = (!isOnline || targetNode.guid.empty()) ? "-" : targetNode.guid;
@@ -738,7 +770,7 @@ uint32_t UbseNodeApi::UbseQueryNodeInfo(const UbseIpcMessage& req, const UbseReq
     // 获取节点列表 + roleMap
     std::vector<UbseNodeInfo> nodeList;
     UbseClusterList(nodeList);
-    std::unordered_map<std::string, std::string> roleMap = UbseGetRoleMap(context);
+    std::unordered_map<std::string, std::string> roleMap = UbseGetLocalRoleMap(context);
 
     // 查找目标节点
     UbseNodeInfo targetNode;

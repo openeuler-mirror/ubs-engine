@@ -248,4 +248,10 @@ bool UbseNodeStaticInfoMgr::IsApplyUrmaDev()
     std::shared_lock lock(nodeMutex_);
     return isApplyUrmaDev;
 }
+
+uint32_t UbseNodeStaticInfoMgr::GetGroupSize()
+{
+    std::shared_lock lock(nodeMutex_);
+    return nodes_.size();
+}
 } // namespace ubse::nodeMgr

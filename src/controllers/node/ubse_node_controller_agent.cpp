@@ -184,50 +184,28 @@ UbseResult UbseNodeInfoReport()
         return UBSE_ERROR;
     }
 
-    auto role = GetClosRole();
-    if (role != UbseClosNodeRole::UNKNOWN) {
-        if (role == UbseClosNodeRole::GLOBAL_MASTER) {
-            UBSE_LOG_INFO << "[CLOS_REPORT] skip self node report on global master, nodeId=" << info.nodeId
-                          << ", groupId=" << info.groupId << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
-            return UBSE_OK;
-        }
-
-        std::string prevNodeId;
-        auto ret = GetPrevReportNodeId(prevNodeId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "get prev node failed, fallback to single master report, " << FormatRetCode(ret);
-        } else {
-            if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
-                UBSE_LOG_INFO << "[CLOS_REPORT] skip self report, nodeId=" << info.nodeId
-                              << ", role=" << static_cast<uint32_t>(role);
-                return UBSE_OK;
-            }
-
-            UBSE_LOG_INFO << "[CLOS_REPORT] report self node to prev, nodeId=" << info.nodeId
-                          << ", groupId=" << info.groupId << ", prevNodeId=" << prevNodeId
-                          << ", role=" << static_cast<uint32_t>(role)
-                          << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
-
-            return UbseNodeReportNodeInfo(prevNodeId, info);
-        }
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
+    auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "[CLOS_REPORT] election module is nullptr";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
+    Node masterInfo{};
+    auto ret = electionModule->GetLocalMasterNode(masterInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "ubse get master node failed, skip report.";
         return ret;
     }
 
-    if (masterInfo.nodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+    if (masterInfo.id == UbseNodeController::GetInstance().GetCurrentNodeId()) {
         return UBSE_OK;
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] fallback report self node to master, nodeId=" << info.nodeId
-                  << ", groupId=" << info.groupId << ", masterNodeId=" << masterInfo.nodeId
+                  << ", groupId=" << info.groupId << ", masterNodeId=" << masterInfo.id
                   << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
 
-    return UbseNodeReportNodeInfo(masterInfo.nodeId, info);
+    return UbseNodeReportNodeInfo(masterInfo.id, info);
 }
 
 UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
@@ -303,6 +281,7 @@ void UbseNodeControllerAgent::StartExec()
 UbseResult UbseNodeControllerAgent::Start()
 {
     // 注册消息处理器
+    UbseNodeController::GetInstance().InitHierarchical();
     auto ret = RegAgentMsgHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
@@ -628,6 +607,12 @@ UbseResult UbseCabinetReportSingleNode(const std::string &nodeId, const UbseNode
                                         "cabinet single report");
 }
 
+UbseResult UbseReportCasCadeNodeDown(const std::string& nodeId, const UbseNodeInfo& info)
+{
+    return SendSingleNodeReportByOpCode(nodeId, info, UbseNodeControllerOpCode::NODE_CONTROLLER_CASCADE_NODE_REPORT,
+                                        "cascade node down report");
+}
+
 UbseResult UbseCabinetReportFullInfo(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos)
 {
     return SendNodeListReportByOpCode(nodeId, infos, UbseNodeControllerOpCode::NODE_CONTROLLER_CABINET_FULL_REPORT,
@@ -892,13 +877,13 @@ UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
         return UBSE_OK;
     }
 
-    std::string prevNodeId;
-    auto ret = GetPrevReportNodeId(prevNodeId);
+    UbseRoleInfo globalMasterInfo;
+    auto ret = UbseGetMasterInfo(globalMasterInfo);
     if (ret != UBSE_OK) {
         return ret;
     }
 
-    if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+    if (globalMasterInfo.nodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
         UBSE_LOG_INFO << "[CLOS_REPORT] skip cabinet full report to self, currentNodeId="
                       << UbseNodeController::GetInstance().GetCurrentNodeId() << ", nodeCount=" << infos.size()
                       << ", role=" << static_cast<uint32_t>(GetClosRole());
@@ -912,10 +897,10 @@ UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] cabinet full report node list, currentNodeId="
-                  << UbseNodeController::GetInstance().GetCurrentNodeId() << ", prevNodeId=" << prevNodeId
+                  << UbseNodeController::GetInstance().GetCurrentNodeId() << ", prevNodeId=" << globalMasterInfo.nodeId
                   << ", nodeCount=" << infos.size() << ", nodes=" << nodeList.str();
 
-    return UbseCabinetReportFullInfo(prevNodeId, infos);
+    return UbseCabinetReportFullInfo(globalMasterInfo.nodeId, infos);
 }
 
 UbseResult UbseNodeControllerAgent::ForwardSingleNodeToPrev(const UbseNodeInfo &info)

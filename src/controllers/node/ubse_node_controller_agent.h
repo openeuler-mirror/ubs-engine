@@ -121,6 +121,11 @@ UbseResult LcneChangeReportNodeInfo(const std::string& nodeId, const UbseNodeInf
 UbseResult UbseCabinetReportSingleNode(const std::string &nodeId, const UbseNodeInfo &info);
 
 /**
+ * 向上级节点上报cascade下线信息
+ */
+UbseResult UbseReportCasCadeNodeDown(const std::string &nodeId, const UbseNodeInfo &info);
+
+/**
 * 向上级节点上报当前节点掌握的全量节点信息
 */
 UbseResult UbseCabinetReportFullInfo(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos);

@@ -14,10 +14,12 @@
 #include "ubse_error.h"
 #include "ubse_mti_eid_interface.h"
 #include "ubse_mti_interface.h"
+#include "ubse_node_mgr.h"
 namespace ubse::node_controller::ut {
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::urma;
 using namespace ubse::utils;
+using namespace ubse::nodeMgr;
 
 void TestUbseNodeComUrmaCollector::SetUp()
 {
@@ -30,40 +32,52 @@ void TestUbseNodeComUrmaCollector::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseNodeComUrmaCollector, FillAndGetHostBondings)
+TEST_F(TestUbseNodeComUrmaCollector, GetAllHostPlanningBondings)
 {
-    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    std::map<UbseMtiIouInfo, UbseMtiEidGroup> comUrmaInfoMap{};
-    comUrmaInfoMap[UbseMtiIouInfo("1", "1", "1")] = UbseMtiEidGroup{"entityId1", "primaryEid1", {{"port1", "eid1"}}};
-    comUrmaInfoMap[UbseMtiIouInfo("1", "2", "1")] = UbseMtiEidGroup{"entityId2", "primaryEid2", {{"port2", "eid2"}}};
-    std::vector<adapter_plugins::mti::UbseMtiNodeInfo> nodeInfos;
-    nodeInfos.push_back({"1", "eid1"});
-    adapter_plugins::mti::UbseMtiInterface& mtiInterface = adapter_plugins::mti::UbseMtiInterface::GetInstance();
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetClusterNodeInfoList)
-        .stubs()
-        .with(outBound(nodeInfos))
-        .will(returnValue(UBSE_OK));
+    // 构造两个节点的静态信息：node "1" 有 2 个 FE，node "2" 有 1 个 FE
+    std::vector<UbseNodeStaticInfo> clusterNodes;
+    UbseNodeStaticInfo node1{};
+    node1.nodeId = "1";
+    node1.bonding0Eid = "devEid1";
+    node1.feEidList["1"] = UbseMtiEidGroup{"entityId1", "primaryEid1", {{"port1", "eid1"}}};
+    node1.feEidList["2"] = UbseMtiEidGroup{"entityId2", "primaryEid2", {{"port2", "eid2"}}};
+    UbseNodeStaticInfo node2{};
+    node2.nodeId = "2";
+    node2.bonding0Eid = "devEid2";
+    node2.feEidList["3"] = UbseMtiEidGroup{"entityId3", "primaryEid3", {{"port3", "eid3"}}};
+    clusterNodes = {node1, node2};
 
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetMtiComEid)
-        .stubs()
-        .with(outBound(comUrmaInfoMap))
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::nodeMgr::GetAllNodes).stubs().will(returnValue(clusterNodes));
+
     UbseNodeComUrmaCollector collector;
-    auto ret = collector.FillComUrmaInfo();
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+    auto ret = collector.GetAllHostPlanningBondings(hostUrmaInfos);
     EXPECT_EQ(ret, UBSE_OK);
-    ret = collector.GetAllHostPlanningBondings(hostUrmaInfos);
-    EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(hostUrmaInfos.size(), 1);
+    EXPECT_EQ(hostUrmaInfos.size(), 2U);
+
+    // 校验 node "1"：urmaDevEid 与 feList 数量
     EXPECT_EQ(hostUrmaInfos[0].nodeId, "1");
-    EXPECT_EQ(hostUrmaInfos[0].devList.size(), 1);
-    EXPECT_EQ(hostUrmaInfos[0].devList[0].urmaDevEid, "eid1");
-    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList.size(), 2);
-    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[0].primaryEid, "primaryEid1");
+    EXPECT_EQ(hostUrmaInfos[0].devList.size(), 1U);
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].urmaDevEid, "devEid1");
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList.size(), 2U);
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[0].ubpuId, "1");
     EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[0].entityId, "entityId1");
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[0].primaryEid, "primaryEid1");
     EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[0].portEid["port1"], "eid1");
-    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[1].primaryEid, "primaryEid2");
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[1].ubpuId, "2");
     EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[1].entityId, "entityId2");
+    EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[1].primaryEid, "primaryEid2");
     EXPECT_EQ(hostUrmaInfos[0].devList[0].feList[1].portEid["port2"], "eid2");
+
+    // 校验 node "2"：urmaDevEid 与 feList 数量
+    EXPECT_EQ(hostUrmaInfos[1].nodeId, "2");
+    EXPECT_EQ(hostUrmaInfos[1].devList.size(), 1U);
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].urmaDevEid, "devEid2");
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].feList.size(), 1U);
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].feList[0].ubpuId, "3");
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].feList[0].entityId, "entityId3");
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].feList[0].primaryEid, "primaryEid3");
+    EXPECT_EQ(hostUrmaInfos[1].devList[0].feList[0].portEid["port3"], "eid3");
 }
 
 TEST_F(TestUbseNodeComUrmaCollector, SetComUrmaInfo)

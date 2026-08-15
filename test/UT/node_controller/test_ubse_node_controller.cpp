@@ -735,4 +735,155 @@ TEST_F(TestUbseNodeController, CollectSysSentryState)
     EXPECT_EQ(nodeInfo.sysSentryState, UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_OK);
 }
 
+// ============ CanUpdateClusterStateForReport UT ============
+
+// 当前节点不在缓存中：返回 false，needRecovery 被重置为 false
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_CurrentNodeNotInCache_ReturnFalse)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "not_exist";
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node1";
+    reportNodeInfo.groupId = 1;
+    bool needRecovery = true; // 初始化为 true，验证函数会重置
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_SMOOTHING, false, needRecovery);
+    EXPECT_FALSE(allowed);
+    EXPECT_FALSE(needRecovery);
+}
+
+// 同组节点首次添加：直接允许，needRecovery=false
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_SameGroupFirstAdd_ReturnTrue)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 1; // 同组
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_SMOOTHING, false, needRecovery);
+    EXPECT_TRUE(allowed);
+    EXPECT_FALSE(needRecovery);
+}
+
+// 同组节点后续添加-状态机校验通过：返回 true
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_SameGroupExisting_StateMachineAllow_ReturnTrue)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 1;
+    bool needRecovery = false;
+    // INIT -> SMOOTHING 是允许的
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_SMOOTHING, true, needRecovery);
+    EXPECT_TRUE(allowed);
+    EXPECT_FALSE(needRecovery);
+}
+
+// 跨组节点非 WORKING 状态：直接允许
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupNonWorking_ReturnTrue)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 2; // 跨组
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_SMOOTHING, false, needRecovery);
+    EXPECT_TRUE(allowed);
+    EXPECT_FALSE(needRecovery);
+}
+
+// 跨组节点 WORKING-后续添加-节点存在且 globalState=READY：返回 true
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupWorkingExisting_Ready_ReturnTrue)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    // 预置一个跨组节点，globalState=READY
+    UbseNodeInfo existingNode{};
+    existingNode.nodeId = "node2";
+    existingNode.groupId = 2;
+    existingNode.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY;
+    ctrl.nodeInfos["node2"] = existingNode;
+
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 2;
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_WORKING,
+        UbseNodeClusterState::UBSE_NODE_WORKING, true, needRecovery);
+    EXPECT_TRUE(allowed);
+    EXPECT_FALSE(needRecovery);
+}
+
+// 跨组节点 WORKING-后续添加-节点存在但 globalState=INIT：返回 false，needRecovery=true
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupWorkingExisting_NotReady_ReturnFalseAndRecovery)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo existingNode{};
+    existingNode.nodeId = "node2";
+    existingNode.groupId = 2;
+    existingNode.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT; // 未 READY
+    ctrl.nodeInfos["node2"] = existingNode;
+
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 2;
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_WORKING, true, needRecovery);
+    EXPECT_FALSE(allowed);
+    EXPECT_TRUE(needRecovery);
+}
+
+// 跨组节点 WORKING-后续添加-节点不存在：返回 false，needRecovery=true
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupWorkingExisting_NotInCache_ReturnFalseAndRecovery)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node_not_exist";
+    reportNodeInfo.groupId = 2;
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_WORKING, true, needRecovery);
+    EXPECT_FALSE(allowed);
+    EXPECT_TRUE(needRecovery);
+}
+
+// 跨组节点 WORKING-首次添加：返回 false，needRecovery=true
+TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupWorkingFirstAdd_ReturnFalseAndRecovery)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.currentNodeId = "1";
+    ctrl.nodeInfos["1"].groupId = 1;
+    UbseNodeInfo reportNodeInfo{};
+    reportNodeInfo.nodeId = "node2";
+    reportNodeInfo.groupId = 2;
+    bool needRecovery = false;
+    auto allowed = ctrl.CanUpdateClusterStateForReport(
+        reportNodeInfo, UbseNodeClusterState::UBSE_NODE_INIT,
+        UbseNodeClusterState::UBSE_NODE_WORKING, false, needRecovery);
+    EXPECT_FALSE(allowed);
+    EXPECT_TRUE(needRecovery);
+}
+
 } // namespace ubse::node_controller::ut

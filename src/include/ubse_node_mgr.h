@@ -74,5 +74,15 @@ uint32_t GetCurPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLi
  * @brief urma场景下, 向node mgr申请占用bonding0设备
  */
 void ApplyUrmaDev();
+
+/**
+ * @return 当前是否申请了bonding0设备
+ */
+bool IsApplyUrmaDev();
+
+/**
+ * @return 返回当前集群节点分组情况
+ */
+uint32_t GetGroupSize();
 } // namespace ubse::nodeMgr
 #endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_H

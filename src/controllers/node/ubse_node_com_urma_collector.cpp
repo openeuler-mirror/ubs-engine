@@ -197,12 +197,20 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
 UbseResult UbseNodeComUrmaCollector::GetAllHostPlanningBondings(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
 {
     hostUrmaInfos.clear();
-    hostUrmaInfos.reserve(comUrmaInfos.size());
-    for (const auto& kv : comUrmaInfos) {
-        std::vector<UbseUrmaUvsAggrDev> aggrs;
-        aggrs.push_back(kv.second);
-        UbseUrmaUvsNodeInfo info{kv.first, std::move(aggrs)};
-        hostUrmaInfos.push_back(std::move(info));
+    const auto& clusterNodes = ubse::nodeMgr::GetAllNodes();
+    for (const auto& node : clusterNodes) {
+        UbseUrmaUvsAggrDev agg{};
+        agg.urmaDevEid = node.bonding0Eid;
+        for (const auto& eid : node.feEidList) {
+            UbseUrmaUvsFe fe{};
+            fe.ubpuId = eid.first;
+            fe.entityId = eid.second.entityId;
+            fe.primaryEid = eid.second.primaryEid;
+            fe.portEid = eid.second.portEids;
+            agg.feList.push_back(fe);
+        }
+        UbseUrmaUvsNodeInfo info{node.nodeId, {agg}};
+        hostUrmaInfos.push_back(info);
     }
     return UBSE_OK;
 }

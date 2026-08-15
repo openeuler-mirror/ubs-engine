@@ -52,6 +52,9 @@ public:
      */
     UbseResult UbseNodeReportHandler(const UbseNodeInfo &nodeInfo);
 
+    // 级联机柜主下线事件，在PD主上触发
+    UbseResult UbseCasCadeNodeDownHandler(const std::string &nodeId);
+
     /**
      * 从节点lcne拓扑变化采集上报回调
      * @param nodeInfo
@@ -70,6 +73,8 @@ private:
     UbseResult UbseGlobalMasterOnlineHandler(const std::string &globalMasterId);
 
     UbseResult UbseNodeDownHandler(const std::string &nodeId);
+
+    UbseResult UbseGlobalNodeDownHandler(const std::string &nodeId);
 
     UbseResult UbseNodeUpHandler(const std::string& nodeId);
 
@@ -178,6 +183,14 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBu
  * @return UbseResult 处理结果
  */
 UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+/**
+ * 全局主处理 级联主下线
+ * @param req 请求数据
+ * @param resp 响应数据，包含全量链路信息
+ * @return UbseResult 采集结果
+ */
+UbseResult UbseRemoteCasCadeNodeDownHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * Master从Agent采集节点信息
