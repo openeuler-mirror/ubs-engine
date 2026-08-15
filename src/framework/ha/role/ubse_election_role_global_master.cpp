@@ -224,6 +224,7 @@ void GlobalMaster::ProcTimer()
         globalStandbyAgentNodes_ = GetActiveNodes();
         lastTimeMs_ = current;
     }
+    DetectCascadeGroupTimeout();
 }
 
 void GlobalMaster::DealNodeUpdate()
@@ -258,20 +259,28 @@ void GlobalMaster::DealNodeUpdate()
         auto nodeInfo = nodeMgr::GetUbseNodeById(nodeId);
         auto it = managingToCascadeNodeId_.find(std::to_string(nodeInfo.groupId));
         if (it == managingToCascadeNodeId_.end()) { continue; }
+        AddDownstreamGroupRoute(std::to_string(nodeInfo.groupId), nodeId, nodeId); // 管理组分组路由
         uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
         uint16_t cascadeGroupId = nodeInfo.groupId + managingGroupCount;
-        AddDownstreamGroupRoute(std::to_string(cascadeGroupId), it->second, nodeId);
+        AddDownstreamGroupRoute(std::to_string(cascadeGroupId), it->second, nodeId); // 级联组分组路由
     }
 
     for (const auto &nodeId : removeNodes) {
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
-        for (const auto &kv : managingToCascadeNodeId_) {
-            uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
-            uint16_t cascadeGroupId = static_cast<uint16_t>(std::stoul(kv.first)) + managingGroupCount;
-            auto it = downstreamRouteEntries_.find(std::to_string(cascadeGroupId));
-            if (it != downstreamRouteEntries_.end() && it->second.nextHopNodeId == nodeId) {
-                DeleteDownstreamGroupRoute(std::to_string(cascadeGroupId));
+        std::vector<std::pair<UBSE_ID_TYPE, UBSE_ID_TYPE>> routesToDelete;                    // ← 先收集
+        for (const auto &entry : downstreamRouteEntries_) {                                   // ← 直接遍历路由表
+            if (entry.second.nextHopNodeId == nodeId) {
+                routesToDelete.emplace_back(entry.first, entry.second.dstNodeId);
+            }
+        }
+        for (const auto &r : routesToDelete) {                                                // ← 后删除
+            UBSE_LOG_INFO << "[ELECTION] DealNodeUpdate delete downstream route, groupId=" << r.first
+                          << ", nextHopNodeId=" << nodeId << ", dstNodeId=" << r.second;
+            downstreamRouteEntries_.erase(r.first);
+            auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+            if (comModule != nullptr) {
+                comModule->DelRoute(r.second);
             }
         }
     }
@@ -353,6 +362,24 @@ void ProcessGlobalReply(GlobalCallbackCtx* context, int32_t result, void* recv, 
             reply.cascadeMasterId,
             reply.cascadeStandbyId,
             reply.cascadeGroupNodeIds};
+    } else if (!reply.groupId.empty()) {
+        uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
+        if (managingGroupCount > 0) {
+            uint16_t cascadeGroupId = 0;
+            try {
+                cascadeGroupId = static_cast<uint16_t>(std::stoi(reply.groupId)) + managingGroupCount;
+            } catch (const std::exception& e) {
+                UBSE_LOG_WARN << "[ELECTION] invalid groupId from reply, groupId=" << reply.groupId
+                              << ", error=" << e.what();
+                return;
+            }
+            auto it = globalCascadeGroupTopologies.find(std::to_string(cascadeGroupId));
+            if (it != globalCascadeGroupTopologies.end()) {
+                UBSE_LOG_INFO << "[ELECTION] cascade group removed by managing group report, groupId=" << reply.groupId
+                              << ", cascadeGroupId=" << cascadeGroupId;
+                globalCascadeGroupTopologies.erase(it);
+            }
+        }
     }
 }
 
@@ -554,20 +581,43 @@ std::vector<UBSE_ID_TYPE> GlobalMaster::GetActiveNodes()
 
 void GlobalMaster::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
 {
-    std::lock_guard<std::mutex> lock(mtx_);  // 加锁
-    if (globalStandbyAgentBroadcast_[nodeId].activeStatus == HeartBeatState::ACTIVE) {
-        UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
-        RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
-        globalStandbyAgentBroadcast_[nodeId].activeStatus = HeartBeatState::LOST;
-        globalStandbyAgentBroadcast_[nodeId].masterOnlineBcStatus = NotifyStatus::NOT_BROADCAST;
-        globalStandbyAgentBroadcast_[nodeId].masterOnlineBcTimes = 0;
-        auto it = std::find(globalStandbyAgentNodes_.begin(), globalStandbyAgentNodes_.end(), nodeId);
-        if (it != globalStandbyAgentNodes_.end()) {
-            globalStandbyAgentNodes_.erase(it);
+    std::vector<UBSE_ID_TYPE> routesToDelete;
+    {
+        std::lock_guard<std::mutex> lock(mtx_);  // 加锁
+        auto bcIt = globalStandbyAgentBroadcast_.find(nodeId);
+        if (bcIt != globalStandbyAgentBroadcast_.end() &&
+            bcIt->second.activeStatus == HeartBeatState::ACTIVE) {
+            UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
+            RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
+            bcIt->second.activeStatus = HeartBeatState::LOST;
+            bcIt->second.masterOnlineBcStatus = NotifyStatus::NOT_BROADCAST;
+            bcIt->second.masterOnlineBcTimes = 0;
+            auto it = std::find(globalStandbyAgentNodes_.begin(), globalStandbyAgentNodes_.end(), nodeId);
+            if (it != globalStandbyAgentNodes_.end()) {
+                globalStandbyAgentNodes_.erase(it);
+            }
+            std::vector<UBSE_ID_TYPE> groupIdsToDelete;
+            for (const auto& entry : downstreamRouteEntries_) {
+                if (entry.second.nextHopNodeId == nodeId) {
+                    routesToDelete.push_back(entry.second.dstNodeId);
+                    groupIdsToDelete.push_back(entry.first);
+                }
+            }
+            for (const auto& groupId : groupIdsToDelete) {
+                downstreamRouteEntries_.erase(groupId);
+            }
+        }
+        if (nodeId == globalStandbyId_) {
+            globalStandbyId_ = INVALID_NODE_ID;
         }
     }
-    if (nodeId == globalStandbyId_) {
-        globalStandbyId_ = INVALID_NODE_ID;
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule != nullptr) {
+        for (const auto &dstNodeId : routesToDelete) {
+            UBSE_LOG_INFO << "[ELECTION] SetNodeDownStatus delete downstream route, nextHopNodeId="
+                          << nodeId << ", dstNodeId=" << dstNodeId;
+            comModule->DelRoute(dstNodeId);
+        }
     }
 }
 
@@ -589,6 +639,7 @@ GlobalRoleType GlobalMaster::GetGlobalRoleType()
 void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
 {
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        GetBootTime(lastCascadeReportTime_);
         UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
         cascadeGroupReport_ = rcvInfo;
         UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
@@ -603,8 +654,10 @@ void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupI
                         UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
                 }
             }
+            std::unique_lock<std::mutex> lock(mtx_);
             DeleteDownstreamGroupRoute(rcvInfo.groupId);
             AddDownstreamGroupRoute(rcvInfo.groupId, currentCascadeMasterId, currentCascadeMasterId);
+            lock.unlock();
         }
         // 回复全局主备
         replyInfo.nodeId = nodeId_;
@@ -709,10 +762,17 @@ void GlobalMaster::DeleteAllDownstreamGroupRoutes()
 {
     auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) { return; }
-    for (const auto &pair : downstreamRouteEntries_) {
-        comModule->DelRoute(pair.second.dstNodeId);
+    std::vector<UBSE_ID_TYPE> dstNodeIds;
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        for (const auto &pair : downstreamRouteEntries_) {
+            dstNodeIds.push_back(pair.second.dstNodeId);
+        }
+        downstreamRouteEntries_.clear();
     }
-    downstreamRouteEntries_.clear();
+    for (const auto &dstNodeId : dstNodeIds) {
+        comModule->DelRoute(dstNodeId);
+    }
 }
 
 std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()
@@ -759,13 +819,15 @@ void GlobalMaster::DetectCascadeGroupTimeout()
     }
     uint32_t timeoutThreshold = UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL * NO_10 * NO_1000; // 10s
     if (bootTime - lastCascadeReportTime_ > timeoutThreshold) {
-        UBSE_LOG_ERROR << "[ELECTION] Cascade group report timeout, masterId="
+        UBSE_LOG_INFO << "[ELECTION] Cascade group report timeout, masterId="
                        << cascadeGroupReport_.groupMasterId;
         if (!g_globalStop.load()) {
             RoleMgr::GetInstance().RoleChangeNotifyAsync(
                 UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, cascadeGroupReport_.groupMasterId);
         }
+        std::unique_lock<std::mutex> lock(mtx_);
         DeleteDownstreamGroupRoute(cascadeGroupReport_.groupId);
+        lock.unlock();
         cascadeGroupReport_ = {};
     }
 }
