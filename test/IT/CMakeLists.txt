@@ -41,7 +41,9 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/config/it_config_builder.cpp
     ${IT_INFRA_DIR}/process/node_process_manager.cpp
     ${IT_INFRA_DIR}/mock/mock_lcne_server.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_client.cpp
     ${IT_INFRA_DIR}/mock/mock_lcne_xml.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_port.cpp
     ${IT_INFRA_DIR}/helper/it_wait_helper.cpp
     ${IT_INFRA_DIR}/helper/it_xalarm_helper.cpp
     ${IT_INFRA_DIR}/helper/it_fault_log_helper.cpp

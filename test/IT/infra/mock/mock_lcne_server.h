@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
@@ -41,6 +42,15 @@ public:
     {
         return slotId_;
     }
+
+    /**
+     * @brief 按链路注入断链: 若本节点 (slotId_) 与 peerSlotId 在场景连接表中存在链路,
+     *        则将本侧相连端口 (对 ubpuIds 指定的 ubpu) 置为 down; 无链路则 no-op.
+     */
+    void MarkLinkDown(uint32_t peerSlotId, const std::set<int>& ubpuIds, const std::set<int>& portIds);
+
+    /** @brief 清空本节点注入的 down 端口, 恢复默认(不注入). */
+    void ClearLinkDowns();
 
 private:
     void RegisterHandlers();
