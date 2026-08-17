@@ -671,12 +671,21 @@ int UBSRMRSRemove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, i
 /* *
  * @brief   迁移指定进程远端内存到远端内存
  *
- * @param pids     [IN] 移除的进程信息，包含进程的PID
- * @param srcNid   [IN] 源远端NUMA
- * @param destNid  [IN] 目标远端NUMA
+ * @param msg      [IN] 远端NUMA迁移消息，包含每个进程的pid、srcNid、destNid、ratio、migrateMode等信息
  * @return int  0：操作成功；非0：操作失败
  */
-int RemoteNumaMigrate(const std::vector<pid_t>& pids, int srcNid, int destNid);
+int UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& msg);
+
+/* *
+ * @brief   查询进程配置
+ *
+ * @param nid             [IN] NUMA ID
+ * @param processPayloads [OUT] 进程配置输出数组
+ * @param capacity        [IN] 输出数组容量
+ * @param realLen         [OUT] 实际返回的进程数
+ * @return int  0：操作成功；非0：操作失败
+ */
+int UBSRMRSProcessConfigQuery(int nid, ProcessPayload* processPayloads, int capacity, int* realLen);
 
 class ApiConcurrencyManager {
 public:

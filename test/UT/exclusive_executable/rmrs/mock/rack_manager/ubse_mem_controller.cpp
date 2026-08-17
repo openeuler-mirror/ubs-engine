@@ -60,6 +60,11 @@ UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoLis
     return UBSE_OK;
 }
 
+UbseResult UbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
+{
+    return UBSE_OK;
+}
+
 UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
                                           const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
 {

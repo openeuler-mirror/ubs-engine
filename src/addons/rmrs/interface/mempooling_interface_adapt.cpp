@@ -13,6 +13,7 @@
 #include "mempooling_interface.h"
 
 #include <bits/types.h>
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
@@ -1094,13 +1095,39 @@ int mempooling::outinterface::UBSRMRSRemove(const uint16_t remoteNumaId, const s
     return ret;
 }
 
-int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, int srcNid, int destNid)
+int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& msg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry RemoteNumaMigrate.";
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, srcNid = " << srcNid << ".";
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, destNid = " << destNid << ".";
-    for (size_t i = 0; i < pids.size(); i++) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, pids = " << pids[i] << ".";
+
+    if (msg.count <= 0 || msg.count > MAX_NR_MIGOUT) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate invalid count=" << msg.count << ".";
+        return MEM_POOLING_ERROR_INVAL;
+    }
+    int len = msg.count;
+
+    FaultNumaLockGuard lockGuard;
+    std::unordered_set<uint16_t> seenNumas;
+    for (int i = 0; i < len; i++) {
+        const auto& payload = msg.payload[i];
+        for (uint16_t nid : {static_cast<uint16_t>(payload.srcNid), static_cast<uint16_t>(payload.destNid)}) {
+            if (seenNumas.count(nid) > 0) {
+                continue;
+            }
+            seenNumas.insert(nid);
+            if (!FaultNumaLock::Instance().TryAcquireShared(nid)) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "RemoteNumaMigrate fault NUMA locked, nid=" << nid << ".";
+                return MEM_POOLING_HANDLING_FAULT;
+            }
+            lockGuard.sharedNumaIds.push_back(nid);
+        }
+    }
+
+    for (int i = 0; i < len; i++) {
+        const auto& p = msg.payload[i];
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "RemoteNumaMigrate payload[" << i << "], pid=" << p.pid << ", srcNid=" << p.srcNid
+            << ", destNid=" << p.destNid << ", ratio=" << p.ratio << ".";
     }
 
     SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = SmapModule::GetSmapMigratePidRemoteNumaFunc();
@@ -1109,8 +1136,12 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         return MEM_POOLING_ERROR;
     }
     // 关闭进程的冷热页流动
-    pid_t* pidArr = const_cast<pid_t*>(pids.data());
-    int len = static_cast<int>(pids.size());
+    std::vector<pid_t> pids;
+    pids.reserve(len);
+    for (int i = 0; i < len; i++) {
+        pids.push_back(msg.payload[i].pid);
+    }
+    pid_t* pidArr = pids.data();
     int retEnable = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pidArr, len, 0, 1);
     if (retEnable != SMAP_OK) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1121,24 +1152,16 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         return MEM_POOLING_ERROR;
     }
 
-    MigrateEscapeMsg msg;
-    msg.count = len;
-    for (int i = 0; i < msg.count; i++) {
-        msg.payload[i].pid = pidArr[i];
-        msg.payload[i].srcNid = srcNid;
-        msg.payload[i].destNid = destNid;
-        msg.payload[i].ratio = 100;
-        msg.payload[i].migrateMode = MIG_RATIO_MODE; // 模式需要佳豪确认一下
-    }
     // 远端迁移
-    auto ret = smapMigratePidRemoteNumaFunc(&msg);
+    MigrateEscapeMsg localMsg = msg;
+    localMsg.count = len;
+    auto ret = smapMigratePidRemoteNumaFunc(&localMsg);
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate failed, ret=" << ret << ".";
         // 迁移失败，需要从srcNid上过滤更新有效的pids
-        std::vector<pid_t> pidList = pids;
-        ResourceQuery::FilterValidPidListByLocalNode(pidList);
-        pidArr = const_cast<pid_t*>(pidList.data());
-        len = static_cast<int>(pidList.size());
+        ResourceQuery::FilterValidPidListByLocalNode(pids);
+        pidArr = pids.data();
+        len = static_cast<int>(pids.size());
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate success.";
     }
@@ -1149,6 +1172,28 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
             << "RemoteNumaMigrate, ubturbo_smap_process_migrate_enable failed.";
     }
     return ret;
+}
+
+int mempooling::outinterface::UBSRMRSProcessConfigQuery(int nid, ProcessPayload* processPayloads, int capacity,
+                                                        int* realLen)
+{
+    if (processPayloads == nullptr || realLen == nullptr || capacity <= 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "UBSRMRSProcessConfigQuery invalid params, nid=" << nid << ", capacity=" << capacity << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+    }
+    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
+    if (smapQueryProcessConfigFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get ubturbo_smap_process_config_query ptr failed.";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+    }
+    int res = smapQueryProcessConfigFunc(nid, processPayloads, capacity, realLen);
+    if (res != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "UBSRMRSProcessConfigQuery failed, nid=" << nid << ", res=" << res << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+    }
+    return MEM_POOLING_OK;
 }
 
 static MpResult SetRemoteNumaInfoBeforeMigrateOut(const MigrateOutMsg& msg)
@@ -1163,12 +1208,14 @@ static MpResult SetRemoteNumaInfoBeforeMigrateOut(const MigrateOutMsg& msg)
 
     std::vector<over_commit::MemBorrowInfoWithSrc> infos;
     for (int i = 0; i < msg.count; ++i) {
-        uint16_t remoteNumaId = static_cast<uint16_t>(msg.payload[i].inner[0].destNid);
-        uint64_t totalSizeKB =
-            MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(remoteNumaId)) /
-            1024;
-        if (totalSizeKB > 0) {
-            infos.push_back({.srcNumaId = 0, .presentNumaId = remoteNumaId, .borrowSize = totalSizeKB});
+        for (int j = 0; j < msg.payload[i].count; ++j) {
+            uint16_t remoteNumaId = static_cast<uint16_t>(msg.payload[i].inner[j].destNid);
+            uint64_t totalSizeKB = MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(
+                                       validDebtInfos, static_cast<int16_t>(remoteNumaId)) /
+                                   1024;
+            if (totalSizeKB > 0) {
+                infos.push_back({.srcNumaId = 0, .presentNumaId = remoteNumaId, .borrowSize = totalSizeKB});
+            }
         }
     }
     if (!infos.empty() && smap::MpSmapHelper::SetSmapRemoteNumaInfo(-1, infos) != MEM_POOLING_OK) {
@@ -1182,20 +1229,33 @@ int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayl
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry MigrateOut.";
 
+    if (items.empty() || items.size() > static_cast<size_t>(MAX_NR_MIGOUT_MP)) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut invalid items size=" << items.size() << ".";
+        return MEM_POOLING_ERROR_INVAL;
+    }
+    for (const auto& item : items) {
+        if (item.count <= 0 || item.count > REMOTE_NUMA_NUM) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut invalid item count=" << item.count << ".";
+            return MEM_POOLING_ERROR_INVAL;
+        }
+    }
+
     FaultNumaLockGuard lockGuard;
     std::unordered_set<uint16_t> seenNumas;
     for (const auto& item : items) {
-        auto destNid = static_cast<uint16_t>(item.inner[0].destNid);
-        if (seenNumas.count(destNid) > 0) {
-            continue;
+        for (int j = 0; j < item.count; ++j) {
+            auto destNid = static_cast<uint16_t>(item.inner[j].destNid);
+            if (seenNumas.count(destNid) > 0) {
+                continue;
+            }
+            seenNumas.insert(destNid);
+            if (!FaultNumaLock::Instance().TryAcquireShared(destNid)) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "MigrateOut fault NUMA locked, destNid=" << destNid << ".";
+                return MEM_POOLING_HANDLING_FAULT;
+            }
+            lockGuard.sharedNumaIds.push_back(destNid);
         }
-        seenNumas.insert(destNid);
-        if (!FaultNumaLock::Instance().TryAcquireShared(destNid)) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "MigrateOut fault NUMA locked, destNid=" << destNid << ".";
-            return MEM_POOLING_HANDLING_FAULT;
-        }
-        lockGuard.sharedNumaIds.push_back(destNid);
     }
 
     MigrateOutMsg msg{};
@@ -1214,9 +1274,11 @@ int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayl
         << "MigrateOut, pidType=" << pidType << ", count=" << msg.count << ".";
     for (int i = 0; i < msg.count; ++i) {
         const auto& p = msg.payload[i];
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "MigrateOut payload[" << i << "], pid=" << p.pid << ", destNid=" << p.inner[0].destNid
-            << ", memSize=" << p.inner[0].memSize << "KB";
+        for (int j = 0; j < p.count; j++) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "MigrateOut payload[" << i << "], pid=" << p.pid << ", destNid=" << p.inner[j].destNid
+                << ", memSize=" << p.inner[j].memSize << "KB.";
+        }
     }
 
     SetRemoteNumaInfoBeforeMigrateOut(msg);

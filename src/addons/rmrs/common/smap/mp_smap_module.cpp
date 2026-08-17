@@ -33,7 +33,6 @@ SmapEnableProcessMigrateFunc SmapModule::smapEnableProcessMigrateFunc = nullptr;
 SmapGetRemotePidsFunc SmapModule::smapGetRemotePidsFunc = nullptr;
 SmapAddProcessTrackingFunc SmapModule::smapAddProcessTrackingFunc = nullptr;
 SmapRemoveProcessTrackingFunc SmapModule::smapRemoveProcessTrackingFunc = nullptr;
-SmapQueryProcessConfigFunc SmapModule::smapQueryProcessConfigFunc = nullptr;
 SmapMigrateOutGroupedFunc SmapModule::smapMigrateOutGroupedFunc = nullptr;
 MpResult SmapModule::Init()
 {
@@ -318,26 +317,6 @@ SmapRemoveProcessTrackingFunc SmapModule::GetSmapRemoveProcessTrackingFunc()
         return nullptr;
     }
     return smapRemoveProcessTrackingFunc;
-}
-
-SmapQueryProcessConfigFunc SmapModule::GetSmapQueryProcessConfigFunc()
-{
-    if (smapQueryProcessConfigFunc != nullptr) {
-        return smapQueryProcessConfigFunc;
-    }
-
-    if (smapHandle == nullptr) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapModule] Smap handle is nullptr.";
-        return nullptr;
-    }
-
-    smapQueryProcessConfigFunc = (SmapQueryProcessConfigFunc)dlsym(smapHandle, "ubturbo_smap_process_config_query");
-    if (smapQueryProcessConfigFunc == nullptr) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[RmrsSmapModule] Get ubturbo_smap_process_config_query ptr failed.";
-        return nullptr;
-    }
-    return smapQueryProcessConfigFunc;
 }
 
 SmapMigrateOutGroupedFunc SmapModule::GetSmapMigrateOutGroupedFunc()
