@@ -269,7 +269,6 @@ using SmapEnableProcessMigrateFunc = int (*)(pid_t*, int, int, int);
 using SmapGetRemotePidsFunc = int (*)(int, struct ProcessPayload*, int, int*);
 using SmapAddProcessTrackingFunc = int (*)(pid_t*, uint32_t*, uint32_t*, int, int);
 using SmapRemoveProcessTrackingFunc = int (*)(pid_t*, int, int);
-using SmapQueryProcessConfigFunc = int (*)(int, ProcessPayload*, int, int*);
 using SmapMigrateOutGroupedFunc = int (*)(GroupedMigrateOutMsg*, int);
 class SmapModule {
 public:
@@ -311,8 +310,6 @@ public:
 
     static SmapRemoveProcessTrackingFunc GetSmapRemoveProcessTrackingFunc();
 
-    static SmapQueryProcessConfigFunc GetSmapQueryProcessConfigFunc();
-
     static SmapMigrateOutGroupedFunc GetSmapMigrateOutGroupedFunc();
 
 private:
@@ -332,7 +329,6 @@ private:
     static SmapGetRemotePidsFunc smapGetRemotePidsFunc;
     static SmapAddProcessTrackingFunc smapAddProcessTrackingFunc;
     static SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc;
-    static SmapQueryProcessConfigFunc smapQueryProcessConfigFunc;
     static SmapMigrateOutGroupedFunc smapMigrateOutGroupedFunc;
 };
 } // namespace mempooling::smap

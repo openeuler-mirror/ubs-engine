@@ -1249,7 +1249,7 @@ MpResult MpSmapHelper::GetLocalSmapBackResult(uint64_t taskId)
 
 MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList)
 {
-    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfigFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
         return MEM_POOLING_ERROR;
@@ -1272,7 +1272,7 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
 MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList)
 {
     std::vector<ProcessPayload> processPayloadList;
-    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfigFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
         return MEM_POOLING_ERROR;

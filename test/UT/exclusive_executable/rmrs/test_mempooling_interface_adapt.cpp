@@ -486,10 +486,119 @@ TEST_F(TestRackMempoolingInterfaceAdapt, RemoteNumaMigrate_SmapMigrateFailed_Fil
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    int ret = RemoteNumaMigrate(pids, srcNid, destNid);
+    // 适配新接口：RemoteNumaMigrate 已重命名为 UBSRMRSRemoteNumaMigrate，
+    // 入参由 (pids, srcNid, destNid) 改为 MigrateEscapeMsg
+    MigrateEscapeMsg msg{};
+    msg.count = static_cast<int>(pids.size());
+    for (size_t i = 0; i < pids.size(); ++i) {
+        msg.payload[i].pid = pids[i];
+        msg.payload[i].srcNid = srcNid;
+        msg.payload[i].destNid = destNid;
+    }
+    int ret = UBSRMRSRemoteNumaMigrate(msg);
     EXPECT_NE(ret, 0);
     EXPECT_EQ(g_filterValidPidListCallCount, 1);
     EXPECT_EQ(g_smapEnableProcessMigrateHelperCallCount, 2);
 }
 
+/*
+ * 用例描述：测试 UBSRMRSProcessConfigQuery 无效参数场景
+ * 测试步骤：
+ * 1. 传入 nullptr processPayloads，预期返回错误
+ * 2. 传入 nullptr realLen，预期返回错误
+ * 3. 传入 capacity <= 0，预期返回错误
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR
+ */
+TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSProcessConfigQueryInvalidParams)
+{
+    int realLen = 0;
+    smap::ProcessPayload payload;
+    // processPayloads == nullptr
+    auto ret = UBSRMRSProcessConfigQuery(1, nullptr, 1, &realLen);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+    // realLen == nullptr
+    ret = UBSRMRSProcessConfigQuery(1, &payload, 1, nullptr);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+    // capacity <= 0
+    ret = UBSRMRSProcessConfigQuery(1, &payload, 0, &realLen);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+static int MockSmapProcessConfigQuerySuccess(int nid, smap::ProcessPayload* processPayloads, int capacity, int* realLen)
+{
+    *realLen = 1;
+    processPayloads[0].pid = 100;
+    processPayloads[0].memSize = 1024;
+    return 0; // SMAP_OK
+}
+
+/*
+ * 用例描述：测试 UBSRMRSProcessConfigQuery 获取 Smap 函数指针失败场景
+ * 测试步骤：
+ * 1. Mock GetSmapGetRemoteProcessesFunc 返回 nullptr
+ * 2. 调用 UBSRMRSProcessConfigQuery
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR
+ */
+TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSProcessConfigQueryGetFuncNullptr)
+{
+    SmapGetRemotePidsFunc nullFunc = nullptr;
+    MOCKER(&smap::SmapModule::GetSmapGetRemoteProcessesFunc).stubs().will(returnValue(nullFunc));
+    int realLen = 0;
+    smap::ProcessPayload payload;
+    auto ret = UBSRMRSProcessConfigQuery(1, &payload, 1, &realLen);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+static int MockSmapProcessConfigQueryFail(int nid, smap::ProcessPayload* processPayloads, int capacity, int* realLen)
+{
+    (void)nid;
+    (void)processPayloads;
+    (void)capacity;
+    (void)realLen;
+    return -1; // != SMAP_OK
+}
+
+/*
+ * 用例描述：测试 UBSRMRSProcessConfigQuery Smap 查询失败场景
+ * 测试步骤：
+ * 1. Mock GetSmapGetRemoteProcessesFunc 返回 mock 函数
+ * 2. Mock 函数返回 -1（失败）
+ * 3. 调用 UBSRMRSProcessConfigQuery
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR
+ */
+TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSProcessConfigQuerySmapFailed)
+{
+    SmapGetRemotePidsFunc mockFunc = MockSmapProcessConfigQueryFail;
+    MOCKER(&smap::SmapModule::GetSmapGetRemoteProcessesFunc).stubs().will(returnValue(mockFunc));
+    int realLen = 0;
+    smap::ProcessPayload payload;
+    auto ret = UBSRMRSProcessConfigQuery(1, &payload, 1, &realLen);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+/*
+ * 用例描述：测试 UBSRMRSProcessConfigQuery 成功场景
+ * 测试步骤：
+ * 1. Mock GetSmapGetRemoteProcessesFunc 返回 mock 函数
+ * 2. Mock 函数返回 0（SMAP_OK）
+ * 3. 调用 UBSRMRSProcessConfigQuery
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_OK
+ * 2. realLen 被正确赋值
+ * 3. payload 内容被正确填充
+ */
+TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSProcessConfigQuerySucceed)
+{
+    SmapGetRemotePidsFunc mockFunc = MockSmapProcessConfigQuerySuccess;
+    MOCKER(&smap::SmapModule::GetSmapGetRemoteProcessesFunc).stubs().will(returnValue(mockFunc));
+    int realLen = 0;
+    smap::ProcessPayload payload;
+    auto ret = UBSRMRSProcessConfigQuery(1, &payload, 1, &realLen);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(realLen, 1);
+    EXPECT_EQ(payload.pid, 100);
+}
 } // namespace mempooling
