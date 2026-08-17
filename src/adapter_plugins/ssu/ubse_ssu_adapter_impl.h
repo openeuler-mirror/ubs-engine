@@ -158,13 +158,15 @@ private:
 
     // 按EID从环境变量SSU_NVME_SERVER_IP_LIST（格式: IP:PORT/EID）一次性查找对应的IP和PORT，
     // IP 通过 strncpy_s 写入 devIp[DEV_IP_SIZE]，PORT作为jettyId返回。
-    // 查到返回UBSE_OK并输出devIp/jettyId；未查到返回UBSE_ERROR（调用方可视场景决定是否容错）。
+    // 查到返回UBSE_OK并输出devIp/jettyId；未查到返回UBSE_SSU_ERROR_DEV_ADDR_NOT_FOUND（调用方可视场景决定是否容错）。
     uint32_t GetDevAddrByEid(const std::string& eid, char devIp[DEV_IP_SIZE], uint32_t& jettyId);
 
     uint32_t BuildNamespaceInfoForCreate(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);
     uint32_t BuildNamespaceInfoForBasic(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);
 
-    bool VerifyNamespaceGuid(const UbseSsuDevNameSpace& nameSpace);
+    // 校验 nameSpace.uuid 与设备上实际 NS 的 UUID 是否一致。返回 UBSE_OK 表示一致；
+    // 否则返回具体错误码。
+    uint32_t VerifyNamespaceUuid(const UbseSsuDevNameSpace& nameSpace);
 
     uint32_t ValidatePersistentPaths(const std::vector<std::string>& devicePathList);
 
