@@ -122,6 +122,13 @@ public:
 
     static MpResult SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId);
 
+    // 从period.config解析smap冷热迁移周期(ms)；开关关闭/文件缺失/字段非法时回退fallbackMs
+    static uint32_t GetSmapMigratePeriodMs(
+        uint32_t fallbackMs = 3000, const std::string& configPath = "/opt/ubturbo/conf/smap/period.config");
+
+    // 禁用pid冷热迁移后阻塞等待在途迁移收敛（一个周期+边界buffer），供采集稳态值前调用
+    static void WaitSmapMigrateQuiesce();
+
     static const int smapParamErrorCode;    // SMAP参数错误码 Invalid argument -22
     static const int smapDealErrorCode;     // SMAP处理异常错误码 -9
     static const int smapApplyMemErrorCode; // SMAP处理异常错误码 -12

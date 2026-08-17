@@ -149,7 +149,7 @@ TEST_F(TestPidFaultErrorCodeHandler, PidExecuteRecvHandler_EmptyRequest_ReturnOk
     req.freeFunc(req.data);
 }
 
-// ==================== MigrateSingleTask: 跟随纳管模式per-pid下发 ====================
+// ==================== MigrateSingleTask: 跟随纳管模式per-pid下发 + 迁移后纳管移除 ====================
 
 // 捕获逐pid下发的迁移msg
 static std::vector<smap::MigrateEscapeMsg> gCapturedMigrateMsgs;
@@ -171,29 +171,32 @@ MpResult MockGetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     return MEM_POOLING_OK;
 }
 
-// 记录smap迁移开关调用序列（0禁用/1启用），验证先禁用→迁移→再启用的顺序
+// 记录smap迁移开关调用序列（0禁用/1启用），验证先禁用→迁移→再启用的顺序；
+// gEnableHelperRet控制返回值（mockcpp的hook在verify后不解除，行为切换必须走开关而非重复注册）
 static std::vector<int> gEnableCallSeq;
+static int gEnableHelperRet = 0;
 int MockSmapEnableProcessMigrateCapture(pid_t* pidArr, int len, int enable, int flags)
 {
     (void)pidArr;
     (void)len;
     (void)flags;
     gEnableCallSeq.push_back(enable);
-    return 0;
+    return gEnableHelperRet;
 }
 
-// 禁用开关失败场景（返回负错误码）
-int MockSmapEnableProcessMigrateFail(pid_t* pidArr, int len, int enable, int flags)
+// 捕获故障numa纳管移除调用（pid列表+目标numa），返回值可控
+static std::vector<std::pair<std::vector<pid_t>, int16_t>> gRemoveCalls;
+static MpResult gRemoveRet = MEM_POOLING_OK;
+MpResult MockSmapRemovePidsCapture(const std::vector<pid_t>& pids, int16_t remoteNumaId)
 {
-    (void)pidArr;
-    (void)len;
-    (void)flags;
-    gEnableCallSeq.push_back(enable);
-    return -1;
+    gRemoveCalls.emplace_back(pids, remoteNumaId);
+    return gRemoveRet;
 }
+using SmapRemovePidsHelperFunc = MpResult (*)(const std::vector<pid_t>&, int16_t);
 
 void MockMigrateSmapDeps()
 {
+    gEnableHelperRet = 0;
     MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
         .stubs()
         .will(invoke(MockSmapEnableProcessMigrateCapture));
@@ -204,6 +207,9 @@ void MockMigrateSmapDeps()
                MpResult(*)(const int16_t, std::unordered_map<pid_t, smap::ProcessPayload>&))
         .stubs()
         .will(invoke(MockGetVmRatioOnFaultNumaBySmap));
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, SmapRemovePidsHelperFunc)
+        .stubs()
+        .will(invoke(MockSmapRemovePidsCapture));
 }
 
 /*
@@ -216,6 +222,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_FollowManagedModePerPid)
     gCapturedMigrateMsgs.clear();
     gMockManagedByNuma.clear();
     gEnableCallSeq.clear();
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -243,7 +251,7 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_FollowManagedModePerPid)
     u2.usedMemKB = 2048;
     task.faultNumaUsages = {u1, u2};
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_OK);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::REMOVED);
     ASSERT_EQ(gCapturedMigrateMsgs.size(), 2U);
     std::unordered_map<pid_t, smap::MigrateEscapePayload> sent;
     for (const auto& msg : gCapturedMigrateMsgs) {
@@ -257,10 +265,51 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_FollowManagedModePerPid)
     EXPECT_EQ(sent[100].ratio, 30);
     EXPECT_EQ(sent[200].migrateMode, MIG_MEMSIZE_MODE);
     EXPECT_EQ(sent[200].memSize, 2048U);
-    // smap约束: 迁移前必须先禁用pid冷热迁移，迁移结束后恢复启用
+    // 迁移成功后移除故障numa纳管（防冷热流动写回），再恢复enable
+    ASSERT_EQ(gRemoveCalls.size(), 1U);
+    EXPECT_EQ(gRemoveCalls[0].second, 5);
+    EXPECT_EQ(gRemoveCalls[0].first.size(), 2U);
+    // smap约束: 迁移前必须先禁用pid冷热迁移，纳管移除后才恢复启用
     ASSERT_EQ(gEnableCallSeq.size(), 2U);
     EXPECT_EQ(gEnableCallSeq[0], 0);
     EXPECT_EQ(gEnableCallSeq[1], 1);
+}
+
+/*
+ * 用例描述：迁移成功但故障numa纳管移除失败
+ * 预期：停MIGRATED（下轮只做remove），不恢复enable（pid保持禁用态），不进入归还
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_RemoveFail_StaysMigrated)
+{
+    gCapturedMigrateMsgs.clear();
+    gMockManagedByNuma.clear();
+    gEnableCallSeq.clear();
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_ERROR;
+    smap::ProcessPayload p100{};
+    p100.pid = 100;
+    p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
+    p100.ratio = 30;
+    gMockManagedByNuma[5] = {{100, p100}};
+    MockMigrateSmapDeps();
+
+    MigrationTask task;
+    task.taskId = "task-remove-fail";
+    task.pids = {100};
+    task.newRemoteNumaId = 9;
+    NumaMemUsage u1;
+    u1.pid = 100;
+    u1.numaId = 5;
+    u1.isLocal = false;
+    u1.usedMemKB = 1024;
+    task.faultNumaUsages = {u1};
+
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::MIGRATED);
+    ASSERT_EQ(gCapturedMigrateMsgs.size(), 1U);
+    ASSERT_EQ(gRemoveCalls.size(), 1U);
+    // remove失败不恢复enable: 开关序列只有初始禁用
+    ASSERT_EQ(gEnableCallSeq.size(), 1U);
+    EXPECT_EQ(gEnableCallSeq[0], 0);
 }
 
 /*
@@ -277,16 +326,9 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_DisableFailed_NoMigrate)
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
     p100.ratio = 30;
     gMockManagedByNuma[5] = {{100, p100}};
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
-        .stubs()
-        .will(invoke(MockSmapEnableProcessMigrateFail));
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult(*)(smap::MigrateEscapeMsg&))
-        .stubs()
-        .will(invoke(MockSmapMigrateMultiNumaCapture));
-    MOCKER_CPP(&MpSmapHelper::GetVmRatioOnFaultNumaBySmap,
-               MpResult(*)(const int16_t, std::unordered_map<pid_t, smap::ProcessPayload>&))
-        .stubs()
-        .will(invoke(MockGetVmRatioOnFaultNumaBySmap));
+    MockMigrateSmapDeps();
+    // 通过开关切换禁用失败（重复注册同一函数的mock不生效）
+    gEnableHelperRet = -1;
 
     MigrationTask task;
     task.taskId = "task7";
@@ -299,7 +341,7 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_DisableFailed_NoMigrate)
     u1.usedMemKB = 1024;
     task.faultNumaUsages = {u1};
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_ERROR);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::NONE);
     EXPECT_TRUE(gCapturedMigrateMsgs.empty());
     ASSERT_EQ(gEnableCallSeq.size(), 1U);
     EXPECT_EQ(gEnableCallSeq[0], 0);
@@ -307,13 +349,15 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_DisableFailed_NoMigrate)
 
 /*
  * 用例描述：pid在task.pids中但无占用明细时跳过，有明细且已纳管的pid正常下发
- * 预期：仅下发有明细且已纳管的pid，整体成功
+ * 预期：仅下发有明细且已纳管的pid，整体成功推进到REMOVED
  */
 TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_SkipPidWithoutUsage)
 {
     gCapturedMigrateMsgs.clear();
     gMockManagedByNuma.clear();
     gEnableCallSeq.clear();
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -332,7 +376,7 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_SkipPidWithoutUsage)
     u1.usedMemKB = 4096;
     task.faultNumaUsages = {u1};
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_OK);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::REMOVED);
     ASSERT_EQ(gCapturedMigrateMsgs.size(), 1U);
     EXPECT_EQ(gCapturedMigrateMsgs[0].payload[0].pid, 100);
     EXPECT_EQ(gCapturedMigrateMsgs[0].payload[0].migrateMode, MIG_RATIO_MODE);
@@ -355,7 +399,7 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_NoUsageForAnyPid_Fail)
     task.pids = {100};
     task.newRemoteNumaId = 9;
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_ERROR);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::NONE);
     EXPECT_TRUE(gCapturedMigrateMsgs.empty());
     // 无占用明细在禁用前提前返回，不应触碰smap迁移开关
     EXPECT_TRUE(gEnableCallSeq.empty());
@@ -363,7 +407,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_NoUsageForAnyPid_Fail)
 
 /*
  * 用例描述：pid有采集明细但不在smap纳管配置中，无纳管占用预期
- * 预期：跳过该pid记失败（保持BORROWED下轮重试），不下发迁移请求，开关仍按先禁用后启用恢复
+ * 预期：跳过该pid记失败（保持BORROWED下轮重试），不下发迁移请求；
+ *       迁移失败不恢复enable（pid停留故障numa，禁用态保持）
  */
 TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_PidNotInManagedConfig_Fail)
 {
@@ -384,11 +429,10 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_PidNotInManagedConfig_Fai
     u1.usedMemKB = 1024;
     task.faultNumaUsages = {u1};
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_ERROR);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::NONE);
     EXPECT_TRUE(gCapturedMigrateMsgs.empty());
-    ASSERT_EQ(gEnableCallSeq.size(), 2U);
+    ASSERT_EQ(gEnableCallSeq.size(), 1U);
     EXPECT_EQ(gEnableCallSeq[0], 0);
-    EXPECT_EQ(gEnableCallSeq[1], 1);
 }
 
 /*
@@ -418,8 +462,68 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_InvalidManagedQuota_Fail)
     u1.usedMemKB = 1024;
     task.faultNumaUsages = {u1};
 
-    EXPECT_EQ(MigrateSingleTask(task), MEM_POOLING_ERROR);
+    EXPECT_EQ(MigrateSingleTask(task), TaskPhase::NONE);
     EXPECT_TRUE(gCapturedMigrateMsgs.empty());
+}
+
+/*
+ * 用例描述：RESUME自MIGRATED的纳管移除重试（上轮迁移成功但remove失败）
+ * 预期：全部源numa移除成功→恢复enable→REMOVED；任一失败→保持禁用态→MIGRATED
+ */
+TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_AllSuccess_Removed)
+{
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
+    gEnableCallSeq.clear();
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, SmapRemovePidsHelperFunc)
+        .stubs()
+        .will(invoke(MockSmapRemovePidsCapture));
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
+        .stubs()
+        .will(invoke(MockSmapEnableProcessMigrateCapture));
+
+    MigrationTask task;
+    task.taskId = "task-retry";
+    task.pids = {100};
+    NumaMemUsage u1;
+    u1.pid = 100;
+    u1.numaId = 5;
+    u1.isLocal = false;
+    u1.usedMemKB = 1024;
+    task.faultNumaUsages = {u1};
+
+    EXPECT_EQ(RemoveSingleTaskFaultNumaManaged(task), TaskPhase::REMOVED);
+    ASSERT_EQ(gRemoveCalls.size(), 1U);
+    EXPECT_EQ(gRemoveCalls[0].second, 5);
+    ASSERT_EQ(gEnableCallSeq.size(), 1U);
+    EXPECT_EQ(gEnableCallSeq[0], 1);
+}
+
+TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_RemoveFail_StaysMigrated)
+{
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_ERROR;
+    gEnableCallSeq.clear();
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, SmapRemovePidsHelperFunc)
+        .stubs()
+        .will(invoke(MockSmapRemovePidsCapture));
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
+        .stubs()
+        .will(invoke(MockSmapEnableProcessMigrateCapture));
+
+    MigrationTask task;
+    task.taskId = "task-retry-fail";
+    task.pids = {100};
+    NumaMemUsage u1;
+    u1.pid = 100;
+    u1.numaId = 5;
+    u1.isLocal = false;
+    u1.usedMemKB = 1024;
+    task.faultNumaUsages = {u1};
+
+    EXPECT_EQ(RemoveSingleTaskFaultNumaManaged(task), TaskPhase::MIGRATED);
+    // remove失败不恢复enable
+    EXPECT_TRUE(gEnableCallSeq.empty());
 }
 
 // ==================== MigrateTaskGroup: 虚机场景借来内存分大页 ====================
@@ -495,6 +599,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_VirtualScene_AllocateHugeP
     gEnableCallSeq.clear();
     gHugeAllocCalls.clear();
     gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -504,10 +610,10 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_VirtualScene_AllocateHugeP
 
     MigrationTask task = BuildMigratableTask("task-huge-1", 8192);
     std::vector<const MigrationTask*> group = {&task};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    ASSERT_EQ(migrated.size(), 1U);
-    EXPECT_EQ(migrated[0], "task-huge-1");
+    ASSERT_EQ(taskPhases.size(), 1U);
+    EXPECT_EQ(taskPhases["task-huge-1"], TaskPhase::REMOVED);
     // 分大页参数: 目标numa=9, 借用量8192KB=8388608Byte
     ASSERT_EQ(gHugeAllocCalls.size(), 1U);
     EXPECT_EQ(gHugeAllocCalls[0].first, 9);
@@ -536,9 +642,9 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_HugePageAllocFail_GroupSki
 
     MigrationTask task = BuildMigratableTask("task-huge-2", 8192);
     std::vector<const MigrationTask*> group = {&task};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    EXPECT_TRUE(migrated.empty());
+    EXPECT_TRUE(taskPhases.empty());
     ASSERT_EQ(gHugeAllocCalls.size(), 1U);
     EXPECT_TRUE(gCapturedMigrateMsgs.empty());
 }
@@ -554,6 +660,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_ContainerScene_NoHugePages
     gEnableCallSeq.clear();
     gHugeAllocCalls.clear();
     gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -573,9 +681,9 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_ContainerScene_NoHugePages
 
     MigrationTask task = BuildMigratableTask("task-huge-3", 8192);
     std::vector<const MigrationTask*> group = {&task};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    ASSERT_EQ(migrated.size(), 1U);
+    ASSERT_EQ(taskPhases.size(), 1U);
     EXPECT_TRUE(gHugeAllocCalls.empty());
     ASSERT_EQ(gCapturedMigrateMsgs.size(), 1U);
 }
@@ -593,6 +701,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_SmapInfoUsesRealLocalNuma)
     gHugeAllocCalls.clear();
     gSetSmapCalls.clear();
     gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -603,9 +713,9 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_SmapInfoUsesRealLocalNuma)
     MigrationTask task = BuildMigratableTask("task-numa-1", 1024);
     task.localNumaIds = {2, 3}; // 多本地取首个
     std::vector<const MigrationTask*> group = {&task};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    ASSERT_EQ(migrated.size(), 1U);
+    ASSERT_EQ(taskPhases.size(), 1U);
     ASSERT_EQ(gSetSmapCalls.size(), 1U);
     EXPECT_EQ(gSetSmapCalls[0].first, 2);
     ASSERT_EQ(gSetSmapCalls[0].second.size(), 1U);
@@ -626,6 +736,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_SmapInfoSplitByLocalNuma)
     gHugeAllocCalls.clear();
     gSetSmapCalls.clear();
     gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -640,9 +752,9 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_SmapInfoSplitByLocalNuma)
     task2.newBorrowId = "bid-numa3";
     task2.localNumaIds = {3};
     std::vector<const MigrationTask*> group = {&task1, &task2};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    ASSERT_EQ(migrated.size(), 2U);
+    ASSERT_EQ(taskPhases.size(), 2U);
     ASSERT_EQ(gSetSmapCalls.size(), 2U);
     EXPECT_EQ(gSetSmapCalls[0].first, 2);
     EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 1024U);
@@ -662,6 +774,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_NoLocalNumaFallsBackToWild
     gHugeAllocCalls.clear();
     gSetSmapCalls.clear();
     gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
     smap::ProcessPayload p100{};
     p100.pid = 100;
     p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
@@ -672,11 +786,39 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_NoLocalNumaFallsBackToWild
     MigrationTask task = BuildMigratableTask("task-numa-3", 1024);
     task.localNumaIds.clear();
     std::vector<const MigrationTask*> group = {&task};
-    auto migrated = MigrateTaskGroup(9, group);
+    auto taskPhases = MigrateTaskGroup(9, group);
 
-    ASSERT_EQ(migrated.size(), 1U);
+    ASSERT_EQ(taskPhases.size(), 1U);
     ASSERT_EQ(gSetSmapCalls.size(), 1U);
     EXPECT_EQ(gSetSmapCalls[0].first, -1);
+}
+
+/*
+ * 用例描述：同组task迁移成功但纳管移除失败
+ * 预期：该task停MIGRATED进结果集（下轮只做remove），组内不阻断其他task推进
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RemoveFailTaskStaysMigrated)
+{
+    gCapturedMigrateMsgs.clear();
+    gMockManagedByNuma.clear();
+    gEnableCallSeq.clear();
+    gHugeAllocCalls.clear();
+    gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_ERROR;
+    smap::ProcessPayload p100{};
+    p100.pid = 100;
+    p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
+    p100.ratio = 30;
+    gMockManagedByNuma[5] = {{100, p100}};
+    MockMigrateGroupDeps();
+
+    MigrationTask task = BuildMigratableTask("task-stay-mig", 1024);
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    EXPECT_EQ(taskPhases["task-stay-mig"], TaskPhase::MIGRATED);
 }
 
 /*
@@ -714,13 +856,22 @@ TEST_F(TestPidFaultErrorCodeHandler, NumaMemUsage_PidSurvivesSerialization)
     EXPECT_EQ(parsed.newBorrowSizeKB, 8192U);
 }
 
-// ==================== CollectVmPidMemInfos: 虚机采集按smap纳管ratio折算预期占用 ====================
+// ==================== CollectVmPidMemInfos: 禁用冷热迁移后实采稳态占用 ====================
 
-// 注入式mock: 实采VM列表与per-numa纳管payload/smap查询结果由用例预设
+// 注入式mock: 实采VM列表与per-numa纳管payload/smap查询结果由用例预设；
+// 首次/二次实采可分别注入（二次为空时复用首次结果），验证稳态值替代瞬时值
 static std::vector<mempooling::exportV2::VmDomainInfo> gVmCollectResult;
+static std::vector<mempooling::exportV2::VmDomainInfo> gVmCollectResultStable;
 static MpResult gVmCollectRet = MEM_POOLING_OK;
+static MpResult gVmCollectRetStable = MEM_POOLING_OK;
+static uint32_t gVmCollectCallCount = 0;
 MpResult MockGetVmInfoForPidCollect(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
+    gVmCollectCallCount++;
+    if (gVmCollectCallCount > 1) {
+        vmDomainInfos = gVmCollectResultStable.empty() ? gVmCollectResult : gVmCollectResultStable;
+        return gVmCollectRetStable;
+    }
     vmDomainInfos = gVmCollectResult;
     return gVmCollectRet;
 }
@@ -764,8 +915,22 @@ static smap::ProcessPayload BuildManagedPayload(pid_t pid, uint8_t mode, uint16_
     return payload;
 }
 
+// 采集阶段等待在途迁移收敛的调用计数（mock成空操作避免用例真睡3.5s）
+static uint32_t gWaitQuiesceCalls = 0;
+void MockWaitSmapMigrateQuiesceNoop()
+{
+    gWaitQuiesceCalls++;
+}
+using WaitSmapMigrateQuiesceFunc = void (*)();
+
 void MockVmCollectDeps()
 {
+    gVmCollectCallCount = 0;
+    gVmCollectResultStable.clear();
+    gVmCollectRetStable = MEM_POOLING_OK;
+    gEnableCallSeq.clear();
+    gEnableHelperRet = 0;
+    gWaitQuiesceCalls = 0;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
                MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
@@ -773,27 +938,77 @@ void MockVmCollectDeps()
     MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
         .stubs()
         .will(invoke(MockSmapQueryProcessConfigForCollect));
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
+        .stubs()
+        .will(invoke(MockSmapEnableProcessMigrateCapture));
+    MOCKER_CPP(&MpSmapHelper::WaitSmapMigrateQuiesce, WaitSmapMigrateQuiesceFunc)
+        .stubs()
+        .will(invoke(MockWaitSmapMigrateQuiesceNoop));
 }
 
 /*
- * 用例描述：smap成功且ratio纳管，实采为波谷值
- * 预期：以smap为准折算预期占用=总占用×纳管ratio%（纳管ratio即远端占比，与migrate_out下发ratio同量；
- *       总占用=本地3000+远端实采1000=4000，4000×30%=1200），不采信波谷实采瞬时值
+ * 用例描述：smap成功且有纳管，首次实采为波谷值，禁用+等待后二次实采为稳态值
+ * 预期：迁移需求取稳态实采值(1500)而非波谷值(1000)也不按ratio折算；
+ *       disable(enable=0)与等待在途迁移收敛各调用一次
  */
-TEST_F(TestPidFaultErrorCodeHandler, CollectVm_SmapRatioExpectation_IgnoreCollected)
+TEST_F(TestPidFaultErrorCodeHandler, CollectVm_StableCollect_UsesSecondSnapshot)
 {
+    MockVmCollectDeps();
     gVmCollectRet = MEM_POOLING_OK;
     gVmCollectResult = {BuildVmForCollect(100, 5, 1000)};
+    gVmCollectResultStable = {BuildVmForCollect(100, 5, 1500)};
     gSmapFailNumasForCollect = {};
     gSmapManagedByNumaForCollect = {{5, {BuildManagedPayload(100, static_cast<uint8_t>(MIG_RATIO_MODE), 30, 0)}}};
+
+    FaultPidQueryResponse response;
+    ASSERT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_OK);
+    ASSERT_EQ(response.pidMemDistribution.size(), 1U);
+    ASSERT_EQ(response.pidMemDistribution[0].faultNumaUsages.size(), 1U);
+    EXPECT_EQ(response.pidMemDistribution[0].faultNumaUsages[0].usedMemKB, 1500U);
+    EXPECT_TRUE(response.pendingFaultNumaIds.empty());
+    ASSERT_EQ(gEnableCallSeq.size(), 1U);
+    EXPECT_EQ(gEnableCallSeq[0], 0);
+    EXPECT_EQ(gWaitQuiesceCalls, 1U);
+}
+
+/*
+ * 用例描述：memsize纳管同样纳入处理（占用以实采为准，纳管模式不参与量化）
+ * 预期：不pending，稳态实采值写入迁移需求
+ */
+TEST_F(TestPidFaultErrorCodeHandler, CollectVm_MemsizeManaged_Supported)
+{
+    gVmCollectRet = MEM_POOLING_OK;
+    gVmCollectResult = {BuildVmForCollect(100, 5, 2048)};
+    gSmapFailNumasForCollect = {};
+    gSmapManagedByNumaForCollect = {{5, {BuildManagedPayload(100, static_cast<uint8_t>(MIG_MEMSIZE_MODE), 0, 2048)}}};
     MockVmCollectDeps();
 
     FaultPidQueryResponse response;
     ASSERT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_OK);
     ASSERT_EQ(response.pidMemDistribution.size(), 1U);
     ASSERT_EQ(response.pidMemDistribution[0].faultNumaUsages.size(), 1U);
-    EXPECT_EQ(response.pidMemDistribution[0].faultNumaUsages[0].usedMemKB, 1200U);
+    EXPECT_EQ(response.pidMemDistribution[0].faultNumaUsages[0].usedMemKB, 2048U);
     EXPECT_TRUE(response.pendingFaultNumaIds.empty());
+}
+
+/*
+ * 用例描述：禁用冷热迁移失败
+ * 预期：本轮不采稳态值，返回采集错误等下轮重试（不pending，下轮重新全流程）
+ */
+TEST_F(TestPidFaultErrorCodeHandler, CollectVm_DisableFailed_CollectError)
+{
+    gVmCollectRet = MEM_POOLING_OK;
+    gVmCollectResult = {BuildVmForCollect(100, 5, 1000)};
+    gSmapFailNumasForCollect = {};
+    gSmapManagedByNumaForCollect = {{5, {BuildManagedPayload(100, static_cast<uint8_t>(MIG_RATIO_MODE), 30, 0)}}};
+    MockVmCollectDeps();
+    // 通过开关切换禁用失败（重复注册同一函数的mock不生效）
+    gEnableHelperRet = -1;
+
+    FaultPidQueryResponse response;
+    EXPECT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+    EXPECT_TRUE(response.pidMemDistribution.empty());
+    EXPECT_EQ(gWaitQuiesceCalls, 0U);
 }
 
 /*
@@ -852,10 +1067,10 @@ TEST_F(TestPidFaultErrorCodeHandler, CollectVm_SmapNoQuota_DirectReturn)
 }
 
 /*
- * 用例描述：smap纳管名单里的pid实采不存在（VM可能已停）
- * 预期：无法量化，整个numa进pending等下轮
+ * 用例描述：smap纳管名单里的pid稳态实采不存在（VM可能已停，稳态下即无数据）
+ * 预期：不写迁移需求也不pending，所在numa由task_builder按无占用走直接归还
  */
-TEST_F(TestPidFaultErrorCodeHandler, CollectVm_ManagedPidNotInCollect_Pending)
+TEST_F(TestPidFaultErrorCodeHandler, CollectVm_ManagedPidGoneInStable_DirectReturn)
 {
     gVmCollectRet = MEM_POOLING_OK;
     gVmCollectResult = {BuildVmForCollect(100, 5, 100)};
@@ -867,6 +1082,25 @@ TEST_F(TestPidFaultErrorCodeHandler, CollectVm_ManagedPidNotInCollect_Pending)
     FaultPidQueryResponse response;
     ASSERT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_OK);
     EXPECT_TRUE(response.pidMemDistribution.empty());
+    EXPECT_TRUE(response.pendingFaultNumaIds.empty());
+}
+
+/*
+ * 用例描述：禁用成功后二次稳态实采失败
+ * 预期：只pending有纳管pid的故障numa，返回采集错误；禁用态保持不恢复
+ */
+TEST_F(TestPidFaultErrorCodeHandler, CollectVm_StableCollectFail_PendingManagedNumas)
+{
+    MockVmCollectDeps();
+    gVmCollectRet = MEM_POOLING_OK;
+    // 稳态实采失败注入（须在MockVmCollectDeps之后，避免被其重置）
+    gVmCollectRetStable = MEM_POOLING_ERROR;
+    gVmCollectResult = {BuildVmForCollect(100, 5, 1000)};
+    gSmapFailNumasForCollect = {};
+    gSmapManagedByNumaForCollect = {{5, {BuildManagedPayload(100, static_cast<uint8_t>(MIG_RATIO_MODE), 30, 0)}}};
+
+    FaultPidQueryResponse response;
+    EXPECT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
     ASSERT_EQ(response.pendingFaultNumaIds.size(), 1U);
     EXPECT_EQ(response.pendingFaultNumaIds[0], 5);
 }
@@ -885,6 +1119,58 @@ TEST_F(TestPidFaultErrorCodeHandler, CollectVm_CollectFail_ResourceCollectError)
 
     FaultPidQueryResponse response;
     EXPECT_EQ(CollectVmPidMemInfos({5}, response), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+// ==================== 容器采集: 禁用失败阻断本轮 ====================
+
+/*
+ * 用例描述：容器场景smap发现纳管pid后禁用冷热迁移失败
+ * 预期：本轮不采集，返回采集错误等下轮重试（不进入实采与等待）
+ */
+TEST_F(TestPidFaultErrorCodeHandler, CollectContainer_DisableFailed_CollectError)
+{
+    gSmapFailNumasForCollect = {};
+    gSmapManagedByNumaForCollect = {{5, {BuildManagedPayload(100, static_cast<uint8_t>(MIG_RATIO_MODE), 30, 0)}}};
+    MockVmCollectDeps();
+    // 通过开关切换禁用失败（重复注册同一函数的mock不生效）
+    gEnableHelperRet = -1;
+
+    FaultPidQueryResponse response;
+    EXPECT_EQ(CollectContainerPidMemInfos({5}, response), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+    EXPECT_TRUE(response.pidMemDistribution.empty());
+    EXPECT_EQ(gWaitQuiesceCalls, 0U);
+}
+
+// ==================== ExecuteConditionalReturn: 归还门槛要求纳管已移除 ====================
+
+/*
+ * 用例描述：共享borrowId防误还的门槛从MIGRATED抬升到REMOVED
+ * 预期：MIGRATED（纳管未移除）task的旧borrow不归还且不推进；
+ *       REMOVED task的旧borrow归还后进COMPLETED
+ */
+TEST_F(TestPidFaultErrorCodeHandler, ExecuteConditionalReturn_RequiresRemovedBeforeFree)
+{
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MigrationTask migTask;
+    migTask.taskId = "t-mig";
+    migTask.relatedBorrowIds = {"bid-a"};
+    MigrationTask removedTask;
+    removedTask.taskId = "t-removed";
+    removedTask.relatedBorrowIds = {"bid-b"};
+    // newBorrowId留空避开重定向持久化
+
+    std::unordered_map<std::string, TaskPhase> taskPhases = {{"t-mig", TaskPhase::MIGRATED},
+                                                             {"t-removed", TaskPhase::REMOVED}};
+    std::vector<std::string> freedBorrowIds;
+    ExecuteConditionalReturn({migTask, removedTask}, taskPhases, freedBorrowIds);
+
+    ASSERT_EQ(freedBorrowIds.size(), 1U);
+    EXPECT_EQ(freedBorrowIds[0], "bid-b");
+    EXPECT_EQ(taskPhases["t-mig"], TaskPhase::MIGRATED);
+    EXPECT_EQ(taskPhases["t-removed"], TaskPhase::COMPLETED);
 }
 
 } // namespace mempooling::over_commit

@@ -33,8 +33,9 @@ enum class TaskPhase : uint32_t
 {
     NONE = 0,     // 未开始
     BORROWED = 1, // 已借用，待迁移
-    MIGRATED = 2, // 已迁移，待归还
-    COMPLETED = 3 // 已完成
+    MIGRATED = 2, // 已迁移，待移除故障numa纳管
+    REMOVED = 3,  // 已移除故障numa纳管，待归还旧借用
+    COMPLETED = 4 // 已完成
 };
 
 // 执行计划类型（每个借入节点一个计划）
