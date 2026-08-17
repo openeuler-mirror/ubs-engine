@@ -28,11 +28,12 @@
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_node_mgr.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_smbios.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "securec.h"
 
 namespace ubse::nodeController {
@@ -588,33 +589,100 @@ bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterSta
     }
 }
 
-static UbseNodeClusterState MergeClusterState(UbseNodeClusterState oldState, UbseNodeClusterState reportState)
+void UbseNodeController::InitHierarchical()
 {
-    if (oldState == reportState) {
-        return oldState;
-    }
-
-    // 周期采集的默认INIT状态不能覆盖中心侧已有状态
-    if (reportState == UbseNodeClusterState::UBSE_NODE_INIT && oldState != UbseNodeClusterState::UBSE_NODE_INIT) {
-        return oldState;
-    }
-
-    // 上级接收的是状态快照，允许INIT直接同步为WORKING
-    if (oldState == UbseNodeClusterState::UBSE_NODE_INIT && reportState == UbseNodeClusterState::UBSE_NODE_WORKING) {
-        return reportState;
-    }
-
-    // 其他状态需要符合节点状态机迁移规则
-    if (CanUpdateNodeClusterState(oldState, reportState)) {
-        return reportState;
-    }
-
-    UBSE_LOG_WARN << "reject invalid cluster state transition, oldState=" << static_cast<uint32_t>(oldState)
-                  << ", reportState=" << static_cast<uint32_t>(reportState);
-    return oldState;
+    this->isHierarchical = nodeMgr::GetRootIpList().size() == 0 && nodeMgr::GetGroupSize() > 1;
 }
 
-uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
+bool UbseNodeController::IsHierarchical() const
+{
+    return this->isHierarchical;
+}
+
+bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo &reportNodeInfo,
+                                                       UbseNodeClusterState oldState,
+                                                       UbseNodeClusterState mergedState,
+                                                       bool isExisting, bool &needRecovery)
+{
+    needRecovery = false;
+
+    auto curIter = nodeInfos.find(currentNodeId);
+    if (curIter == nodeInfos.end()) {
+        UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, reject update, nodeId="
+                      << reportNodeInfo.nodeId;
+        return false;
+    }
+    uint32_t curGroupId = curIter->second.groupId;
+    bool sameGroup = (reportNodeInfo.groupId == curGroupId);
+
+    if (sameGroup) {
+        if (isExisting) {
+            // 后续添加同组：按状态机迁移规则校验
+            return CanUpdateNodeClusterState(oldState, mergedState);
+        }
+        // 首次添加同组：直接允许
+        return true;
+    }
+
+    // 跨机柜
+    if (mergedState != UbseNodeClusterState::UBSE_NODE_WORKING) {
+        return true;
+    }
+
+    // 跨机柜 + WORKING
+    if (isExisting) {
+        // 后续添加：取本节点内存里记录的该节点 globalState 判断
+        auto nodeIter = nodeInfos.find(reportNodeInfo.nodeId);
+        if (nodeIter != nodeInfos.end() &&
+            nodeIter->second.globalState == UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY) {
+            return true;
+        }
+        needRecovery = true;
+        return false;
+    }
+
+    // 首次添加：跨机柜 + WORKING，需先恢复
+    needRecovery = true;
+    return false;
+}
+
+uint32_t UbseNodeController::UpdateNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
+{
+    std::string nodeIdStr = nodeId;
+    if (isHierarchical) {
+        return UpdateClosHierarchicalNodeInfo(nodeIdStr, info);
+    }
+    UbseResult ret = UBSE_OK;
+    std::unique_lock<std::shared_mutex> lk(rwMutex);
+    if (nodeInfos.find(nodeIdStr) == nodeInfos.end()) {
+        UBSE_LOG_INFO << "nodeId=" << nodeIdStr
+                      << " first add, update node info, current nodeId=" << GetCurrentNodeId();
+        info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+        nodeInfos[nodeIdStr] = info;
+        // 使用numaInfos更新拓扑数据中的本端信息
+        UbseSocketIdChange(nodeIdStr);
+        auto notifyInfo = nodeInfos[nodeIdStr];
+        lk.unlock();
+        if (nodeIdStr == currentNodeId) {
+            ExecLocalStateHandler(notifyInfo, localNotifyHandlers);
+        }
+        ret = ExecClusterStateHandler(notifyInfo, clusterNotifyHandlers);
+        // lk 已 unlock，函数返回时无需再操作
+        return ret;
+    }
+    auto& existing = nodeInfos[nodeIdStr];
+    info.clusterState = existing.clusterState;
+    info.localState = existing.localState;
+    if (info.guid.empty() && !existing.guid.empty()) {
+        info.guid = existing.guid;
+    }
+    existing = info;
+    UbseSocketIdChange(nodeIdStr);
+    lk.unlock();
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::UpdateClosHierarchicalNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
 {
     if (nodeId.empty() || info.nodeId.empty()) {
         UBSE_LOG_ERROR << "update node info failed, node id is empty";
@@ -625,68 +693,194 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeI
                        << ", info.nodeId=" << info.nodeId;
         return UBSE_ERROR;
     }
-    UbseResult ret = UBSE_OK;
     rwMutex.lock();
     auto iter = nodeInfos.find(nodeId);
     if (iter == nodeInfos.end()) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " first add, update node info, current nodeId=" << GetCurrentNodeId()
-                      << ", reportClusterState=" << static_cast<uint32_t>(info.clusterState);
-        nodeInfos[nodeId] = info;
-        // 使用numaInfos更新拓扑数据中的本端信息
-        UbseSocketIdChange(nodeId);
-        auto nodeInfoCopy = nodeInfos[nodeId];
-        auto localHandlers = localNotifyHandlers;
-        auto clusterHandlers = clusterNotifyHandlers;
-        rwMutex.unlock();
-
-        if (nodeId == currentNodeId) {
-            ExecLocalStateHandler(nodeInfoCopy, localHandlers);
-        }
-        ret = ExecClusterStateHandler(nodeInfoCopy, clusterHandlers);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "nodeId=" << nodeId << " first add notify cluster state failed, state="
-                           << static_cast<uint32_t>(nodeInfoCopy.clusterState) << ", " << FormatRetCode(ret);
-        } else {
-            UBSE_LOG_INFO << "nodeId=" << nodeId << " first add notify cluster state success, state="
-                          << static_cast<uint32_t>(nodeInfoCopy.clusterState);
-        }
-        return ret;
+        return UpdateNodeInfoFirstAdd(nodeId, info);
     }
-    auto &existing = iter->second;
+
+    auto& existing = iter->second;
     auto oldClusterState = existing.clusterState;
     auto reportClusterState = info.clusterState;
-
-    info.clusterState = MergeClusterState(oldClusterState, reportClusterState);
     info.localState = existing.localState;
     info.globalState = existing.globalState;
-
-    // 保持原有的GUID（如果新info没有GUID，使用原有的）
     if (info.guid.empty() && !existing.guid.empty()) {
         info.guid = existing.guid;
     }
-    UBSE_LOG_INFO << "[CLOS_STATE_MERGE] update node info, nodeId=" << nodeId
-                  << ", oldClusterState=" << static_cast<uint32_t>(oldClusterState)
-                  << ", reportClusterState=" << static_cast<uint32_t>(reportClusterState)
-                  << ", mergedClusterState=" << static_cast<uint32_t>(info.clusterState);
 
+    UBSE_LOG_INFO << "[CLUSTER_STATE_UPDATE] nodeId=" << nodeId
+                  << ", oldState=" << static_cast<uint32_t>(oldClusterState)
+                  << ", reportState=" << static_cast<uint32_t>(reportClusterState)
+                  << ", newState=" << static_cast<uint32_t>(info.clusterState);
+
+    bool needRecovery = false;
+    bool allowed = CanUpdateClusterStateForReport(info, oldClusterState, info.clusterState, true, needRecovery);
+    if (!allowed && !needRecovery) {
+        // 同组状态机校验失败：拒绝更新，保留旧状态
+        rwMutex.unlock();
+        UBSE_LOG_WARN << "[CLUSTER_STATE_UPDATE] reject, state machine check failed, nodeId=" << nodeId
+                      << ", oldState=" << static_cast<uint32_t>(oldClusterState)
+                      << ", newState=" << static_cast<uint32_t>(info.clusterState);
+        return UBSE_OK;
+    }
+    if (!allowed && needRecovery) {
+        return UpdateNodeInfoExistingRecovery(nodeId, info, oldClusterState);
+    }
+    return UpdateNodeInfoExistingNormal(nodeId, info, oldClusterState, existing);
+}
+
+UbseResult UbseNodeController::UpdateNodeInfoFirstAdd(const std::string& nodeId, UbseNodeInfo& info)
+{
+    UBSE_LOG_INFO << "[FIRST_ADD] nodeId=" << nodeId << ", curNodeId=" << GetCurrentNodeId()
+                  << ", reportState=" << static_cast<uint32_t>(info.clusterState);
+    if (info.nodeId != currentNodeId && nodeInfos.find(currentNodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, not allow update, nodeId=" << info.nodeId;
+        rwMutex.unlock();
+        return UBSE_ERROR_NULLPTR;
+    }
+    bool needRecovery = false;
+    CanUpdateClusterStateForReport(info, info.clusterState, info.clusterState, false, needRecovery);
+
+    UbseResult recoveryRet = UBSE_OK;
+    if (needRecovery) {
+        rwMutex.unlock();
+        UbseNodeInfo nodeForRecovery = info;
+        recoveryRet = ExecGlobalStateNotifyHandler(nodeForRecovery);
+        if (recoveryRet != UBSE_OK) {
+            UBSE_LOG_WARN << "[FIRST_ADD] recovery failed, downgrade to INIT, nodeId=" << nodeId << ", "
+                          << FormatRetCode(recoveryRet);
+            info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+            // 状态与全局恢复状态一致降级，避免残留 READY 绕过后续恢复校验
+            info.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
+        }
+        rwMutex.lock();
+    }
+
+    if (currentNodeId != nodeId && nodeInfos.find(currentNodeId) == nodeInfos.end()) {
+        rwMutex.unlock();
+        UBSE_LOG_WARN << "[FIRST_ADD] current node removed during recovery, abort, nodeId=" << nodeId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (nodeInfos.find(nodeId) != nodeInfos.end()) {
+        // 期间已被其他线程插入，放弃本次写入由该路径负责
+        rwMutex.unlock();
+        UBSE_LOG_INFO << "[FIRST_ADD] node already added during recovery, abort, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+    nodeInfos[nodeId] = info;
+    if (recoveryRet == UBSE_OK && info.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        nodeInfos[nodeId].globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY;
+    }
+    UbseSocketIdChange(nodeId);
+    auto nodeInfoCopy = nodeInfos[nodeId];
+    auto localHandlers = localNotifyHandlers;
+    auto clusterHandlers = clusterNotifyHandlers;
+    rwMutex.unlock();
+    UBSE_LOG_INFO << "[FIRST_ADD] write success, nodeId=" << nodeId
+                  << ", state=" << static_cast<uint32_t>(nodeInfoCopy.clusterState)
+                  << ", global=" << static_cast<uint32_t>(nodeInfoCopy.globalState);
+    if (info.nodeId != currentNodeId && info.groupId != nodeMgr::GetCurrentNode().groupId) {
+        return UBSE_OK;
+    }
+    if (nodeId == currentNodeId) {
+        ExecLocalStateHandler(nodeInfoCopy, localHandlers);
+    }
+    auto ret = ExecClusterStateHandler(nodeInfoCopy, clusterHandlers);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[FIRST_ADD] notify failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << "[FIRST_ADD] notify success, nodeId=" << nodeId;
+    }
+    return ret;
+}
+
+UbseResult UbseNodeController::UpdateNodeInfoExistingRecovery(const std::string& nodeId, UbseNodeInfo& info,
+                                                              UbseNodeClusterState oldClusterState)
+{
+    // 跨机柜 + WORKING + 未 READY：释放锁，在锁外执行数据恢复
+    rwMutex.unlock();
+    UbseNodeInfo nodeForRecovery = info;
+    auto recoveryRet = ExecGlobalStateNotifyHandler(nodeForRecovery);
+    if (recoveryRet != UBSE_OK) {
+        UBSE_LOG_WARN << "[RECOVERY] recovery failed, reject update, nodeId=" << nodeId << ", "
+                      << FormatRetCode(recoveryRet);
+        return UBSE_OK;
+    }
+    // 恢复成功：重新加锁写回
+    rwMutex.lock();
+    if (nodeInfos.find(currentNodeId) == nodeInfos.end()) {
+        rwMutex.unlock();
+        UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, reject update, nodeId=" << nodeId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto reIter = nodeInfos.find(nodeId);
+    if (reIter == nodeInfos.end()) {
+        rwMutex.unlock();
+        UBSE_LOG_WARN << "[RECOVERY] node removed during recovery, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+    reIter->second = info;
+    reIter->second.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY;
+    UbseSocketIdChange(nodeId);
+    auto nodeInfoCopy = reIter->second;
+    auto handlers = clusterNotifyHandlers;
+    rwMutex.unlock();
+    UBSE_LOG_INFO << "[RECOVERY] write success, nodeId=" << nodeId << ", old=" << static_cast<uint32_t>(oldClusterState)
+                  << ", new=" << static_cast<uint32_t>(nodeInfoCopy.clusterState) << ", global=READY";
+    if (oldClusterState == nodeInfoCopy.clusterState) {
+        UBSE_LOG_INFO << "[RECOVERY] state unchanged, skip notify, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+    if (nodeInfoCopy.groupId != nodeMgr::GetCurrentNode().groupId) {
+        return UBSE_OK;
+    }
+    auto ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[RECOVERY] notify failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << "[RECOVERY] notify success, nodeId=" << nodeId;
+    }
+    return ret;
+}
+
+UbseResult UbseNodeController::UpdateNodeInfoExistingNormal(const std::string& nodeId, UbseNodeInfo& info,
+                                                            UbseNodeClusterState oldClusterState,
+                                                            UbseNodeInfo& existing)
+{
     existing = info;
-    // 使用numaInfos更新拓扑数据中的本端信息
     UbseSocketIdChange(nodeId);
     auto nodeInfoCopy = existing;
     auto handlers = clusterNotifyHandlers;
+    // 持锁期间读取当前节点信息，避免解锁后数据竞争
+    auto curIter = nodeInfos.find(currentNodeId);
+    bool curNodeInCache = (curIter != nodeInfos.end());
+    uint32_t curGroupId = curNodeInCache ? curIter->second.groupId : 0;
     rwMutex.unlock();
+
+    UBSE_LOG_INFO << "[UPDATE] write success, nodeId=" << nodeId
+                  << ", oldState=" << static_cast<uint32_t>(oldClusterState)
+                  << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState);
+
     if (oldClusterState == nodeInfoCopy.clusterState) {
+        UBSE_LOG_INFO << "[UPDATE] state unchanged, skip notify, nodeId=" << nodeId;
         return UBSE_OK;
     }
-    ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
+    if (!curNodeInCache) {
+        UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, reject update, nodeId=" << info.nodeId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (nodeInfoCopy.groupId != curGroupId) {
+        return UBSE_OK;
+    }
+    auto ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "nodeId=" << nodeId
-                       << " notify cluster state failed, oldState=" << static_cast<uint32_t>(oldClusterState)
+        UBSE_LOG_ERROR << "[UPDATE] notify cluster state failed, nodeId=" << nodeId
+                       << ", oldState=" << static_cast<uint32_t>(oldClusterState)
                        << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState) << ", "
                        << FormatRetCode(ret);
     } else {
-        UBSE_LOG_INFO << "nodeId=" << nodeId
-                      << " notify cluster state success, oldState=" << static_cast<uint32_t>(oldClusterState)
+        UBSE_LOG_INFO << "[UPDATE] notify cluster state success, nodeId=" << nodeId
+                      << ", oldState=" << static_cast<uint32_t>(oldClusterState)
                       << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState);
     }
     return ret;

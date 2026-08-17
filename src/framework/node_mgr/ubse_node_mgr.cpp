@@ -133,4 +133,14 @@ void ApplyUrmaDev()
 {
     UbseNodeStaticInfoMgr::GetInstance().ApplyUrmaDev();
 }
+
+bool IsApplyUrmaDev()
+{
+    return UbseNodeStaticInfoMgr::GetInstance().IsApplyUrmaDev();
+}
+ 	 
+uint32_t GetGroupSize()
+{
+    return UbseNodeStaticInfoMgr::GetInstance().GetGroupSize();
+}
 }

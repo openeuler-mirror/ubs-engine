@@ -352,6 +352,11 @@ public:
     // 若节点信息不存在，添加元素；若节点信息已存在，刷新 numa, cpu, ipList等拓扑字段
     uint32_t UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
+    // 初始化当前集群是分组还是单组场景
+    void InitHierarchical();
+
+    bool IsHierarchical() const;
+
     // 利用numaInfos的OS socketId，更新cpuInfos的值
     void UbseSocketIdChange(const std::string& nodeId);
 
@@ -382,6 +387,28 @@ public:
                                             std::vector<urma::UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
 private:
+    // UpdateNodeInfo 的子流程：首次添加节点（调用前已持锁，函数内部自行管理锁）
+    uint32_t UpdateNodeInfoFirstAdd(const std::string& nodeId, UbseNodeInfo& info);
+    // UpdateNodeInfo 的子流程：后续添加的恢复路径（跨组WORKING未READY，需锁外恢复后写回）
+    // 调用前已持锁，函数内部释放锁做恢复，再重新加锁写回
+    uint32_t UpdateNodeInfoExistingRecovery(const std::string& nodeId, UbseNodeInfo& info,
+                                            UbseNodeClusterState oldClusterState);
+    // UpdateNodeInfo 的子流程：后续添加的正常路径（校验通过，直接写回）
+    // 调用前已持锁，函数内部写回后释放锁并通知
+    uint32_t UpdateNodeInfoExistingNormal(const std::string& nodeId, UbseNodeInfo& info,
+                                          UbseNodeClusterState oldClusterState, UbseNodeInfo& existing);
+
+    // Clos组网场景下 更新节点信息
+    uint32_t UpdateClosHierarchicalNodeInfo(const std::string& nodeId, UbseNodeInfo& info);
+
+    // 上报节点 clusterState 前的纯校验（不加锁，供 UpdateNodeInfo 持锁期间调用）
+    // isExisting=true 走"后续添加"规则，isExisting=false 走"首次添加"规则
+    // oldState 仅 isExisting=true 同组时用于 CanUpdateNodeClusterState 状态机校验
+    // 出参 needRecovery=true 表示调用方需在锁外执行 ExecGlobalStateNotifyHandler + 刷 READY 后才允许更新
+    bool CanUpdateClusterStateForReport(const UbseNodeInfo& reportNodeInfo, UbseNodeClusterState oldState,
+                                        UbseNodeClusterState mergedState, bool isExisting, bool& needRecovery);
+
+private:
     std::shared_mutex rwMutex;
     std::unordered_map<std::string, UbseNodeInfo> nodeInfos; // agent侧只有当前节点，Master有全量节点
     std::vector<UbseLocalStateNotifyHandler> localNotifyHandlers;
@@ -394,6 +421,7 @@ private:
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> faultUpdateTimes; // fault状态更新时间
     bool isHostUrmaDevOccupied{false};
+    bool isHierarchical{false};
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

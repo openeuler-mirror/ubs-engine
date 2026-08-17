@@ -19,7 +19,6 @@
 #include <sstream>
 #include <unordered_set>
 
-#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
@@ -30,9 +29,11 @@
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_node_info_serialize.h"
+#include "ubse_node_mgr.h"
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 const uint32_t HA_SEQUENCE_ID = 101; // todo 待链路合并后下线，需要确保在节点建链后触发，节点建链优先级100。
 
@@ -44,6 +45,8 @@ const std::string UBSE_NODE_MASTER_LEDGER_TIMER = "UbseNodeLedger";
 const std::string UBSE_NODE_MASTER_ONLINE = "UbseMasterOnLine";
 const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
+const std::string UBSE_CASCADE_NODE_NODE_DOWN = "UbseCascadeNodeDown";
+const std::string UBSE_GLOBAL_NODE_DOWN = "UbseGlobalNodeDown";
 const std::string UBSE_NODE_GLOBAL_MASTER_ONLINE = "UbseGlobalMasterOnLine";
 constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
 
@@ -185,6 +188,12 @@ UbseResult RegMasterMsgHandler()
         return ret;
     }
 
+    ret = RegisterMasterRpcService(UbseNodeControllerOpCode::NODE_CONTROLLER_CASCADE_NODE_REPORT,
+                                   UbseRemoteCasCadeNodeDownHandler, "Register cascade down endpoint failed");
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
         UBSE_LOG_ERROR << "get com module failed";
@@ -236,6 +245,26 @@ UbseResult UbseNodeControllerMaster::Initialize()
     NodeDownBuilder.SetType(UbseElectionEventType::NODE_DOWN);
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeAttachHandler(NodeDownBuilder.Build());
+
+    // 级联机柜主下线
+    UbseElectionHandlerBuilder CasCadeNodeDownBuilder;
+    CasCadeNodeDownBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseCasCadeNodeDownHandler(nodeId); });
+    CasCadeNodeDownBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    CasCadeNodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    CasCadeNodeDownBuilder.SetType(UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN);
+    CasCadeNodeDownBuilder.SetName(UBSE_CASCADE_NODE_NODE_DOWN);
+    UbseElectionChangeAttachHandler(CasCadeNodeDownBuilder.Build());
+
+    // PD机柜主下线
+    UbseElectionHandlerBuilder GlobalNodeDownBuilder;
+    GlobalNodeDownBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseGlobalNodeDownHandler(nodeId); });
+    GlobalNodeDownBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    GlobalNodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    GlobalNodeDownBuilder.SetType(UbseElectionEventType::GLOBAL_NODE_DOWN);
+    GlobalNodeDownBuilder.SetName(UBSE_GLOBAL_NODE_DOWN);
+    UbseElectionChangeAttachHandler(GlobalNodeDownBuilder.Build());
 
     // 全局主上线通知：机柜主收到后重置 globalState + 触发摘要上报
     UbseElectionHandlerBuilder globalMasterOnlineBuilder;
@@ -720,23 +749,24 @@ UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeI
         return UBSE_OK;
     }
 
-    std::string prevNodeId;
-    auto prevRet = GetPrevReportNodeId(prevNodeId);
-    if (prevRet != UBSE_OK) {
+    UbseRoleInfo roleInfo{};
+    ret =  UbseGetMasterInfo(roleInfo);
+    if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[CLOS_REPORT] pd master get global prev failed, nodeId=" << nodeInfo.nodeId << ", "
-                      << FormatRetCode(prevRet);
-        return prevRet;
+                      << FormatRetCode(ret);
+        return ret;
     }
+    std::string globalMasterNodeId = roleInfo.nodeId;
 
-    if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+    if (globalMasterNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
         return UBSE_OK;
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] pd master forward single node to global, nodeId=" << nodeInfo.nodeId
                   << ", groupId=" << nodeInfo.groupId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                  << ", globalNodeId=" << prevNodeId;
+                  << ", globalMasterNodeId=" << globalMasterNodeId;
 
-    return UbseGlobalReportSingleNode(prevNodeId, nodeInfo);
+    return UbseGlobalReportSingleNode(globalMasterNodeId, nodeInfo);
 }
 
 UbseResult UbseNodeControllerMaster::ProcessGlobalStateAfterReport(const std::string &nodeId)
@@ -799,29 +829,30 @@ UbseResult UbseNodeControllerMaster::ReportSingleNodeChangeToPrev(const std::str
         return UBSE_ERROR_NULLPTR;
     }
 
-    std::string prevNodeId;
-    auto ret = GetPrevReportNodeId(prevNodeId);
+    UbseRoleInfo roleInfo{};
+    auto ret =  UbseGetMasterInfo(roleInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[CLOS_REPORT] get prev node failed, nodeId=" << nodeId << ", reason=" << reason << ", "
                       << FormatRetCode(ret);
         return ret;
     }
+    std::string globalMasterNodeId = roleInfo.nodeId;
 
-    if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+    if (globalMasterNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
         UBSE_LOG_INFO << "[CLOS_REPORT] skip report to self, nodeId=" << nodeId << ", reason=" << reason
-                      << ", prevNodeId=" << prevNodeId;
+                      << ", globalMasterNodeId=" << globalMasterNodeId;
         return UBSE_OK;
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] report single node change to prev, nodeId=" << nodeId
                   << ", groupId=" << nodeInfo.groupId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                  << ", reason=" << reason << ", prevNodeId=" << prevNodeId << ", role=" << static_cast<uint32_t>(role);
+                  << ", reason=" << reason << ", globalMasterNodeId=" << globalMasterNodeId << ", role=" << static_cast<uint32_t>(role);
 
     if (role == UbseClosNodeRole::PD_MASTER) {
-        return UbseGlobalReportSingleNode(prevNodeId, nodeInfo);
+        return UbseGlobalReportSingleNode(globalMasterNodeId, nodeInfo);
     }
 
-    return UbseCabinetReportSingleNode(prevNodeId, nodeInfo);
+    return UbseCabinetReportSingleNode(globalMasterNodeId, nodeInfo);
 }
 
 // 处理故障计数器的辅助函数
@@ -935,6 +966,86 @@ void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string &nodeId)
     }
     UbseNodeLedger(nodeId);
     UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+}
+
+UbseResult FindCasCadeGroupId(uint32_t groupSize, uint32_t pdGroupId, uint32_t &cascadeGroupId) {
+    if (pdGroupId == 0 || pdGroupId > groupSize) {
+        return UBSE_ERROR;
+    }
+    uint32_t half = groupSize / 2;
+    if (pdGroupId > half) {
+        return UBSE_ERROR;
+    }
+    cascadeGroupId = pdGroupId + (groupSize - half);
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeControllerMaster::UbseCasCadeNodeDownHandler(const std::string& nodeId)
+{
+    UBSE_LOG_INFO << "[CLOS_EVENT] cascade node down, cascade nodeId=" << nodeId;
+    UbseRoleInfo globalMasterInfo{};
+    auto ret = UbseGetMasterInfo(globalMasterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLOS_EVENT] get global master failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    if (globalMasterInfo.nodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+        auto cascadeNode = nodeMgr::GetUbseNodeById(nodeId);
+        if (cascadeNode.nodeId.empty()) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] cascade node down, cascade nodeId=" << nodeId << " not found.";
+            return UBSE_ERROR_NULLPTR;
+        }
+        auto nodes = nodeMgr::GetNodesByGroupId(cascadeNode.groupId);
+        for (const auto& node : nodes) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] set cascade cabinet down, cascade nodeId=" << node.nodeId;
+            // FAULT 节点不允许直接迁到 UNKNOWN，会被状态机拒绝；这是预期行为（FAULT 比 UNKNOWN 更严重）
+            ret = UbseNodeController::GetInstance().UpdateNodeInfoClusterState(node.nodeId,
+                                                                               UbseNodeClusterState::UBSE_NODE_UNKNOWN);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_INFO << "[CLOS_EVENT] set UNKNOWN rejected (state machine), nodeId=" << node.nodeId << ", "
+                              << FormatRetCode(ret);
+            }
+        }
+        return UBSE_OK;
+    }
+    return UbseReportCasCadeNodeDown(globalMasterInfo.nodeId, UbseNodeInfo{.nodeId = nodeId});
+}
+
+UbseResult UbseNodeControllerMaster::UbseGlobalNodeDownHandler(const std::string& nodeId)
+{
+    UBSE_LOG_INFO << "[CLOS_EVENT] global pd node down, pd nodeId=" << nodeId;
+    UbseRoleInfo globalMasterInfo{};
+    auto ret = UbseGetMasterInfo(globalMasterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLOS_EVENT] get global master failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    if (globalMasterInfo.nodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+        auto pdNode = nodeMgr::GetUbseNodeById(nodeId);
+        if (pdNode.nodeId.empty()) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] pd node down, pd nodeId=" << nodeId << " not found.";
+            return UBSE_ERROR_NULLPTR;
+        }
+        auto nodes = nodeMgr::GetNodesByGroupId(pdNode.groupId);
+        for (const auto& node : nodes) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] set pd cabinet down, pd nodeId=" << node.nodeId;
+            UbseNodeController::GetInstance().UpdateNodeInfoClusterState(node.nodeId,
+                                                                         UbseNodeClusterState::UBSE_NODE_UNKNOWN);
+        }
+        uint32_t cascadeGroupId = 0;
+        ret = FindCasCadeGroupId(nodeMgr::GetAllNodesStoredByGroup().size(), pdNode.groupId, cascadeGroupId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] pd group=" << pdNode.groupId << " has no cascade group";
+            return UBSE_OK;
+        }
+        nodes = nodeMgr::GetNodesByGroupId(cascadeGroupId);
+        for (const auto& node : nodes) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] set cascade cabinet down, cascade nodeId=" << node.nodeId;
+            UbseNodeController::GetInstance().UpdateNodeInfoClusterState(node.nodeId,
+                                                                         UbseNodeClusterState::UBSE_NODE_UNKNOWN);
+        }
+    }
+    return UBSE_OK;
 }
 
 UbseResult UbseNodeControllerMaster::UbseNodeDownHandler(const std::string &nodeId)
@@ -1143,6 +1254,24 @@ void UbseNodeControllerMaster::UnInitialize()
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
 
+    UbseElectionHandlerBuilder CasCadeNodeDownBuilder;
+    CasCadeNodeDownBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseCasCadeNodeDownHandler(nodeId); });
+    CasCadeNodeDownBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    CasCadeNodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    CasCadeNodeDownBuilder.SetType(UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN);
+    CasCadeNodeDownBuilder.SetName(UBSE_CASCADE_NODE_NODE_DOWN);
+    UbseElectionChangeDeAttachHandler(CasCadeNodeDownBuilder.Build());
+
+    UbseElectionHandlerBuilder GlobalNodeDownBuilder;
+    GlobalNodeDownBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseGlobalNodeDownHandler(nodeId); });
+    GlobalNodeDownBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    GlobalNodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    GlobalNodeDownBuilder.SetType(UbseElectionEventType::GLOBAL_NODE_DOWN);
+    GlobalNodeDownBuilder.SetName(UBSE_GLOBAL_NODE_DOWN);
+    UbseElectionChangeDeAttachHandler(GlobalNodeDownBuilder.Build());
+
     UbseElectionHandlerBuilder GlobalMasterOnlineBuilder;
     GlobalMasterOnlineBuilder.SetHandler(
         [this](UbseElectionEventType, UBSE_ID_TYPE globalMasterId) {
@@ -1332,7 +1461,7 @@ static UbseResult SerializeClusterDisplayNodes(const std::vector<ClusterDisplayN
         std::string role = isOnline ? displayNode.role : "-";
         std::string guid = (!isOnline || nodeInfo.guid.empty()) ? "-" : nodeInfo.guid;
 
-        outStream << nodeName << role << nodeInfo.bondingEid << guid;
+        outStream << nodeName << role << (!nodeMgr::IsApplyUrmaDev() ? "-" : nodeInfo.bondingEid) << guid;
     }
 
     if (!outStream.Check()) {
@@ -1583,6 +1712,14 @@ UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer &req, Ubs
                 SafeDeleteArray(p, size);
             }};
     return ret;
+}
+
+UbseResult UbseRemoteCasCadeNodeDownHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    UBSE_LOG_INFO << "UbseRemoteCasCadeNodeDownHandler init";
+    return ProcessNodeRequestWithResponse(req, resp, [](UbseNodeInfo &info) -> UbseResult {
+        return UbseNodeControllerMaster::GetInstance().UbseCasCadeNodeDownHandler(info.nodeId);
+    });
 }
 
 void CollectRemoteNodeInfoRespHandler(const std::string &nodeId, const UbseByteBuffer &respData, uint32_t resCode,

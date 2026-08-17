@@ -31,6 +31,11 @@ struct UbseNodeStaticInfo {
     std::string addr;        // 节点 IPV4地址, 用于 tcp场景下节点发现
     std::string bonding0Eid; // 节点 bonding0Eid, 用于 urma场景下节点发现
     std::map<std::string, UbseMtiEidGroup> feEidList; // 节点fe eid list, 用于 urma场景下节点发现, key为chipId
+
+    bool operator==(const UbseNodeStaticInfo& other) const
+    {
+        return this->nodeId == other.nodeId && this->superPodId == other.superPodId && this->groupId == other.groupId;
+    }
 };
 } // namespace ubse::nodeMgr
 #endif // UBS_ENGINE_UBSE_NODE_MGR_DEF_H

@@ -215,6 +215,10 @@ commands='create display import delete check change remove detach attach'
                         COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
                         return 0
                     ;;
+                    'cluster')
+                        COMPREPLY=( $(compgen -W '--global' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
@@ -352,6 +356,10 @@ commands='create display import delete check change remove detach attach'
                     ;;
                     'urma-qos')
                         COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
+                    'cluster')
+                        COMPREPLY=( $(compgen -W '-g' -- ${cur}) )
                         return 0
                     ;;
                     '*')

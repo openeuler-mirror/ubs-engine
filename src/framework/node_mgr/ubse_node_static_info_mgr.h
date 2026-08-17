@@ -75,6 +75,8 @@ public:
 
     bool IsApplyUrmaDev();
 
+    uint32_t GetGroupSize();
+
 private:
     UbseResult InitClusterMode();
 
