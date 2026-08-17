@@ -44,21 +44,21 @@ UbseResult WriteEidSharingFile()
 {
     const int fd = open(EID_SHARING_FILE, O_WRONLY);
     if (fd < 0) {
-        UBSE_LOG_ERROR << "Failed to open URMA EID sharing file, file=" << EID_SHARING_FILE
-                       << ", error=" << std::strerror(errno);
+        UBSE_LOG_WARN << "Failed to open URMA EID sharing file, file=" << EID_SHARING_FILE
+                      << ", error=" << std::strerror(errno);
         return UBSE_ERROR_IO;
     }
     const auto written = write(fd, &EID_SHARING_ENABLED, sizeof(EID_SHARING_ENABLED));
     const int writeErrno = errno;
     (void)close(fd);
     if (written < 0) {
-        UBSE_LOG_ERROR << "Failed to write URMA EID sharing file, file=" << EID_SHARING_FILE
-                       << ", error=" << std::strerror(writeErrno);
+        UBSE_LOG_WARN << "Failed to write URMA EID sharing file, file=" << EID_SHARING_FILE
+                      << ", error=" << std::strerror(writeErrno);
         return UBSE_ERROR_IO;
     }
     if (written != static_cast<ssize_t>(sizeof(EID_SHARING_ENABLED))) {
-        UBSE_LOG_ERROR << "Short write to URMA EID sharing file, file=" << EID_SHARING_FILE
-                       << ", expected=" << sizeof(EID_SHARING_ENABLED) << ", actual=" << written;
+        UBSE_LOG_WARN << "Short write to URMA EID sharing file, file=" << EID_SHARING_FILE
+                      << ", expected=" << sizeof(EID_SHARING_ENABLED) << ", actual=" << written;
         return UBSE_ERROR_IO;
     }
     return UBSE_OK;
@@ -154,17 +154,17 @@ UbseResult UbseUrmaUvsModule::ConfigureEidSharing()
 {
     auto ret = ubse::security::ChangeOverrideCapability(true);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to add override capability before configuring URMA EID sharing, ret=" << ret;
+        UBSE_LOG_WARN << "Failed to add override capability before configuring URMA EID sharing, ret=" << ret;
         return ret;
     }
     ret = WriteEidSharingFile();
     const auto capabilityRet = ubse::security::ChangeOverrideCapability(false);
     if (capabilityRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to remove override capability after configuring URMA EID sharing, ret="
-                       << capabilityRet;
+        UBSE_LOG_WARN << "Failed to remove override capability after configuring URMA EID sharing, ret="
+                      << capabilityRet;
     }
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to configure URMA EID sharing through sysfs, ret=" << ret;
+        UBSE_LOG_WARN << "Failed to configure URMA EID sharing through sysfs, ret=" << ret;
     }
     return ret;
 }
