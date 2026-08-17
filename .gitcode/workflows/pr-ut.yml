@@ -1,0 +1,58 @@
+name: ubs-engine_UT
+
+on:
+  pull_request_comment:
+    types: [created]
+    comments: [ '^reut$' ]
+    branches:
+      - master
+env:
+  APP_NAME: my-app
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 3
+  exceed-action: QUEUE
+
+permissions:
+  repository: read
+  pr: write
+
+stages:
+  ut_stage:
+    name: UT
+    jobs:
+      ubs-engine_ut:
+        name: ubs-engine_ut
+        runs-on: [euler-latest, x64, large]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+        steps:
+          - name: Checkout Platform Code
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+          - name: Install System RPM
+            run: | 
+                sudo yum install -y libboundscheck libxml2-devel numactl-libs openssl-devel rapidjson-devel patch libvirt-devel kernel-devel
+                sudo yum install -y git rpm-build rpmdevtools gcc gcc-c++ make cpp-httplib cpp-httplib-devel
+                sudo dnf install -y dnf-plugins-core
+          - name: RPM Build ubs-comm
+            run: | 
+                set -eux
+                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
+                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
+                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
+                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
+                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+          - name: Checkout Source Code
+            uses: checkout
+          - name: UT ubs-engine
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ut -j 3

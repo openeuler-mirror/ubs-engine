@@ -1,0 +1,102 @@
+name: ubs-engine_MR
+
+on:
+  pull_request_comment:
+    types: [created]
+    comments: [ '^recompile$' ]
+    branches:
+      - master
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 3
+  exceed-action: QUEUE
+
+permissions:
+  repository: read
+  pr: write
+
+stages:
+  build_stage:
+    name: Compile
+    jobs:
+      CodeCheck_pre_commit:
+        name: CodeCheck_pre_commit
+        runs-on: [ euler-latest, x64, medium ]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+        steps:
+          - name: checkout
+            uses: checkout
+            #with:
+            #  ref: refs/merge-requests/${{ env.pr_id }}/merge
+          - name: Checkout Platform Code
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+          - name: Install System RPM pre-commit
+            run: | 
+                sudo yum install -y libxml2-devel numactl-libs rapidjson-devel libvirt-devel
+                sudo yum install -y rpmdevtools cpp-httplib cpp-httplib-devel python3-pyyaml clang clang-tools-extra gtest gtest-devel
+                sudo dnf install -y dnf-plugins-core
+                PYTHON3_BIN=$(dirname "$(which python3)")
+                ln -sf "$(which python3)" "$PYTHON3_BIN/python"
+                echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
+                python --version
+                pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+                cd ${ATOMGIT_WORKSPACE}
+                pip3 install pre-commit==4.5.0 pre-commit-hooks --root-user-action=ignore && pre-commit install --install-hooks
+          - name: RPM Build ubs-comm
+            run: | 
+                set -eux
+                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
+                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
+                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
+                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
+                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+          - name: install gitleaks
+            run: |
+              cd ${ATOMGIT_WORKSPACE}
+              # TODO 将gitleaks依赖集成到镜像
+              wget --no-host-directories -c --no-check-certificate https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta-codecheck/gitleaks
+              chmod +x gitleaks
+              cd -
+          - name: pre-commit
+            uses: openlibing-pre-commit-action
+
+      ubs-engine_build:
+        name: ubs-engine_build
+        runs-on: [ euler-latest, x64, medium ]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+        steps:
+          - name: Checkout Platform Code
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+          - name: Install System RPM
+            run: | 
+                sudo yum install -y libxml2-devel numactl-libs rapidjson-devel libvirt-devel
+                sudo yum install -y rpmdevtools cpp-httplib cpp-httplib-devel
+                sudo dnf install -y dnf-plugins-core
+          - name: RPM Build ubs-comm
+            run: | 
+                set -eux
+                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
+                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
+                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
+                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
+                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+          - name: Checkout Source Code
+            uses: checkout
+          - name: Build ubs-engine
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh
