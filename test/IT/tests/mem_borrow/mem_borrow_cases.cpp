@@ -3717,6 +3717,26 @@ void RunP0CliCreateFdInvalidVal01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-CliCreateFd-InvalidVal-01 passed";
 }
 
+// P0-CliFd-LongOption-01: CLI create/delete fd with long option
+void RunP0CliFdLongOption01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // CLI 创建 FD 内存
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(createInfo, "it_cli_fd_long_opt", "128M", true));
+    EXPECT_EQ(createInfo.name, "it_cli_fd_long_opt");
+    EXPECT_EQ(createInfo.size, "128MB");
+    EXPECT_FALSE(createInfo.memIds.empty()) << "FD create should return mem-ids";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "export-node should not be empty";
+    EXPECT_NE(createInfo.exportNode, "1") << "export-node should NOT be current node";
+
+    // 清理
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_cli_fd_long_opt", "fd", true));
+    IT_LOG_INFO << "P0-CliFd-LongOption-01 passed";
+}
+
 void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
@@ -3781,6 +3801,36 @@ void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster)
     // 清理
     EXPECT_IT_OK(cliInvoker.DeleteMemory(name47, "share"));
     IT_LOG_INFO << "P0-CliCreateShare-NameLen47-Ok-01 passed";
+}
+
+// P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
+void RunP0CliShareLongOption01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 获取所有节点作为 region（四节点场景）
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+
+    // CLI 创建 SHM
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, "it_cli_share_long_opt", "128M", region, true));
+    EXPECT_EQ(createInfo.name, "it_cli_share_long_opt");
+    EXPECT_EQ(createInfo.size, "128MB");
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "SHARE export-node should not be empty";
+    EXPECT_EQ(createInfo.region, region) << "region should match input";
+
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_cli_share_long_opt", true));
+
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_cli_share_long_opt", true));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_cli_share_long_opt", "share", true));
+    IT_LOG_INFO << "P0-CliShare-LongOption-01 passed";
 }
 
 // P0-CliDelMem-Ok-01: 创建后删除 numa/fd/share

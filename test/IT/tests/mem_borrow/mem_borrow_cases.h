@@ -240,11 +240,17 @@ void RunP0CliCreateFdOk01(ubse::it::infra::ItCluster& cluster);
 // P0-CliCreateFd-InvalidVal-01: CLI create fd with size=0
 void RunP0CliCreateFdInvalidVal01(ubse::it::infra::ItCluster& cluster);
 
+// P0-CliFd-LongOption-01: CLI create/delete fd with long option
+void RunP0CliFdLongOption01(ubse::it::infra::ItCluster& cluster);
+
 // P0-CliCreateShare-Ok-01: CLI create share success
 void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliCreateShare-OverLen-01: CLI create share with name too long
 void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
+void RunP0CliShareLongOption01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47 chars, 4M
 void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster);

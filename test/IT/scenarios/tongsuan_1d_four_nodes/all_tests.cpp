@@ -155,6 +155,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateShareOk01)
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOk01(Cluster());
 }
 
+// P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliShareLongOption01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliShareLongOption01(Cluster());
+}
+
 // P0-CliCreateNuma-LinkId-Ok-01: 指定链路创建 NUMA，精确校验 export-node
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateNumaLinkIdOk01)
 {
@@ -194,7 +200,7 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 }
 
 // ====================================================================
-// P2 测试 — Fault Log 校验
+// P1 测试 — Fault Log 校验
 // ====================================================================
 
 // P1-FaultLog-ShareAttachCheckFailed-01: attach不存在的共享内存 或 attach请求节点不在共享域
@@ -207,4 +213,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareAttachCheckFailed01)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareReturnRegionFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnRegionFailed(Cluster());
+}
+
+// ====================================================================
+// P0 测试 — Link Change 校验
+// ====================================================================
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliTopoCpuLinkChange01)
+{
+    ubse::it::tests::topo::RunP0CliTopoCpuLinkChange01(Cluster());
 }

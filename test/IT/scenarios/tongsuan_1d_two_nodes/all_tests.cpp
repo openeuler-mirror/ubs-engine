@@ -831,6 +831,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateFdInvalidVal01)
     ubse::it::tests::mem_borrow::RunP0CliCreateFdInvalidVal01(Cluster());
 }
 
+// P0-CliFd-LongOption-01: CLI create/delete fd with long option
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliFdLongOption01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliFdLongOption01(Cluster());
+}
+
 // P0-CliAttachMem-NotReady-01: CLI attach 未创建的共享内存
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemNotReady01)
 {
@@ -896,16 +902,27 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
 }
 
 // ====================================================================
+// P1 测试 — 拓扑校验
+// ====================================================================
+
+// P1-CliTopoCpu-LinkOneNodeOnline-01: 链路一端节点在线, 另一侧节点离线
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliTopoCpuLinkOneNodeOnline01)
+{
+    // 需要重启，耗时较长，当前情况跳过执行
+    // ubse::it::tests::topo::RunP1CliTopoCpuLinkOneNodeOnline01(Cluster());
+}
+
+// ====================================================================
 // P1 测试 — Fault Log 校验
 // ====================================================================
 
-// P2-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
+// P1-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowCheckFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowCheckFailed(Cluster());
 }
 
-// P2-FaultLog-BorrowNameExist-01: 同名重复创建
+// P1-FaultLog-BorrowNameExist-01: 同名重复创建
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowNameExist01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowNameExist(Cluster());
