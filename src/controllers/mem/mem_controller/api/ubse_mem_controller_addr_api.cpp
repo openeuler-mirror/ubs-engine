@@ -770,7 +770,7 @@ uint32_t AddrImportDestroyingCallback(const std::string& requestNodeId, UbseMemA
     auto res = AddrImportDestroyingHandler(requestNodeId, importObj, name);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
-        AddrImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        AddrImportUpdateState(importObj, UBSE_MEM_IMPORT_ABNORMAL);
         UBSE_LOG_ERROR << "AddrUnImport Failed, Failed count:" << ++g_addrUnimportFailedCount
                        << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
@@ -914,7 +914,7 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp& resp, con
             return ret;
         }
     }
-    AddrImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+    AddrImportUpdateState(importObj, importObj.status.state);
     return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to unimport", importObj.errorCode,
                                       MemOperationType::ADDR_RETURN);
 }

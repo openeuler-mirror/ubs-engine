@@ -840,7 +840,7 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj& importObj, co
     auto res = FdImportDestroyingHandler(importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
-        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_ABNORMAL);
         UBSE_LOG_ERROR << "FdUnImport Failed, Failed count:" << ++g_fdUnimportFailedCount
                        << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
@@ -1033,7 +1033,7 @@ static uint32_t FdImportExpectDestroyFailPath(UbseMemOperationResp& resp, UbseMe
     auto req = importObj.returnReq;
 
     UBSE_LOG_INFO << "Failed to unimport, name=" << name << ", requestId=" << importObj.req.requestId;
-    FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+    FdImportUpdateState(importObj, importObj.status.state);
 
     if (auto ret = BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to unimport.", importObj.errorCode,
                                               MemOperationType::FD_RETURN);

@@ -453,6 +453,10 @@ UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj&
         return UbseMemStage::UBSE_DELETING;
     }
 
+    if (importObj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        return UbseMemStage::UBSE_ERR_ABNORMAL;
+    }
+
     return UbseMemStage::UBSE_EXIST;
 }
 

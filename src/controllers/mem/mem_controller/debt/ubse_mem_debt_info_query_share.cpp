@@ -87,6 +87,9 @@ UbseMemResult GetShmImportStageByObj(const std::shared_ptr<const UbseMemShareBor
     if (importObjPtr->status.state == UBSE_MEM_IMPORT_SUCCESS) {
         result.stage = UbseMemStage::UBSE_EXIST;
     }
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        result.stage = UbseMemStage::UBSE_ERR_ABNORMAL;
+    }
     return result;
 }
 

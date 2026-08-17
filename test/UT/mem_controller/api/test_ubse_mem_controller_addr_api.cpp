@@ -842,10 +842,12 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackFailed)
 */
 TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedFailed)
 {
+    MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowImportObj importObj{};
     MasterImportCallbackMockSet();
     MasterImportCallbackImportObjSet(importObj);
-    importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
@@ -969,7 +971,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackSuccess)
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
 * 预期结果：
-    * 1.函数返回UBSE_OK,账本状态被设置为UBSE_MEM_IMPORT_SUCCESS
+    * 1.函数返回UBSE_OK,账本状态被设置为UBSE_MEM_IMPORT_ABNORMAL
 */
 TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackFailed)
 {
@@ -977,7 +979,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackFailed)
     UbseMemAddrBorrowImportObj importObj{};
     AgentImportCallbackMockSet();
     AgentImportCallbackImportObjSet(importObj);
-    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
         importObj.req.importNodeId, importObj.req.name, importObj);
@@ -990,7 +992,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackFailed)
     auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
         importObj.req.importNodeId, importObj.req.name);
     EXPECT_TRUE(importObjPtr != nullptr);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, importObjPtr->status.state);
+    EXPECT_EQ(UBSE_MEM_IMPORT_ABNORMAL, importObjPtr->status.state);
 }
 /*
 * 用例描述: Addr类型内存的import对象归还回调,master测执行成功；

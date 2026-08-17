@@ -896,7 +896,7 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp& resp, UbseMemNu
     auto res = NumaImportDestroyingHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
-        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_ABNORMAL);
         UBSE_LOG_ERROR << "NumaUnImport Failed, Failed count:" << ++g_numaUnimportFailedCount
                        << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
@@ -1020,7 +1020,7 @@ static uint32_t HandleImportDestroyedFailure(UbseMemOperationResp& resp, const s
 {
     UBSE_LOG_ERROR << "Failed to unimport, name=" << name << ", importNodeId=" << importNodeId
                    << ", requestId=" << importObj.req.requestId;
-    NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+    NumaImportUpdateState(importObj, importObj.status.state);
     return BuildOperationRespWhenFail(resp, name, importObj.returnReq.requestNodeId, "Failed to unimport.",
                                       importObj.errorCode, MemOperationType::NUMA_RETURN);
 }

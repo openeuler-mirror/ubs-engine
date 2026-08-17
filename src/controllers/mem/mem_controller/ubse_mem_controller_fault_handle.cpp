@@ -763,6 +763,9 @@ static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap
             continue;
         }
         auto obj = *objPtr;
+        if (obj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+            continue;
+        }
         for (auto& info : obj.status.importResults) {
             if (info.memId == memId) {
                 importMap.PutResource(nodeId, name, obj);

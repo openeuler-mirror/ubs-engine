@@ -30,6 +30,7 @@ enum class UbseMemStage : uint32_t
     UBSE_EXIST = 3,             // 创建成功
     UBSE_ERR_ONLY_IMPORT = 4,   // 只存在借入
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
+    UBSE_ERR_ABNORMAL = 6,      // 删除导入失败，账本与实际状态不一致
 };
 
 struct UbseMemResult {
@@ -74,6 +75,7 @@ struct UbseNumaMemoryDebtInfo {
     int64_t remoteNumaId = -1;
     uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    UbseMemStage state{UbseMemStage::UBSE_NOT_EXIST}; // 内存状态，与SDK ubs_mem_stage口径一致
 };
 
 /**
@@ -108,6 +110,7 @@ struct UbseNumaMemoryImportDebtInfo {
     uint64_t size;                          // 总借用内存大小（字节）
     uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
     int64_t remoteNumaId = -1;
+    UbseMemStage state{UbseMemStage::UBSE_NOT_EXIST}; // 内存状态，与SDK ubs_mem_stage口径一致
 };
 
 /**
@@ -321,6 +324,12 @@ UbseResult UbseMemDebtCircleCheck(const std::string& srcNodeId, const std::strin
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
 UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseMemAddrDesc>& debtInfos);
+
+// 借用记录导出对象键：name_importNodeId，账本/查询/对账共用
+inline std::string GenerateExportObjKey(const std::string& name, const std::string& importNodeId)
+{
+    return name + "_" + importNodeId;
+}
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_CONTROLLER_H
