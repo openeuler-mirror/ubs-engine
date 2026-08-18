@@ -6,8 +6,9 @@ on:
     comments: [ '^reut$' ]
     branches:
       - master
+
 env:
-  APP_NAME: my-app
+  pr_id: ${{ atomgit.event.pull_request.number }}
 
 defaults:
   run:
@@ -30,15 +31,10 @@ stages:
         name: ubs-engine_ut
         runs-on: [euler-latest, x64, large]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
-          - name: Install System RPM
-            run: | 
-                sudo yum install -y libboundscheck libxml2-devel numactl-libs openssl-devel rapidjson-devel patch libvirt-devel kernel-devel
-                sudo yum install -y git rpm-build rpmdevtools gcc gcc-c++ make cpp-httplib cpp-httplib-devel
-                sudo dnf install -y dnf-plugins-core
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
           - name: RPM Build ubs-comm
             run: | 
                 set -eux
@@ -51,8 +47,11 @@ stages:
                 sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
           - name: Checkout Source Code
             uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
           - name: UT ubs-engine
             run: | 
                 set -eux
+                sudo dnf install -y gmock-devel
                 ls -al
                 bash build.sh ut -j 3

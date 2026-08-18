@@ -30,19 +30,16 @@ stages:
         name: CodeCheck_pre_commit
         runs-on: [ euler-latest, x64, medium ]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: checkout
             uses: checkout
-            #with:
-            #  ref: refs/merge-requests/${{ env.pr_id }}/merge
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
           - name: Checkout Platform Code
             run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
-          - name: Install System RPM pre-commit
+          - name: Install System pre-commit
             run: | 
-                sudo yum install -y libxml2-devel numactl-libs rapidjson-devel libvirt-devel
-                sudo yum install -y rpmdevtools cpp-httplib cpp-httplib-devel python3-pyyaml clang clang-tools-extra gtest gtest-devel
-                sudo dnf install -y dnf-plugins-core
                 PYTHON3_BIN=$(dirname "$(which python3)")
                 ln -sf "$(which python3)" "$PYTHON3_BIN/python"
                 echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
@@ -63,9 +60,7 @@ stages:
           - name: install gitleaks
             run: |
               cd ${ATOMGIT_WORKSPACE}
-              # TODO 将gitleaks依赖集成到镜像
-              wget --no-host-directories -c --no-check-certificate https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta-codecheck/gitleaks
-              chmod +x gitleaks
+              cp -rf /opt/buildtools/gitleaks ./
               cd -
           - name: pre-commit
             uses: openlibing-pre-commit-action
@@ -74,15 +69,10 @@ stages:
         name: ubs-engine_build
         runs-on: [ euler-latest, x64, medium ]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v1
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: Checkout Platform Code
             run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
-          - name: Install System RPM
-            run: | 
-                sudo yum install -y libxml2-devel numactl-libs rapidjson-devel libvirt-devel
-                sudo yum install -y rpmdevtools cpp-httplib cpp-httplib-devel
-                sudo dnf install -y dnf-plugins-core
           - name: RPM Build ubs-comm
             run: | 
                 set -eux
