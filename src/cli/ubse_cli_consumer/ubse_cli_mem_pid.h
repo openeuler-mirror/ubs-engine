@@ -22,10 +22,11 @@ public:
     UbseCliMemPid();
     ~UbseCliMemPid() noexcept;
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliSetPidThreshold(
-        const process_mem::def::ProcessMemPidInfo& pidInfo);
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliPrintPidInfo();
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliUnsetPid(pid_t pid);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliSetProcessMem(
+        const process_mem::def::ProcessMemNewConfigInfo& newConfig);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliRemoveProcessMem(bool isPid, const std::string& identifier);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDisplayProcessMemConfig();
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDisplayProcessMemDetail();
 
 private:
     class UbseCliMemPidImpl;

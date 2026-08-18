@@ -20,6 +20,22 @@ _ubse_mem_current_type() {
     fi
 }
 
+# process-mem: 补全运行中进程 PID（/proc 扫描）
+_ubse_proc_pids() {
+    compgen -W "$(ls /proc 2>/dev/null | grep -E '^[0-9]+$' | sort -n)" -- "$1"
+}
+
+# process-mem: 补全运行中进程名（/proc/<pid>/comm，去重）
+_ubse_proc_names() {
+    local names=""
+    for name in /proc/[0-9]*/comm; do
+        local comm
+        read -r comm < "$name" 2>/dev/null
+        [ -n "$comm" ] && names="$names $comm"
+    done
+    compgen -W "$(echo $names | tr ' ' '\n' | sort -u | tr '\n' ' ')" -- "$1"
+}
+
 function _ubse_commond_completion() {
     COMPREPLY=()
 
@@ -28,7 +44,7 @@ function _ubse_commond_completion() {
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
 commands='create display import delete check change remove detach attach'
-    display_types='topo memory cluster cert node urma urma-qos process-mem'
+    display_types='topo memory cluster node urma urma-qos process-mem'
     create_types='memory urma-qos'
     delete_types='memory urma-qos'
     check_types='memory'
@@ -54,7 +70,7 @@ commands='create display import delete check change remove detach attach'
                 return 0
             ;;
             'change'|'remove')
-                COMPREPLY=( $(compgen -W 'cert memory process-mem' -- ${cur}) )
+                COMPREPLY=( $(compgen -W 'cert process-mem' -- ${cur}) )
                 return 0
             ;;
             'check')
@@ -135,8 +151,8 @@ commands='create display import delete check change remove detach attach'
                         COMPREPLY=( $(compgen -W '--ca-crl-file' -- ${cur}) )
                         return 0
                     ;;
-                    'memory'|'process-mem')
-                        COMPREPLY=( $(compgen -W '--pid --evict-thresh --target-evict-thresh --reclaim-thresh --size --src-numa' -- ${cur}) )
+                    'process-mem')
+                        COMPREPLY=( $(compgen -W '--pid --name --size --remote-ratio' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -147,8 +163,8 @@ commands='create display import delete check change remove detach attach'
 
             'remove')
                 case ${COMP_WORDS[2]} in
-                    'memory'|'process-mem')
-                        COMPREPLY=( $(compgen -W '--pid' -- ${cur}) )
+                    'process-mem')
+                        COMPREPLY=( $(compgen -W '--pid --name' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -274,8 +290,8 @@ commands='create display import delete check change remove detach attach'
                         COMPREPLY=( $(compgen -W '-l' -- ${cur}) )
                         return 0
                     ;;
-                    'memory'|'process-mem')
-                        COMPREPLY=( $(compgen -W '-p -e -t -r -s -sn' -- ${cur}) )
+                    'process-mem')
+                        COMPREPLY=( $(compgen -W '-p -n -s -r' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -286,8 +302,8 @@ commands='create display import delete check change remove detach attach'
 
             'remove')
                 case ${COMP_WORDS[2]} in
-                    'memory'|'process-mem')
-                        COMPREPLY=( $(compgen -W '-p' -- ${cur}) )
+                    'process-mem')
+                        COMPREPLY=( $(compgen -W '-p -n' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -417,6 +433,33 @@ if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
        [[ "${cmd}" == '--pri' || "${cmd}" == '-p' ]]; then
 
             COMPREPLY=( $(compgen -W '0 1' -- ${cur}) )
+            return 0
+    fi
+
+    # process-mem: change/remove 的 -p/--pid 补全运行中 PID
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == change || ${COMP_WORDS[1]} == remove ]] && \
+           [[ ${COMP_WORDS[2]} == process-mem ]] && \
+           [[ "${cmd}" == '-p' || "${cmd}" == '--pid' ]]; then
+            COMPREPLY=( $(_ubse_proc_pids "$cur") )
+            return 0
+    fi
+
+    # process-mem: change/remove 的 -n/--name 补全运行中进程名
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == change || ${COMP_WORDS[1]} == remove ]] && \
+           [[ ${COMP_WORDS[2]} == process-mem ]] && \
+           [[ "${cmd}" == '-n' || "${cmd}" == '--name' ]]; then
+            COMPREPLY=( $(_ubse_proc_names "$cur") )
+            return 0
+    fi
+
+    # process-mem: change 的 -r/--remote-ratio 补全常用比值（对应 -p 0 1 枚举模式）
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == change ]] && \
+           [[ ${COMP_WORDS[2]} == process-mem ]] && \
+           [[ "${cmd}" == '-r' || "${cmd}" == '--remote-ratio' ]]; then
+            COMPREPLY=( $(compgen -W '0.3 0.5 0.8 1.0' -- ${cur}) )
             return 0
     fi
 
