@@ -118,7 +118,8 @@ const (
 	UbseExist
 	UbseErrOnlyImport
 	UbseErrWaitUnexport
-	UbseEnd
+	UbseErrAbnormal // 删除导入失败，账本与实际状态不一致，与C侧ubs_mem_stage对齐
+	UbseEnd         // 类型转换边界值,不表示任何内存状态
 )
 
 type UbsMemFaultType int

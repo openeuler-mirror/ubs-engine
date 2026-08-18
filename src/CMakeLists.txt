@@ -24,7 +24,6 @@ add_executable(ubse
         framework/http/ubse_http_module.cpp
         controllers/node/ubse_node_controller_module.cpp
         controllers/mem/mem_controller/ubse_mem_controller_module.cpp
-        controllers/mem/mem_controller/ubse_mem_controller.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
         controllers/npu/ubse_npu_controller_module.cpp

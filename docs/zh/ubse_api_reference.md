@@ -726,7 +726,8 @@ typedef enum {
     UBSE_EXIST = 3,             // 创建成功
     UBSE_ERR_ONLY_IMPORT = 4,   // 只存在借入
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
-    UBSE_END = 6                // 类型转换边界值, 不表示任何内存状态
+    UBSE_ERR_ABNORMAL = 6,      // 删除导入失败，账本与实际状态不一致
+    UBSE_END = 7                // 类型转换边界值, 不表示任何内存状态
 } ubs_mem_stage;
 
 #define UBS_MEM_MAX_NAME_LENGTH 48
@@ -4814,6 +4815,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 | `UBSE_EXIST` | 创建成功 |
 | `UBSE_ERR_ONLY_IMPORT` | 只存在借入 |
 | `UBSE_ERR_WAIT_UNEXPORT` | 等待 unexport 执行 |
+| `UBSE_ERR_ABNORMAL` | 删除导入失败，账本与实际状态不一致 |
 
 #### `UbseMemBorrowType`
 

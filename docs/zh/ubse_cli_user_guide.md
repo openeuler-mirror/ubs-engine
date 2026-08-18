@@ -522,7 +522,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 | lend_node   | 借出节点信息。例：computer1(1)<br/>节点信息由2部分组成：<br/>1.括号前部分：主机名<br/>2.括号内部分：节点的槽位号 | 字符串                                                                                                                                       |
 | lend_numa | 借出numa信息。例：1(216)<br/>numa信息由2部分组成：<br/>1.括号前部分：numaId<br/>2.括号内部分：socketId | 字符串                                                                                                                                       |
 | lend_size   | numa节点的借用内存总量，单位: MB                             | 整数                                                                                                                                        |
-| status      | 借用状态                                                    | 可选值：<br>done：借用完成<br>exporting：借出节点正在执行导出<br>importing：代入节点正在执行导入<br>unexporting：借出节点正在取消导出<br>unimporting：代入节点正在取消导入<br>fault：当次借用请求出现故障 |
+| status      | 借用状态                                                    | 可选值：<br>done：借用完成<br>exporting：借出节点正在执行导出<br>importing：代入节点正在执行导入<br>unexporting：借出节点正在取消导出<br>unimporting：代入节点正在取消导入<br>abnormal：删除导入失败，账本与实际状态不一致，清理占用后重试归还<br>fault：当次借用请求出现故障 |
 | handle | 资源操作句柄<br/>句柄含义：<br/>numa类型：远端numaId<br/>fd、share类型：内存块标识信息集合 | numa-id: 整数<br/>mem-ids: 整数数组，用,分隔                                                                                                        |
 
 **示例**

@@ -1255,7 +1255,7 @@ uint32_t ShareImportDestroyingAgentCallBack(UbseMemOperationResp& resp, UbseMemS
     auto res = ShareImportDestroyingHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
-        ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_ABNORMAL);
         UBSE_LOG_ERROR << "ShareUnImport Failed, Failed count:" << ++g_shareUnimportFailedCount
                        << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
