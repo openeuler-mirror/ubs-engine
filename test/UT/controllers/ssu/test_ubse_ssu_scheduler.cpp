@@ -13,6 +13,8 @@
 #include "test_ubse_ssu_scheduler.h"
 #include <securec.h>
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace ubse::ssu::scheduler::ut {
 
@@ -73,7 +75,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckAllocSizeZero)
     req.allocSize = 0;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -100,7 +102,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckNsNumZero)
     req.allocSize = 1024;
     req.nsNum = 0;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -127,7 +129,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckEmptyDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -155,7 +157,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckAllOfflineDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -183,7 +185,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckFilterMaxNsDevices)
     req.allocSize = 1536; // 需同时为lbaSize(512)和nsNum(3)的整数倍，以通过PreCheck整除校验
     req.nsNum = 3;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -210,7 +212,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckInsufficientFilteredDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -241,7 +243,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckSuccessSortByFreeAndNsCount)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -275,7 +277,38 @@ TEST_F(TestUbseSsuScheduler, PreCheckStripedAllocSizeNotDivisible)
     req.allocSize = 1024;
     req.nsNum = 3;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
+    UbseSsuAllocationContext ctx(devs, req);
+
+    PreCheckHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INVALID_PARAM);
+    EXPECT_TRUE(ctx.selectedDevs.empty());
+}
+
+/*
+ * 用例描述：
+ * PreCheckHandler 在 STRIPED 模式下 nsNum < 2 时返回参数非法
+ * （条带化至少需要2个成员NS，RAID0下限；nsNum=1时任何RAID级别都无法挂载）
+ * 测试步骤：
+ * 1、构造 1 个在线设备
+ * 2、STRIPED 模式请求 allocSize=1024、nsNum=1
+ * 3、调用 PreCheckHandler::Handle
+ * 预期结果：
+ * 1、返回 false
+ * 2、ctx.result.ret == INVALID_PARAM
+ * 3、ctx.selectedDevs 为空
+ */
+TEST_F(TestUbseSsuScheduler, PreCheckStripedNsNumLessThanTwo)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 1;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -306,7 +339,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckLinearAllocSizeNotDivisible)
     req.allocSize = 1024;
     req.nsNum = 3;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -337,7 +370,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckStripedSingleNsSizeNotLbaMultiple)
     req.allocSize = 2560;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 
     PreCheckHandler handler;
@@ -353,7 +386,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckStripedSingleNsSizeNotLbaMultiple)
  * AlgorithmHandler 在 lbaSize 为 0 时返回参数非法
  * 测试步骤：
  * 1、手动准备 ctx.selectedDevs
- * 2、lbaSize=0、addressingType=LINEAR 调用 AlgorithmHandler::Handle
+ * 2、lbaSize=0、strategy=LINEAR 调用 AlgorithmHandler::Handle
  * 预期结果：
  * 1、返回 false
  * 2、ctx.result.ret == INVALID_PARAM
@@ -365,7 +398,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearLbaSizeZero)
     req.allocSize = 1024;
     req.nsNum = 1;
     req.lbaSize = 0;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
 
@@ -394,7 +427,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearInsufficientSpace)
     req.allocSize = 2048;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 256, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 256, 512, 0, ""});
@@ -426,7 +459,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearSuccess)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
@@ -465,7 +498,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearAlignUpToSector)
     req.allocSize = 600;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
@@ -499,7 +532,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedSuccess)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
@@ -532,7 +565,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedInsufficientSpace)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 256, 512, 0, ""});
@@ -561,7 +594,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedEvenlyDivisible)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 4096, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 4096, 512, 0, ""});
@@ -596,7 +629,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmSelectedDevsFilteredAfterSuccess)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
@@ -630,7 +663,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerExecuteSuccess)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     UbseSsuScheduler scheduler;
@@ -659,7 +692,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerExecuteParamInvalid)
     req.allocSize = 0;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     UbseSsuScheduler scheduler;
@@ -687,7 +720,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerExecuteStripedSuccess)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
+    req.strategy = UbseSsuAllocStrategy::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 
     UbseSsuScheduler scheduler;
@@ -715,7 +748,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerAddCustomFilter)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     UbseSsuScheduler scheduler;
@@ -743,7 +776,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerAddNullFilterIgnored)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
 
     UbseSsuScheduler scheduler;
@@ -773,7 +806,7 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationEmptyReqTenantFiltersTenantDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, "tenant-B"});
@@ -806,7 +839,7 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationEmptyReqTenantKeepsNonTenantDevices)
     req.allocSize = 1024;
     req.nsNum = 1;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
     ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
@@ -841,7 +874,7 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationFiltersMismatchedDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     req.tenant = "tenant-A";
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
@@ -877,7 +910,7 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationInsufficientMatchedDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     req.tenant = "tenant-A";
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
@@ -910,7 +943,7 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationKeepsEmptyTenantDevices)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     req.tenant = "tenant-A";
     UbseSsuAllocationContext ctx(devs, req);
     ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
@@ -946,7 +979,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerTenantIsolationIntegration)
     req.allocSize = 1024;
     req.nsNum = 2;
     req.lbaSize = 512;
-    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
     req.tenant = "tenant-A";
     UbseSsuAllocationContext ctx(devs, req);
 
@@ -957,6 +990,189 @@ TEST_F(TestUbseSsuScheduler, SchedulerTenantIsolationIntegration)
     ASSERT_EQ(ctx.result.eidNsSizeList.size(), 2u);
     for (const auto &p : ctx.result.eidNsSizeList) {
         EXPECT_TRUE(p.first == "eid-1" || p.first == "eid-2");
+    }
+}
+
+/*
+ * 用例描述：
+ * NORMAL策略允许一个设备上分配多个NS（nsNum可大于设备数）
+ * 测试步骤：
+ * 1、构造2个设备，请求nsNum=4、allocSize=2048（每NS 512字节）
+ * 2、调用AlgorithmHandler::Handle（strategy=NORMAL）
+ * 预期结果：
+ * 1、返回true、ret==OK
+ * 2、eidNsSizeList.size()==4，总和==2048，每个NS为512字节的整数倍
+ * 3、同eid设备出现多次（一个设备分配多个NS）
+ */
+TEST_F(TestUbseSsuScheduler, AlgorithmNormalAllowMultiNsPerDev)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 2048, 0), MakeDev("eid-2", 2048, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 2048;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 2048, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 2048, 512, 0, ""});
+
+    UbseSsuAllocateAlgorithmHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::OK);
+    EXPECT_EQ(ctx.result.nsNum, 4u);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 4u);
+
+    uint64_t totalAllocated = 0;
+    std::unordered_set<std::string> eidSet;
+    for (const auto &p : ctx.result.eidNsSizeList) {
+        eidSet.insert(p.first);
+        totalAllocated += p.second;
+        EXPECT_EQ(p.second % 512, 0u);
+    }
+    EXPECT_EQ(totalAllocated, 2048u);
+    // 4个NS落在2个设备上，必然有设备承载多个NS
+    EXPECT_LT(eidSet.size(), 4u);
+}
+
+/*
+ * 用例描述：
+ * NORMAL策略NS等大：均分向上对齐到扇区，每个NS大小一致
+ * 测试步骤：
+ * 1、单设备（eid-1）5120字节，请求nsNum=3、allocSize=2560（perNs=853→向上对齐512=1024）
+ * 2、调用AlgorithmHandler::Handle（strategy=NORMAL）
+ * 预期结果：
+ * 1、返回true、ret==OK
+ * 2、3个NS均为1024字节（等大），总和==3072（向上对齐）
+ */
+TEST_F(TestUbseSsuScheduler, AlgorithmNormalEqualNsSize)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 5120, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 2560;
+    req.nsNum = 3;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 5120, 512, 0, ""});
+
+    UbseSsuAllocateAlgorithmHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::OK);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 3u);
+    EXPECT_EQ(ctx.result.eidNsSizeList[0].second, 1024u);
+    EXPECT_EQ(ctx.result.eidNsSizeList[1].second, 1024u);
+    EXPECT_EQ(ctx.result.eidNsSizeList[2].second, 1024u);
+    uint64_t totalAllocated = 0;
+    for (const auto &p : ctx.result.eidNsSizeList) {
+        totalAllocated += p.second;
+    }
+    EXPECT_EQ(totalAllocated, 3072u);
+}
+
+/*
+ * 用例描述：
+ * NORMAL策略空间不足时返回失败（设备总剩余空间不足）
+ * 测试步骤：
+ * 1、单设备（eid-1）1024字节，请求nsNum=4、allocSize=4096
+ * 2、调用AlgorithmHandler::Handle（strategy=NORMAL）
+ * 预期结果：
+ * 1、返回false
+ * 2、ctx.result.ret == INSUFFICIENT_SPACE
+ */
+TEST_F(TestUbseSsuScheduler, AlgorithmNormalInsufficientSpace)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 4096;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+
+    UbseSsuAllocateAlgorithmHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INSUFFICIENT_SPACE);
+}
+
+/*
+ * 用例描述：
+ * NORMAL策略权重分配：每设备NS数与其剩余空间成正比（参考线性负载均衡），大设备多放
+ * 测试步骤：
+ * 1、3个设备：6000/3000/1000字节，请求nsNum=4、allocSize=4096（base=1024）
+ * 2、调用AlgorithmHandler::Handle（strategy=NORMAL）
+ * 预期结果：
+ * 1、返回true、ret==OK
+ * 2、eidNsSizeList.size()==4，权重配额：eid-1得2个、eid-2得1个，剩余1个补给eid-1（共3个）
+ */
+TEST_F(TestUbseSsuScheduler, AlgorithmNormalWeightedByFreeBytes)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 6000, 0), MakeDev("eid-2", 3000, 0),
+                                        MakeDev("eid-3", 1000, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 4096;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 6000, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 3000, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 1000, 512, 0, ""});
+
+    UbseSsuAllocateAlgorithmHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::OK);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 4u);
+    std::unordered_map<std::string, uint32_t> eidCnt;
+    uint64_t totalAllocated = 0;
+    for (const auto &p : ctx.result.eidNsSizeList) {
+        eidCnt[p.first]++;
+        totalAllocated += p.second;
+        EXPECT_EQ(p.second % 512, 0u);
+    }
+    EXPECT_EQ(totalAllocated, 4096u);
+    // 权重：6000:3000:1000 → 配额2:1:0，剩余1个补给最大设备，共3:1:0
+    EXPECT_EQ(eidCnt["eid-1"], 3u);
+    EXPECT_EQ(eidCnt["eid-2"], 1u);
+    EXPECT_EQ(eidCnt.count("eid-3"), 0u);
+}
+
+/*
+ * 用例描述：
+ * NORMAL策略下设备数可少于nsNum，PreCheck不拦截（同设备多NS）
+ * 测试步骤：
+ * 1、1个在线设备，请求nsNum=4（strategy=NORMAL）
+ * 2、调用UbseSsuScheduler::Execute
+ * 预期结果：
+ * 1、返回OK
+ * 2、eidNsSizeList.size()==4
+ */
+TEST_F(TestUbseSsuScheduler, SchedulerExecuteNormalMultiNsPerDev)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 4096, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 4096;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    UbseSsuAllocationContext ctx(devs, req);
+
+    UbseSsuScheduler scheduler;
+    auto ret = scheduler.Execute(ctx);
+
+    EXPECT_EQ(ret, UbseSsuAllocRetCode::OK);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 4u);
+    for (const auto &p : ctx.result.eidNsSizeList) {
+        EXPECT_EQ(p.first, "eid-1");
+        EXPECT_EQ(p.second % 512, 0u);
     }
 }
 

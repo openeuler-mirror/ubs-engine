@@ -209,9 +209,13 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
                 return;
             }
             e.state = statusReq.state;
-            // 同步上报的聚合块设备名（attach成功时由agent携带，非空才覆盖，保留历史值）。
-            // 上报值会拼接为/dev/ssu/{devName}路径，需过白名单校验防路径穿越（agent为可信节点，属纵深防御）
-            if (!statusReq.devName.empty() && ubse::ssu::utils::IsValidDevName(statusReq.devName)) {
+            // 同步上报的聚合块设备名（attach成功时由agent携带，非空才覆盖）。
+            // 上报值会拼接为/dev/ssu/{devName}路径，需过白名单校验防路径穿越（agent为可信节点，属纵深防御）。
+            // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已删除/未创建成功，清空devName，
+            // 避免陈旧值导致后续通用AttachSpace+DetachSpace被误判为需Linear/Striped卸载
+            if (statusReq.state == UbseSsuNsState::CREATED) {
+                e.devName.clear();
+            } else if (!statusReq.devName.empty() && ubse::ssu::utils::IsValidDevName(statusReq.devName)) {
                 e.devName = statusReq.devName;
             } else if (!statusReq.devName.empty()) {
                 UBSE_LOG_WARN << "StatusUpdate: invalid devName ignored, name=" << statusReq.requestName;
@@ -219,7 +223,7 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
             modified = true;
         })) {
         UBSE_LOG_WARN << "StatusUpdate: ledger entry not found: name=" << statusReq.requestName;
-        SetReplySyncResp(resp, UBSE_SSU_ERROR_LEDGER_NOT_FOUND);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_SPACE_NOT_FOUND);
         return;
     }
     if (!modified) {

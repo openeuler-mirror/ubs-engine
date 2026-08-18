@@ -16,17 +16,19 @@
 #include <vector>
 #include "ubse_filter_chain.h"
 #include "ubse_ssu_def.h"
+#include "ubse_ssu_service.h"
 
 namespace ubse::ssu::scheduler {
 
 using namespace ubse::adapter_plugins::ssu::def;
+using namespace ubse::plugin::service::ssu;
 using namespace ubse::filter_chain;
 
 struct UbseSsuAllocRequest {
     uint64_t allocSize = 0; // 请求分配大小（字节）
     uint32_t nsNum = 0; // 分配设备（namespace）数量，分配不了这数量将返回失败
     uint32_t lbaSize = 0; // 扇区大小（字节)
-    UbseSsuAddressingType addressingType = UbseSsuAddressingType::LINEAR; // 编址类型
+    UbseSsuAllocStrategy strategy = UbseSsuAllocStrategy::LINEAR; // 分配策略：NORMAL允许同设备多NS，STRIPED均分
     std::string tenant; // 请求方租户（租户隔离标识）
 };
 

@@ -250,12 +250,13 @@ uint32_t UbseSsuServiceImp::ExecuteScheduler(const UbseSsuAllocSpaceReq &req,
         return UBSE_SSU_ERROR_NO_DEVICE;
     }
 
+    // 分配层：STRIPED采用均分（聚合块设备RAID成员需容量一致）；LINEAR采用权重负载均衡
+    // （各NS按设备剩余空间比例分配）；NORMAL允许同设备多NS，按均分贪心放置（独立裸设备直接读写、不聚合）
     UbseSsuAllocRequest schedReq = {
         .allocSize = req.nsSize,
         .nsNum = req.nsNum,
         .lbaSize = static_cast<uint32_t>(req.lbaFormat),
-        .addressingType = (req.strategy == UbseSsuAllocStrategy::STRIPED) ? UbseSsuAddressingType::STRIPED :
-                                                                            UbseSsuAddressingType::LINEAR,
+        .strategy = req.strategy,
         .tenant = req.tenant,
     };
 
@@ -669,6 +670,10 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
     }
 
     if (entryPtr->state != UbseSsuNsState::CREATED) {
+        if (entryPtr->state == UbseSsuNsState::ATTACHED) {
+            UBSE_LOG_WARN << "ExecuteFree: namespace is attached, need detach first, name=" << name;
+            return UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE;
+        }
         UBSE_LOG_WARN << "ExecuteFree: invalid state, name=" << name << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_SSU_ERROR_STATE_INVALID;
     }
@@ -782,8 +787,11 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
         if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState, &devName](UbseSsuLedgerEntry &e) {
                 oldState = e.state;
                 e.state = state;
-                // 非空才覆盖，保留历史devName（detach回退CREATED等场景不清理）
-                if (!devName.empty()) {
+                // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已删除/未创建成功，
+                if (state == UbseSsuNsState::CREATED) {
+                    e.devName.clear();
+                } else if (!devName.empty()) {
+                    // 非空才覆盖（attach成功时携带），保留历史devName供重复挂载回填devPath
                     e.devName = devName;
                 }
             })) {
@@ -954,13 +962,16 @@ static uint32_t ValidateStripedNsConfig(const std::string &name, UbseSsuAggregat
 // 校验分配策略与挂载/卸载策略是否匹配：条带化分配只能通过AttachStripedSpace挂载、DetachStripedSpace卸载，
 // 线性分配只能通过AttachLinearSpace/DetachLinearSpace，避免编址方式与分配策略不一致
 static uint32_t ValidateAllocStrategyMatch(const std::string &name, UbseSsuAllocStrategy allocStrategy,
-                                           bool isStripedAttach)
+                                           UbseSsuAllocStrategy expectedStrategy)
 {
-    const bool needStriped = (allocStrategy == UbseSsuAllocStrategy::STRIPED);
-    if (needStriped != isStripedAttach) {
+    // 分配策略与挂载/卸载方式必须严格一一对应，禁止混用：
+    // NORMAL对应AttachSpace/DetachSpace
+    // LINEAR对应AttachLinearSpace/DetachLinearSpace
+    // STRIPED对应AttachStripedSpace/DetachStripedSpace
+    if (allocStrategy != expectedStrategy) {
         UBSE_LOG_ERROR << "ValidateAllocStrategyMatch: alloc strategy mismatch, name=" << name
                        << ", allocStrategy=" << static_cast<int>(allocStrategy)
-                       << ", isStripedAttach=" << isStripedAttach;
+                       << ", expectedStrategy=" << static_cast<int>(expectedStrategy);
         return UBSE_SSU_ERROR_STRATEGY_MISMATCH;
     }
     return UBSE_OK;
@@ -973,13 +984,16 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
                             const UbseCreateBlockDeviceOptions *blockDeviceOptions,
                             std::vector<std::string> &nsDevPaths, std::string &devPath)
 {
-    // 条带化参数由调用方构造的blockDeviceOptions携带，随verify请求提交master校验；
-    // 仅指定挂载方式（blockDeviceOptions非空，即AttachLinearSpace/AttachStripedSpace）时校验分配策略，
-    // 通用AttachSpace（无聚合块设备）不限制分配策略
-    const bool isStriped = (blockDeviceOptions != nullptr &&
-                            blockDeviceOptions->addressingType == UbseSsuAddressingType::STRIPED);
-    UbseSsuAttachDetachVerifyOption option = {.isAttach = true, .isStriped = isStriped,
-                                              .validateStrategy = (blockDeviceOptions != nullptr)};
+    // 挂载方式对应的分配策略（AttachSpace=NORMAL/AttachLinearSpace=LINEAR/AttachStripedSpace=STRIPED），
+    // 随verify请求提交master校验，与账本分配策略严格一致
+    const bool isStriped =
+        (blockDeviceOptions != nullptr && blockDeviceOptions->addressingType == UbseSsuAddressingType::STRIPED);
+
+    UbseSsuAttachDetachVerifyOption option = {
+        .isAttach = true,
+        .expectedStrategy = (blockDeviceOptions == nullptr) ?
+                                UbseSsuAllocStrategy::NORMAL :
+                                (isStriped ? UbseSsuAllocStrategy::STRIPED : UbseSsuAllocStrategy::LINEAR)};
     if (isStriped) {
         option.raidLevel = static_cast<uint32_t>(blockDeviceOptions->raidLevel);
         option.chunkSize = blockDeviceOptions->chunkSize;
@@ -990,7 +1004,6 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AgentAttach: VerifyAttachDetachPreconditionViaRpc failed, ret=" << ret << ", name="
                        << req.name;
-        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return ret;
     }
 
@@ -1018,7 +1031,6 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     if (verifyResp.nsVerifyList.size() != nameSpaceList.size()) {
         UBSE_LOG_ERROR << "AgentAttach: ns count mismatch, verify=" << verifyResp.nsVerifyList.size()
                        << ", nsList=" << nameSpaceList.size() << ", name=" << req.name;
-        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return UBSE_SSU_ERROR_NS_COUNT_MISMATCH;
     }
 
@@ -1069,10 +1081,11 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
 {
     UbseSsuAttachDetachVerifyOption option; // detach场景：master校验state（ATTACHED正常/CREATED幂等）
     option.isAttach = false;
-    option.isStriped = isStriped; // 携带卸载类型（线性/条带化）
-    // 仅指定卸载方式（deleteBlockDevice为true，即DetachLinearSpace/DetachStripedSpace）时校验分配策略，
-    // 通用DetachSpace（不删除聚合块设备）不限制分配策略
-    option.validateStrategy = deleteBlockDevice;
+    // 卸载方式对应的分配策略（DetachSpace=NORMAL/DetachLinearSpace=LINEAR/DetachStripedSpace=STRIPED），
+    // 与账本分配策略必须严格一致
+    option.expectedStrategy = deleteBlockDevice ?
+                                  (isStriped ? UbseSsuAllocStrategy::STRIPED : UbseSsuAllocStrategy::LINEAR) :
+                                  UbseSsuAllocStrategy::NORMAL;
     UbseSsuAttachDetachVerifyResp verifyResp{};
     auto ret = VerifyAttachDetachPreconditionViaRpc(req.name, req.identity, option, verifyResp);
     if (ret != UBSE_OK) {
@@ -1147,16 +1160,12 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: record not found, name=" << name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 专用路径（AttachLinearSpace/AttachStripedSpace/DetachLinearSpace/DetachStripedSpace）校验
-    // 分配策略与挂载/卸载策略匹配；通用AttachSpace/DetachSpace不限制分配策略（validateStrategy=false）
-    if (option.validateStrategy) {
-        auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.isStriped);
-        if (strategyRet != UBSE_OK) {
-            return strategyRet;
-        }
+    auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.expectedStrategy);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // attach：ATTACHED为重复挂载（verifyResp.alreadyAttached标志由agent侧处理），CREATED为正常挂载状态，其他状态拒绝
@@ -1187,7 +1196,7 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
 
     // 仅attach场景校验条带化参数（chunkSize合法性、RAID5成员数、NS大小对齐）。
     // detach场景不校验：块设备已存在，chunkSize/raidLevel为创建时参数，且detach请求未携带该信息（默认0）
-    if (option.isAttach && option.isStriped) {
+    if (option.isAttach && option.expectedStrategy == UbseSsuAllocStrategy::STRIPED) {
         auto cfgRet = ValidateStripedNsConfig(name, static_cast<UbseSsuAggregationRaidLevel>(option.raidLevel),
                                               static_cast<UbseSsuChunkSize>(option.chunkSize),
                                               entryPtr->allocResult.nameSpaceList);
@@ -1227,8 +1236,7 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
         verifyInfo.guid = targetNs->guid;
         nsVerifyList.push_back(std::move(verifyInfo));
     }
-    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition success: name=" << name
-                  << ", nsCount=" << nsVerifyList.size();
+    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition success: name=" << name << ", nsCount=" << nsVerifyList.size();
     return UBSE_OK;
 }
 
@@ -1347,7 +1355,15 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    }
+
+    // 分配策略校验：NORMAL策略只能通过AttachSpace挂载（不聚合块设备），
+    // LINEAR/STRIPED策略必须使用配套的AttachLinearSpace/AttachStripedSpace
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::NORMAL);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // 重复挂载：已经attached，再次attach需要返回已挂载的nsDevPath列表
@@ -1423,7 +1439,7 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
     // 重复卸载：已经detach的NS，再次detach一律报错
@@ -1437,6 +1453,14 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         UBSE_LOG_ERROR << "DetachSpace: invalid state, name=" << req.name
                        << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_SSU_ERROR_STATE_INVALID;
+    }
+
+    // 分配策略校验：NORMAL策略只能通过DetachSpace卸载（不删除聚合块设备），
+    // LINEAR/STRIPED策略必须使用配套的DetachLinearSpace/DetachStripedSpace
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::NORMAL);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1542,11 +1566,12 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachLinearSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 校验分配策略与挂载策略匹配：线性分配只能线性attach
-    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, false);
+    // 校验分配策略与挂载策略匹配：LINEAR分配只能通过AttachLinearSpace挂载
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::LINEAR);
     if (strategyRet != UBSE_OK) {
         return strategyRet;
     }
@@ -1634,11 +1659,12 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachStripedSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 校验分配策略与挂载策略匹配：条带化分配只能条带化attach
-    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, true);
+    // 校验分配策略与挂载策略匹配：STRIPED分配只能通过AttachStripedSpace挂载
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::STRIPED);
     if (strategyRet != UBSE_OK) {
         return strategyRet;
     }
@@ -1646,7 +1672,7 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
     // 重复挂载：已经attached，再次attach返回已挂载的nsDevPath列表
     if (entryPtr->state == UbseSsuNsState::ATTACHED) {
         UBSE_LOG_INFO << "AttachStripedSpace: already attached, name=" << req.name;
-        for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        for (const auto& nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
         }
         // 聚合块设备场景：devPath恒为/dev/ssu/{devName}，从账本取（master重启重建后devName为空，无法回填）
@@ -1773,11 +1799,12 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachLinearSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 校验分配策略与卸载策略匹配：线性分配只能线性detach
-    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, false);
+    // 校验分配策略与卸载策略匹配：LINEAR分配只能通过DetachLinearSpace卸载
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::LINEAR);
     if (strategyRet != UBSE_OK) {
         return strategyRet;
     }
@@ -1833,11 +1860,12 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachStripedSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 校验分配策略与卸载策略匹配：条带化分配只能条带化detach
-    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, true);
+    // 校验分配策略与卸载策略匹配：STRIPED分配只能通过DetachStripedSpace卸载
+    auto strategyRet =
+        ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::STRIPED);
     if (strategyRet != UBSE_OK) {
         return strategyRet;
     }
@@ -2003,7 +2031,7 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << funcName << ": record not found, name=" << name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
     // 命名空间必须已创建完成，CREATING状态下NS可能尚未落盘，IDLE表示初始/失败回退
@@ -2191,7 +2219,7 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "ExecuteGetNsStats: record not found, name=" << name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -2390,7 +2418,7 @@ static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, 
         auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
         if (entryPtr == nullptr) {
             UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record not found, name=" << name;
-            return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+            return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
         }
         // CREATING/IDLE状态的条目allocResult为空，不返回
         if (entryPtr->state == UbseSsuNsState::CREATING) {
@@ -2544,7 +2572,7 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
         auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
         if (entryPtr == nullptr) {
             UBSE_LOG_ERROR << "GetAllocInfoByName: local ledger entry not found, name=" << name;
-            return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+            return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
         }
         result = entryPtr->allocResult;
         // 从硬件实时获取每个ns的allowHostNqnList，账本中的快照不承载可变权限状态
@@ -2626,7 +2654,7 @@ uint32_t UbseSsuServiceImp::ExecuteGetConnectInfo(const std::string &name, const
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "ExecuteGetConnectInfo: record not found, name=" << name;
-        return UBSE_SSU_ERROR_LEDGER_NOT_FOUND;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
     auto devMap = collector_.GetCachedDevMap();
