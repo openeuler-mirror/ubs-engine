@@ -86,9 +86,14 @@ typedef enum
     UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                 // SHM链接(CLI)
     UBSE_MEM_CLI_SHM_DETACH = 0x0046,                 // SHM释放(CLI)
     UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
-    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048,          // PID阈值设置(CLI)
-    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,             // PID信息查询(CLI)
-    UBSE_MEM_CLI_PID_UNSET = 0x0050,                  // PID配置删除(CLI)
+    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048,          // PID阈值设置(CLI) [DEPRECATED:旧模型,待CLI切换后移除]
+    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,             // PID信息查询(CLI) [DEPRECATED:旧模型,待CLI切换后移除]
+    UBSE_MEM_CLI_PID_UNSET = 0x0050,                  // PID配置删除(CLI) [DEPRECATED:旧模型,待CLI切换后移除]
+    // 0x0048~0x0050 已废弃(旧PID阈值模型), 0x0051~0x0052 为其他特性预留, 禁止复用
+    UBSE_MEM_CLI_PROC_MEM_SET = 0x0053,            // process-mem新模型设置(CLI)
+    UBSE_MEM_CLI_PROC_MEM_REMOVE = 0x0054,         // process-mem新模型删除(CLI)
+    UBSE_MEM_CLI_PROC_MEM_DISPLAY_CONFIG = 0x0055, // process-mem新模型配置展示(CLI)
+    UBSE_MEM_CLI_PROC_MEM_DISPLAY_DETAIL = 0x0056, // process-mem新模型进程详情展示(CLI)
 } ubse_ipc_mem_op_code_t;
 
 typedef enum

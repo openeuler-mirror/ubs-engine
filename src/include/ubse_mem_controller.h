@@ -131,9 +131,11 @@ enum UbseMemDistance
 
 struct UbseMemBorrower {
     std::string nodeId;       // 节点id
-    int affinitySocketId{-1}; // 可选
+    int affinitySocketId{-1}; // 可选，指定借出方亲和 socket，-1 表示不限
     uid_t uid{0};             // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{};   // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    // 放末尾并带默认值，保证 {nodeId, -1, uid, username} 形式的位置初始化兼容
+    bool samePlanePrefer{false}; // true=同平面优先(传 affinitySocketId 但不严格过滤), false=同平面必须
 };
 
 struct UbseMemNumaLender {

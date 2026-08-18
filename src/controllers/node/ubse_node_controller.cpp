@@ -944,7 +944,7 @@ UbseResult GetUbseCpuInfoOffset(
 UbseResult GetUbseNodeInfoOffset(UbseNodeInfo info, UbseSerialization& outStream)
 {
     outStream << info.nodeId << info.slotId << info.bondingEid << info.hostName << info.comIp << info.guid
-              << enum_v(info.allocator) << info.pmdMapping << info.blockSize;
+              << enum_v(info.allocator) << info.pmdMapping << info.blockSize << info.nodeMaxLendGb;
     UbseSerialization ipAddrOffset;
     auto ret = GetUbseIpAddrVecOffset(info.ipList, ipAddrOffset);
     UbseSerialization numaInfoOffset;
@@ -1199,6 +1199,11 @@ uint32_t ParseNodeInfo(UbseNodeInfo& info, UbseDeSerialization& inStream)
     inStream >> enum_v(info.allocator);
     inStream >> info.pmdMapping;
     inStream >> info.blockSize;
+    inStream >> info.nodeMaxLendGb;
+    if (!inStream.Check()) {
+        UBSE_LOG_WARN << "node info missing nodeMaxLendGb, likely old-version peer, nodeId=" << info.nodeId;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
     UbseDeSerialization ipAddrOffset;
     UbseDeSerialization numaInfoOffset;
     UbseDeSerialization cpuInfoOffset;

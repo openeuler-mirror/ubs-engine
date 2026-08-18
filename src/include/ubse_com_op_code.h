@@ -204,13 +204,14 @@ enum class UbseMemBorrowCallbackOpCode
 // UBSE内存故障处理操作码
 enum class UbseMemFaultOpCode
 {
-    UBSE_SHARE_MEM_FAULT_REPORT = 0x0001,        // 共享内存故障报告
-    UBSE_SHARE_MEM_FAULT_REPORT_REPLY = 0x0002,  // 共享内存故障报告回复
-    UBSE_SHARE_MEM_FAULT_NOTIFY = 0x0003,        // 共享内存故障通知
-    UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY = 0x0004,  // 共享内存故障通知回复
-    UBSE_MEM_FAULT_BMC_AGENTS = 0x0005,          // MemFault在master收到BMC故障通知，传递给agents.
-    UBSE_SINGLE_IMPORT_DEBT_NOTIFY = 0x0006,     // Master通知Agent单导入债务信息
-    UBSE_PROCESS_MEM_NODE_FAULT_NOTIFY = 0x0007, // Master通知Agent处理process_mem节点故障
+    UBSE_SHARE_MEM_FAULT_REPORT = 0x0001,       // 共享内存故障报告
+    UBSE_SHARE_MEM_FAULT_REPORT_REPLY = 0x0002, // 共享内存故障报告回复
+    UBSE_SHARE_MEM_FAULT_NOTIFY = 0x0003,       // 共享内存故障通知
+    UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY = 0x0004, // 共享内存故障通知回复
+    UBSE_MEM_FAULT_BMC_AGENTS = 0x0005,         // MemFault在master收到BMC故障通知，传递给agents.
+    UBSE_SINGLE_IMPORT_DEBT_NOTIFY = 0x0006,    // Master通知Agent单导入债务信息
+    UBSE_PROCESS_MEM_NODE_FAULT_NOTIFY = 0x0007, // Master通知Agent处理process_mem节点故障 [DEPRECATED:旧模型,待bridge切换后移除]
+    UBSE_PROCESS_MEM_RETURN_REQUEST = 0x0008,   // 借出方通知借入方归还 process_mem 远端内存
 };
 
 // RAS模块操作码
