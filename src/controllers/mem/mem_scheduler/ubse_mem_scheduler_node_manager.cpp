@@ -618,6 +618,20 @@ std::set<std::pair<NodeId, SocketId>> SchedulerNodeManager::GetReachablePeers(co
     return socket->ResolveRawPorts(socketToChip_);
 }
 
+std::set<std::pair<NodeId, SocketId>> SchedulerNodeManager::GetSamePlaneSockets(const SchedulerRequest& request) const
+{
+    auto affinitySocketIdOpt = request.GetParamOpt<int>("affinitySocketId");
+    if (!affinitySocketIdOpt.has_value() || affinitySocketIdOpt.value() == -1) {
+        return {};
+    }
+    SocketId affinitySocketId = affinitySocketIdOpt.value();
+    auto importNodeId = request.requestNodeId_;
+    // 同平面: 节点自身的 affinity socket + 远端 peer 的同一 socket
+    auto peerSockets = GetReachablePeers(importNodeId, affinitySocketId);
+    peerSockets.insert({importNodeId, affinitySocketId});
+    return peerSockets;
+}
+
 bool SchedulerNodeManager::IsFullyConnected() const
 {
     // 当前集群假设为全互联拓扑（Fat-Tree / Full-Mesh），

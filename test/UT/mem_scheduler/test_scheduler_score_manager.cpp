@@ -17,12 +17,15 @@
 #include "ubse_mem_scheduler_account_manager.h"
 #include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_mem_scheduler_score_manager.h"
+#include "ubse_node_controller.h"
 #include "scheduler_score/ubse_mem_scheduler_borrow_bandwidth_score.h"
+#include "scheduler_score/ubse_mem_scheduler_socket_affinity_score.h"
 
 namespace ubse::mem::scheduler::ut {
 
 using namespace ubse::common::def;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::nodeController;
 
 void TestSchedulerScoreManager::SetUp()
 {
@@ -372,6 +375,132 @@ TEST_F(TestSchedulerScoreManager, PerformancePriorityWeightsSumToMinusOne)
     ScoreWeights w = ScoreWeights::ForPerformancePriority();
     double sum = w.wLatency + w.wRegionBalance + w.wBalance + w.wBandwidth + w.wReliability + w.wDivideNuma;
     EXPECT_DOUBLE_EQ(sum, 1.0);
+}
+
+// ==================== SocketAffinityScore Tests ====================
+
+namespace {
+
+struct TestCpu {
+    uint32_t slotId;
+    SocketId socketId;
+    std::string chipId;
+    std::vector<std::pair<std::string, std::string>> ports; // {remoteSlotId, remoteChipId}
+};
+
+UbseNodeInfo MakeAffinityNode(const std::string& nodeId, const std::vector<TestCpu>& cpus)
+{
+    UbseNodeInfo info{};
+    info.nodeId = nodeId;
+    info.hostName = "host-" + nodeId;
+    info.allocator = UbseAllocator::BUDDY_HIGHMEM;
+    info.blockSize = 128;
+    info.isLender = true;
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+
+    size_t numaIdx = 0;
+    for (const auto& [slotId, socketId, chipId, ports] : cpus) {
+        ubse::nodeController::UbseNumaLocation loc0{nodeId, static_cast<uint32_t>(numaIdx++)};
+        UbseNumaInfo numa0{};
+        numa0.location = loc0;
+        numa0.socketId = socketId;
+        numa0.size = 4096;
+        numa0.freeSize = 2048;
+        info.numaInfos[loc0] = numa0;
+
+        uint32_t cpuChipId = static_cast<uint32_t>(std::stoul(chipId));
+        UbseCpuLocation cpuKey0{nodeId, cpuChipId};
+        UbseCpuInfo cpu0{};
+        cpu0.slotId = slotId;
+        cpu0.socketId = socketId;
+        cpu0.chipId = chipId;
+        for (const auto& [remoteSlot, remoteChip] : ports) {
+            UbsePortInfo port{};
+            port.portId = "0";
+            port.portStatus = PortStatus::UP;
+            port.remoteSlotId = remoteSlot;
+            port.remoteChipId = remoteChip;
+            cpu0.portInfos[port.portId] = port;
+        }
+        info.cpuInfos[cpuKey0] = cpu0;
+    }
+    return info;
+}
+
+} // namespace
+
+TEST_F(TestSchedulerScoreManager, SocketAffinityScoreRegistered)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init();
+
+    EXPECT_NE(mgr.FindScoreByName("SocketAffinityScore"), nullptr);
+}
+
+TEST_F(TestSchedulerScoreManager, GetWeightForSocketAffinityScore)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init();
+
+    ScoreWeights w; // 默认未启用
+    EXPECT_DOUBLE_EQ(mgr.GetWeightFor("SocketAffinityScore", w), 0.0);
+    w.wAffinity = 0.1;
+    EXPECT_DOUBLE_EQ(mgr.GetWeightFor("SocketAffinityScore", w), 0.1);
+}
+
+TEST_F(TestSchedulerScoreManager, SocketAffinityScoreNoAffinityParam)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SocketAffinityScore scorer;
+
+    NodeInfo n1;
+    n1.nodeId = "lender1";
+    n1.socketInfos = {{36, {0}}};
+    std::vector<NodeInfo> nodes = {n1};
+    SchedulerRequest req;
+
+    std::vector<double> scores(1, -1.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
+    EXPECT_EQ(ret, UBSE_OK);
+    // 无 affinitySocketId → 不参与评分, 不写分 (ScoreManager 保证初始 0)
+    EXPECT_DOUBLE_EQ(scores[0], -1.0);
+}
+
+TEST_F(TestSchedulerScoreManager, SocketAffinityScoreSamePlanePreferred)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    // 节点1 socket36(chip0,slot0) 直连 节点2 socket36(chip0,slot2); 节点2 另有 socket37(chip1) 不在同平面
+    auto info1 = MakeAffinityNode("1", {{0, 36, "0", {{"2", "0"}}}});
+    auto info2 = MakeAffinityNode("2", {{2, 36, "0", {}}, {2, 37, "1", {}}});
+    nodeMgr.UpdateNodeInfo(info1);
+    nodeMgr.UpdateNodeInfo(info2);
+    nodeMgr.UpdateAllLinkInfo({{"1", info1}, {"2", info2}});
+
+    SocketAffinityScore scorer;
+    NodeInfo n1;
+    n1.nodeId = "1";
+    n1.socketInfos = {{36, {0}}};
+    NodeInfo n2;
+    n2.nodeId = "2";
+    n2.socketInfos = {{36, {0}}, {37, {1}}};
+    std::vector<NodeInfo> nodes = {n1, n2};
+
+    SchedulerRequest req;
+    req.requestNodeId_ = "1";
+    req.params_["affinitySocketId"] = 36;
+
+    std::vector<double> scores(3, -1.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_DOUBLE_EQ(scores[0], 0.0); // 节点1 自身 affinity socket
+    EXPECT_DOUBLE_EQ(scores[1], 0.0); // 节点2 同平面 socket
+    EXPECT_DOUBLE_EQ(scores[2], 1.0); // 节点2 非同平面 socket
 }
 
 } // namespace ubse::mem::scheduler::ut

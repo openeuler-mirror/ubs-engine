@@ -24,6 +24,7 @@ struct ScoreWeights {
     double wReliability{0.13};
     double wDivideNuma{0.08};
     double wBandwidth{0.0};
+    double wAffinity{0.0}; // 同平面优先权重, 仅请求显式启用时非 0
 
     static ScoreWeights ForBorrow()
     {

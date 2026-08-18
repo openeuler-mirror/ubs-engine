@@ -23,6 +23,7 @@
 #include "scheduler_score/ubse_mem_scheduler_region_balance_score.h"
 #include "scheduler_score/ubse_mem_scheduler_reliability_balance_score.h"
 #include "scheduler_score/ubse_mem_scheduler_share_reliability_score.h"
+#include "scheduler_score/ubse_mem_scheduler_socket_affinity_score.h"
 
 namespace ubse::mem::scheduler {
 
@@ -44,6 +45,7 @@ UbseResult SchedulerScoreManager::Init()
     RegisterScore(std::make_unique<ShareReliabilityScore>());
     RegisterScore(std::make_unique<BorrowBandwidthScore>());
     RegisterScore(std::make_unique<DivideNumaScore>());
+    RegisterScore(std::make_unique<SocketAffinityScore>());
     UBSE_LOG_INFO << "Register scores: " << scoreMap_.size();
     return UBSE_OK;
 }
@@ -89,6 +91,9 @@ double SchedulerScoreManager::GetWeightFor(const std::string& name, const ScoreW
     }
     if (name == "BorrowBandwidthScore") {
         return weights.wBandwidth;
+    }
+    if (name == "SocketAffinityScore") {
+        return weights.wAffinity;
     }
     return 0.0;
 }

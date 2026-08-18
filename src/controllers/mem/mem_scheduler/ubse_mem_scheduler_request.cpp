@@ -18,6 +18,11 @@
 namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
+namespace {
+// 同平面优先评分权重: 从 wBalance 中分出, 保持权重总和不变
+constexpr double AFFINITY_SCORE_WEIGHT = 0.1;
+} // namespace
+
 SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req)
 {
     SchedulerRequest schedulerReq;
@@ -29,7 +34,8 @@ SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi:
     schedulerReq.filterNames_ = {
         "ConfigConsistencyFilter", "RoleConflictFilter",     "LenderRoleFilter",   "GroupFilter",
         "ProviderFilter",          "NodeStateFilter",        "RadiusBorrowFilter", "RadiusLenderFilter",
-        "LendCountFilter",         "TopoReachabilityFilter", "MaxLentSizeFilter",  "FreeMemoryFilter"};
+        "LendCountFilter",         "TopoReachabilityFilter", "MaxLentSizeFilter",  "SharedPoolFilter",
+        "FreeMemoryFilter"};
     if (!req.candidateNodeList.empty()) {
         schedulerReq.provideNodes_ = req.candidateNodeList;
         schedulerReq.filterNames_.emplace_back("RequestedProvidersFilter");
@@ -75,7 +81,8 @@ SchedulerRequest SchedulerRequest::BuildFromNumaBorrow(const adapter_plugins::mm
     schedulerReq.filterNames_ = {
         "ConfigConsistencyFilter", "RoleConflictFilter",     "LenderRoleFilter",   "GroupFilter",
         "ProviderFilter",          "NodeStateFilter",        "RadiusBorrowFilter", "RadiusLenderFilter",
-        "LendCountFilter",         "TopoReachabilityFilter", "MaxLentSizeFilter",  "FreeMemoryFilter"};
+        "LendCountFilter",         "TopoReachabilityFilter", "MaxLentSizeFilter",  "SharedPoolFilter",
+        "FreeMemoryFilter"};
 
     if (req.linkInfo.lenderSocketId != -1) {
         schedulerReq.params_["linkInfo"] = req.linkInfo;
@@ -102,8 +109,13 @@ SchedulerRequest SchedulerRequest::BuildFromNumaBorrow(const adapter_plugins::mm
         schedulerReq.filterNames_.emplace_back("RequestedProvidersFilter");
     }
     if (req.srcSocket != -1) {
-        schedulerReq.filterNames_.emplace_back("SocketAffinityFilter");
         schedulerReq.params_["affinitySocketId"] = req.srcSocket;
+        if (req.samePlanePrefer) {
+            // 同平面优先: 评分加权而非严格过滤 (SetupFromNodeConf 据此挂载 SocketAffinityScore)
+            schedulerReq.params_["samePlanePrefer"] = true;
+        } else {
+            schedulerReq.filterNames_.emplace_back("SocketAffinityFilter");
+        }
     }
 
     schedulerReq.requestMode_ = RequestMode::BORROW;
@@ -160,7 +172,8 @@ SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::m
 
     schedulerReq.filterNames_ = {"ConfigConsistencyFilter", "LenderRoleFilter",  "ProviderFilter",
                                  "NodeStateFilter",         "RegionFilter",      "LendCountFilter",
-                                 "TopoReachabilityFilter",  "MaxLentSizeFilter", "FreeMemoryFilter"};
+                                 "TopoReachabilityFilter",  "MaxLentSizeFilter", "SharedPoolFilter",
+                                 "FreeMemoryFilter"};
     if (!req.providerList.empty()) {
         schedulerReq.filterNames_.emplace_back("RequestedProvidersFilter");
     }
@@ -182,6 +195,10 @@ SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::m
 SchedulerRequest SchedulerRequest::SetupFromNodeConf(SchedulerRequest&& req, SchedulerNodeManager* info)
 {
     if (req.requestMode_ == RequestMode::SHARE) {
+        if (req.params_.find("samePlanePrefer") != req.params_.end()) {
+            UBSE_LOG_WARN << "samePlanePrefer not supported for SHARE request, ignored";
+            req.params_.erase("samePlanePrefer");
+        }
         req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "ShareReliabilityScore",
                            "DivideNumaScore"};
         req.weights_ = ScoreWeights::ForShare();
@@ -208,6 +225,12 @@ SchedulerRequest SchedulerRequest::SetupFromNodeConf(SchedulerRequest&& req, Sch
             break;
         default:
             break;
+    }
+    // 同平面优先(非必须): 挂载同平面评分, 权重从主评分中分出
+    if (req.params_.find("samePlanePrefer") != req.params_.end()) {
+        req.scoreNames_.emplace_back("SocketAffinityScore");
+        req.weights_.wAffinity = AFFINITY_SCORE_WEIGHT;
+        req.weights_.wBalance -= AFFINITY_SCORE_WEIGHT;
     }
     return std::move(req);
 }

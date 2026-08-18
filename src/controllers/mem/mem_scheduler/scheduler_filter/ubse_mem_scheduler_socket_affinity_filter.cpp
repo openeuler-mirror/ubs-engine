@@ -22,19 +22,15 @@ UbseResult SocketAffinityFilter::FilterNodes(std::vector<NodeInfo>& nodes, const
     if (!affinitySocketIdOpt.has_value() || affinitySocketIdOpt.value() == -1) {
         return UBSE_OK;
     }
-    SocketId affinitySocketId = affinitySocketIdOpt.value();
-    auto importNodeId = request.requestNodeId_;
-
     // 同平面：节点自身的 affinity socket + 远端 peer 的同一 socket
-    auto peerSockets = nodeInfo.GetReachablePeers(importNodeId, affinitySocketId);
-    peerSockets.insert({importNodeId, affinitySocketId});
+    auto peerSockets = nodeInfo.GetSamePlaneSockets(request);
 
     for (auto& node : nodes) {
         EraseSocketsIf(node.socketInfos, [&](const SocketInfo& socket) {
             if (peerSockets.find({node.nodeId, socket.socketId}) == peerSockets.end()) {
-                RecordReject(node.nodeId,
-                             std::string("socket=") + std::to_string(socket.socketId) +
-                                 " not in same socket plane as affinitySocketId=" + std::to_string(affinitySocketId));
+                RecordReject(node.nodeId, std::string("socket=") + std::to_string(socket.socketId) +
+                                              " not in same socket plane as affinitySocketId=" +
+                                              std::to_string(affinitySocketIdOpt.value()));
                 return true;
             }
             return false;
