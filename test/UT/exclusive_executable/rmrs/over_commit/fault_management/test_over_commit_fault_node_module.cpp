@@ -1483,4 +1483,381 @@ TEST_F(TestOverCommitFaultNodeModule, BorrowIdGroupProcess_EvaculateVmsFromFault
                 PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.end());
 }
 
+// ===== 简化故障路径：CollectClusterSocketQueue / AllocatePidsToSockets =====
+
+static std::vector<std::string> MockGetNodeIdsFour()
+{
+    return {"node1", "node2", "node3", "node4"};
+}
+
+static std::vector<std::string> MockGetNodeIdsSingle()
+{
+    return {"node1"};
+}
+
+UbseResult MockUbseGetNodeNumaInfoByNodeIdSuccess(const std::string& nodeId,
+                                                  std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
+{
+    UbseNodeNumaInfo numa;
+    numa.nodeId = nodeId;
+    numa.socketId = 0;
+    numa.numaId = 0;
+    numa.mReservedMemRatio = 100;
+    if (nodeId == "node3") {
+        numa.memTotal = 8 * 1024 * 1024;
+        numa.memFree = 4 * 1024 * 1024;
+    } else if (nodeId == "node4") {
+        numa.memTotal = 16 * 1024 * 1024;
+        numa.memFree = 8 * 1024 * 1024;
+    } else {
+        numa.memTotal = 4 * 1024 * 1024;
+        numa.memFree = 2 * 1024 * 1024;
+    }
+    numaNodeInfoList.push_back(numa);
+    return UBSE_OK;
+}
+
+TEST_F(TestOverCommitFaultNodeModule, CollectClusterSocketQueue_ExcludesFaultAndBorrowerNodes)
+{
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockGetNodeIdsFour));
+    MOCKER_CPP(&UbseGetNodeNumaInfoByNodeId, UbseResult(*)(const std::string&, std::vector<UbseNodeNumaInfo>&))
+        .stubs()
+        .will(invoke(MockUbseGetNodeNumaInfoByNodeIdSuccess));
+
+    std::unordered_set<std::string> borrowerNodes{"node2"};
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    MpResult ret = CollectClusterSocketQueue("node1", borrowerNodes, socketQueueBySocketId);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(socketQueueBySocketId.size(), 1u);
+    ASSERT_EQ(socketQueueBySocketId[0].size(), 2u);
+    EXPECT_EQ(socketQueueBySocketId[0][0].nodeId, "node3");
+    EXPECT_EQ(socketQueueBySocketId[0][0].canBorrowMem, 4096u);
+    EXPECT_EQ(socketQueueBySocketId[0][1].nodeId, "node4");
+    EXPECT_EQ(socketQueueBySocketId[0][1].canBorrowMem, 8192u);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, CollectClusterSocketQueue_AllNodesEmpty_FailsResourceCollect)
+{
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*))
+        .stubs()
+        .will(returnValue(std::vector<std::string>{}));
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    MpResult ret = CollectClusterSocketQueue("node1", {}, socketQueueBySocketId);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, CollectClusterSocketQueue_NoCandidate_FailsLackRemoteMem)
+{
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)).stubs().will(invoke(MockGetNodeIdsSingle));
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    MpResult ret = CollectClusterSocketQueue("node1", {"node1"}, socketQueueBySocketId);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, CollectClusterSocketQueue_CollectFailed_FailsResourceCollect)
+{
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)).stubs().will(invoke(MockGetNodeIdsFour));
+    MOCKER_CPP(&UbseGetNodeNumaInfoByNodeId, UbseResult(*)(const std::string&, std::vector<UbseNodeNumaInfo>&))
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    MpResult ret = CollectClusterSocketQueue("node1", {"node2"}, socketQueueBySocketId);
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_AllFit)
+{
+    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}}},
+                                                                                         {2, {{4096, 0}}}};
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    socketQueueBySocketId[0].push_back({"node4", 8192});
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    std::vector<pid_t> unallocatedPids;
+
+    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(pidAllocMap.size(), 2u);
+    ASSERT_EQ(pidAllocMap[1].size(), 1u);
+    EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node4");
+    ASSERT_EQ(pidAllocMap[2].size(), 1u);
+    EXPECT_EQ(pidAllocMap[2][0].lendNodeId, "node4");
+    EXPECT_TRUE(unallocatedPids.empty());
+}
+
+TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_BigProcessNotFit_Unallocated)
+{
+    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}}},
+                                                                                         {2, {{8192, 0}}}};
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    socketQueueBySocketId[0].push_back({"node4", 4096});
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    std::vector<pid_t> unallocatedPids;
+
+    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(pidAllocMap.size(), 1u);
+    ASSERT_EQ(pidAllocMap[1].size(), 1u);
+    EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node4");
+    ASSERT_EQ(unallocatedPids.size(), 1u);
+    EXPECT_EQ(unallocatedPids[0], 2);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_SocketAffinity_MultiSocketChunks)
+{
+    // pid 在 socket0 占 1024KB、在 socket1 占 2048KB：优先从各自 socket 分配
+    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}, {2048, 1}}}};
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    socketQueueBySocketId[0].push_back({"node3", 4096});
+    socketQueueBySocketId[1].push_back({"node4", 4096});
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    std::vector<pid_t> unallocatedPids;
+
+    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(pidAllocMap.size(), 1u);
+    ASSERT_EQ(pidAllocMap[1].size(), 2u);
+    EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node3");
+    EXPECT_EQ(pidAllocMap[1][0].lendSocketId, 0);
+    EXPECT_EQ(pidAllocMap[1][1].lendNodeId, "node4");
+    EXPECT_EQ(pidAllocMap[1][1].lendSocketId, 1);
+    EXPECT_TRUE(unallocatedPids.empty());
+}
+
+TEST_F(TestOverCommitFaultNodeModule, BuildPidSocketSizes_AggregatesPerFaultNumaWithSocket)
+{
+    std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap;
+    BorrowRecord rec1;
+    rec1.borrowRemoteNuma = 2;
+    rec1.lentSocketId = 0;
+    rec1.size = 1024 * 1024;
+    BorrowRecord rec2;
+    rec2.borrowRemoteNuma = 2;
+    rec2.lentSocketId = 0;
+    rec2.size = 1024 * 1024;
+    BorrowRecord rec3;
+    rec3.borrowRemoteNuma = 3;
+    rec3.lentSocketId = 1;
+    rec3.size = 1024 * 1024;
+    pidBorrowMap[1] = {rec1, rec2, rec3};
+
+    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes;
+    BuildPidSocketSizes(pidBorrowMap, pidSocketSizes);
+
+    // pid=1 在故障 NUMA2(socket0) 上共 2MB → 2048KB，在 NUMA3(socket1) 上 1MB → 1024KB
+    ASSERT_EQ(pidSocketSizes.size(), 1u);
+    ASSERT_EQ(pidSocketSizes[1].size(), 2u);
+    EXPECT_EQ(pidSocketSizes[1][0].first, 2048u);
+    EXPECT_EQ(pidSocketSizes[1][0].second, 0);
+    EXPECT_EQ(pidSocketSizes[1][1].first, 1024u);
+    EXPECT_EQ(pidSocketSizes[1][1].second, 1);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_GetDebtFailed_ResourceCollectError)
+{
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified("node1");
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_NoCandidate_LackRemoteMemError)
+{
+    std::vector<UbseNumaMemoryDebtInfo> infos;
+    UbseNumaMemoryDebtInfo debt;
+    debt.borrowNodeId = "node2";
+    debt.lentNodeId = "node1";
+    debt.remoteNumaId = 1;
+    debt.name = "1-borrow";
+    infos.push_back(debt);
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .with(any(), outBound(infos))
+        .will(returnValue(MEM_POOLING_OK));
+    // 集群只有故障节点 node1 本身：无候选借出方
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)).stubs().will(invoke(MockGetNodeIdsSingle));
+    MOCKER_CPP(&MemBorrowExecutor::IsValidBorrowIdFormat, bool (*)(const UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(true));
+    MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified("node1");
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_AllUnallocated_LackRemoteMemError)
+{
+    std::vector<UbseNumaMemoryDebtInfo> infos;
+    UbseNumaMemoryDebtInfo debt;
+    debt.borrowNodeId = "node2";
+    debt.lentNodeId = "node1";
+    debt.remoteNumaId = 1;
+    debt.name = "1-borrow";
+    // 16384*1024 字节 = 16384KB > 合计可借 12288KB（node3=4096 + node4=8192）
+    debt.size = 16384 * 1024;
+    infos.push_back(debt);
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .with(any(), outBound(infos))
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)).stubs().will(invoke(MockGetNodeIdsFour));
+    MOCKER_CPP(&UbseGetNodeNumaInfoByNodeId, UbseResult(*)(const std::string&, std::vector<UbseNodeNumaInfo>&))
+        .stubs()
+        .will(invoke(MockUbseGetNodeNumaInfoByNodeIdSuccess));
+    MOCKER_CPP(&MemBorrowExecutor::IsValidBorrowIdFormat, bool (*)(const UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(true));
+    MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified("node1");
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+}
+
+// ===== ExecuteBorrowForPid / FinalizePidProcessing / BuildBorrowerData =====
+
+MpResult MemBorrowExecuteForFaultInOverCommitSuccessMock(const SrcMemoryBorrowParam& srcParam,
+                                                         const std::vector<uint64_t>& borrowSizes,
+                                                         const WaterMark& waterMark,
+                                                         MemBorrowExecuteResult& borrowExecuteResult,
+                                                         const ProcessMemUsrInfo& processMemUsrInfo,
+                                                         const std::vector<std::string>& candidateNodes)
+{
+    for (size_t i = 0; i < borrowSizes.size(); ++i) {
+        borrowExecuteResult.borrowIds.push_back("new_bid_" + std::to_string(i));
+        borrowExecuteResult.presentNumaId.push_back(static_cast<uint16_t>(100 + i));
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MemBorrowExecuteForFaultInOverCommitPartialMock(const SrcMemoryBorrowParam& srcParam,
+                                                         const std::vector<uint64_t>& borrowSizes,
+                                                         const WaterMark& waterMark,
+                                                         MemBorrowExecuteResult& borrowExecuteResult,
+                                                         const ProcessMemUsrInfo& processMemUsrInfo,
+                                                         const std::vector<std::string>& candidateNodes)
+{
+    borrowExecuteResult.borrowIds.push_back("partial_bid");
+    borrowExecuteResult.presentNumaId.push_back(100);
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_PerNumaPairing_Correct)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1234;
+    ctx.borrowNodeId = "node2";
+    ctx.borrowSocketId = 0;
+    ctx.remoteNumaSizeMap[2] = 1024;
+    ctx.remoteNumaSizeMap[3] = 2048;
+    ctx.allocLendNodeIds = {"node4"};
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&, const std::vector<std::string>&))
+        .stubs()
+        .will(invoke(MemBorrowExecuteForFaultInOverCommitSuccessMock));
+
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    EXPECT_EQ(result.status, MEM_POOLING_OK);
+    ASSERT_EQ(result.perNuma.size(), 2u);
+    for (const auto& entry : result.perNuma) {
+        auto it = ctx.remoteNumaSizeMap.find(entry.oldNumaId);
+        ASSERT_NE(it, ctx.remoteNumaSizeMap.end());
+        EXPECT_EQ(entry.borrowSizeKB, it->second);
+        EXPECT_FALSE(entry.newBorrowId.empty());
+        EXPECT_NE(entry.newNumaId, 0);
+    }
+}
+
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_PartialResult_HardFailure)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1234;
+    ctx.borrowNodeId = "node2";
+    ctx.remoteNumaSizeMap[2] = 1024;
+    ctx.remoteNumaSizeMap[3] = 2048;
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&, const std::vector<std::string>&))
+        .stubs()
+        .will(invoke(MemBorrowExecuteForFaultInOverCommitPartialMock));
+
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    // 部分成功（1/2 借用成功）按硬失败处理，不返回部分结果
+    EXPECT_NE(result.status, MEM_POOLING_OK);
+    EXPECT_TRUE(result.perNuma.empty());
+}
+
+TEST_F(TestOverCommitFaultNodeModule, FinalizePidProcessing_ReleasesOnlyMigratedNumas)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1234;
+    ctx.numaToBorrowIds[2] = {"old_bid_1"};
+    ctx.numaToBorrowIds[3] = {"old_bid_2"};
+
+    std::vector<PerRemoteNumaBorrowResult> perNumaBorrows;
+    PerRemoteNumaBorrowResult e1;
+    e1.oldNumaId = 2;
+    e1.newBorrowId = "new_bid_1";
+    perNumaBorrows.push_back(e1);
+
+    std::vector<uint16_t> migratedNumaIds{2};
+    std::unordered_set<std::string> freedOldBorrowIds;
+
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(invoke(UbseStoragePutDataMock));
+
+    MpResult ret = FinalizePidProcessing(ctx, perNumaBorrows, migratedNumaIds, freedOldBorrowIds);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    // 只释放已迁移 NUMA2 的 old_bid_1；NUMA3 的 old_bid_2 保留
+    ASSERT_EQ(freedOldBorrowIds.size(), 1u);
+    EXPECT_TRUE(freedOldBorrowIds.count("old_bid_1") > 0);
+    EXPECT_TRUE(freedOldBorrowIds.count("old_bid_2") == 0);
+}
+
+TEST_F(TestOverCommitFaultNodeModule, BuildBorrowerData_FiltersUnallocatedAndEmptyEntries)
+{
+    BorrowRecord rec;
+    rec.borrowNode = "borrowNodeA";
+    rec.size = 1024;
+
+    std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap{{100, {rec}}, {200, {rec}}};
+    std::unordered_map<pid_t, int64_t> pidStartTimeMap{{100, 1}, {200, 2}};
+
+    // pid=100 已分配，pid=200 未分配
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    pidAllocMap[100] = {SimplifiedFaultPidAllocTarget{"node4", 0}};
+
+    std::unordered_map<std::string, SimplifiedFaultRecordsInNode> borrowerData;
+    BuildBorrowerData("node1", pidBorrowMap, pidStartTimeMap, pidAllocMap, borrowerData);
+
+    // 仅保留已分配的 pid=100
+    ASSERT_EQ(borrowerData.size(), 1u);
+    ASSERT_TRUE(borrowerData.count("borrowNodeA") > 0);
+    auto& data = borrowerData["borrowNodeA"];
+    ASSERT_EQ(data.pidBorrowMap.size(), 1u);
+    EXPECT_TRUE(data.pidBorrowMap.count(100) > 0);
+    ASSERT_EQ(data.pidAllocMap[100].size(), 1u);
+    EXPECT_EQ(data.pidAllocMap[100][0].lendNodeId, "node4");
+    // 未分配的 pid=200 从 pidStartTimeMap 移除
+    EXPECT_TRUE(data.pidStartTimeMap.count(200) == 0);
+}
+
 } // namespace mempooling::over_commit
