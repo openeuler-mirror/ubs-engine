@@ -13,7 +13,6 @@
 
 #include <cerrno>
 #include <cstring>
-#include <filesystem>
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -22,76 +21,18 @@
 #include "ubse_storage_module.h"
 namespace process_mem::manager {
 UBSE_DEFINE_THIS_MODULE("process_mem");
-static const std::string PID_CONFIG_KEY_PREFIX = "pidConfig_";
-void ProcessMemPidConfigManager::PersistPidConfigInfo(const def::ProcessMemPidInfo& pidInfo)
-{
-    std::string key = std::to_string(pidInfo.configInfo.pid);
-    ubse::serial::UbseSerialization serializer;
-    auto ret = pidInfo.SerializePidInfo(serializer);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
-        return;
-    }
-    UbseByteBuffer byteBuffer{};
-    byteBuffer.data = serializer.GetBuffer();
-    byteBuffer.len = serializer.GetLength();
-    ret = ubse::storage::UbseStoragePutData(PID_CONFIG_KEY_PREFIX, key, &byteBuffer);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseStoragePutData failed, " << ubse::log::FormatRetCode(ret);
-        return;
-    }
-}
-
-void ProcessMemPidConfigManager::GetAllPersistedPidConfigInfo(std::vector<def::ProcessMemPidInfo>& pidInfos)
-{
-    std::vector<std::string> fileNames{};
-    try {
-        // 1. 遍历目录
-        for (const auto& entry : std::filesystem::directory_iterator(ubse::storage::DB_STORE_DIR)) {
-            // 2. 过滤：只获取普通文件（排除文件夹）
-            if (entry.is_regular_file()) {
-                // 3. 获取文件名（不含路径）
-                std::string fileName = entry.path().filename().string();
-                if (fileName.size() < PID_CONFIG_KEY_PREFIX.size()) {
-                    continue;
-                }
-                if (fileName.compare(0, PID_CONFIG_KEY_PREFIX.size(), PID_CONFIG_KEY_PREFIX) != 0) {
-                    continue;
-                }
-                fileNames.push_back(fileName);
-                UBSE_LOG_INFO << "Get one pid file:" << fileName;
-            }
-        }
-    } catch (const std::exception& e) {
-        UBSE_LOG_ERROR << "Failed to read directory: " << ubse::storage::DB_STORE_DIR << ", error: " << e.what();
-        return;
-    }
-
-    // 遍历所有文件获取所有的pid
-    auto ret = UBSE_OK;
-    for (const auto& pidFileName : fileNames) {
-        auto pidStr = pidFileName.substr(PID_CONFIG_KEY_PREFIX.size());
-        ret = ubse::storage::UbseStorageQueryData(PID_CONFIG_KEY_PREFIX, pidStr, &pidInfos, QueryPidConfigCallback);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to query pid config for pid: " << pidStr;
-            continue;
-        }
-    }
-    return;
-}
-
 uint64_t ProcessMemPidConfigManager::GetExactStartTime(pid_t pid)
 {
     std::string path = "/proc/" + std::to_string(pid) + "/stat";
     FILE* file = fopen(path.c_str(), "r");
     if (!file) {
+        UBSE_LOG_WARN << "GetExactStartTime: fopen failed for pid=" << pid << ", path=" << path << ", errno=" << errno
+                      << " (" << std::strerror(errno) << ")";
         return 0;
     }
 
-    char buf[1024];
-    unsigned long long starttime = 0; // 使用 unsigned long long 接收
+    unsigned long long starttime = 0;
 
-    // 使用 %*[^)] 跳过带空格的进程名, 使用 %llu 匹配 64 位无符号整数
     if (fscanf_s(file,
                  "%*d %*[^)] %*c %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*lu %*lu %*d %*d %*d %*d %*d %*d %llu",
                  &starttime) == 1) {
@@ -101,59 +42,171 @@ uint64_t ProcessMemPidConfigManager::GetExactStartTime(pid_t pid)
         return static_cast<uint64_t>(starttime);
     }
 
+    UBSE_LOG_WARN << "GetExactStartTime: fscanf_s failed to parse stat for pid=" << pid << ", path=" << path
+                  << ", errno=" << errno << " (" << std::strerror(errno) << ")";
     if (fclose(file) != 0) {
         UBSE_LOG_WARN << "fclose_failed errno=" << errno << " error=" << std::strerror(errno);
     }
     return 0;
 }
 
-void ProcessMemPidConfigManager::QueryPidConfigCallback(const std::string& keyPrefix, const std::string& key,
-                                                        const UbseByteBuffer& buff, void* ctx)
+namespace {
+const std::string& GetProcMemKeyPrefix(bool isPid)
+{
+    return isPid ? def::PROC_MEM_PID_KEY_PREFIX : def::PROC_MEM_NAME_KEY_PREFIX;
+}
+} // namespace
+
+uint32_t ProcessMemPidConfigManager::PersistProcMemConfig(const def::ProcessMemNewConfigInfo& config)
+{
+    ubse::serial::UbseSerialization serializer;
+    auto ret = config.Serialize(serializer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Serialize ProcMemConfig failed for identifier=" << config.identifier;
+        return UBSE_ERROR;
+    }
+    UbseByteBuffer byteBuffer{};
+    byteBuffer.data = serializer.GetBuffer();
+    byteBuffer.len = serializer.GetLength();
+    const auto& prefix = GetProcMemKeyPrefix(config.isPid);
+    ret = ubse::storage::UbseStoragePutData(prefix, config.identifier, &byteBuffer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseStoragePutData ProcMemConfig failed for prefix=" << prefix
+                       << ", identifier=" << config.identifier << ", ret=" << ubse::log::FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "PersistProcMemConfig: persisted prefix=" << prefix << ", identifier=" << config.identifier
+                  << ", maxMemory=" << config.maxMemory << ", remoteRatio=" << config.remoteRatio;
+    return UBSE_OK;
+}
+
+void ProcessMemPidConfigManager::GetAllPersistedProcMemConfigs(std::vector<def::ProcessMemNewConfigInfo>& configs)
+{
+    for (const auto& prefix : {def::PROC_MEM_PID_KEY_PREFIX, def::PROC_MEM_NAME_KEY_PREFIX}) {
+        std::vector<std::string> keys;
+        auto listRet = ubse::storage::UbseStorageListKeys(prefix, keys);
+        if (listRet != UBSE_OK) {
+            UBSE_LOG_WARN << "UbseStorageListKeys failed for prefix=" << prefix;
+            continue;
+        }
+        for (const auto& key : keys) {
+            std::vector<def::ProcessMemNewConfigInfo> tmpVec;
+            auto ret = ubse::storage::UbseStorageQueryData(prefix, key, &tmpVec, QueryProcMemConfigCallback);
+            if (ret == UBSE_OK && !tmpVec.empty()) {
+                configs.push_back(tmpVec[0]);
+            } else {
+                UBSE_LOG_WARN << "UbseStorageQueryData failed for prefix=" << prefix << ", key=" << key
+                              << ", ret=" << ubse::log::FormatRetCode(ret);
+            }
+        }
+    }
+}
+
+uint32_t ProcessMemPidConfigManager::DeleteProcMemConfig(bool isPid, const std::string& identifier)
+{
+    const auto& prefix = GetProcMemKeyPrefix(isPid);
+    auto ret = ubse::storage::UbseStorageDeleteData(prefix, identifier);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to delete ProcMem config for prefix=" << prefix << ", identifier=" << identifier
+                       << ", ret=" << ubse::log::FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+uint32_t ProcessMemPidConfigManager::PersistFossilConfig(pid_t pid, const def::FossilPidConfigInfo& fossil)
+{
+    ubse::serial::UbseSerialization serializer;
+    auto ret = fossil.Serialize(serializer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Serialize FossilConfig failed for pid=" << pid;
+        return UBSE_ERROR;
+    }
+    UbseByteBuffer byteBuffer{};
+    byteBuffer.data = serializer.GetBuffer();
+    byteBuffer.len = serializer.GetLength();
+    const std::string key = std::to_string(pid);
+    ret = ubse::storage::UbseStoragePutData(def::PROC_MEM_FOSSIL_KEY_PREFIX, key, &byteBuffer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseStoragePutData FossilConfig failed for pid=" << pid
+                       << ", ret=" << ubse::log::FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "PersistFossilConfig: pid=" << pid << " name=" << fossil.name << " maxMemory=" << fossil.maxMemory
+                  << " remoteRatio=" << fossil.remoteRatio;
+    return UBSE_OK;
+}
+
+uint32_t ProcessMemPidConfigManager::DeleteFossilConfig(pid_t pid)
+{
+    auto ret = ubse::storage::UbseStorageDeleteData(def::PROC_MEM_FOSSIL_KEY_PREFIX, std::to_string(pid));
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to delete FossilConfig for pid=" << pid << ", ret=" << ubse::log::FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+void ProcessMemPidConfigManager::GetAllFossilConfigs(std::vector<std::pair<pid_t, def::FossilPidConfigInfo>>& fossils)
+{
+    std::vector<std::string> keys;
+    auto listRet = ubse::storage::UbseStorageListKeys(def::PROC_MEM_FOSSIL_KEY_PREFIX, keys);
+    if (listRet != UBSE_OK) {
+        UBSE_LOG_WARN << "UbseStorageListKeys failed for prefix=" << def::PROC_MEM_FOSSIL_KEY_PREFIX;
+        return;
+    }
+    for (const auto& key : keys) {
+        std::vector<def::FossilPidConfigInfo> tmpVec;
+        auto ret = ubse::storage::UbseStorageQueryData(def::PROC_MEM_FOSSIL_KEY_PREFIX, key, &tmpVec,
+                                                       QueryFossilConfigCallback);
+        if (ret == UBSE_OK && !tmpVec.empty()) {
+            auto pidOpt = def::ParsePidFromIdentifier(key);
+            if (pidOpt.has_value()) {
+                fossils.emplace_back(pidOpt.value(), tmpVec[0]);
+            }
+        } else {
+            UBSE_LOG_WARN << "UbseStorageQueryData failed for prefix=" << def::PROC_MEM_FOSSIL_KEY_PREFIX
+                          << ", key=" << key << ", ret=" << ubse::log::FormatRetCode(ret);
+        }
+    }
+}
+
+void ProcessMemPidConfigManager::QueryFossilConfigCallback(const std::string& keyPrefix, const std::string& key,
+                                                           const UbseByteBuffer& buff, void* ctx)
 {
     if (buff.data == nullptr || buff.len == 0) {
-        UBSE_LOG_ERROR << "QueryPidConfigCallback failed, invalid buffer";
+        UBSE_LOG_ERROR << "QueryFossilConfigCallback failed, invalid buffer for keyPrefix=" << keyPrefix
+                       << " key=" << key;
         return;
     }
-    def::ProcessMemPidInfo pidInfo{};
+    def::FossilPidConfigInfo fossil{};
     ubse::serial::UbseDeSerialization deserializer(buff.data, buff.len);
-    auto ret = pidInfo.DeserializePidInfo(deserializer);
+    auto ret = fossil.Deserialize(deserializer);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "DeSerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Deserialize FossilConfig failed for keyPrefix=" << keyPrefix << " key=" << key;
         return;
     }
-    auto pidInfos = static_cast<std::vector<def::ProcessMemPidInfo>*>(ctx);
-    pidInfos->push_back(pidInfo);
-    return;
+    auto fossils = static_cast<std::vector<def::FossilPidConfigInfo>*>(ctx);
+    fossils->push_back(fossil);
 }
 
-bool ProcessMemPidConfigManager::CheckPidConfigInfo(const def::ProcessMemPidInfo& pidInfo)
+void ProcessMemPidConfigManager::QueryProcMemConfigCallback(const std::string& keyPrefix, const std::string& key,
+                                                            const UbseByteBuffer& buff, void* ctx)
 {
-    auto exactStartTime = GetExactStartTime(pidInfo.configInfo.pid);
-    if (exactStartTime == 0) {
-        UBSE_LOG_ERROR << "Failed to get exact start time for pid: " << pidInfo.configInfo.pid;
-        return false;
+    if (buff.data == nullptr || buff.len == 0) {
+        UBSE_LOG_ERROR << "QueryProcMemConfigCallback failed, invalid buffer for keyPrefix=" << keyPrefix
+                       << " key=" << key;
+        return;
     }
-    return exactStartTime == pidInfo.startTime;
-}
-
-void ProcessMemPidConfigManager::DeletePidConfigInfo(pid_t pid)
-{
-    auto pidStr = std::to_string(pid);
-    auto ret = ubse::storage::UbseStorageDeleteData(PID_CONFIG_KEY_PREFIX, pidStr);
+    def::ProcessMemNewConfigInfo config{};
+    ubse::serial::UbseDeSerialization deserializer(buff.data, buff.len);
+    auto ret = config.Deserialize(deserializer);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to delete pid config for pid: " << pidStr << ", " << ubse::log::FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Deserialize ProcMemConfig failed for keyPrefix=" << keyPrefix << " key=" << key;
+        return;
     }
-    UBSE_LOG_INFO << "Delete pid config for pid: " << pidStr;
-    return;
-}
-
-bool ProcessMemPidConfigManager::IsPidInfoExist(pid_t pid, uint64_t startTime)
-{
-    auto exactStartTime = GetExactStartTime(pid);
-    if (exactStartTime == 0) {
-        return false;
-    }
-    return exactStartTime == startTime;
+    auto configs = static_cast<std::vector<def::ProcessMemNewConfigInfo>*>(ctx);
+    configs->push_back(config);
 }
 
 } // namespace process_mem::manager
