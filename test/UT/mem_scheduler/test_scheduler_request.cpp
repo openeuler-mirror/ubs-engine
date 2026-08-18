@@ -12,6 +12,7 @@
 
 #include "test_scheduler_request.h"
 
+#include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_mem_scheduler_request.h"
 #include "adapter_plugins/mmi/ubse_mmi_def.h"
 
@@ -157,6 +158,55 @@ TEST_F(TestSchedulerRequest, BuildFromNumaBorrowNoSrcSocket)
 
     EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
               result.filterNames_.end());
+}
+
+TEST_F(TestSchedulerRequest, BuildFromNumaBorrowSamePlanePreferMarksParams)
+{
+    UbseMemNumaBorrowReq req{};
+    req.name = "n1";
+    req.requestNodeId = "1";
+    req.importNodeId = "2";
+    req.size = 256 * MB;
+    req.srcSocket = 36;
+    req.samePlanePrefer = true;
+
+    auto result = SchedulerRequest::BuildFromNumaBorrow(req);
+
+    // 同平面优先: 保留 affinitySocketId, 加评分标记, 不加严格过滤
+    EXPECT_EQ(result.GetParamOpt<int>("affinitySocketId"), 36);
+    EXPECT_TRUE(result.GetParamOpt<bool>("samePlanePrefer").has_value());
+    EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
+              result.filterNames_.end());
+}
+
+TEST_F(TestSchedulerRequest, SetupFromNodeConfMountsSocketAffinityScore)
+{
+    SchedulerNodeManager nodeMgr; // 默认 free-priority
+    SchedulerRequest req;
+    req.requestMode_ = RequestMode::BORROW;
+    req.params_["affinitySocketId"] = 36;
+    req.params_["samePlanePrefer"] = true;
+
+    auto result = SchedulerRequest::SetupFromNodeConf(std::move(req), &nodeMgr);
+
+    EXPECT_NE(std::find(result.scoreNames_.begin(), result.scoreNames_.end(), "SocketAffinityScore"),
+              result.scoreNames_.end());
+    EXPECT_DOUBLE_EQ(result.weights_.wAffinity, 0.1);
+    EXPECT_DOUBLE_EQ(result.weights_.wBalance, ScoreWeights::ForBorrow().wBalance - 0.1);
+}
+
+TEST_F(TestSchedulerRequest, SetupFromNodeConfNoAffinityKeepsWeights)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerRequest req;
+    req.requestMode_ = RequestMode::BORROW;
+
+    auto result = SchedulerRequest::SetupFromNodeConf(std::move(req), &nodeMgr);
+
+    EXPECT_EQ(std::find(result.scoreNames_.begin(), result.scoreNames_.end(), "SocketAffinityScore"),
+              result.scoreNames_.end());
+    EXPECT_DOUBLE_EQ(result.weights_.wAffinity, 0.0);
+    EXPECT_DOUBLE_EQ(result.weights_.wBalance, ScoreWeights::ForBorrow().wBalance);
 }
 
 // ==================== BuildFromShareBorrow ====================
