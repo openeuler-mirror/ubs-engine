@@ -173,3 +173,10 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 {
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
 }
+
+// 主备同时故障agent升主：收敛后kill主和备，较小ID agent通过ForceElection升主，
+// 另一agent被收编为新备；重启原主备后集群重新收敛，新主保持不变
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterAndStandbyDownAgentTakesOver)
+{
+    ubse::it::tests::election::RunFourNodeMasterAndStandbyDownAgentTakesOverTest(Cluster());
+}

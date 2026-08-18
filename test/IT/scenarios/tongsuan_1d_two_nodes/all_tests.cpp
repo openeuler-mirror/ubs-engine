@@ -704,3 +704,16 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
 {
     ubse::it::tests::election::RunTwoNodeElectionTest(Cluster());
 }
+
+// 选举测试：备节点故障后主节点检测备下线并清除standbyId，重启备后重新收敛为1主+1备
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, StandbyDownMasterDegrades)
+{
+    ubse::it::tests::election::RunTwoNodeStandbyDownMasterDegradesTest(Cluster());
+}
+
+// 选举测试：主节点故障后备节点升主，重启原主后被新主收编为备，重新收敛为1主+1备
+// （覆盖 Standby 升主与 Master 收编旧主路径）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, SplitBrainMerge)
+{
+    ubse::it::tests::election::RunTwoNodeSplitBrainMergeTest(Cluster());
+}
