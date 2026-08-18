@@ -67,10 +67,12 @@ private:
 
     static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> PidSetThresholdFunc(const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> RemoveProcessMemFunc(const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> PidUnSetFunc(const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> ChangeProcessMemFunc(const std::map<std::string, std::string>& params);
 };
 bool CheckName(const std::string& name);
+bool CheckName(const std::string& name, int maxLength);
+bool CheckProcName(const std::string& name);
 } // namespace ubse::cli::reg
 #endif

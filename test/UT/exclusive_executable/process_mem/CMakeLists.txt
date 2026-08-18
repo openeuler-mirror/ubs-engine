@@ -6,7 +6,8 @@ add_executable(${CMAKE_PROJECT_NAME}_process_mem_ut EXCLUDE_FROM_ALL
                ${PROCESS_MEM_TEST_SOURCES} ${MOCK_SOURCES}
                ${SRC_DIR}/process_mem_pid_bridge.cpp ${SRC_DIR}/process_mem_pid_collect.cpp
                ${SRC_DIR}/process_mem_pid_config_manager.cpp ${SRC_DIR}/process_mem_pid_info_manager.cpp
-               ${SRC_DIR}/process_mem_plugin.cpp ${PROJECT_SOURCE_DIR}/test/UT/main.cpp)
+               ${SRC_DIR}/process_mem_pid_decision.cpp ${SRC_DIR}/process_mem_plugin.cpp
+               ${PROJECT_SOURCE_DIR}/test/UT/main.cpp)
 set_target_properties(${CMAKE_PROJECT_NAME}_process_mem_ut PROPERTIES LINK_FLAGS "-Wl,--as-needed")
 target_compile_options(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE
     -fPIC -w -g -Wno-all -Wno-error -Wno-non-template-friend
@@ -27,5 +28,5 @@ target_include_directories(${CMAKE_PROJECT_NAME}_process_mem_ut BEFORE PUBLIC
 target_link_options(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE -Wl,--relax --coverage -rdynamic -Wl,--as-needed)
 target_compile_definitions(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE UB_ENVIRONMENT ENABLE_COV=OFF)
 target_link_libraries(${CMAKE_PROJECT_NAME}_process_mem_ut PUBLIC
-    test_exclusive_main ubse_serial mempooling_static rapidjson GTest::gmock_main mockcpp boundscheck)
+    test_exclusive_main ubse_serial rapidjson GTest::gmock_main mockcpp boundscheck trace_context)
 add_independent_exec_ut(${CMAKE_PROJECT_NAME}_process_mem_ut)

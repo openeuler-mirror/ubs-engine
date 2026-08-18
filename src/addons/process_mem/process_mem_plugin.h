@@ -17,17 +17,8 @@
 extern "C" {
 #endif
 
-/**
- * @brief Plugin initialization function; initializes the Ubse plugin
- * @param modCode Plugin module code, used to distinguish different plugin instances
- * @return Initialization result, 0 for success, non-zero for error
- */
 uint32_t UbsePluginInit(uint16_t modCode);
 
-/**
- * @brief Plugin deinitialization function;
- * @return void
- */
 void UbsePluginDeInit(void);
 
 #ifdef __cplusplus

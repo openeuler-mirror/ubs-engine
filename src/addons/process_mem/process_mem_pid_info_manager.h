@@ -11,13 +11,11 @@
  */
 #ifndef PROCESS_MEM_PID_INFO_MANAGER_H
 #define PROCESS_MEM_PID_INFO_MANAGER_H
-#include <atomic>
+#include <functional>
+#include <map>
 #include <shared_mutex>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
-#include "ubse_thread_pool.h"
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_manager_def.h"
 namespace process_mem::manager {
@@ -33,52 +31,63 @@ public:
         return instance;
     }
 
-    uint32_t SetPidInfoMap(const def::ProcessMemPidInfo& pidInfo);
+    void VmRssCheckCallBack(const collect::PidCollectInfoMap& collectInfoMap);
 
-    void GetAllPidInfo(std::vector<def::ProcessMemPidInfo>& pidInfos);
+    void RefreshProcMemConfigCache();
+    uint32_t SetProcMemConfig(const def::ProcessMemNewConfigInfo& config);
+    uint32_t RemoveProcMemConfig(bool isPid, const std::string& identifier);
+    void GetAllProcMemConfigs(std::vector<def::ProcessMemNewConfigInfo>& configs) const;
+    def::ProcessMemNewConfigInfo GetProcMemConfig(bool isPid, const std::string& identifier) const;
 
-    def::ProcessMemPidInfo GetPidInfoMap(pid_t pid);
+    uint32_t FossilizePidConfig(pid_t pid, const std::string& name, uint64_t maxMemory, double remoteRatio, bool force);
 
-    void TotalMemoryCheckCallBack(const collect::CollectInfoMap& collectInfoMap);
+    bool HasExplicitPidConfig(pid_t pid) const;
 
-    uint32_t UnsetPidInfo(pid_t pid);
+    void CleanupStalePidConfigs();
 
-    uint32_t PerPidMemoryCheckCallBack(pid_t pid, const std::unordered_map<uint32_t, size_t>& numaMemory);
+    void RebuildManagedPidCache();
 
-    bool IsRecoverCompleted() const
-    {
-        return isRecoverCompleted_;
-    }
+    void AddNameSourceToManagedPid(pid_t pid, const std::string& name, uint64_t maxMemory, double remoteRatio);
+    void AddChildSourceToManagedPid(pid_t childPid, pid_t parentPid, uint64_t maxMemory, double remoteRatio);
+    void RemoveManagedPidEntry(pid_t pid);
+    void RemovePidSourceFromManagedPid(pid_t pid);
 
-    void RecoverAllDebtInfoData();
+    void UpdateManagedPidVmRssBatch(const collect::PidCollectInfoMap& collectInfo);
 
-    uint32_t HandleNodeFaultEvent(const std::string& lentNodeId);
+    void RebalanceRemoteCheck();
 
-    void CheckFaultNodesRecovery();
+    void UpdateManagedPidBorrowState(pid_t pid, const def::BorrowState& borrow, def::ProcessStatus status);
+    void UpdateManagedPidStatus(pid_t pid, def::ProcessStatus status);
+    void UpdateManagedPidLastMigrateTime(pid_t pid);
 
-    void RefreshBorrowInfo();
+    void UpdateManagedPidBorrowStateAtomic(pid_t pid,
+                                           const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate);
 
-    uint32_t UpdatePidMemBorrowInfo(pid_t pid, const def::DebtInfo& debtInfo);
+    uint32_t UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId, uint64_t amount);
+    uint32_t UpdateManagedPidSlotReturnStatus(pid_t pid, const std::string& debtId, def::ReturnStatus status);
+    void ResetSlotByDebtName(const std::string& debtId);
 
-    uint32_t UpdatePidMemBorrowInfo(pid_t pid, const ubse::mem::controller::UbseMemBorrower& borrower,
-                                    const def::DebtInfo& debtInfo);
-
-    void DeletePidMemBorrowInfo(pid_t pid, const std::string& borrowName);
-
-    void ResetPidMemBorrowInfo(pid_t pid);
-
-public:
-    ubse::task_executor::UbseTaskExecutorPtr borrowExecutor{};
-    ubse::task_executor::UbseTaskExecutorPtr returnExecutor{};
-    ubse::task_executor::UbseTaskExecutorPtr exceptionHandleExecutor{};
+    std::map<pid_t, def::ManagedPidEntry> GetManagedPidCacheSnapshot() const;
 
 private:
-    std::atomic<bool> isRecoverCompleted_{false};
-    std::shared_mutex pidInfoMutex;
-    // 异常线程池，用于处理异常任务
-    std::unordered_map<pid_t, def::ProcessMemPidInfo> pidInfoMap;
-    // 故障节点映射: lentNodeId -> 受影响的 PID 集合
-    std::unordered_map<std::string, std::unordered_set<pid_t>> faultedLentNodes_;
+    static uint32_t ValidateProcMemTarget(const def::ProcessMemNewConfigInfo& config, uint64_t& outStartTime);
+
+    bool CleanupStalePidConfig(const def::ProcessMemNewConfigInfo& cfg);
+    bool CleanupStaleFossil(pid_t pid, const def::FossilPidConfigInfo& fossil);
+    uint32_t RemovePidConfigSideEffects(const std::string& identifier);
+    uint32_t RemoveNameConfigSideEffects(const std::string& identifier);
+    void EraseConfigFromCache(bool isPid, const std::string& identifier);
+    void RebuildMergePidConfigs(const std::vector<def::ProcessMemNewConfigInfo>& configSnapshot);
+    void RebuildMergeNameConfigs(const std::vector<def::ProcessMemNewConfigInfo>& configSnapshot,
+                                 std::vector<std::pair<pid_t, const def::ProcessMemNewConfigInfo*>>& toFossilize);
+    void RebuildMergeFossils();
+    bool RebalancePidRemote(pid_t pid, const def::ManagedPidEntry& entry);
+
+    mutable std::shared_mutex procMemConfigMutex_;
+    std::vector<def::ProcessMemNewConfigInfo> procMemConfigCache_;
+
+    mutable std::shared_mutex managedPidCacheMutex_;
+    std::map<pid_t, def::ManagedPidEntry> managedPidCache_;
 };
 } // namespace process_mem::manager
 #endif

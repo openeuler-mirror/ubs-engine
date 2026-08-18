@@ -12,7 +12,92 @@
 
 #include "ubse_thread_pool.h"
 
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
+#include <queue>
+#include <thread>
+
+#include "mock_control.h"
+
 namespace ubse::task_executor {
+
+namespace {
+std::atomic<bool> g_asyncMode{false};
+std::atomic<bool> g_workerStop{false};
+std::atomic<uint64_t> g_inflight{0};
+std::mutex g_qMutex;
+std::condition_variable g_qCv;
+std::condition_variable g_idleCv;
+std::queue<std::function<void()>> g_tasks;
+std::vector<std::thread> g_workers;
+
+void MockWorkerLoop()
+{
+    for (;;) {
+        std::function<void()> task;
+        {
+            std::unique_lock<std::mutex> lock(g_qMutex);
+            g_qCv.wait(lock, [] { return g_workerStop.load() || !g_tasks.empty(); });
+            if (g_workerStop.load()) {
+                return;
+            }
+            task = std::move(g_tasks.front());
+            g_tasks.pop();
+        }
+        task();
+        if (g_inflight.fetch_sub(1) == 1) {
+            g_idleCv.notify_all();
+        }
+    }
+}
+
+bool TryEnqueue(const std::function<void()>& task)
+{
+    if (!g_asyncMode.load()) {
+        return false;
+    }
+    g_inflight.fetch_add(1);
+    {
+        std::lock_guard<std::mutex> lock(g_qMutex);
+        g_tasks.push(task);
+    }
+    g_qCv.notify_one();
+    return true;
+}
+} // namespace
+
+void MockSetExecutorAsync(bool async)
+{
+    if (async == g_asyncMode.load()) {
+        return;
+    }
+    if (async) {
+        g_workerStop.store(false);
+        for (int i = 0; i < 2; ++i) {
+            g_workers.emplace_back(MockWorkerLoop);
+        }
+        g_asyncMode.store(true);
+    } else {
+        MockWaitExecutorIdle();
+        g_workerStop.store(true);
+        g_qCv.notify_all();
+        for (auto& worker : g_workers) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        g_workers.clear();
+        g_asyncMode.store(false);
+    }
+}
+
+void MockWaitExecutorIdle()
+{
+    std::unique_lock<std::mutex> lock(g_qMutex);
+    g_idleCv.wait(lock, [] { return g_inflight.load() == 0 && g_tasks.empty(); });
+}
 
 void UbseRunnable::Run()
 {
@@ -69,7 +154,9 @@ bool UbseTaskExecutor::Execute(const UbseRunnablePtr& runnable)
         return false;
     }
     if (runnable.Get() != nullptr) {
-        runnable->Run();
+        if (!TryEnqueue([runnable]() { runnable->Run(); })) {
+            runnable->Run();
+        }
     }
     return true;
 }
@@ -80,7 +167,9 @@ bool UbseTaskExecutor::Execute(const std::function<void()>& task)
         return false;
     }
     if (task) {
-        task();
+        if (!TryEnqueue(task)) {
+            task();
+        }
     }
     return true;
 }

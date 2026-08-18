@@ -14,9 +14,8 @@
 #define UBSE_CLI_CONSTANT_H
 #include <string>
 
-// Store constants unrelated to the structure.
 namespace constant {
-constexpr uint32_t REQUEST_BUFFER_CAPACITY = 8; // Default non-empty request size.
+constexpr uint32_t REQUEST_BUFFER_CAPACITY = 8;
 }
 
 namespace systemd::error {
@@ -45,4 +44,4 @@ namespace node::error {
 const std::string NODE_ATTRIBUTE_EMPTY = "ERROR: Node attribute information is empty.";
 }
 
-#endif // UBSE_CLI_CONSTANT_H
+#endif
