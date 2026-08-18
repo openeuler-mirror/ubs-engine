@@ -600,16 +600,22 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllo
     return UBSE_SSU_ERROR_ROLE_INVALID;
 }
 
-// 查找设备中指定命名空间ID的命名空间
+// 查找设备中的命名空间，仅按 uuid 匹配
+// uuid 是 NVMe 命名空间的持久化唯一标识；nsid 在删除后可能被复用，不能作为可靠匹配依据。
+// 调用方需保证 uuidStr 来自权威数据源（账本），非空。
 static const UbseSsuDevNameSpace *FindNsInDevice(const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
-                                                 const std::string &eid, uint32_t namespaceId)
+                                                 const std::string &eid, const std::string &uuidStr)
 {
+    if (uuidStr.empty()) {
+        return nullptr;
+    }
     auto devIt = devMap.find(eid);
     if (devIt == devMap.end()) {
         return nullptr;
     }
     for (const auto &ns : devIt->second->nameSpaces) {
-        if (ns.namespaceId == namespaceId) {
+        // 缓存中 uuid 为 16 字节二进制，转换为标准格式（36字符带连字符）后与账本记录比对
+        if (StrToUuid(ns.uuid) == uuidStr) {
             return &ns;
         }
     }
@@ -645,6 +651,7 @@ static void RefreshDevCache(const std::string &eid, const std::string &subNqn,
     auto ret = UbseSsuAdapterInterface::GetInstance().GetDevList(freshDevList);
     if (ret == UBSE_OK && !freshDevList.empty()) {
         devMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(freshDevList[0]));
+        UBSE_LOG_INFO << "RefreshDevCache: refresh dev cache success, eid=" << eid;
     } else {
         UBSE_LOG_WARN << "RefreshDevCache: refresh dev from hardware failed, eid=" << eid
                       << ", ret=" << ret;
@@ -679,11 +686,14 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
     std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
     std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
-        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        // 按 uuid 匹配：缓存可能滞后于硬件（nsid 复用重建时 guid/uuid 已变化），
+        // uuid 一致才命中，避免拿过期缓存条目的 guid 去执行删除
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
-            // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
+            // 缓存未命中（含 uuid 不匹配）：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            UBSE_LOG_INFO << "ExecuteFree: refresh dev cache, eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         }
         if (targetNs == nullptr) {
             // 刷新后仍查不到，才认定NS已不在硬件中（可能已被删除），视为已释放，跳过
@@ -1203,11 +1213,11 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
     nsVerifyList.reserve(entryPtr->allocResult.nameSpaceList.size());
     std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
-        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         }
         if (targetNs == nullptr) {
             UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: namespace not found in cache, eid=" << nsInfo.tgtEid
@@ -1236,12 +1246,12 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
 static uint32_t AttachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuAllocIdentityInfo &identity,
                                const std::string &nqn, std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
 {
-    auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+    auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
     if (targetNs == nullptr) {
         // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
         std::unordered_set<std::string> refreshedEids;
         RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-        targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
     }
     if (targetNs == nullptr) {
         UBSE_LOG_ERROR << "AttachSingleNs: device or namespace not found in cache, eid=" << nsInfo.tgtEid
@@ -1267,7 +1277,7 @@ static uint32_t AttachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsu
 static uint32_t DetachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuAllocIdentityInfo &identity,
                                const std::string &nqn, const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
 {
-    auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+    auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
     if (targetNs == nullptr) {
         // 设备或NS不在缓存中，说明已被detach，视为幂等成功
         UBSE_LOG_INFO << "DetachSingleNs: device or namespace not found in cache, treat as already detached, eid="
@@ -1957,6 +1967,7 @@ static uint32_t AccessPermissionViaRpc(const std::string &name, const std::strin
 struct SucceededPermNs {
     std::string eid;
     uint32_t nsId;
+    std::string uuid;
     std::string nqn;
 };
 
@@ -1974,7 +1985,7 @@ static void RollbackPermOperations(const std::vector<SucceededPermNs> &succeeded
         return;
     }
     for (const auto &item : succeededList) {
-        auto targetNs = FindNsInDevice(devMap, item.eid, item.nsId);
+        auto targetNs = FindNsInDevice(devMap, item.eid, item.uuid);
         if (targetNs == nullptr) {
             UBSE_LOG_WARN << "RollbackPermOperations: namespace not found, eid=" << item.eid << ", nsId=" << item.nsId
                           << ", skip";
@@ -2018,11 +2029,11 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
     std::vector<SucceededPermNs> succeededNsList;
     std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
-        auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         }
         if (targetNs == nullptr) {
             // 刷新后仍查不到，才可认定NS确实不存在
@@ -2063,7 +2074,7 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
             return isAdd ? UBSE_SSU_ERROR_PERMISSION_ADD_FAILED : UBSE_SSU_ERROR_PERMISSION_REMOVE_FAILED;
         }
         // 记录成功操作，用于后续回滚
-        succeededNsList.push_back({nsInfo.tgtEid, nsInfo.namespaceId, nqnFinal});
+        succeededNsList.push_back({nsInfo.tgtEid, nsInfo.namespaceId, nsInfo.nsUuid, nqnFinal});
     }
 
     UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << nqn;
@@ -2199,10 +2210,10 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
     statsList.clear();
     statsList.reserve(entryPtr->allocResult.nameSpaceList.size());
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
-        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         }
         if (targetNs == nullptr) {
             UBSE_LOG_ERROR << "ExecuteGetNsStats: namespace not found, eid=" << nsInfo.tgtEid
@@ -2355,10 +2366,10 @@ static bool IsLedgerEntryIdentityMatch(const UbseSsuLedgerEntry &entry, const Ub
     std::unordered_set<std::string> refreshedEids;
     bool anyChecked = false;
     for (const auto &nsInfo : entry.allocResult.nameSpaceList) {
-        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
             if (targetNs == nullptr) {
                 continue;
             }
@@ -2436,10 +2447,10 @@ static void FillAllowHostNqnList(UbseSsuAllocResult &result, std::unordered_map<
 {
     std::unordered_set<std::string> refreshedEids;
     for (auto &nsInfo : result.nameSpaceList) {
-        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
             if (targetNs == nullptr) {
                 UBSE_LOG_WARN << "FillAllowHostNqnList: namespace not found in cache, eid=" << nsInfo.tgtEid
                               << ", nsId=" << nsInfo.namespaceId;
@@ -2634,11 +2645,11 @@ uint32_t UbseSsuServiceImp::ExecuteGetConnectInfo(const std::string &name, const
     connectInfoList.clear();
     connectInfoList.reserve(entryPtr->allocResult.nameSpaceList.size());
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
-        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             // 缓存未命中：从硬件直接查询此eid（刚分配的ns可能尚未被定时采集覆盖）
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         }
         if (targetNs == nullptr) {
             UBSE_LOG_ERROR << "ExecuteGetConnectInfo: namespace not found, eid=" << nsInfo.tgtEid
