@@ -600,6 +600,12 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
     if (node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
         return UBSE_OK;
     }
+    auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    if (node.groupId != curNode.groupId) {
+        UBSE_LOG_INFO << "skip ledger for node in different cabinet, nodeId=" << node.nodeId
+                      << ", nodeGroupId=" << node.groupId << ", currentGroupId=" << curNode.groupId;
+        return UBSE_OK;
+    }
     UBSE_LOG_INFO << "nodeId=" << node.nodeId << "start ledger.";
     UbseResult ret = UBSE_OK;
     if (!CheckNodeIsMaster()) {
