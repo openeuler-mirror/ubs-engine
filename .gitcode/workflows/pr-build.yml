@@ -40,6 +40,7 @@ stages:
             run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
           - name: Install System pre-commit
             run: | 
+                set -eux
                 PYTHON3_BIN=$(dirname "$(which python3)")
                 ln -sf "$(which python3)" "$PYTHON3_BIN/python"
                 echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
