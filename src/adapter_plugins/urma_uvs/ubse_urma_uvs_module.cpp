@@ -45,7 +45,7 @@ UbseResult WriteEidSharingFile()
     const int fd = open(EID_SHARING_FILE, O_WRONLY);
     if (fd < 0) {
         UBSE_LOG_WARN << "Failed to open URMA EID sharing file, file=" << EID_SHARING_FILE
-                      << ", error=" << std::strerror(errno);
+                      << ", ret=" << std::strerror(errno);
         return UBSE_ERROR_IO;
     }
     const auto written = write(fd, &EID_SHARING_ENABLED, sizeof(EID_SHARING_ENABLED));
