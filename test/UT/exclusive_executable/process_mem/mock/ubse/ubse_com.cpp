@@ -11,8 +11,21 @@
  */
 
 #include "ubse_com.h"
+#include "mock_control.h"
 
 namespace ubse::com {
+
+static std::vector<MockRpcSendRecord> g_mockRpcSendRecords;
+
+void MockResetRpcState()
+{
+    g_mockRpcSendRecords.clear();
+}
+
+const std::vector<MockRpcSendRecord>& MockGetRpcSendRecords()
+{
+    return g_mockRpcSendRecords;
+}
 
 uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler)
 {
@@ -22,6 +35,12 @@ uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComService
 uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
                      const UbseComRespHandler& handler)
 {
+    MockRpcSendRecord record;
+    record.address = endpoint.address;
+    if (reqData.data != nullptr && reqData.len > 0) {
+        record.payload.assign(reinterpret_cast<const char*>(reqData.data), reqData.len);
+    }
+    g_mockRpcSendRecords.push_back(std::move(record));
     return 0;
 }
 
