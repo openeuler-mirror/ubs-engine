@@ -171,8 +171,7 @@ static MpResult CollectVmPidMemInfos(const std::vector<uint16_t>& faultNumaIds, 
     if (!disablePids.empty()) {
         // 禁用纳管pid冷热迁移（per-pid批量，幂等）: 失败则本轮不采稳态值，等下轮重试
         std::vector<pid_t> disablePidVec(disablePids.begin(), disablePids.end());
-        int disableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(disablePidVec.data(), disablePidVec.size(), 0,
-                                                                      0);
+        int disableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(disablePidVec.data(), disablePidVec.size(), 0, 0);
         if (disableRet != MEM_POOLING_OK) {
             LOG_ERROR << "Disable smap migrate failed in query, ret=" << disableRet << ", retry next round.";
             return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
@@ -648,8 +647,8 @@ static TaskPhase RemoveSingleTaskFaultNumaManaged(const MigrationTask& task)
 }
 
 // 同目标numa任务组: 组级预占/锁/一次smap远端numa信息设置 + task级并行迁移，返回taskId→到达的phase
-static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(
-    uint16_t newRemoteNumaId, const std::vector<const MigrationTask*>& groupTasks)
+static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newRemoteNumaId,
+                                                                   const std::vector<const MigrationTask*>& groupTasks)
 {
     std::unordered_map<std::string, TaskPhase> taskPhaseResults;
     LOG_DEBUG << "MigrateTaskGroup start: destNuma=" << newRemoteNumaId << ", tasks=" << groupTasks.size() << ".";
@@ -737,8 +736,8 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(
             LOG_DEBUG << "Task " << taskId << " migrate failed, stays BORROWED for next-round RESUME.";
         }
     }
-    LOG_DEBUG << "MigrateTaskGroup end: destNuma=" << newRemoteNumaId << ", advanced=" << taskPhaseResults.size()
-              << "/" << groupTasks.size() << ".";
+    LOG_DEBUG << "MigrateTaskGroup end: destNuma=" << newRemoteNumaId << ", advanced=" << taskPhaseResults.size() << "/"
+              << groupTasks.size() << ".";
     return taskPhaseResults;
 }
 
@@ -890,8 +889,8 @@ uint32_t PidFaultHandler::PidExecuteRecvHandler(const UbseByteBuffer& req, UbseB
             LOG_DEBUG << "Launch migrate group " << g << ": tasks=" << migrateGroupStorage[g].size() << ".";
             const std::vector<const MigrationTask*>& groupTasks = migrateGroupStorage[g];
             uint16_t destNuma = groupTasks.front()->newRemoteNumaId;
-            groupFutures.push_back(std::async(std::launch::async,
-                                              [destNuma, &groupTasks]() { return MigrateTaskGroup(destNuma, groupTasks); }));
+            groupFutures.push_back(std::async(
+                std::launch::async, [destNuma, &groupTasks]() { return MigrateTaskGroup(destNuma, groupTasks); }));
         }
         if (!removeTasks.empty()) {
             LOG_DEBUG << "Launch remove retry group: tasks=" << removeTasks.size() << ".";

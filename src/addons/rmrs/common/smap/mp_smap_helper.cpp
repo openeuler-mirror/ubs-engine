@@ -29,7 +29,7 @@ constexpr int SMAP_ERROR = 1;
 
 namespace {
 // period.config解析常量: 开关关闭/文件缺失/字段非法时周期回退兜底值
-constexpr uint32_t kSmapPeriodMaxMs = 60000; // 周期合法上限，超出按配置异常回退兜底值
+constexpr uint32_t kSmapPeriodMaxMs = 60000;   // 周期合法上限，超出按配置异常回退兜底值
 constexpr uint32_t kSmapQuiesceBufferMs = 500; // 周期后的边界buffer，覆盖周期边界在途迁移
 const std::string kSmapMigratePeriodKey = "smap.migrate.period";
 const std::string kSmapPeriodSwitchKey = "smap.period.file.config.switch";
