@@ -100,6 +100,10 @@ public:
     {
         return nodeId_;
     }
+    [[nodiscard]] uint32_t GetNodeMaxLendGb() const
+    {
+        return nodeMaxLendGb_;
+    }
 
 private:
     NodeId nodeId_;
@@ -107,6 +111,7 @@ private:
     UbseAllocator allocator_{UbseAllocator::BUDDY_HIGHMEM};
     uint32_t pmdMapping_{100};
     uint32_t blockSize_{128};
+    uint32_t nodeMaxLendGb_{0};
     bool isLender_{true};
     UbseNodeClusterState clusterState_{UbseNodeClusterState::UBSE_NODE_INIT};
     std::map<SocketId, std::unique_ptr<SchedulerSocketInfo>> socketInfoMap_;

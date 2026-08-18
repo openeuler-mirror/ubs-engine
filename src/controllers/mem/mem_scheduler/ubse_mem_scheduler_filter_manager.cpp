@@ -27,6 +27,7 @@
 #include "scheduler_filter/ubse_mem_scheduler_region_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_requested_providers_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_role_conflict_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_shared_pool_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_socket_affinity_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_specified_lender_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_specified_link_filter.h"
@@ -56,6 +57,7 @@ UbseResult SchedulerFilterManager::Init()
     RegisterFilter(std::make_unique<RadiusLenderFilter>());
     RegisterFilter(std::make_unique<RegionFilter>());
     RegisterFilter(std::make_unique<FreeMemoryFilter>());
+    RegisterFilter(std::make_unique<SharedPoolFilter>());
     UBSE_LOG_INFO << "Register filters: " << filterMap_.size();
 
     return UBSE_OK;
