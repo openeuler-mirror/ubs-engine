@@ -13,6 +13,7 @@
 #ifndef MEMPOOLING_OVER_COMMIT_FAULT_MEMID_MODULE_H
 #define MEMPOOLING_OVER_COMMIT_FAULT_MEMID_MODULE_H
 
+#include <climits>
 #include <string>
 #include <unordered_map>
 #include "fault_memid_module.h"
@@ -225,5 +226,21 @@ private:
     MpSceneType mSceneType{MpSceneType::VIRTUAL_SCENE};
     NumaBindType mBindType{NumaBindType::BIND_INVALID};
 };
+
+// 比较两个错误码的优先级，返回优先级更高的错误码（Rank 越小优先级越高）
+inline MpResult get_higher_priority_error(MpResult err1, MpResult err2)
+{
+    static const std::unordered_map<MpResult, int32_t> kErrorRankMap = {
+        {MEM_POOLING_FAULT_IPC_ERROR, 1},        {MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR, 2},
+        {MEM_POOLING_LACK_LOCAL_MEM_ERROR, 3},   {MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR, 4},
+        {MEM_POOLING_FAULT_MIGRATE_ERROR, 5},    {MEM_POOLING_FAULT_BORROW_MEM_ERROR, 6},
+        {MEM_POOLING_FAULT_RETURN_MEM_ERROR, 7}, {MEM_POOLING_FAULT_PARTIAL_SUCCESS, 8},
+        {MEM_POOLING_MIGRATE_TIMEOUT, 9}};
+    auto get_rank = [&](MpResult err) -> int32_t {
+        auto it = kErrorRankMap.find(err);
+        return (it != kErrorRankMap.end()) ? it->second : INT32_MAX;
+    };
+    return (get_rank(err1) < get_rank(err2)) ? err1 : err2;
+}
 } // namespace mempooling
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_MEMID_MODULE_H

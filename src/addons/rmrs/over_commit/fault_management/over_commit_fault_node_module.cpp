@@ -11,6 +11,10 @@
  */
 
 #include "over_commit_fault_node_module.h"
+#include <algorithm>
+#include <future>
+#include <mutex>
+#include <set>
 #include "ubse_error.h"
 #include "OsHelper/OsHelper.h"
 #include "collect_util.h"
@@ -18,6 +22,8 @@
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
 #include "mempool_borrow_module.h"
+#include "mp_configuration.h"
+#include "mp_memory_info.h"
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_module.h"
 #include "over_commit_pid_fault_pipeline.h"
@@ -29,6 +35,9 @@
 namespace mempooling {
 using namespace ubse::mem::controller;
 // 全局 pending 迁移状态表：借用成功但迁移失败的 PID
+constexpr uint64_t KB_TO_B = 1024;
+constexpr uint64_t MB_TO_KBYTES = 1024;
+constexpr uint64_t NUM_TO_RATIO = 100;
 
 MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string& nodeId)
 {
@@ -1004,77 +1013,119 @@ bool CollectPidBorrowInfo(const std::vector<BorrowRecord>& records, PidBorrowCon
     return true;
 }
 
-MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrowId, uint16_t& newRemoteNumaId)
+BorrowForPidResult ExecuteBorrowForPid(const PidBorrowContext& ctx)
 {
+    BorrowForPidResult result;
     SrcMemoryBorrowParam srcParam;
     srcParam.srcNid = ctx.borrowNodeId;
     srcParam.srcSocketId = ctx.borrowSocketId;
     srcParam.uid = ctx.uid;
     srcParam.username = ctx.username;
 
-    // 故障借用层入参单位KB（低于4MB下限的取整与KB→字节换算由借用层统一处理）
-    std::vector<uint64_t> borrowSizes{ctx.remoteTotalSizeKB};
+    // Per-NUMA sizes: one independent borrow per old remote NUMA. Sizes are NOT
+    // aggregated: each iteration of remoteNumaSizeMap yields exactly one borrow entry.
+    // Order is preserved by std::unordered_map iteration, but we key each returned
+    // result by its oldNumaId so callers don't rely on iteration order.
+    std::vector<uint16_t> orderedOldNumaIds;
+    std::vector<uint64_t> borrowSizes;
+    orderedOldNumaIds.reserve(ctx.remoteNumaSizeMap.size());
+    borrowSizes.reserve(ctx.remoteNumaSizeMap.size());
+    for (const auto& [oldNumaId, sizeKB] : ctx.remoteNumaSizeMap) {
+        orderedOldNumaIds.push_back(oldNumaId);
+        borrowSizes.push_back(sizeKB);
+    }
+
+    if (borrowSizes.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] No remote NUMA sizes to borrow for pid=" << ctx.pid << ".";
+        result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+        return result;
+    }
 
     WaterMark waterMark;
     auto waterMarkRet = OverCommitFaultMemIdModule::Instance().GetWaterMark(waterMark);
     if (waterMarkRet != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] GetWaterMark failed for pid=" << ctx.pid << ".";
-        return MEM_POOLING_ERROR;
+        result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+        return result;
     }
 
     MemBorrowExecuteResult borrowExecuteResult;
     ProcessMemUsrInfo processMemUsrInfo = {
         .pluginId = UsrInfoPluginType::PROCESS_MEM, .pid = ctx.pid, .startTime = ctx.startTime};
+    auto waterMarkVal =
+        mempooling::WaterMark({.highWaterMark = waterMark.highWaterMark, .lowWaterMark = waterMark.lowWaterMark});
+    // 主节点已通过辗转相减分配目标借出节点：候选借出节点收窄为该节点列表，空则回退现逻辑
     auto ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
-        srcParam, borrowSizes,
-        mempooling::WaterMark({.highWaterMark = waterMark.highWaterMark, .lowWaterMark = waterMark.lowWaterMark}),
-        borrowExecuteResult, processMemUsrInfo);
-    if (ret != MEM_POOLING_OK || borrowExecuteResult.borrowIds.empty() || borrowExecuteResult.presentNumaId.empty()) {
+        srcParam, borrowSizes, waterMarkVal, borrowExecuteResult, processMemUsrInfo, ctx.allocLendNodeIds);
+
+    // The per-numa contract requires all N independent borrows to succeed; a partial
+    // success (some borrowIds returned, some missing) is treated as a hard failure so
+    // the caller can retry with the full set. We do not silently discard the partial
+    // result because the returned borrowIds would otherwise leak: the new remote
+    // NUMAs are unrelated to the old ones and no migration would be scheduled for the
+    // missing ones.
+    if (ret != MEM_POOLING_OK || borrowExecuteResult.borrowIds.size() != borrowSizes.size() ||
+        borrowExecuteResult.presentNumaId.size() != borrowSizes.size()) {
         LOG_ERROR << "[FaultManager][Simplified] MemBorrowExecuteForFaultInOverCommit failed for pid=" << ctx.pid
-                  << ".";
-        return MEM_POOLING_ERROR;
+                  << ", expected=" << borrowSizes.size() << ", got borrowIds=" << borrowExecuteResult.borrowIds.size()
+                  << ", presentNumaId=" << borrowExecuteResult.presentNumaId.size() << ".";
+        result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+        return result;
     }
 
-    newRemoteNumaId = borrowExecuteResult.presentNumaId[0];
-    newBorrowId = borrowExecuteResult.borrowIds[0];
-    LOG_DEBUG << "[FaultManager][Simplified] Borrow success, newBorrowId=" << newBorrowId
-              << ", newRemoteNumaId=" << newRemoteNumaId << ".";
-    return MEM_POOLING_OK;
+    result.perNuma.reserve(borrowSizes.size());
+    for (size_t i = 0; i < borrowSizes.size(); ++i) {
+        PerRemoteNumaBorrowResult entry;
+        entry.oldNumaId = orderedOldNumaIds[i];
+        entry.newNumaId = borrowExecuteResult.presentNumaId[i];
+        entry.borrowSizeKB = borrowSizes[i];
+        entry.newBorrowId = borrowExecuteResult.borrowIds[i];
+        result.perNuma.push_back(std::move(entry));
+    }
+    result.status = MEM_POOLING_OK;
+    LOG_DEBUG << "[FaultManager][Simplified] Borrow success, pid=" << ctx.pid
+              << ", perNumaBorrows.size=" << result.perNuma.size() << ".";
+    return result;
 }
 
-MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
-                                      const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap)
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, const std::vector<PerRemoteNumaBorrowResult>& perNumaBorrows)
 {
-    if (!FaultNumaReservedLock::Instance().TryReserve(newRemoteNumaId)) {
-        LOG_ERROR << "[FaultManager][Simplified] Fault target NUMA already reserved, newRemoteNumaId="
-                  << newRemoteNumaId << ".";
+    if (perNumaBorrows.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] No per-numa borrow entries for pending pid=" << pid << ".";
         return MEM_POOLING_ERROR;
     }
+    if (perNumaBorrows.size() > static_cast<size_t>(MAX_NR_MIGOUT)) {
+        LOG_ERROR << "[FaultManager][Simplified] Too many per-numa entries for pending pid=" << pid
+                  << ", count=" << perNumaBorrows.size() << ", max=" << MAX_NR_MIGOUT << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    // Each entry migrates a single old remote NUMA to its own new remote NUMA. Reserve
+    // every destination independently and lock each; this matches the per-NUMA
+    // contract and avoids two entries fighting for the same FaultNumaReservedLock slot.
     FaultNumaReservedGuard reservedGuard;
-    reservedGuard.numaIds.push_back(newRemoteNumaId);
     FaultNumaLockGuard lockGuard;
-    FaultNumaLock::Instance().AcquireShared(newRemoteNumaId);
-    lockGuard.sharedNumaIds.push_back(newRemoteNumaId);
-    MigrateEscapeMsg msg{};
-    int idx = 0;
-    for (const auto& [srcNumaId, _] : remoteNumaSizeMap) {
-        if (idx >= MAX_NR_MIGOUT) {
-            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pending pid=" << pid << ", truncating to "
-                     << MAX_NR_MIGOUT << ".";
-            break;
+    for (const auto& entry : perNumaBorrows) {
+        if (!FaultNumaReservedLock::Instance().TryReserve(entry.newNumaId)) {
+            LOG_ERROR << "[FaultManager][Simplified] Fault target NUMA already reserved, newNumaId=" << entry.newNumaId
+                      << ".";
+            return MEM_POOLING_ERROR;
         }
+        reservedGuard.numaIds.push_back(entry.newNumaId);
+        FaultNumaLock::Instance().AcquireShared(entry.newNumaId);
+        lockGuard.sharedNumaIds.push_back(entry.newNumaId);
+    }
+
+    MigrateEscapeMsg msg{};
+    for (size_t idx = 0; idx < perNumaBorrows.size(); ++idx) {
+        const auto& entry = perNumaBorrows[idx];
         msg.payload[idx].pid = pid;
-        msg.payload[idx].srcNid = static_cast<int>(srcNumaId);
-        msg.payload[idx].destNid = static_cast<int>(newRemoteNumaId);
+        msg.payload[idx].srcNid = static_cast<int>(entry.oldNumaId);
+        msg.payload[idx].destNid = static_cast<int>(entry.newNumaId);
         msg.payload[idx].migrateMode = MIG_MEMSIZE_MODE;
         msg.payload[idx].memSize = 0;
-        idx++;
     }
-    msg.count = idx;
-    if (msg.count == 0) {
-        LOG_ERROR << "[FaultManager][Simplified] No remote NUMAs for pending pid=" << pid << ".";
-        return MEM_POOLING_ERROR;
-    }
+    msg.count = static_cast<int>(perNumaBorrows.size());
 
     std::vector<UbseNumaMemoryDebtInfo> allDebtInfos;
     if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
@@ -1082,15 +1133,25 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
         return MEM_POOLING_ERROR;
     }
     auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
-    uint64_t totalBorrowedKB =
-        MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(newRemoteNumaId)) /
-        1024;
-    over_commit::MemBorrowInfoWithSrc info{
-        .srcNumaId = 0, .presentNumaId = newRemoteNumaId, .borrowSize = totalBorrowedKB};
-    auto setRet = MpSmapHelper::SetSmapRemoteNumaInfo(-1, {info});
+
+    // Publish per-(oldNuma -> newNuma, size) to smap so the migration actually moves
+    // the right amount. We avoid collapsing sizes across newNumaIds: each new NUMA
+    // gets its own entry. A failure here is logged but does not abort the migration,
+    // matching the previous behavior.
+    std::vector<over_commit::MemBorrowInfoWithSrc> setInfos;
+    setInfos.reserve(perNumaBorrows.size());
+    for (const auto& entry : perNumaBorrows) {
+        uint64_t totalBorrowedKB = MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(
+                                       validDebtInfos, static_cast<int16_t>(entry.newNumaId)) /
+                                   1024;
+        over_commit::MemBorrowInfoWithSrc info{
+            .srcNumaId = entry.oldNumaId, .presentNumaId = entry.newNumaId, .borrowSize = totalBorrowedKB};
+        setInfos.push_back(info);
+    }
+    auto setRet = MpSmapHelper::SetSmapRemoteNumaInfo(-1, setInfos);
     if (setRet != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] SetSmapRemoteNumaInfo failed for pending pid=" << pid
-                  << ", newRemoteNumaId=" << newRemoteNumaId << ".";
+                  << ", numEntries=" << setInfos.size() << ".";
     }
 
     MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
@@ -1102,37 +1163,10 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
     return MEM_POOLING_OK;
 }
 
-MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId,
-                          std::unordered_set<std::string>& freedOldBorrowIds)
-{
-    MpResult finalRet = MEM_POOLING_OK;
-    for (const auto& oldBorrowId : oldBorrowIds) {
-        if (freedOldBorrowIds.count(oldBorrowId) > 0) {
-            LOG_DEBUG << "[FaultManager][Simplified] Skip already freed oldBorrowId=" << oldBorrowId << ".";
-            continue;
-        }
-        MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
-        if (ret != MEM_POOLING_OK && ret != UBSE_ERR_NOT_EXIST) {
-            LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
-            finalRet = MEM_POOLING_ERROR;
-        } else {
-            freedOldBorrowIds.insert(oldBorrowId);
-            LOG_DEBUG << "[FaultManager][Simplified] Freed oldBorrowId=" << oldBorrowId << ".";
-        }
-    }
-
-    if (finalRet == MEM_POOLING_OK) {
-        for (const auto& oldBorrowId : oldBorrowIds) {
-            if (BorrowIdRedirection::Instance().Update(oldBorrowId, newBorrowId) != MEM_POOLING_OK) {
-                LOG_ERROR << "[FaultManager][Simplified] Update BorrowIdRedirection failed for " << oldBorrowId;
-                finalRet = MEM_POOLING_ERROR;
-            }
-        }
-    }
-    return finalRet;
-}
-
-MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& newBorrowId)
+MpResult FinalizePidProcessing(const PidBorrowContext& ctx,
+                               const std::vector<PerRemoteNumaBorrowResult>& perNumaBorrows,
+                               const std::vector<uint16_t>& migratedNumaIds,
+                               std::unordered_set<std::string>& freedOldBorrowIds)
 {
     std::vector<pid_t> pids{ctx.pid};
     auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
@@ -1140,16 +1174,47 @@ MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& n
         LOG_WARN << "[FaultManager][Simplified] Enable smap migrate failed for pid=" << ctx.pid << ".";
     }
 
+    // Build (oldNumaId -> newBorrowId) lookup so we can rewrite the BorrowIdRedirection
+    // entry for each released old borrowId to the correct new borrowId. This avoids
+    // having a single "newBorrowId" parameter that incorrectly aggregates destinations.
+    std::unordered_map<uint16_t, std::string> newBorrowIdByOldNuma;
+    newBorrowIdByOldNuma.reserve(perNumaBorrows.size());
+    for (const auto& entry : perNumaBorrows) {
+        newBorrowIdByOldNuma[entry.oldNumaId] = entry.newBorrowId;
+    }
+
     MpResult finalRet = MEM_POOLING_OK;
-    for (const auto& oldBorrowId : ctx.oldBorrowIds) {
-        MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
-        if (ret != UBSE_ERR_NOT_EXIST && ret != MEM_POOLING_OK) {
-            LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
-            finalRet = MEM_POOLING_ERROR;
+    for (auto oldNumaId : migratedNumaIds) {
+        auto borrowIdsIt = ctx.numaToBorrowIds.find(oldNumaId);
+        if (borrowIdsIt == ctx.numaToBorrowIds.end()) {
+            LOG_WARN << "[FaultManager][Simplified] No old borrowIds recorded for migrated oldNumaId=" << oldNumaId
+                     << ", pid=" << ctx.pid << ".";
+            continue;
+        }
+        const std::string& newBorrowId = newBorrowIdByOldNuma.count(oldNumaId) ? newBorrowIdByOldNuma[oldNumaId] : "";
+        for (const auto& oldBorrowId : borrowIdsIt->second) {
+            if (freedOldBorrowIds.count(oldBorrowId) > 0) {
+                LOG_DEBUG << "[FaultManager][Simplified] Skip already freed oldBorrowId=" << oldBorrowId << ".";
+                continue;
+            }
+            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
+            if (ret != UBSE_ERR_NOT_EXIST && ret != MEM_POOLING_OK) {
+                LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
+                finalRet = MEM_POOLING_ERROR;
+                continue;
+            }
+            freedOldBorrowIds.insert(oldBorrowId);
+            if (!newBorrowId.empty() &&
+                BorrowIdRedirection::Instance().Update(oldBorrowId, newBorrowId) != MEM_POOLING_OK) {
+                LOG_ERROR << "[FaultManager][Simplified] Update BorrowIdRedirection failed for " << oldBorrowId;
+                finalRet = MEM_POOLING_ERROR;
+            }
         }
     }
 
-    LOG_DEBUG << "[FaultManager][Simplified] Finalize done, newBorrowId=" << newBorrowId << " retained.";
+    LOG_DEBUG << "[FaultManager][Simplified] Finalize done, pid=" << ctx.pid
+              << ", migratedNumaIds.size=" << migratedNumaIds.size()
+              << ", freedOldBorrowIds.size=" << freedOldBorrowIds.size() << ".";
     return finalRet;
 }
 
@@ -1209,67 +1274,143 @@ MpResult FreeBorrowIdsDirectly(const std::vector<std::string>& borrowIds, const 
     return finalRet;
 }
 
-MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records)
+MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records,
+                               const std::vector<SimplifiedFaultPidAllocTarget>& allocTargets)
 {
-    auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
-    auto pendingIt = pendingMigrations.find(pid);
-    if (pendingIt != pendingMigrations.end()) {
-        return ProcessPendingMigration(pid, pendingIt);
+    auto& module = OverCommitFaultNodeModule::Instance();
+    auto& pendingMigrations = module.GetPendingMigrations();
+    PendingMigrationState copiedState;
+    bool hasPending = false;
+    {
+        std::lock_guard<std::mutex> lock(module.GetPendingMigrationsMutex());
+        auto pendingIt = pendingMigrations.find(pid);
+        if (pendingIt != pendingMigrations.end()) {
+            copiedState = pendingIt->second;
+            hasPending = true;
+        }
     }
-    return ProcessNewBorrowFlow(pid, startTime, records);
+
+    if (hasPending) {
+        MpResult result = ProcessPendingMigration(pid, copiedState);
+        // Re-acquire lock to write back the modified state, or erase if fully completed
+        std::lock_guard<std::mutex> lock(module.GetPendingMigrationsMutex());
+        auto it = pendingMigrations.find(pid);
+        if (it != pendingMigrations.end()) {
+            if (result == MEM_POOLING_OK && copiedState.migrated &&
+                copiedState.freedOldBorrowIds.size() >= copiedState.oldBorrowIds.size()) {
+                pendingMigrations.erase(it);
+                LOG_INFO << "[FaultManager][Simplified] Pending migration completed for pid=" << pid;
+            } else {
+                it->second = copiedState;
+            }
+        }
+        return result;
+    }
+
+    return ProcessNewBorrowFlow(pid, startTime, records, allocTargets);
 }
 
-MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMigrationState>::iterator pendingIt)
+MpResult ProcessPendingMigration(pid_t pid, PendingMigrationState& state)
 {
-    auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
-    auto& state = pendingIt->second;
-
     if (!state.migrated && CanDirectlyReturnRemoteNumas(state.remoteNumaIds)) {
         LOG_INFO << "[FaultManager][Simplified] All remote NUMAs have no processes and are idle for pending pid=" << pid
                  << ", skipping migrate, proceeding to FreeOldBorrowIds.";
         state.migrated = true;
+        for (auto& kv : state.numaMigrated) {
+            kv.second = true;
+        }
     }
 
-    if (state.migrated) {
-        LOG_INFO << "[FaultManager][Simplified] Pending migration already done for pid=" << pid
-                 << ", retry FreeOldBorrowIds only.";
-    } else {
-        LOG_INFO << "[FaultManager][Simplified] Found pending migration for pid=" << pid
-                 << ", newBorrowId=" << state.newBorrowId << ", direct migrate.";
-
-        std::vector<pid_t> pids{pid};
-        auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
-        if (smapRet != MEM_POOLING_OK) {
-            LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
-            return MEM_POOLING_ERROR;
+    if (!state.migrated) {
+        // Build the list of (oldNumaId, newBorrowId, newNumaId) entries that have not
+        // yet been successfully migrated; we pass only these to
+        // ExecuteMigrateForPidWithNuma so that an already-migrated NUMA is not re-run
+        // and the corresponding old borrowIds can be released independently.
+        std::vector<PerRemoteNumaBorrowResult> remaining;
+        remaining.reserve(state.perNumaBorrows.size());
+        for (const auto& entry : state.perNumaBorrows) {
+            auto it = state.numaMigrated.find(entry.oldNumaId);
+            if (it == state.numaMigrated.end() || !it->second) {
+                remaining.push_back(entry);
+            }
         }
+        if (!remaining.empty()) {
+            LOG_INFO << "[FaultManager][Simplified] Found pending migration for pid=" << pid
+                     << ", remaining=" << remaining.size() << "/" << state.perNumaBorrows.size() << ".";
 
-        MpResult ret = ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId, state.remoteNumaSizeMap);
-        if (ret != MEM_POOLING_OK) {
-            LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
-                      << ", borrowId=" << state.newBorrowId << " retained.";
+            std::vector<pid_t> pids{pid};
+            auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
+            if (smapRet != MEM_POOLING_OK) {
+                LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
+                return MEM_POOLING_ERROR;
+            }
+
+            MpResult ret = ExecuteMigrateForPidWithNuma(pid, remaining);
+            if (ret != MEM_POOLING_OK) {
+                LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
+                          << ", remaining=" << remaining.size() << " retained.";
+                MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
+                return MEM_POOLING_ERROR;
+            }
             MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-            return MEM_POOLING_ERROR;
+            for (const auto& entry : remaining) {
+                state.numaMigrated[entry.oldNumaId] = true;
+            }
         }
-        MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-        state.migrated = true;
+        bool allMigrated = true;
+        for (const auto& kv : state.numaMigrated) {
+            if (!kv.second) {
+                allMigrated = false;
+                break;
+            }
+        }
+        state.migrated = allMigrated;
     }
 
-    MpResult ret = FreeOldBorrowIds(state.oldBorrowIds, state.newBorrowId, state.freedOldBorrowIds);
-    if (ret == MEM_POOLING_OK) {
-        pendingMigrations.erase(pendingIt);
-        LOG_INFO << "[FaultManager][Simplified] Pending migration completed for pid=" << pid;
+    // Build the migratedNumaIds list from the per-NUMA flags. FinalizePidProcessing
+    // uses this to release only the old borrowIds whose source NUMA has been migrated.
+    // For backward compatibility with legacy pending states that were recorded before
+    // the per-numa redesign (no perNumaBorrows, no numaMigrated map), fall back to the
+    // recorded remoteNumaIds whenever the migrated flag is set.
+    std::vector<uint16_t> migratedNumaIds;
+    if (state.migrated) {
+        if (!state.numaMigrated.empty()) {
+            migratedNumaIds.reserve(state.numaMigrated.size());
+            for (const auto& kv : state.numaMigrated) {
+                if (kv.second) {
+                    migratedNumaIds.push_back(kv.first);
+                }
+            }
+        } else {
+            migratedNumaIds = state.remoteNumaIds;
+        }
     }
-    return ret;
+
+    PidBorrowContext ctx;
+    ctx.pid = state.pid;
+    ctx.numaToBorrowIds = state.numaToBorrowIds;
+    return FinalizePidProcessing(ctx, state.perNumaBorrows, migratedNumaIds, state.freedOldBorrowIds);
 }
 
-void RecordPendingMigrationState(const PidBorrowContext& ctx, const std::string& newBorrowId, uint16_t newRemoteNumaId)
+void RecordPendingMigrationState(const PidBorrowContext& ctx,
+                                 const std::vector<PerRemoteNumaBorrowResult>& perNumaBorrows)
 {
     auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
 
     PendingMigrationState pendingState;
-    pendingState.newBorrowId = newBorrowId;
-    pendingState.newRemoteNumaId = newRemoteNumaId;
+    pendingState.perNumaBorrows = perNumaBorrows;
+    // Populate the convenience single-NUMA accessors so ProcessPendingMigration and
+    // older call sites that read newBorrowId / newRemoteNumaId keep working when the
+    // process has exactly one old remote NUMA (the common case).
+    if (perNumaBorrows.size() == 1) {
+        pendingState.newBorrowId = perNumaBorrows[0].newBorrowId;
+        pendingState.newRemoteNumaId = perNumaBorrows[0].newNumaId;
+    } else if (!perNumaBorrows.empty()) {
+        // Multi-remote-NUMA case: pick a representative newBorrowId/newRemoteNumaId for
+        // logging only. The per-NUMA paths must not rely on these fields.
+        pendingState.newBorrowId = perNumaBorrows[0].newBorrowId;
+        pendingState.newRemoteNumaId = perNumaBorrows[0].newNumaId;
+    }
     pendingState.oldBorrowIds = ctx.oldBorrowIds;
     pendingState.borrowNodeId = ctx.borrowNodeId;
     pendingState.pid = ctx.pid;
@@ -1277,20 +1418,39 @@ void RecordPendingMigrationState(const PidBorrowContext& ctx, const std::string&
     pendingState.remoteNumaIds = ctx.remoteNumaIds;
     pendingState.remoteNumaSizeMap = ctx.remoteNumaSizeMap;
     pendingState.numaToBorrowIds = ctx.numaToBorrowIds;
-    pendingMigrations[ctx.pid] = pendingState;
-    LOG_INFO << "[FaultManager][Simplified] Borrow success for pid=" << ctx.pid << ", newBorrowId=" << newBorrowId
-             << ", pending state recorded.";
+    pendingState.migrated = false;
+    pendingState.numaMigrated.clear();
+    for (const auto& entry : perNumaBorrows) {
+        pendingState.numaMigrated[entry.oldNumaId] = false;
+    }
+    {
+        // 借入节点进程级并行处理：写 pending 迁移表需加锁
+        std::lock_guard<std::mutex> lock(OverCommitFaultNodeModule::Instance().GetPendingMigrationsMutex());
+        pendingMigrations[ctx.pid] = std::move(pendingState);
+    }
+    LOG_INFO << "[FaultManager][Simplified] Borrow success for pid=" << ctx.pid
+             << ", perNumaBorrows.size=" << perNumaBorrows.size() << ", pending state recorded.";
 }
 
-MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records)
+MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records,
+                              const std::vector<SimplifiedFaultPidAllocTarget>& allocTargets)
 {
     auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
 
     PidBorrowContext ctx;
     ctx.pid = pid;
     ctx.startTime = startTime;
+    for (const auto& target : allocTargets) {
+        if (!target.lendNodeId.empty()) {
+            ctx.allocLendNodeIds.push_back(target.lendNodeId);
+        }
+    }
+    // 去重
+    std::sort(ctx.allocLendNodeIds.begin(), ctx.allocLendNodeIds.end());
+    ctx.allocLendNodeIds.erase(std::unique(ctx.allocLendNodeIds.begin(), ctx.allocLendNodeIds.end()),
+                               ctx.allocLendNodeIds.end());
     if (!CollectPidBorrowInfo(records, ctx)) {
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
 
     if (CanDirectlyReturnRemoteNumas(ctx.remoteNumaIds)) {
@@ -1298,47 +1458,69 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
                  << ", directly freeing old borrowIds.";
         MpResult freeRet = FreeBorrowIdsDirectly(ctx.oldBorrowIds, "ProcessNewBorrowFlow-PreCheck");
         if (freeRet == MEM_POOLING_OK) {
+            std::lock_guard<std::mutex> lock(OverCommitFaultNodeModule::Instance().GetPendingMigrationsMutex());
             pendingMigrations.erase(pid);
         }
-        return freeRet;
+        return freeRet == MEM_POOLING_OK ? MEM_POOLING_OK : MEM_POOLING_FAULT_RETURN_MEM_ERROR;
     }
 
     std::vector<pid_t> pids{pid};
     auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (smapRet != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pid=" << pid << ".";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_MIGRATE_ERROR;
     }
 
-    std::string newBorrowId;
-    uint16_t newRemoteNumaId = 0;
-    MpResult ret = ExecuteBorrowForPid(ctx, newBorrowId, newRemoteNumaId);
-    if (ret != MEM_POOLING_OK) {
+    BorrowForPidResult borrowResult = ExecuteBorrowForPid(ctx);
+    if (borrowResult.status != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] ExecuteBorrowForPid failed for pid=" << ctx.pid << ".";
         MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
 
-    RecordPendingMigrationState(ctx, newBorrowId, newRemoteNumaId);
+    RecordPendingMigrationState(ctx, borrowResult.perNuma);
 
-    ret = ExecuteMigrateForPidWithNuma(ctx.pid, newRemoteNumaId, ctx.remoteNumaSizeMap);
+    MpResult ret = ExecuteMigrateForPidWithNuma(ctx.pid, borrowResult.perNuma);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] ExecuteMigrateForPid failed for pid=" << ctx.pid
-                  << ", borrowId=" << newBorrowId << " retained for retry.";
+                  << ", perNumaBorrows.size=" << borrowResult.perNuma.size() << " retained for retry.";
         (void)MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_MIGRATE_ERROR;
     }
 
-    auto pendingIt = pendingMigrations.find(pid);
-    if (pendingIt != pendingMigrations.end()) {
-        pendingIt->second.migrated = true;
+    {
+        std::lock_guard<std::mutex> pendingLock(OverCommitFaultNodeModule::Instance().GetPendingMigrationsMutex());
+        auto pendingIt = pendingMigrations.find(pid);
+        if (pendingIt != pendingMigrations.end()) {
+            auto& state = pendingIt->second;
+            for (const auto& entry : borrowResult.perNuma) {
+                state.numaMigrated[entry.oldNumaId] = true;
+            }
+            bool allMigrated = true;
+            for (const auto& kv : state.numaMigrated) {
+                if (!kv.second) {
+                    allMigrated = false;
+                    break;
+                }
+            }
+            state.migrated = allMigrated;
+        }
     }
 
-    ret = FinalizePidProcessing(ctx, newBorrowId);
+    std::vector<uint16_t> migratedNumaIds;
+    migratedNumaIds.reserve(borrowResult.perNuma.size());
+    for (const auto& entry : borrowResult.perNuma) {
+        migratedNumaIds.push_back(entry.oldNumaId);
+    }
+
+    std::unordered_set<std::string> freedOldBorrowIds;
+    ret = FinalizePidProcessing(ctx, borrowResult.perNuma, migratedNumaIds, freedOldBorrowIds);
     if (ret == MEM_POOLING_OK) {
+        std::lock_guard<std::mutex> lock(OverCommitFaultNodeModule::Instance().GetPendingMigrationsMutex());
         pendingMigrations.erase(pid);
         LOG_INFO << "[FaultManager][Simplified] Process pid=" << pid << " completed, pending state cleared.";
     }
-    return ret;
+    return ret == MEM_POOLING_OK ? MEM_POOLING_OK : MEM_POOLING_FAULT_RETURN_MEM_ERROR;
 }
 
 void RegroupByBorrowNode(const std::string& nodeId,
@@ -1371,17 +1553,264 @@ MpResult SendSimplifiedFaultToBorrower(const std::string& nodeId, const std::str
     SimplifiedFaultRecordsInNodeSerialization(builder, data);
     UbseByteBuffer reqData = {
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DefaultFreeFunc};
-    uint32_t retHandler;
+    uint32_t retHandler = MEM_POOLING_OK;
     uint32_t ret =
         UbseRpcSend(endpoint, reqData, &retHandler,
                     mempooling::over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler);
-    if (ret != MEM_POOLING_OK || retHandler != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed. "
-                  << "nodeId=" << nodeId << ", borrowNode=" << borrowNode << ", rpc_ret=" << ret
-                  << ", handler_ret=" << retHandler << ".";
-        return MEM_POOLING_ERROR;
+    if (ret != MEM_POOLING_OK) {
+        // B2 节点通信失败
+        LOG_ERROR << "[FaultManager][Simplified] RPC send failed. nodeId=" << nodeId << ", borrowNode=" << borrowNode
+                  << ", rpc_ret=" << ret << ".";
+        return MEM_POOLING_FAULT_IPC_ERROR;
+    }
+    if (retHandler != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed. nodeId=" << nodeId
+                  << ", borrowNode=" << borrowNode << ", handler_ret=" << retHandler << ".";
+        // 透传借入侧具体错误码
+        return static_cast<MpResult>(retHandler);
     }
     return MEM_POOLING_OK;
+}
+
+MpResult CollectClusterSocketQueue(
+    const std::string& faultNodeId, const std::unordered_set<std::string>& borrowerNodes,
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId)
+{
+    socketQueueBySocketId.clear();
+    // A1 集群节点配置为空
+    std::vector<std::string> allNodeIds = MpConfiguration::GetInstance().GetNodeIds();
+    if (allNodeIds.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] All nodeId list is empty, faultNodeId=" << faultNodeId << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+    }
+    // 排除故障节点与借入节点（借入节点不参与借出，避免循环借用）
+    std::vector<std::string> candidateNodes;
+    for (const auto& nodeId : allNodeIds) {
+        if (nodeId == faultNodeId || borrowerNodes.count(nodeId) > 0) {
+            continue;
+        }
+        candidateNodes.push_back(nodeId);
+    }
+    // C1 借出方无可用
+    if (candidateNodes.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] No candidate lend node, faultNodeId=" << faultNodeId << ".";
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
+    }
+    // A2 资源采集失败：直接使用本地账本接口获取各候选节点的 NUMA/socket 信息
+    for (const auto& nodeId : candidateNodes) {
+        std::vector<UbseNodeNumaInfo> numaNodeInfos;
+        UbseResult ubseRet = UbseGetNodeNumaInfoByNodeId(nodeId, numaNodeInfos);
+        if (ubseRet != UBSE_OK) {
+            LOG_ERROR << "[FaultManager][Simplified] UbseGetNodeNumaInfoByNodeId failed, nodeId=" << nodeId
+                      << ", ret=" << ubseRet << ".";
+            return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+        }
+        // 按 socket 聚合可借出内存
+        std::unordered_map<uint32_t, uint64_t> socketCanBorrowMem;
+        for (const auto& numa : numaNodeInfos) {
+            uint64_t reservedMem = (numa.memTotal / MB_TO_KBYTES) * numa.mReservedMemRatio / NUM_TO_RATIO;
+            uint64_t freeMem = numa.memFree / MB_TO_KBYTES;
+            uint64_t borrowableMem = std::min(freeMem, reservedMem);
+            if (borrowableMem > 0) {
+                socketCanBorrowMem[numa.socketId] += borrowableMem;
+                LOG_INFO << "Node " << nodeId << ", Socket " << numa.socketId << ", canBorrowMem " << borrowableMem;
+            }
+        }
+        for (const auto& [socketId, canBorrowMem] : socketCanBorrowMem) {
+            socketQueueBySocketId[static_cast<int>(socketId)].push_back({nodeId, canBorrowMem});
+        }
+    }
+    // 所有候选节点均无可借内存
+    if (socketQueueBySocketId.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] No borrowable memory in cluster, faultNodeId=" << faultNodeId << ".";
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult AllocatePidsToSockets(
+    const std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes,
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
+    std::vector<pid_t>& unallocatedPids)
+{
+    pidAllocMap.clear();
+    unallocatedPids.clear();
+
+    // 每个 socketId 的剩余可借容量
+    std::unordered_map<int, uint64_t> socketRemaining;
+    for (const auto& [socketId, nodes] : socketQueueBySocketId) {
+        uint64_t total = 0;
+        for (const auto& node : nodes) {
+            total += node.canBorrowMem;
+        }
+        socketRemaining[socketId] = total;
+    }
+
+    // 进程按总占用大小升序
+    std::vector<pid_t> pidOrder;
+    std::unordered_map<pid_t, uint64_t> pidTotalSize;
+    for (const auto& [pid, chunks] : pidSocketSizes) {
+        uint64_t total = 0;
+        for (const auto& [size, socketId] : chunks) {
+            total += size;
+        }
+        pidTotalSize[pid] = total;
+        pidOrder.push_back(pid);
+    }
+    std::sort(pidOrder.begin(), pidOrder.end(), [&](pid_t a, pid_t b) {
+        if (pidTotalSize[a] != pidTotalSize[b]) {
+            return pidTotalSize[a] < pidTotalSize[b];
+        }
+        return a < b;
+    });
+
+    LOG_INFO << "[FaultManager][Simplified] AllocatePidsToSockets start, pidCount=" << pidOrder.size()
+             << ", socketCount=" << socketRemaining.size() << ".";
+
+    for (pid_t pid : pidOrder) {
+        std::vector<SimplifiedFaultPidAllocTarget> allocTargets;
+        std::unordered_set<int> usedSocketIds;
+        bool success = true;
+        for (const auto& [needSize, preferredSocketId] : pidSocketSizes.at(pid)) {
+            uint64_t remaining = needSize;
+            // 优先从 preferredSocketId 分配，耗尽则回退到其他 socket
+            while (remaining > 0 && !socketRemaining.empty()) {
+                int targetSocketId = -1;
+                if (socketRemaining.count(preferredSocketId) > 0 && socketRemaining[preferredSocketId] > 0) {
+                    targetSocketId = preferredSocketId;
+                } else {
+                    // 选剩余容量最大的 socket
+                    uint64_t bestCap = 0;
+                    for (const auto& [sid, cap] : socketRemaining) {
+                        if (cap > bestCap) {
+                            bestCap = cap;
+                            targetSocketId = sid;
+                        }
+                    }
+                    if (targetSocketId == -1) {
+                        break;
+                    }
+                }
+                uint64_t take = std::min(remaining, socketRemaining[targetSocketId]);
+                remaining -= take;
+                socketRemaining[targetSocketId] -= take;
+                LOG_DEBUG << "[FaultManager][Simplified] Allocate pid=" << pid << ", take=" << take
+                          << "KB from socketId=" << targetSocketId << " (preferred=" << preferredSocketId << ").";
+                if (usedSocketIds.insert(targetSocketId).second) {
+                    for (const auto& node : socketQueueBySocketId[targetSocketId]) {
+                        allocTargets.push_back({node.nodeId, static_cast<uint16_t>(targetSocketId)});
+                    }
+                }
+                if (socketRemaining[targetSocketId] == 0) {
+                    socketRemaining.erase(targetSocketId);
+                }
+            }
+            if (remaining > 0) {
+                success = false;
+                break;
+            }
+        }
+        if (success) {
+            size_t targetCount = allocTargets.size();
+            pidAllocMap[pid] = std::move(allocTargets);
+            LOG_INFO << "[FaultManager][Simplified] Allocate pid=" << pid << " success, targetCount=" << targetCount
+                     << ".";
+        } else {
+            unallocatedPids.push_back(pid);
+            LOG_WARN << "[FaultManager][Simplified] Allocate pid=" << pid << " failed, cluster memory insufficient.";
+        }
+    }
+
+    LOG_INFO << "[FaultManager][Simplified] AllocatePidsToSockets end, allocatedCount=" << pidAllocMap.size()
+             << ", unallocatedCount=" << unallocatedPids.size() << ".";
+    return MEM_POOLING_OK;
+}
+
+// 按故障 NUMA 聚合每个 pid 的占用大小（字节→KB），并记录每个 NUMA 所属 socketId
+static void BuildPidSocketSizes(const std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
+                                std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes)
+{
+    for (const auto& [pid, records] : pidBorrowMap) {
+        // 每个故障 NUMA 上的总大小及其所属 socket
+        std::map<int16_t, uint64_t> numaSizeMap;
+        std::map<int16_t, uint16_t> numaSocketMap;
+        for (const auto& rec : records) {
+            int16_t faultNuma = rec.borrowRemoteNuma;
+            numaSizeMap[faultNuma] += rec.size;
+            numaSocketMap[faultNuma] = rec.lentSocketId;
+        }
+        std::vector<std::pair<uint64_t, uint16_t>> chunks;
+        for (const auto& [faultNuma, size] : numaSizeMap) {
+            chunks.emplace_back(size / KB_TO_B, numaSocketMap[faultNuma]);
+        }
+        pidSocketSizes[pid] = std::move(chunks);
+    }
+}
+
+// 按借入节点重组并携带分配结果，仅保留分配成功的 pid；全部未分配时条目为空被整体移除
+static void BuildBorrowerData(const std::string& nodeId,
+                              const std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
+                              const std::unordered_map<pid_t, int64_t>& pidStartTimeMap,
+                              const std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
+                              std::unordered_map<std::string, SimplifiedFaultRecordsInNode>& borrowerData)
+{
+    RegroupByBorrowNode(nodeId, pidBorrowMap, pidStartTimeMap, borrowerData);
+    for (auto& [borrowNode, data] : borrowerData) {
+        for (auto it = data.pidBorrowMap.begin(); it != data.pidBorrowMap.end();) {
+            auto allocIt = pidAllocMap.find(it->first);
+            if (allocIt == pidAllocMap.end()) {
+                data.pidStartTimeMap.erase(it->first);
+                it = data.pidBorrowMap.erase(it);
+            } else {
+                data.pidAllocMap[it->first] = allocIt->second;
+                for (const auto& target : allocIt->second) {
+                    LOG_INFO << "[FaultManager][Simplified] Allocate pid=" << it->first
+                             << " -> borrowNode=" << borrowNode << ", targetNode=" << target.lendNodeId
+                             << ", targetSocketId=" << target.lendSocketId << ".";
+                }
+                ++it;
+            }
+        }
+    }
+    for (auto it = borrowerData.begin(); it != borrowerData.end();) {
+        if (it->second.pidBorrowMap.empty()) {
+            it = borrowerData.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// 节点间并行下发并汇总：逐级透传首个具体错误码，存在未分配进程时返回内存不足
+static MpResult SendToBorrowersAndAggregate(
+    const std::string& nodeId, const std::unordered_map<std::string, SimplifiedFaultRecordsInNode>& borrowerData,
+    const std::vector<pid_t>& unallocatedPids)
+{
+    std::vector<std::future<MpResult>> futures;
+    futures.reserve(borrowerData.size());
+    for (const auto& [borrowNode, data] : borrowerData) {
+        futures.push_back(std::async(std::launch::async, [nodeId, borrowNode, data]() {
+            return SendSimplifiedFaultToBorrower(nodeId, borrowNode, data);
+        }));
+    }
+
+    // 结果汇总：逐级透传首个具体错误码（参考 FragmentHandleFault/ProcessBorrowOutNodeFaultParallel）
+    MpResult finalResult = MEM_POOLING_OK;
+    for (auto& f : futures) {
+        MpResult r = f.get();
+        if (r != MEM_POOLING_OK && finalResult == MEM_POOLING_OK) {
+            finalResult = r;
+            LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed, nodeId=" << nodeId
+                      << ", ret=" << r << ".";
+        }
+    }
+    if (finalResult == MEM_POOLING_OK && !unallocatedPids.empty()) {
+        finalResult = MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
+        LOG_ERROR << "[FaultManager][Simplified] Unallocated pids due to insufficient cluster memory, nodeId=" << nodeId
+                  << ".";
+    }
+    return finalResult;
 }
 
 MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const std::string& nodeId)
@@ -1392,14 +1821,9 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     UbseResult retErrorCode = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
     if (retErrorCode != UBSE_OK && retErrorCode != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
         LOG_ERROR << "[FaultManager][Simplified] GetDebtInfo failed, nodeId=" << nodeId << ".";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (debtInfos.empty()) {
-        if (retErrorCode == UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-            LOG_ERROR << "[FaultManager][Simplified] No debt infos but PAR_SUCCESS, data unreachable, nodeId=" << nodeId
-                      << ".";
-            return MEM_POOLING_ERROR;
-        }
         LOG_INFO << "[FaultManager][Simplified] No debt infos, nothing to process.";
         return MEM_POOLING_OK;
     }
@@ -1409,23 +1833,52 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     MpResult ret = AggregatePidBorrowRecords(debtInfos, pidBorrowMap, pidStartTimeMap);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] AggregatePidBorrowRecords failed, nodeId=" << nodeId << ".";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (pidBorrowMap.empty()) {
         LOG_INFO << "[FaultManager][Simplified] No pid borrow records, nothing to process.";
         return MEM_POOLING_OK;
     }
 
-    std::unordered_map<std::string, SimplifiedFaultRecordsInNode> borrowerData;
-    RegroupByBorrowNode(nodeId, pidBorrowMap, pidStartTimeMap, borrowerData);
-
-    MpResult finalResult = MEM_POOLING_OK;
-    for (const auto& [borrowNode, data] : borrowerData) {
-        MpResult borrowerResult = SendSimplifiedFaultToBorrower(nodeId, borrowNode, data);
-        if (borrowerResult != MEM_POOLING_OK) {
-            finalResult = MEM_POOLING_ERROR;
+    // 借入节点集合（本事件不参与借出）
+    std::unordered_set<std::string> borrowerNodes;
+    for (const auto& [pid, records] : pidBorrowMap) {
+        for (const auto& rec : records) {
+            borrowerNodes.insert(rec.borrowNode);
         }
     }
+
+    // 1. 收集集群可借出内存视图（排除故障节点与借入节点，按 socketId 分组）
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    ret = CollectClusterSocketQueue(nodeId, borrowerNodes, socketQueueBySocketId);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    // 2. 按故障 NUMA 聚合每个 pid 的占用，构建 (大小, 首选socketId) 分块
+    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes;
+    BuildPidSocketSizes(pidBorrowMap, pidSocketSizes);
+
+    // 3. 按 socketId 亲和分配（每 pid 跨多个 socket，优先分配同 socket）
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    std::vector<pid_t> unallocatedPids;
+    AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+    if (!unallocatedPids.empty()) {
+        LOG_WARN << "[FaultManager][Simplified] Unallocated pids due to insufficient cluster memory, count="
+                 << unallocatedPids.size() << ".";
+    }
+
+    // 4. 按借入节点重组并携带分配结果（仅下发分配成功的 pid）
+    std::unordered_map<std::string, SimplifiedFaultRecordsInNode> borrowerData;
+    BuildBorrowerData(nodeId, pidBorrowMap, pidStartTimeMap, pidAllocMap, borrowerData);
+    if (borrowerData.empty()) {
+        LOG_ERROR << "[FaultManager][Simplified] No pid can be allocated, cluster memory insufficient, nodeId="
+                  << nodeId << ".";
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
+    }
+
+    // 5. 节点间并行下发并汇总结果
+    MpResult finalResult = SendToBorrowersAndAggregate(nodeId, borrowerData, unallocatedPids);
 
     LOG_INFO << "[FaultManager][Simplified] End, result=" << finalResult << ".";
     return finalResult;
@@ -1437,6 +1890,7 @@ void SimplifiedFaultRecordsInNodeSerialization(rmrs::serialize::RmrsOutStream& o
     out << records.faultNodeId;
     out << records.pidBorrowMap;
     out << records.pidStartTimeMap;
+    out << records.pidAllocMap;
 }
 
 MpResult SimplifiedFaultRecordsInNodeDeserialization(rmrs::serialize::RmrsInStream& in,
@@ -1445,6 +1899,7 @@ MpResult SimplifiedFaultRecordsInNodeDeserialization(rmrs::serialize::RmrsInStre
     in >> records.faultNodeId;
     in >> records.pidBorrowMap;
     in >> records.pidStartTimeMap;
+    in >> records.pidAllocMap;
     if (!in.Check()) {
         LOG_ERROR << "SimplifiedFaultRecordsInNodeDeserialization failed: stream check error.";
         return MEM_POOLING_ERROR;

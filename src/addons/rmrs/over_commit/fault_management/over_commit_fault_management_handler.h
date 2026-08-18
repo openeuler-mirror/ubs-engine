@@ -13,11 +13,14 @@
 #ifndef MEMPOOLING_OVER_COMMIT_FAULT_MANAGEMENT_HANDLER_H
 #define MEMPOOLING_OVER_COMMIT_FAULT_MANAGEMENT_HANDLER_H
 #include "ubse_def.h"
+#include "ubse_thread_pool.h"
+#include "mp_error.h"
 #include "response_info_simpo.h"
-namespace mempooling::over_commit {
+namespace mempooling {
+struct SimplifiedFaultRecordsInNode;
+namespace over_commit {
 class OverCommitFaultManagementHandler {
 public:
-    // 获取节点上的VM numa info
     static uint32_t GetVmNumaInfoMapRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
     static void GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
     // 执行大页配置、setRemoteNumaInfo
@@ -45,6 +48,34 @@ public:
     static uint32_t SimplifiedFaultNumaProcessRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
     static void SimplifiedFaultNumaProcessResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 };
-} // namespace mempooling::over_commit
+
+// 简化故障处理线程池单例：构造时按配置（rmrs.fault.simplified）创建，进程生命周期内复用
+class SimplifiedFaultTaskExecutor {
+public:
+    static SimplifiedFaultTaskExecutor& Instance()
+    {
+        static SimplifiedFaultTaskExecutor instance;
+        return instance;
+    }
+
+    // 获取简化故障处理线程池（配置未开启或创建失败时为 nullptr）
+    const ubse::task_executor::UbseTaskExecutorPtr& GetTaskExecutor() const
+    {
+        return taskExecutor_;
+    }
+
+private:
+    SimplifiedFaultTaskExecutor();
+    ~SimplifiedFaultTaskExecutor() = default;
+    SimplifiedFaultTaskExecutor(const SimplifiedFaultTaskExecutor&) = delete;
+    SimplifiedFaultTaskExecutor& operator=(const SimplifiedFaultTaskExecutor&) = delete;
+
+    ubse::task_executor::UbseTaskExecutorPtr taskExecutor_;
+};
+// 借入节点侧简化故障处理：按占用升序、进程级并行（线程池并行度 4）
+MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records,
+                                    const ubse::task_executor::UbseTaskExecutorPtr& taskExecutor);
+} // namespace over_commit
+} // namespace mempooling
 
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_MANAGEMENT_HANDLER_H

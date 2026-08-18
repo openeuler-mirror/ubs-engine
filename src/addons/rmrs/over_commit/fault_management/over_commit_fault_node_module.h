@@ -12,6 +12,7 @@
 
 #ifndef MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H
 #define MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H
+#include <mutex>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -39,10 +40,19 @@ struct FaultRecordsInNode {
     std::vector<BorrowRecord> faultRecords;
 };
 
+// 主节点辗转相减分配结果：pid -> 目标借出节点/socket
+// 注意：保持聚合类型（无自定义构造函数），便于 rmrs_serialize 成员反射序列化
+struct SimplifiedFaultPidAllocTarget {
+    std::string lendNodeId;    // 目标借出节点
+    uint16_t lendSocketId = 0; // 目标借出socket
+};
+
 struct SimplifiedFaultRecordsInNode {
     std::string faultNodeId;
     std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap;
     std::unordered_map<pid_t, int64_t> pidStartTimeMap;
+    // 主节点分配结果（pid -> 目标借出节点/socket 列表，单个进程可跨多个 socket），随指令下发给借入节点
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
 };
 
 void SimplifiedFaultRecordsInNodeSerialization(rmrs::serialize::RmrsOutStream& out,
@@ -66,7 +76,23 @@ struct RemoteNumaFault {
     RemoteNumaFault() {}
 };
 
+// Per old remote NUMA borrow result.
+// Holds the (oldNumaId -> newNumaId, newBorrowId, sizeKB) mapping produced by a single
+// ExecuteBorrowForPid call. The vector element order matches the iteration order of the
+// per-numa input sizes, so each entry is independent (not aggregated).
+struct PerRemoteNumaBorrowResult {
+    uint16_t oldNumaId = 0;
+    uint16_t newNumaId = 0;
+    uint64_t borrowSizeKB = 0;
+    std::string newBorrowId;
+};
+
 struct PendingMigrationState {
+    // Per-numa new borrow results. One entry per old remote NUMA; for a single-NUMA
+    // process (backward-compatible path) the vector has size 1.
+    std::vector<PerRemoteNumaBorrowResult> perNumaBorrows;
+    // Convenience accessors for the common single-NUMA case. Both return the first
+    // element when perNumaBorrows has exactly one entry; otherwise they are empty / 0.
     std::string newBorrowId;
     uint16_t newRemoteNumaId = 0;
     std::vector<std::string> oldBorrowIds;
@@ -76,7 +102,14 @@ struct PendingMigrationState {
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
     std::unordered_map<uint16_t, std::vector<std::string>> numaToBorrowIds;
+    // Set to true only when every per-numa migration has completed successfully.
     bool migrated = false;
+    // Per-numa migration success tracking. Each oldNumaId is marked true after
+    // SmapMigratePidMultiRemoteNumaHelperWithRetry has completed for that source.
+    std::unordered_map<uint16_t, bool> numaMigrated;
+    // Set of oldBorrowIds already released. Used to skip a borrowId whose source NUMA
+    // migration succeeded in a prior (partial) attempt and was freed, but whose other
+    // sources had not yet migrated.
     std::unordered_set<std::string> freedOldBorrowIds;
 };
 
@@ -141,7 +174,13 @@ public:
     {
         return g_pendingMigrations;
     }
+    std::mutex& GetPendingMigrationsMutex()
+    {
+        return pendingMigrationsMutex;
+    }
     std::unordered_map<pid_t, PendingMigrationState> g_pendingMigrations;
+    // 借入节点进程级并行处理时保护 g_pendingMigrations
+    std::mutex pendingMigrationsMutex;
 };
 
 MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
@@ -160,23 +199,61 @@ struct PidBorrowContext {
     uint16_t borrowSocketId = 0;
     uid_t uid = 0;
     std::string username;
+    // 主节点分配的目标借出节点列表（去重；空表示不约束，回退现逻辑）
+    std::vector<std::string> allocLendNodeIds;
 };
 
-MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
-                                      const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap);
-MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId,
-                          std::unordered_set<std::string>& freedOldBorrowIds);
+// 集群 socket 可用内存视图（主节点侧）
+struct SimplifiedSocketCapacity {
+    std::string nodeId;
+    uint64_t canBorrowMem = 0; // KB
+};
+
+// 采集集群可借出内存视图：排除故障节点与借入节点，输出按 socketId 分组的节点列表
+MpResult CollectClusterSocketQueue(
+    const std::string& faultNodeId, const std::unordered_set<std::string>& borrowerNodes,
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId);
+
+// 按 socketId 亲和分配：每个 pid 的每块（大小, 故障NUMA所属socketId）优先从相同 socketId 的队列分配，
+// 该 socketId 队列耗尽则回退到其他 socket。进程按总占用大小升序处理。
+MpResult AllocatePidsToSockets(
+    const std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes,
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
+    std::vector<pid_t>& unallocatedPids);
+
+// Multi-remote-NUMA migration. The vector describes the per-old-NUMA destination
+// mapping produced by ExecuteBorrowForPid; each entry independently migrates its source
+// remote NUMA's memory to its own new NUMA. For the single-NUMA backward-compatible
+// case, the vector has exactly one entry.
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, const std::vector<PerRemoteNumaBorrowResult>& perNumaBorrows);
 
 MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
                                    std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
                                    std::unordered_map<pid_t, int64_t>& pidStartTimeMap);
 bool CollectPidBorrowInfo(const std::vector<BorrowRecord>& records, PidBorrowContext& ctx);
-MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrowId, uint16_t& newRemoteNumaId);
-MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNumaId);
-MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& newBorrowId);
-MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records);
-MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMigrationState>::iterator pendingIt);
-MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records);
+// Per-numa borrow: one independent memory block per old remote NUMA size, returned in
+// the same order as the iteration over remoteNumaSizeMap. Sizes are NOT aggregated.
+// All successful entries are returned; partial failures are reported via the result.
+struct BorrowForPidResult {
+    std::vector<PerRemoteNumaBorrowResult> perNuma;
+    MpResult status = MEM_POOLING_OK;
+};
+BorrowForPidResult ExecuteBorrowForPid(const PidBorrowContext& ctx);
+// Finalize releases only the old borrowIds whose source NUMA migration has been
+// confirmed. perNumaBorrows carries the same (oldNumaId -> newBorrowId) mapping the
+// caller recorded, used to identify which oldBorrowIds to free. migratedNumaIds
+// lists the oldNumaIds that have been successfully migrated in this or any prior
+// attempt; freedOldBorrowIds is updated in place across retries.
+MpResult FinalizePidProcessing(const PidBorrowContext& ctx,
+                               const std::vector<PerRemoteNumaBorrowResult>& perNumaBorrows,
+                               const std::vector<uint16_t>& migratedNumaIds,
+                               std::unordered_set<std::string>& freedOldBorrowIds);
+MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records,
+                               const std::vector<SimplifiedFaultPidAllocTarget>& allocTargets = {});
+MpResult ProcessPendingMigration(pid_t pid, PendingMigrationState& state);
+MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records,
+                              const std::vector<SimplifiedFaultPidAllocTarget>& allocTargets = {});
 
 } // namespace mempooling
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H
