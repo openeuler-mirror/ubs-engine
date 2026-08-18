@@ -1095,6 +1095,39 @@ int mempooling::outinterface::UBSRMRSRemove(const uint16_t remoteNumaId, const s
     return ret;
 }
 
+// 迁移前向 smap 发布远端 NUMA 信息（从账本统计各 destNid 的借用总量，供迁移引擎使用）
+static MpResult SetRemoteNumaInfoBeforeEscape(const MigrateEscapeMsg& msg)
+{
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> allDebtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "RemoteNumaMigrate GetDebtInfosWithRetry failed, skip SetSmapRemoteNumaInfo.";
+        return MEM_POOLING_ERROR;
+    }
+    auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
+
+    std::vector<over_commit::MemBorrowInfoWithSrc> infos;
+    std::unordered_set<int> seenDestNids;
+    for (int i = 0; i < msg.count; ++i) {
+        int destNid = msg.payload[i].destNid;
+        if (seenDestNids.count(destNid) > 0) {
+            continue;
+        }
+        seenDestNids.insert(destNid);
+        uint64_t totalSizeKB = MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(
+                                   validDebtInfos, static_cast<int16_t>(destNid)) /
+                               1024;
+        if (totalSizeKB > 0) {
+            infos.push_back({.srcNumaId = 0, .presentNumaId = static_cast<uint16_t>(destNid), .borrowSize = totalSizeKB});
+        }
+    }
+    if (!infos.empty() && smap::MpSmapHelper::SetSmapRemoteNumaInfo(-1, infos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "RemoteNumaMigrate SetSmapRemoteNumaInfo failed, count=" << infos.size();
+    }
+    return MEM_POOLING_OK;
+}
+
 int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& msg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry RemoteNumaMigrate.";
@@ -1155,6 +1188,8 @@ int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& m
     // 远端迁移
     MigrateEscapeMsg localMsg = msg;
     localMsg.count = len;
+    // 迁移前发布远端 NUMA 信息（与 MigrateOut 一致）
+    SetRemoteNumaInfoBeforeEscape(localMsg);
     auto ret = smapMigratePidRemoteNumaFunc(&localMsg);
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate failed, ret=" << ret << ".";
