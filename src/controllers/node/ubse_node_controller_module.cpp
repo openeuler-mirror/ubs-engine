@@ -69,6 +69,11 @@ UbseResult UbseNodeControllerModule::Start()
         return ret;
     }
 
+    ret = UbseNodeController::GetInstance().StartSubHealth();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
     return UBSE_OK;
 }
 
@@ -80,6 +85,7 @@ void UbseNodeControllerModule::UnInitialize()
 
 void UbseNodeControllerModule::Stop()
 {
+    UbseNodeController::GetInstance().StopSubHealth();
     UbseNodeControllerAgent::GetInstance().Stop();
     UbseNodeControllerMaster::GetInstance().Stop();
 }

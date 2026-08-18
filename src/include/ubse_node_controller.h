@@ -12,6 +12,7 @@
 
 #ifndef UBSE_NODE_CONTROLLER_H
 #define UBSE_NODE_CONTROLLER_H
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -20,10 +21,13 @@
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "ubse_election.h"
 #include "adapter_plugins/urma/ubse_urma_uvs_def.h"
+#include "ubse_thread_pool.h"
 
 namespace ubse::nodeController {
 enum class PortStatus {
@@ -301,6 +305,11 @@ using UbseGlobalStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &
 using UbseMemGroupNodeList = std::vector<std::vector<UbseNodeInfo>>;
 using UbseMemProviderNodeList = std::vector<UbseNodeInfo>;
 
+// Socket粒度亚健康链路
+using UbseSubHealthEndpoint = std::pair<std::string, uint32_t>;
+using UbseSubHealthLinkKey = std::pair<UbseSubHealthEndpoint, UbseSubHealthEndpoint>;
+using UbseSubHealthFlagMap = std::map<UbseSubHealthLinkKey, bool>;
+
 class UbseNodeController {
     friend class UbseNodeControllerModule;
 
@@ -386,7 +395,74 @@ public:
     uint32_t GetPlanningHostBondingByNodeId(const std::string& nodeId,
                                             std::vector<urma::UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
+    // 主动触发亚健康缓存刷新
+    void TriggerSubHealthRefresh();
+
+    // 获取最新亚健康检测结果并刷新缓存
+    uint32_t RefreshSubHealthCache();
+
+    // 将Port EID粒度检测结果聚合为Socket粒度缓存
+    uint32_t UpdateSubHealthCache(const UbseSubHealthFlagMap& subHealthFlags);
+
+    // 清理涉及指定节点的亚健康缓存
+    void ClearSubHealthCacheForNode(const std::string& nodeId);
+
+    // 查询指定Socket对是否亚健康
+    bool IsSocketPairSubHealthy(const std::string& importNodeId, const std::string& exportNodeId,
+                                uint32_t importSocketId, uint32_t exportSocketId) const;
+
+    // 查询指定借入节点到借出Socket是否存在亚健康链路
+    bool IsHostExportSubHealthy(const std::string& importNodeId, const std::string& exportNodeId,
+                                uint32_t exportSocketId) const;
+
 private:
+    // 读取亚健康检测结果并转换为Socket粒度
+    uint32_t LoadSubHealthDetection(UbseSubHealthFlagMap& subHealthFlags);
+
+    // 启停亚健康检测缓存
+    uint32_t StartSubHealth();
+
+    void StopSubHealth();
+
+    // 处理端口UP事件
+    static uint32_t SubHealthPortChangeHandler(std::string& eventId, std::string& eventMessage);
+
+    struct SubHealthSocketPair {
+        std::string importNodeId;
+        std::string exportNodeId;
+        uint32_t importSocketId;
+        uint32_t exportSocketId;
+
+        bool operator==(const SubHealthSocketPair& other) const
+        {
+            return importNodeId == other.importNodeId && exportNodeId == other.exportNodeId &&
+                   importSocketId == other.importSocketId && exportSocketId == other.exportSocketId;
+        }
+    };
+
+    struct SubHealthSocketPairHash {
+        size_t operator()(const SubHealthSocketPair& key) const;
+    };
+
+    struct SubHealthHostExport {
+        std::string importNodeId;
+        std::string exportNodeId;
+        uint32_t exportSocketId;
+
+        bool operator==(const SubHealthHostExport& other) const
+        {
+            return importNodeId == other.importNodeId && exportNodeId == other.exportNodeId &&
+                   exportSocketId == other.exportSocketId;
+        }
+    };
+
+    struct SubHealthHostExportHash {
+        size_t operator()(const SubHealthHostExport& key) const;
+    };
+
+    // 根据SocketPair缓存重建HostExport缓存
+    void RebuildHostExportSubHealthCacheLocked();
+
     // UpdateNodeInfo 的子流程：首次添加节点（调用前已持锁，函数内部自行管理锁）
     uint32_t UpdateNodeInfoFirstAdd(const std::string& nodeId, UbseNodeInfo& info);
     // UpdateNodeInfo 的子流程：后续添加的恢复路径（跨组WORKING未READY，需锁外恢复后写回）
@@ -421,6 +497,17 @@ private:
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> faultUpdateTimes; // fault状态更新时间
     bool isHostUrmaDevOccupied{false};
+
+    // 亚健康缓存
+    mutable std::shared_mutex subHealthMutex_;
+    std::unordered_set<SubHealthSocketPair, SubHealthSocketPairHash> subHealthSocketPairCache_;
+    std::unordered_set<SubHealthHostExport, SubHealthHostExportHash> subHealthHostExportCache_;
+
+    // 亚健康刷新任务
+    std::mutex subHealthExecutorMutex_;
+    ubse::task_executor::UbseTaskExecutorPtr subHealthExecutor_{};
+    std::atomic<bool> subHealthEnabled_{false};
+    std::atomic<bool> subHealthRefreshPending_{false};
     bool isHierarchical{false};
 };
 } // namespace ubse::nodeController

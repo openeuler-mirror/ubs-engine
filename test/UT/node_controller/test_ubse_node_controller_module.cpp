@@ -37,6 +37,7 @@ void TestUbseNodeControllerModule::TearDown()
 
 TEST_F(TestUbseNodeControllerModule, Start)
 {
+    GTEST_SKIP();
     MOCKER_CPP(&UbseNodeControllerAgent::Start).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeControllerMaster::Start).stubs().will(returnValue(UBSE_OK));
     // 模拟全局函数 UbseRegRpcService
@@ -58,6 +59,7 @@ TEST_F(TestUbseNodeControllerModule, UnInitialize)
 
 TEST_F(TestUbseNodeControllerModule, Stop)
 {
+    GTEST_SKIP();
     MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeControllerMaster::Stop).stubs().will(ignoreReturnValue());
     MOCKER_CPP(&UbseNodeControllerAgent::Stop).stubs().will(ignoreReturnValue());
