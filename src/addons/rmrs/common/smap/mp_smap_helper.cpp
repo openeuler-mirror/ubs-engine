@@ -11,6 +11,9 @@
  */
 
 #include "mp_smap_helper.h"
+#include <algorithm>
+#include <cctype>
+#include <sstream>
 #include "ubse_def.h"
 #include "ubse_logger.h"
 #include "ubse_security.h"
@@ -23,6 +26,52 @@
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
+
+namespace {
+// period.config解析常量: 开关关闭/文件缺失/字段非法时周期回退兜底值
+constexpr uint32_t kSmapPeriodMaxMs = 60000;   // 周期合法上限，超出按配置异常回退兜底值
+constexpr uint32_t kSmapQuiesceBufferMs = 500; // 周期后的边界buffer，覆盖周期边界在途迁移
+const std::string kSmapMigratePeriodKey = "smap.migrate.period";
+const std::string kSmapPeriodSwitchKey = "smap.period.file.config.switch";
+
+std::string TrimString(const std::string& str)
+{
+    size_t begin = str.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos) {
+        return "";
+    }
+    size_t end = str.find_last_not_of(" \t\r\n");
+    return str.substr(begin, end - begin + 1);
+}
+
+std::string ToLowerString(const std::string& str)
+{
+    std::string lower = str;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return lower;
+}
+
+// 按"key=value"或"key value"切分配置行，key/value均trim；注释行(#/;)与空行返回false
+bool SplitConfigLine(const std::string& line, std::string& key, std::string& value)
+{
+    std::string trimmed = TrimString(line);
+    if (trimmed.empty() || trimmed[0] == '#' || trimmed[0] == ';') {
+        return false;
+    }
+    size_t sep = trimmed.find('=');
+    if (sep == std::string::npos) {
+        std::istringstream iss(trimmed);
+        if (!(iss >> key >> value)) {
+            return false;
+        }
+    } else {
+        key = TrimString(trimmed.substr(0, sep));
+        value = TrimString(trimmed.substr(sep + 1));
+    }
+    return !key.empty();
+}
+} // namespace
 
 using namespace ubse::log;
 using namespace mempooling::smap;
@@ -1336,6 +1385,62 @@ MpResult MpSmapHelper::SmapRemovePidsHelper(const std::vector<pid_t>& pids, int1
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper end.";
     return MEM_POOLING_OK;
+}
+
+uint32_t MpSmapHelper::GetSmapMigratePeriodMs(uint32_t fallbackMs, const std::string& configPath)
+{
+    std::ifstream configFile(configPath);
+    if (!configFile.is_open()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Failed to open period config " << configPath << ", fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+
+    bool switchOn = false;
+    uint32_t periodMs = 0;
+    bool hasPeriod = false;
+    std::string line;
+    while (std::getline(configFile, line)) {
+        std::string key;
+        std::string value;
+        if (!SplitConfigLine(line, key, value)) {
+            continue;
+        }
+        if (key == kSmapPeriodSwitchKey) {
+            std::string lowerValue = ToLowerString(value);
+            switchOn = (lowerValue == "on" || lowerValue == "true" || lowerValue == "1");
+        } else if (key == kSmapMigratePeriodKey) {
+            std::istringstream iss(value);
+            uint64_t parsed = 0;
+            if (iss >> parsed && iss.eof()) {
+                periodMs = static_cast<uint32_t>(parsed);
+                hasPeriod = true;
+            }
+        }
+    }
+
+    // 开关关闭时文件中的周期不生效（smap用内部默认值），读到的值不可信，回退兜底值
+    if (!switchOn) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Period config switch off, fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+    if (!hasPeriod || periodMs == 0 || periodMs > kSmapPeriodMaxMs) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Invalid smap.migrate.period (hasPeriod=" << hasPeriod << ", value=" << periodMs
+            << "), fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+    return periodMs;
+}
+
+void MpSmapHelper::WaitSmapMigrateQuiesce()
+{
+    // 禁用生效于下一周期，在途迁移会执行完: 等一个完整周期+边界buffer即可覆盖最坏情形
+    uint32_t waitMs = GetSmapMigratePeriodMs() + kSmapQuiesceBufferMs;
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] Wait " << waitMs << "ms for in-flight smap migration to converge.";
+    std::this_thread::sleep_for(std::chrono::milliseconds(waitMs));
 }
 
 } // namespace mempooling::smap

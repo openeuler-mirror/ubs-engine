@@ -1586,4 +1586,68 @@ TEST_F(TestSmapHelper, TestSmapMigrateBack_Failed_SetSmapRunMode_Failed)
     ASSERT_EQ(result, MEM_POOLING_ERROR);
 }
 
+// ==================== GetSmapMigratePeriodMs: period.config解析与兜底 ====================
+
+// 写入临时配置文件并返回路径（UT串行执行，固定路径无冲突）
+static std::string WritePeriodConfigForTest(const std::string& content)
+{
+    std::string path = "/tmp/ut_smap_period.config";
+    std::ofstream out(path, std::ios::trunc);
+    out << content;
+    out.close();
+    return path;
+}
+
+/*
+ * 用例描述：开关on且周期合法（key=value格式，含注释行）
+ * 预期：解析出配置周期，不取兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_SwitchOnValidPeriod_Parse)
+{
+    std::string path =
+        WritePeriodConfigForTest("# comment line\nsmap.period.file.config.switch=on\nsmap.migrate.period=2500\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 2500U);
+}
+
+/*
+ * 用例描述：空格分隔格式兼容
+ * 预期：同样解析成功
+ */
+TEST_F(TestSmapHelper, GetPeriod_SpaceSeparatedFormat_Parse)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch on\nsmap.migrate.period 1800\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 1800U);
+}
+
+/*
+ * 用例描述：开关off时文件周期不生效（smap用内部默认值，读到的值不可信）
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_SwitchOff_Fallback)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch=off\nsmap.migrate.period=2500\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 3000U);
+}
+
+/*
+ * 用例描述：配置文件缺失
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_FileMissing_Fallback)
+{
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, "/tmp/ut_smap_period_not_exist.config"), 3000U);
+}
+
+/*
+ * 用例描述：周期字段非法（非数字/0）
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_InvalidValue_Fallback)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch=on\nsmap.migrate.period=abc\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 3000U);
+    std::string path2 = WritePeriodConfigForTest("smap.period.file.config.switch=on\nsmap.migrate.period=0\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path2), 3000U);
+}
+
 } // namespace mempooling::smap
