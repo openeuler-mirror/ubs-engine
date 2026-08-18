@@ -120,6 +120,7 @@ section取值：[ubse.memory]
 | 12 | scheduler.mode | 内存调度模式，控制 socket NUMA 选择策略。 | 默认值：free-priority<br>取值范围：free-priority / reliability-priority / performance-priority<br>如果取值超过范围，则取默认值free-priority。 | - **free-priority**：优先选择剩余内存最多的节点。<br>- **reliability-priority**：优先复用已有借用关系并均衡各节点的借出数。<br>- **performance-priority**：均衡各节点带宽利用率，兼顾时延、内存利用率和可靠性。<br>- 当不配置时，检查已弃用的 `lender.balance`（第 6 项），兼容方式如下：<br>&nbsp;&nbsp;lender.balance=true 时取值 reliability-priority，lender.balance=false 取值 free-priority。 |
 | 13 | bandwidth.tolerance | performance-priority 模式下带宽均衡的容忍度阈值。 | 默认值：2 × block.size（通常 256 MB）<br>单位：MB<br>如果取值小于block.size，则取默认值。 | 候选 socket 的当前借出量低于平均值至少该阈值时得分归零（最优），介于平均值与该阈值之间时得分线性插值在 (0,1] 范围。 |
 | 14 | sei.enable | 控制内存借用时是否启用OS的SEI降级功能。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围或非法，则取默认值false。 | - 仅在借入节点生效。<br>- 依赖 /etc/sudoers.d/ubse-sei 授予 ubse 用户 sysctl 提权权限。<br>- sei.enable=true 时，首次借用内存后自动执行 sysctl -w kernel.arm64_sync_sei=1 开启OS的SEI降级功能；末次归还后自动关闭OS的SEI降级功能。<br>- sei.enable=false时不会触发OS的SEI降级功能，UB断链导致的内存错误可能触发 OS Panic。 |
+| 15 | scheduler.node_max_lend_gb | 调度器节点最大借出量，即节点作为 lender 的借出总量上限。 | 默认值：用#注释（不限制）<br>单位：GB<br>取值范围：[0, 65535]<br>配置为 0 或不配置时表示不限制，取值超过范围则回退为 0（不限制）。 | - 调度器在选择 lender 前校验 `lender.totalLent + 本次借出量 ≤ node_max_lend_gb`，超出上限的节点不会被选中。<br>- 所有节点的配置需保持一致。<br>- 默认不限制，按需由部署方显式开启。 |
 
 ## URMA配置说明
 
