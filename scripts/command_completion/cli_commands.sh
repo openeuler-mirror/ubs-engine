@@ -387,7 +387,7 @@ commands='create display import delete check change remove detach attach'
            [[ ${COMP_WORDS[2]} == process-mem ]] && \
            [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
 
-            COMPREPLY=( $(compgen -W 'config' -- ${cur}) )
+            COMPREPLY=( $(compgen -W 'config proc_detail' -- ${cur}) )
             return 0
     fi
 

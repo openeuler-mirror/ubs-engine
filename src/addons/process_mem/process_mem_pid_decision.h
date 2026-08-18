@@ -70,6 +70,8 @@ public:
 
     uint32_t OomPollOnce();
 
+    uint32_t ReconcileLedgerWithCache();
+
     inline static std::function<std::optional<uint64_t>()> memAvailableReader;
 
 private:
@@ -127,7 +129,7 @@ private:
     uint32_t ReturnDebtToLocal(pid_t pid, const def::ReturnRequestItem& item, uint64_t& nodeFree, ReturnScene scene);
 
     uint32_t ReturnDebtRemoteToRemote(const def::ReturnRequestItem& item, const std::string& oldLenderNodeId,
-                                      int oldRemoteNuma, pid_t pid, int srcNuma);
+                                      int oldRemoteNuma, pid_t pid, int srcNuma, uint64_t migrateBytes);
 
     void OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree);
 
@@ -146,6 +148,8 @@ private:
     void RetryReturnEnqueue(uint32_t& retryCount, const std::function<bool()>& enqueue);
 
     uint32_t RecoverSmapProcessConfig();
+
+    void ReconcileApplyChanges(const std::vector<pid_t>& affectedPids);
 
     void LoadConfig();
     void LoadOomReturnConfig();
@@ -180,7 +184,7 @@ private:
                                    std::string& newDebtId, int& newRemoteNuma);
     int MigrateDebtRemoteToRemote(pid_t pid, int oldRemoteNuma, int newRemoteNuma, uint64_t sizeBytes);
     uint32_t MigrateDebtToReplacement(const def::ReturnRequestItem& item, pid_t pid, const ReplacementDebtCtx& ctx,
-                                      std::string& newDebtId, int& newRemoteNuma);
+                                      std::string& newDebtId, int& newRemoteNuma, uint64_t migrateBytes);
     uint32_t DeleteOldReturnDebt(const std::string& debtId);
     std::vector<std::string> BuildReplacementCandidates(const std::string& oldLenderNodeId);
 

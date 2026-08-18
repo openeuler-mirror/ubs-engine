@@ -555,6 +555,8 @@ void ProcessMemPidCollect::DoCollectRound(uint64_t roundNum)
     size_t callbackEntries = DispatchVmRssCallbacks(handlerCopy, results);
     UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " step=callback entries=" << callbackEntries;
 
+    decision::ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache();
+
     lastPidSet_ = std::move(curPids);
 
     prevRoundDurMs_.store(
