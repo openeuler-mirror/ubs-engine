@@ -301,6 +301,25 @@
 #define UBSE_SSU_ERROR_NS_UUID_INVALID UBSE_INTERNAL_ERROR_DEF(1354)          /* 命名空间UUID非法 */
 #define UBSE_SSU_ERROR_NS_COUNT_MISMATCH UBSE_INTERNAL_ERROR_DEF(1355)        /* 命名空间数量不匹配 */
 #define UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED UBSE_INTERNAL_ERROR_DEF(1356) /* RPC端点注册失败 */
+#define UBSE_SSU_ERROR_EXEC_FAILED UBSE_INTERNAL_ERROR_DEF(1357)              /* shell命令执行失败（ExecWithSudo非零退出） */
+#define UBSE_SSU_ERROR_DEV_ADDR_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(1358)       /* 按EID未在SSU_NVME_SERVER_IP_LIST中找到设备地址 */
+#define UBSE_SSU_ERROR_NS_UUID_MISMATCH UBSE_INTERNAL_ERROR_DEF(1359)         /* 命名空间UUID与设备实际UUID不匹配 */
+
+/* ====================== SSU Adapter 插件错误 (11360~11369) ====================== */
+#define UBSE_SSU_ERROR_ACQUIRE_DEV_INFO_FAILED UBSE_INTERNAL_ERROR_DEF(1360) /* acquire_dev_info 调用失败 */
+#define UBSE_SSU_ERROR_PERMISSION_GET_FAILED UBSE_INTERNAL_ERROR_DEF(1361)   /* 获取访问权限列表失败 */
+#define UBSE_SSU_ERROR_PATH_INVALID UBSE_INTERNAL_ERROR_DEF(1362)             /* 设备路径非法（非by-id持久路径或含不安全字符） */
+#define UBSE_SSU_ERROR_DEVICE_NAME_INVALID UBSE_INTERNAL_ERROR_DEF(1363)      /* 设备名非法（含不安全字符） */
+#define UBSE_SSU_ERROR_CONFIG_INVALID UBSE_INTERNAL_ERROR_DEF(1364)          /* SSU配置缺失或非法（如adminNqn未配置） */
+
+/* ====================== SSU 块设备操作错误 (11370~11379) ====================== */
+#define UBSE_SSU_ERROR_PV_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1370)  /* pvcreate 创建物理卷失败 */
+#define UBSE_SSU_ERROR_VG_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1371)  /* vgcreate 创建卷组失败 */
+#define UBSE_SSU_ERROR_LV_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1372)  /* lvcreate 创建逻辑卷失败 */
+#define UBSE_SSU_ERROR_LV_REMOVE_FAILED UBSE_INTERNAL_ERROR_DEF(1373)  /* lvremove 删除逻辑卷失败 */
+#define UBSE_SSU_ERROR_VG_REMOVE_FAILED UBSE_INTERNAL_ERROR_DEF(1374)  /* vgremove 删除卷组失败 */
+#define UBSE_SSU_ERROR_MD_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1375)  /* mdadm 创建 RAID 失败 */
+#define UBSE_SSU_ERROR_MD_STOP_FAILED UBSE_INTERNAL_ERROR_DEF(1377)    /* mdadm 停止 RAID 失败 */
 
 /* 公共方法判断错误码 */
 #define UBSE_RESULT_FAIL(ret) (static_cast<uint32_t>(ret) != UBSE_OK)

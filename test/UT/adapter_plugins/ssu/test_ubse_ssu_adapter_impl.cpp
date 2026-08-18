@@ -878,7 +878,7 @@ TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_EmptyPathList)
     UbseCreateBlockDeviceOptions opts;
     std::string devicePath;
     uint32_t ret = impl.CreateBlockDevice("testdev", paths, opts, devicePath);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_NE(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_StripedModeInvalidPath)
@@ -933,36 +933,36 @@ TEST_F(TestUbseSsuAdapterImpl, DeleteBlockDevice_InvalidDeviceNameRejected)
     EXPECT_NE(ret, UBSE_OK);
 }
 
-// ==================== VerifyNamespaceGuid ====================
+// ==================== VerifyNamespaceUuid ====================
 
-TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceGuid_EmptyEid)
+TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceUuid_EmptyEid)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     UbseSsuDevNameSpace ns;
     ns.subSystem.eid = "";
-    ns.guid = "someguid";
-    bool ret = impl.VerifyNamespaceGuid(ns);
-    EXPECT_FALSE(ret);
+    ns.uuid = "someuuid";
+    uint32_t ret = impl.VerifyNamespaceUuid(ns);
+    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceGuid_EmptyGuid)
+TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceUuid_EmptyUuid)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     UbseSsuDevNameSpace ns;
     ns.subSystem.eid = MakeEid('V');
-    ns.guid = "";
-    bool ret = impl.VerifyNamespaceGuid(ns);
-    EXPECT_FALSE(ret);
+    ns.uuid = "";
+    uint32_t ret = impl.VerifyNamespaceUuid(ns);
+    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceGuid_BothEidAndGuidEmpty)
+TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceUuid_BothEidAndUuidEmpty)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     UbseSsuDevNameSpace ns;
     ns.subSystem.eid = "";
-    ns.guid = "";
-    bool ret = impl.VerifyNamespaceGuid(ns);
-    EXPECT_FALSE(ret);
+    ns.uuid = "";
+    uint32_t ret = impl.VerifyNamespaceUuid(ns);
+    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 // ==================== ConvertDevInfo Edge Cases ====================
