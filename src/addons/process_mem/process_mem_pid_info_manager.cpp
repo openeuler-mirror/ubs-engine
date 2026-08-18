@@ -253,6 +253,10 @@ uint32_t ProcessMemPidInfoManager::ValidateProcMemTarget(const def::ProcessMemNe
         UBSE_LOG_ERROR << "SetProcMemConfig: remoteRatio out of range [0.0, 1.0]: " << config.remoteRatio;
         return UBSE_ERR_INVALID_ARG;
     }
+    if (std::fabs(config.remoteRatio * 100.0 - std::round(config.remoteRatio * 100.0)) > 1e-9) {
+        UBSE_LOG_ERROR << "SetProcMemConfig: remoteRatio supports at most 2 decimal places: " << config.remoteRatio;
+        return UBSE_ERR_INVALID_ARG;
+    }
     if (config.identifier.size() > kProcNameMaxLen) {
         UBSE_LOG_ERROR << "SetProcMemConfig: identifier too long (" << config.identifier.size() << " > "
                        << kProcNameMaxLen << "): " << config.identifier;

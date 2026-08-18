@@ -23,6 +23,7 @@
 #include "ubse_api_server.h"
 #include "ubse_com.h"
 #include "ubse_com_op_code.h"
+#include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_logger.h"
@@ -69,7 +70,9 @@ ubse::com::UbseComEndpoint GetProcessMemReturnEndpoint(uint16_t opCode, const st
 uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
                                                       const std::vector<def::ReturnRequestItem>& items)
 {
+    // 消息头携带原始目标节点(借入节点): 请求统一发往主节点, 主节点按该字段转发或直接执行
     ubse::serial::UbseSerialization output;
+    output << nodeId;
     output << ubse::serial::array_len_insert(items.size());
     for (const auto& item : items) {
         output << item.name << item.size;
@@ -79,12 +82,22 @@ uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
         return UBSE_ERROR;
     }
 
+    std::string masterNode;
+    if (ubse::election::UbseGetMasterNodeId(masterNode) != UBSE_OK || masterNode.empty()) {
+        UBSE_LOG_ERROR << "SendReturnRequestToNode: get master node failed, target=" << nodeId
+                       << ", retry next round";
+        return UBSE_ERROR;
+    }
     auto endpoint = GetProcessMemReturnEndpoint(
-        static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), nodeId);
+        static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), masterNode);
     UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
     auto ret = ubse::com::UbseRpcSend(endpoint, request, nullptr, [](void*, const UbseByteBuffer&, uint32_t) {});
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendReturnRequestToNode: rpc send failed to " << nodeId << ", ret=" << ret;
+        UBSE_LOG_ERROR << "SendReturnRequestToNode: rpc send failed to master=" << masterNode
+                       << ", target=" << nodeId << ", ret=" << ret;
+    } else {
+        UBSE_LOG_INFO << "SendReturnRequestToNode: rpc send ok to master=" << masterNode
+                      << ", target=" << nodeId << ", items=" << items.size();
     }
     return ret;
 }
@@ -92,10 +105,29 @@ uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
 void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     ubse::serial::UbseDeSerialization deserializer{req.data, req.len};
+    std::string targetNodeId;
+    deserializer >> targetNodeId;
     ubse::serial::common_len itemCount = 0;
     deserializer >> ubse::serial::array_len_capture(itemCount);
     if (!deserializer.Check()) {
         UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: deserialize failed";
+        return;
+    }
+    // 借出节点非主节点时请求先到主节点, 主节点不是目标借入节点则按消息携带的目标转发
+    auto currentNode = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (targetNodeId != currentNode) {
+        auto endpoint = GetProcessMemReturnEndpoint(
+            static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), targetNodeId);
+        UbseByteBuffer forwardReq{.data = req.data, .len = req.len, .freeFunc = nullptr};
+        auto fwdRet = ubse::com::UbseRpcSend(endpoint, forwardReq, nullptr,
+                                             [](void*, const UbseByteBuffer&, uint32_t) {});
+        if (fwdRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: forward failed to target=" << targetNodeId
+                           << ", ret=" << fwdRet;
+        } else {
+            UBSE_LOG_INFO << "ProcessMemReturnRequestHandler: forwarded to target=" << targetNodeId
+                          << ", items=" << itemCount;
+        }
         return;
     }
     if (itemCount == 0) {
