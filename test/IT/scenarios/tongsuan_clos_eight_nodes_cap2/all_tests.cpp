@@ -21,3 +21,10 @@ TEST_F(TongsuanClosEightNodesCap2Scenario, P1ElectionEightNodeClosCap2Ok01)
 {
     ubse::it::tests::election::RunEightNodeClosCap2ElectionTest(Cluster());
 }
+
+// P1-Election-MultiNode-02: CLOS 八节点(cluster.pod.capability=2)全局主故障切换
+// 收敛后kill全局主节点，全局备检测全局主心跳超时后升为全局主；重启原全局主后全局选举重新收敛为4个全局节点。
+TEST_F(TongsuanClosEightNodesCap2Scenario, P1ElectionEightNodeClosCap2GlobalFailoverOk01)
+{
+    ubse::it::tests::election::RunEightNodeClosCap2GlobalFailoverTest(Cluster());
+}
