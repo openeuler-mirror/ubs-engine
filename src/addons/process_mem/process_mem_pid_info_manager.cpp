@@ -65,6 +65,8 @@ int DoMigrateOut(pid_t pid, const std::map<int, uint64_t>& numaTargets)
         payload.pid = pid;
         payload.inner[0] = inner;
         payloads.push_back(payload);
+        UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << " dest_numa=" << destNid
+                      << " mem_size_kb=" << memSizeKb;
     }
     return process_mem::pid::bridge::ProcessMemPidBridge::rmrsMigrateOut(payloads, 0);
 }
