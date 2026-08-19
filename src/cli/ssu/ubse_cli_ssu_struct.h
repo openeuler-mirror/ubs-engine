@@ -48,7 +48,7 @@ struct UbseCliSsuAllocCreateReq {
     uint64_t nsSize = SSU_CLI_MIN_SIZE_BYTES;
     uint32_t nsNum = SSU_CLI_DEFAULT_NS_NUM;
     UbseSsuLBAFormat lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
-    UbseSsuAllocStrategy strategy = UbseSsuAllocStrategy::LINEAR;
+    UbseSsuAllocStrategy strategy = UbseSsuAllocStrategy::NORMAL;
     std::string tenant;
     bool Serialize(std::vector<uint8_t> &payload) const;
 };

@@ -13,6 +13,7 @@
 #include "test_ubse_cli_ssu_cmd_reg.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -54,8 +55,9 @@ const std::string ERR_INVALID_HOST_NQN = "ERROR: Invalid host_nqn. The value mus
 const std::string ERR_INVALID_SRC_EID = "ERROR: Invalid src_eid. The value must be 1-16 characters.";
 const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must be Linear or Striped.";
 const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
-    "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
-const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+    "ERROR: The option --dev_name, --level or --chunk_size requires --type Linear or Striped.";
+const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE =
+    "ERROR: The option --dev_name requires --type Linear or Striped.";
 const std::string ERR_SUMMARY_REJECTS_NAME =
     "ERROR: The option -n or --name is only valid when --type is alloc_detail.";
 const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
@@ -73,11 +75,20 @@ const std::string ERR_STRIPED_CHUNK_SIZE_REQUIRED =
 const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be raid0 or raid5.";
 const std::string ERR_INVALID_CHUNK_SIZE =
     "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
+const std::string ERR_STRIPED_NS_NUM_REQUIRED = "ERROR: Striped strategy requires ns_num to be at least 2.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
+const std::string ERR_INVALID_ARG = "ERROR: The SSU request contains invalid arguments.";
+const std::string ERR_ACCESS_DENIED = "ERROR: Access to the SSU allocation is denied.";
+const std::string ERR_TIMED_OUT = "ERROR: The SSU operation timed out.";
 const std::string ERR_ALREADY_ALLOCATED = "ERROR: The SSU allocation already exists.";
 const std::string ERR_ALREADY_ATTACHED = "ERROR: The SSU allocation is already attached.";
 const std::string ERR_NO_NEED_FREE = "ERROR: The SSU allocation does not exist or has already been deleted.";
 const std::string ERR_NO_NEED_DETACH = "ERROR: The SSU allocation is already detached or has not been attached.";
+const std::string INFO_SPACE_NOT_FOUND = "INFO: The SSU allocation does not exist.";
+const std::string ERR_NEED_DETACH_BEFORE_FREE =
+    "ERROR: The SSU allocation is attached. Detach it before deleting it.";
+const std::string ERR_STRATEGY_MISMATCH =
+    "ERROR: The SSU allocation strategy does not match the attach or detach type.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
 // 捕获 UbseCliDisplayResult 写入 stdout 的文本，便于对回显内容做子串断言。
@@ -86,6 +97,42 @@ std::string Render(const std::shared_ptr<UbseCliResultEcho>& result)
     testing::internal::CaptureStdout();
     result->UbseCliDisplayResult();
     return testing::internal::GetCapturedStdout();
+}
+
+// 注册 SSU 命令并捕获指定命令的 -h 输出，直接覆盖命令注册提供给框架的帮助描述。
+std::string RenderSsuHelp(const std::string& command)
+{
+    testing::internal::CaptureStdout();
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({command, "ssu", "-h"}));
+    return testing::internal::GetCapturedStdout();
+}
+
+void RegisterSsuCommandsForHelp()
+{
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliRegSsuModule module;
+    module.UbseCliSignUp();
+    module.UbseCliRegisterCmd();
+}
+
+// 帮助渲染会按终端宽度换行，折叠空白后再断言完整语义，避免换行位置影响测试。
+std::string CollapseWhitespace(const std::string& text)
+{
+    std::string collapsed;
+    collapsed.reserve(text.size());
+    bool pendingSpace = false;
+    for (unsigned char ch : text) {
+        if (std::isspace(ch) != 0) {
+            pendingSpace = !collapsed.empty();
+            continue;
+        }
+        if (pendingSpace) {
+            collapsed.push_back(' ');
+        }
+        collapsed.push_back(static_cast<char>(ch));
+        pendingSpace = false;
+    }
+    return collapsed;
 }
 
 // 渲染结果并断言包含指定子串，用于错误信息/表格内容的正向校验。
@@ -225,10 +272,16 @@ void TestUbseCliSsuCmdReg::TearDown()
 // SSU 对外错误码使用固定英文文案，其他错误码继续保留数字错误码。
 TEST_F(TestUbseCliSsuCmdReg, SsuErrorMessageMapsKnownCodesAndPreservesUnknownCode)
 {
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_INVALID_ARG), ERR_INVALID_ARG);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_ACCESS_DENIED), ERR_ACCESS_DENIED);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_TIMED_OUT), ERR_TIMED_OUT);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_ALREADY_ALLOCATED), ERR_ALREADY_ALLOCATED);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_ALREADY_ATTACHED), ERR_ALREADY_ATTACHED);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_NO_NEED_FREE), ERR_NO_NEED_FREE);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_NO_NEED_DETACH), ERR_NO_NEED_DETACH);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_SPACE_NOT_FOUND), INFO_SPACE_NOT_FOUND);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE), ERR_NEED_DETACH_BEFORE_FREE);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_STRATEGY_MISMATCH), ERR_STRATEGY_MISMATCH);
     EXPECT_EQ(GetSsuErrorMessage(4321), "ERROR: Internal error with error code 4321.");
 }
 
@@ -246,6 +299,33 @@ TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersAllSsuCommands)
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("attach_ssu"));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("detach_ssu"));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
+}
+
+// 帮助应完整列出 SSU 枚举，并明确区分可显式输入的值与省略参数时的默认行为。
+TEST_F(TestUbseCliSsuCmdReg, HelpListsSsuEnumValuesAndDefaults)
+{
+    RegisterSsuCommandsForHelp();
+
+    const std::string display = CollapseWhitespace(RenderSsuHelp("display"));
+    EXPECT_NE(display.find("SSU display type: allowed values are alloc_summary or alloc_detail"), std::string::npos);
+
+    const std::string create = CollapseWhitespace(RenderSsuHelp("create"));
+    EXPECT_NE(create.find("SSU LBA format: allowed values are 512B or 4K"), std::string::npos);
+    EXPECT_NE(create.find("SSU allocation strategy: explicitly set Linear or Striped; if omitted, defaults to Normal"),
+              std::string::npos);
+
+    const std::string attach = CollapseWhitespace(RenderSsuHelp("attach"));
+    EXPECT_NE(attach.find("SSU attach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
+                          "Normal space operation"),
+              std::string::npos);
+    EXPECT_NE(attach.find("SSU RAID level: allowed values are raid0 or raid5"), std::string::npos);
+    EXPECT_NE(attach.find("SSU chunk size: allowed values are 4K, 16K, 32K, 64K, 128K, 256K or 512K"),
+              std::string::npos);
+
+    const std::string detach = CollapseWhitespace(RenderSsuHelp("detach"));
+    EXPECT_NE(detach.find("SSU detach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
+                          "Normal space operation"),
+              std::string::npos);
 }
 
 // display ssu 缺少 -t 应返回必选参数错误，不进入 IPC。
@@ -296,6 +376,14 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNameSizeStrategy)
     EXPECT_NE(output.find("alloc-space-2"), std::string::npos);
     EXPECT_NE(output.find("21474836480"), std::string::npos);
     EXPECT_NE(output.find("Striped"), std::string::npos);
+}
+
+// 摘要响应中的 NORMAL 策略应展示为 Normal。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNormalStrategy)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_normal_strategy));
+    const std::string output = Render(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}}));
+    EXPECT_NE(output.find("Normal"), std::string::npos);
 }
 
 // 非整 GiB 的摘要容量也应原样展示求和后的字节值。
@@ -385,6 +473,14 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailPrintsDetailTable)
     ExpectDetailOutput(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()));
 }
 
+// 详情响应中的 NORMAL 策略应展示为 Normal。
+TEST_F(TestUbseCliSsuCmdReg, DisplayDetailPrintsNormalStrategy)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_normal_strategy));
+    const std::string output = Render(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()));
+    EXPECT_NE(output.find("Strategy:Normal"), std::string::npos);
+}
+
 // 详情查询返回空命名空间列表时，应输出 INFO 提示而非空表。
 TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsInfoWhenNoNamespaces)
 {
@@ -397,6 +493,15 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsDeserializationError)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_bad_response));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()), ERR_DESERIALIZATION);
+}
+
+// 详情查询找不到分配时，应回显公开的 SPACE_NOT_FOUND 业务文案。
+TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsSpaceNotFoundMessage)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_SSU_ERROR_SPACE_NOT_FOUND));
+    const auto result = UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), INFO_SPACE_NOT_FOUND);
 }
 
 // create ssu 缺少 -n 应返回 name 必选参数错误。
@@ -649,7 +754,7 @@ TEST_F(TestUbseCliSsuCmdReg, CreateRejectsInvalidStrategy)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_STRATEGY);
 }
 
-// strategy 输入与输出统一为 Linear / Striped（首字母大写）
+// strategy 输入仅接受 Linear / Striped（首字母大写）；省略 strategy 时仍由请求默认 Normal。
 TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsCanonicalStrategyInput)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
@@ -668,13 +773,15 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsCanonicalStrategyInput)
     EXPECT_EQ(g_ssuMockLastCreateReq.strategy, UbseSsuAllocStrategy::STRIPED);
 }
 
-// 纯小写 "linear"/"striped" 输入不再被接受
+// 纯小写 "normal"/"linear"/"striped" 输入不再被接受
 TEST_F(TestUbseCliSsuCmdReg, CreateRejectsLowercaseStrategyInput)
 {
     auto params = CreateParams();
     params["ns_num"] = "2";
-    params["strategy"] = "striped";
-    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_STRATEGY);
+    for (const std::string strategy : {"normal", "linear", "striped"}) {
+        params["strategy"] = strategy;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_STRATEGY);
+    }
 }
 
 // --using_type 已从命令契约移除：若解析阶段透传未知参数，处理函数不再识别该参数，
@@ -690,10 +797,10 @@ TEST_F(TestUbseCliSsuCmdReg, CreateIgnoresLegacyUsingTypeOption)
     // using_type 不再进入请求体，create 仍按默认路径成功发起 IPC。
 }
 
-// 仅传必填项时，可选字段应取默认值（nsNum=1、512B、Linear、tenant 为空），并使用 ALLOC_CREATE 操作码。
+// 仅传必填项时，可选字段应取默认值（nsNum=1、512B、Normal、tenant 为空），并使用 ALLOC_CREATE 操作码。
 TEST_F(TestUbseCliSsuCmdReg, CreateAppliesDefaults)
 {
-    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal_strategy));
     auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams());
     EXPECT_NE(result, nullptr);
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
@@ -703,8 +810,53 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAppliesDefaults)
     EXPECT_EQ(g_ssuMockLastCreateReq.nsSize, 10ULL * GIB);
     EXPECT_EQ(g_ssuMockLastCreateReq.nsNum, 1);
     EXPECT_EQ(g_ssuMockLastCreateReq.lbaFormat, UbseSsuLBAFormat::LBA_FORMAT_512);
-    EXPECT_EQ(g_ssuMockLastCreateReq.strategy, UbseSsuAllocStrategy::LINEAR);
+    EXPECT_EQ(g_ssuMockLastCreateReq.strategy, UbseSsuAllocStrategy::NORMAL);
     EXPECT_EQ(g_ssuMockLastCreateReq.tenant, "");
+    EXPECT_NE(Render(result).find("Strategy:Normal"), std::string::npos);
+}
+
+// Striped 策略省略 ns_num 或显式设置为 1 时应在 IPC 前拒绝。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsStripedWithMissingOrOneNsNumWithoutIpc)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    for (const auto& nsNum : {std::string(), std::string("1")}) {
+        ResetSsuMockCapture();
+        auto params = CreateParams();
+        params["strategy"] = "Striped";
+        if (!nsNum.empty()) {
+            params["ns_num"] = nsNum;
+        }
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_STRIPED_NS_NUM_REQUIRED);
+        EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+    }
+}
+
+// Linear 在 ns_num=1 时不受 Striped 的组合约束。
+TEST_F(TestUbseCliSsuCmdReg, CreateAllowsLinearWithOneNsNum)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    auto params = CreateParams();
+    params["strategy"] = "Linear";
+    params["ns_num"] = "1";
+    EXPECT_NE(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), nullptr);
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastCreateReq.nsNum, 1U);
+}
+
+// Striped 在 ns_num=2 及更大合法值时允许发送请求。
+TEST_F(TestUbseCliSsuCmdReg, CreateAllowsStripedWithAtLeastTwoNsNum)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    for (const std::string nsNum : {"2", "3"}) {
+        ResetSsuMockCapture();
+        auto params = CreateParams();
+        params["strategy"] = "Striped";
+        params["ns_num"] = nsNum;
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), nullptr);
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastCreateReq.nsNum, std::stoul(nsNum));
+        EXPECT_EQ(g_ssuMockLastCreateReq.strategy, UbseSsuAllocStrategy::STRIPED);
+    }
 }
 
 // 显式传入全部可选参数时，各值应被正确解析并序列化到请求体（覆盖默认值）。
@@ -730,6 +882,16 @@ TEST_F(TestUbseCliSsuCmdReg, CreatePrintsAllocatedDetailTable)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
     ExpectDetailOutput(UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams()));
+}
+
+// create 显式使用 Normal 策略时应在 IPC 前拒绝，省略 strategy 的默认路径负责 NORMAL 请求与回显覆盖。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsExplicitNormalStrategyWithoutIpc)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal_strategy));
+    auto params = CreateParams();
+    params["strategy"] = "Normal";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_STRATEGY);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
 }
 
 // create 返回损坏报文时，应返回反序列化失败错误。
@@ -836,6 +998,15 @@ TEST_F(TestUbseCliSsuCmdReg, DeleteReturnsNoNeedFreeMessageWithoutCode)
     EXPECT_EQ(result->UbseCliGetResultStr(), ERR_NO_NEED_FREE);
 }
 
+// 释放仍处于挂载状态的分配时，应回显公开的 NEED_DETACH_BEFORE_FREE 业务文案。
+TEST_F(TestUbseCliSsuCmdReg, DeleteReturnsNeedDetachBeforeFreeMessage)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE));
+    const auto result = UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_NEED_DETACH_BEFORE_FREE);
+}
+
 // 摘要查询使用合法的 0 字节请求体，mock 应显式捕获成功。
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRequestUsesEmptyBody)
 {
@@ -924,6 +1095,16 @@ TEST_F(TestUbseCliSsuCmdReg, AttachSpaceSerializesExplicitHostNqnAndSrcEid)
     EXPECT_EQ(g_ssuMockLastAttachSpaceReq.srcEid, "eid-1234");
 }
 
+// 显式 --type Normal 应在 IPC 前拒绝；省略 type 的用例覆盖普通 ATTACH_SPACE 请求。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsExplicitNormalTypeWithoutIpc)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    auto params = AttachParams();
+    params["type"] = "Normal";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+}
+
 // host_nqn 显式空值或超过 68 字符均应返回格式错误；未传入时才允许置空上线。
 TEST_F(TestUbseCliSsuCmdReg, AttachRejectsEmptyOrTooLongHostNqnWhenExplicit)
 {
@@ -962,7 +1143,7 @@ TEST_F(TestUbseCliSsuCmdReg, AttachAcceptsOptionalStringLengthEndpoints)
     }
 }
 
-// --type 只能为 Linear 或 Striped。
+// --type 仅支持 Linear 和 Striped；省略时走普通挂载。
 TEST_F(TestUbseCliSsuCmdReg, AttachRejectsInvalidType)
 {
     auto params = AttachParams();
@@ -982,6 +1163,21 @@ TEST_F(TestUbseCliSsuCmdReg, AttachSpaceRejectsAggregationOptionsWithoutType)
     params = AttachParams();
     params["chunk_size"] = "64K";
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+}
+
+// 显式 Normal 已不是合法 type，携带任何聚合专属参数时仍必须在本地拒绝且不发送 IPC。
+TEST_F(TestUbseCliSsuCmdReg, AttachNormalRejectsAggregationOptionsWithoutIpc)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    for (const auto& option : std::vector<std::pair<std::string, std::string>>{
+             {"dev_name", "ssu0"}, {"level", "raid0"}, {"chunk_size", "64K"}}) {
+        ResetSsuMockCapture();
+        auto params = AttachParams();
+        params["type"] = "Normal";
+        params[option.first] = option.second;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+        EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+    }
 }
 
 // Linear attach 必须携带合法 dev_name，并拒绝白名单外 ASCII 及常见 UTF-8 非 ASCII 输入。
@@ -1154,6 +1350,15 @@ TEST_F(TestUbseCliSsuCmdReg, AttachReturnsInternalErrorWithCode)
                            "ERROR: Internal error with error code 4321.");
 }
 
+// 挂载方式与分配策略不匹配时，应回显公开的 STRATEGY_MISMATCH 业务文案。
+TEST_F(TestUbseCliSsuCmdReg, AttachReturnsStrategyMismatchMessage)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_SSU_ERROR_STRATEGY_MISMATCH));
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_STRATEGY_MISMATCH);
+}
+
 // 普通重复挂载响应携带命名空间路径时，CLI 先输出路径，再输出固定错误文案。
 TEST_F(TestUbseCliSsuCmdReg, AttachAlreadyAttachedPrintsPathsBeforeError)
 {
@@ -1286,15 +1491,32 @@ TEST_F(TestUbseCliSsuCmdReg, DetachSpaceDefaultsHostNqnToEmpty)
 // 未指定聚合类型时携带 dev_name，应拒绝该仅适用于聚合解绑的参数组合。
 TEST_F(TestUbseCliSsuCmdReg, DetachSpaceRejectsDevNameWithoutType)
 {
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
     auto params = DetachParams();
     params["dev_name"] = "ssu0";
+    ResetSsuMockCapture();
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_DETACH_DEV_NAME_REQUIRES_TYPE);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+    params["type"] = "Normal";
+    ResetSsuMockCapture();
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
 }
 
-// type 仅接受精确的 Linear 或 Striped，大小写或其他策略值均应被拒绝。
+// 显式 --type Normal 应在 IPC 前拒绝；省略 type 的用例覆盖普通 DETACH_SPACE 请求。
+TEST_F(TestUbseCliSsuCmdReg, DetachRejectsExplicitNormalTypeWithoutIpc)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    auto params = DetachParams();
+    params["type"] = "Normal";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+}
+
+// type 仅接受精确的 Linear 或 Striped，大小写、Normal 或其他策略值均应被拒绝。
 TEST_F(TestUbseCliSsuCmdReg, DetachRejectsInvalidOrNonCanonicalType)
 {
-    for (const std::string type : {"Mirror", "linear", "striped"}) {
+    for (const std::string type : {"Normal", "Mirror", "normal", "linear", "striped"}) {
         auto params = DetachParams();
         params["type"] = type;
         ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);

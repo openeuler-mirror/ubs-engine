@@ -262,6 +262,30 @@ TEST(TestUbseCliSsuStruct, CreateRequestMatchesHandlerFieldOrderAndEnumWidths)
     EXPECT_EQ(tenant, request.tenant);
 }
 
+// Normal 策略请求必须按协议编码为 NORMAL=2。
+TEST(TestUbseCliSsuStruct, CreateRequestSerializesNormalStrategyAsTwo)
+{
+    UbseCliSsuAllocCreateReq request;
+    request.name = "alloc-normal";
+    request.strategy = UbseSsuAllocStrategy::NORMAL;
+    std::vector<uint8_t> payload;
+    auto unpack = SerializeAndOpen(request, payload);
+    std::string name;
+    uint64_t size = 0;
+    uint32_t count = 0;
+    uint32_t lbaFormat = 0;
+    uint8_t strategy = UINT8_MAX;
+    std::string tenant;
+    ASSERT_TRUE(unpack.UnpackString(name, SSU_CLI_MAX_NAME_LENGTH));
+    ASSERT_TRUE(unpack.UnpackUint64(size));
+    ASSERT_TRUE(unpack.UnpackUint32(count));
+    ASSERT_TRUE(unpack.UnpackUint32(lbaFormat));
+    ASSERT_TRUE(unpack.UnpackUint8(strategy));
+    ASSERT_TRUE(unpack.UnpackString(tenant, SSU_CLI_MAX_TENANT_LENGTH));
+    EXPECT_EQ(name, request.name);
+    EXPECT_EQ(strategy, 2U);
+}
+
 // 普通、Linear、Striped 三类 attach 请求应按各自服务端字段顺序和枚举宽度编码。
 TEST(TestUbseCliSsuStruct, AttachRequestsMatchSpaceLinearAndStripedUnpackers)
 {
@@ -368,6 +392,17 @@ TEST(TestUbseCliSsuStruct, AllocationListConsumesMultipleNamespacesAndAllowedHos
     EXPECT_EQ(response.allocations[1].strategy, UbseSsuAllocStrategy::STRIPED);
 }
 
+// allocation 响应中的 NORMAL=2 应能成功反序列化并保留枚举值。
+TEST(TestUbseCliSsuStruct, AllocationResponseDeserializesNormalStrategy)
+{
+    const auto allocation = MakeAllocation("alloc-normal", UbseSsuAllocStrategy::NORMAL, 1);
+    const auto payload = PackAllocationList({allocation});
+    UbseCliSsuAllocListRsp response;
+    ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+    ASSERT_EQ(response.allocations.size(), 1U);
+    EXPECT_EQ(response.allocations[0].strategy, UbseSsuAllocStrategy::NORMAL);
+}
+
 // 响应截断、伪造字符串长度和空成功响应都应在反序列化阶段拒绝。
 TEST(TestUbseCliSsuStruct, ResponsesRejectTruncationAndInvalidStringLength)
 {
@@ -456,6 +491,10 @@ TEST(TestUbseCliSsuStruct, ResponsesRejectDefensiveHostLimitAndInvalidEnums)
 
     payload = PackAllocationList({allocation});
     const size_t strategyOffset = sizeof(uint32_t) + StringSize(allocation.name);
+    payload[strategyOffset] = 3;
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+
+    payload = PackAllocationList({allocation});
     payload[strategyOffset] = UINT8_MAX;
     EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
@@ -485,7 +524,7 @@ TEST(TestUbseCliSsuStruct, RequestsRejectOverlongStringsAndInvalidEnums)
     create.lbaFormat = static_cast<UbseSsuLBAFormat>(1234);
     EXPECT_FALSE(create.Serialize(payload));
     create.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
-    create.strategy = static_cast<UbseSsuAllocStrategy>(9);
+    create.strategy = static_cast<UbseSsuAllocStrategy>(3);
     EXPECT_FALSE(create.Serialize(payload));
 
     UbseCliSsuAttachSpaceReq space;
