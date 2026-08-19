@@ -1816,7 +1816,7 @@ ubsectl-ssu只能在root、ubse用户中运行。
 | ------- | --------------------- | ------------------------ |
 | name    | 分配空间标识                | 字符串，与创建SSU分配时的name参数一致 |
 | size    | 分配空间下所有命名空间容量之和       | 整数，字节数       |
-| strategy | 分配策略                  | 可选值：\[ Linear \| Striped ] |
+| strategy | 分配策略                  | 可选值：\[ Normal \| Linear \| Striped ] |
 
 **错误信息说明**
 
@@ -1825,9 +1825,9 @@ ubsectl-ssu只能在root、ubse用户中运行。
 | INFO: No SSU allocation information found.     | 未查询到任何SSU分配信息      |
 | ERROR: The option -t or --type is required.    | 缺少必选参数type          |
 | ERROR: Invalid type. The value must be alloc_summary or alloc_detail. | type取值不合法 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
-| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
 
@@ -1872,7 +1872,7 @@ ubsectl-ssu display -t alloc_detail -n <name>
 | 字段名         | 字段描述                        | 字段取值                         |
 | ----------- | --------------------------- | ---------------------------- |
 | Name        | 分配空间标识，展示在表头上方              | 字符串，与创建SSU分配时的name参数一致     |
-| Strategy    | 分配策略，展示在表头上方                | 可选值：\[ Linear \| Striped ]   |
+| Strategy    | 分配策略，展示在表头上方                | 可选值：\[ Normal \| Linear \| Striped ]   |
 | ns_uuid     | 命名空间对应的物理设备UUID             | 字符串，格式为UUID                  |
 | tgt_eid     | Target EID                  | 字符串                          |
 | tgt_nqn     | Target NQN                  | 字符串                          |
@@ -1890,6 +1890,10 @@ ubsectl-ssu display -t alloc_detail -n <name>
 | ERROR: Invalid type. The value must be alloc_summary or alloc_detail. | type取值不合法 |
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -1914,7 +1918,7 @@ uuid-bb    e3         nqn.2024-01:target  2               /dev/nvme1n1    107374
 
 **描述**
 
-分配SSU存储空间，创建指定数量和容量的命名空间。支持线性分配和条带化分配两种策略。
+分配SSU存储空间，创建指定数量和容量的命名空间。省略strategy时使用普通（Normal）分配策略，也可显式指定线性（Linear）或条带化（Striped）分配策略。
 
 **用法**
 
@@ -1930,7 +1934,7 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 | -s/--size      | **必选**，申请总容量      | 大写`G`后缀的GiB整数，如`10G`；最小`1G`                                |
 | -l/--lba       | 可选，LBA格式          | 可选值：`512B`、`4K`；默认为`512B`                                      |
 | -m/--ns\_num   | 可选，切分的命名空间数量     | 正整数，范围1-128；默认为1                                                |
-| -r/--strategy  | 可选，分配策略           | 可选值：`Linear`、`Striped`；默认为`Linear`。当`ns_num`为1时，strategy参数不生效 |
+| -r/--strategy  | 可选，分配策略           | 可显式指定`Linear`或`Striped`；省略时默认为`Normal` |
 
 **约束限制**
 
@@ -1938,8 +1942,8 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 2. name在系统中必须唯一，重复name将返回错误
 3. size只接受大写`G`后缀，不接受小写`g`或无后缀格式
 4. LBA格式必须使用`512B`或`4K`，不接受裸数字`512`
-5. strategy必须使用`Linear`或`Striped`，不接受全小写格式
-6. 当ns_num为1时，strategy参数不生效
+5. 显式指定strategy时必须使用`Linear`或`Striped`，不支持显式指定`Normal`，且不接受全小写格式；省略strategy时使用`Normal`
+6. 使用`Striped`策略时，ns_num至少为2
 
 **输出信息说明**
 
@@ -1948,7 +1952,7 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 | 字段名         | 字段描述                        | 字段取值                       |
 | ----------- | --------------------------- | -------------------------- |
 | Name        | 分配空间标识，展示在表头上方              | 字符串                        |
-| Strategy    | 分配策略，展示在表头上方                | 可选值：\[ Linear \| Striped ] |
+| Strategy    | 分配策略，展示在表头上方                | 可选值：\[ Normal \| Linear \| Striped ] |
 | ns_uuid     | 命名空间对应的物理设备UUID             | 字符串，格式为UUID                |
 | tgt_eid     | Target EID                  | 字符串                        |
 | tgt_nqn     | Target NQN                  | 字符串                        |
@@ -1969,6 +1973,9 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 | ERROR: Invalid ns_num. The value must be an integer in range 1-128. | ns_num不在1-128范围内 |
 | ERROR: Invalid lba. The value must be 512B or 4K. | lba格式不合法, 必须为512B或4K |
 | ERROR: Invalid strategy. The value must be Linear or Striped. | strategy格式不合法, 必须为Linear或Striped |
+| ERROR: Striped strategy requires ns_num to be at least 2. | Striped策略要求ns_num至少为2 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation already exists. | 指定name的SSU存储空间已分配 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
@@ -1976,12 +1983,12 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 
 **示例**
 
-分配一个10G命名空间，使用默认LBA格式和默认线性策略：
+分配一个10G命名空间，使用默认LBA格式和默认普通策略：
 
 ```shell
 $ ubsectl-ssu create -n alloc-space-1 -s 10G
 ----------------------------------------------------------------------------------------------------------------
-Name: alloc-space-1  Strategy:Linear
+Name: alloc-space-1  Strategy:Normal
 ----------------------------------------------------------------------------------------------------------------
 ns_uuid    tgt_eid    tgt_nqn             namespace_id    ns_dev_path     ns_size    lba_format
 ----------------------------------------------------------------------------------------------------------------
@@ -2037,9 +2044,12 @@ ubsectl-ssu delete -n <name>
 | ---------------------------------------------- | ------------------ |
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation does not exist or has already been deleted. | 指定的SSU存储空间不存在或已经删除 |
-| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码；例如存储空间仍处于已挂载状态时释放失败 |
-| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: The SSU allocation is attached. Detach it before deleting it. | 指定的SSU存储空间已挂载，需先卸载再删除 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
@@ -2052,7 +2062,7 @@ $ ubsectl-ssu delete -n alloc-space-1
 
 **描述**
 
-将指定的存储空间挂载到系统，仅执行命名空间挂载，返回命名空间设备路径列表。
+将使用普通（Normal）策略分配的存储空间挂载到系统，仅执行命名空间挂载，返回命名空间设备路径列表。
 
 **用法**
 
@@ -2072,7 +2082,7 @@ ubsectl-ssu attach -n <name> [-q <host_nqn>] [-e <src_eid>]
 
 1. ubsectl-ssu只能在root、ubse用户中运行
 2. name必须对应已分配的SSU存储空间
-3. 该命令仅执行命名空间挂载，不支持type、dev_name、level和chunk_size参数
+3. 该命令省略type，仅执行Normal存储空间的命名空间挂载；dev_name、level和chunk_size仅适用于显式指定Linear或Striped的聚合挂载
 
 **输出信息说明**
 
@@ -2088,7 +2098,12 @@ ubsectl-ssu attach -n <name> [-q <host_nqn>] [-e <src_eid>]
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
 | ERROR: Invalid src_eid. The value must be 1-16 characters. | src_eid格式不合法 |
-| ERROR: The option --dev_name, --level or --chunk_size requires --type. | 未指定type时携带了聚合参数 |
+| ERROR: The option --dev_name, --level or --chunk_size requires --type Linear or Striped. | 未指定Linear或Striped类型时携带了聚合参数 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
@@ -2105,7 +2120,7 @@ ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1
 
 **描述**
 
-将指定的存储空间从系统卸载，释放设备占用。
+将使用普通（Normal）策略分配的存储空间从系统卸载，释放设备占用。
 
 **用法**
 
@@ -2126,7 +2141,7 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 2. name必须对应已分配且已挂载的SSU存储空间
 3. 卸载前需确保没有进程正在使用该存储空间
 4. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
-5. 该命令仅执行命名空间卸载，不支持type、dev_name、level和chunk_size参数
+5. 该命令省略type，仅执行Normal存储空间的命名空间卸载；dev_name仅适用于显式指定Linear或Striped的聚合卸载
 
 **输出信息说明**
 
@@ -2139,10 +2154,14 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
-| ERROR: The option --dev_name requires --type. | 未指定type时携带了聚合设备名称参数 |
+| ERROR: The option --dev_name requires --type Linear or Striped. | 未指定Linear或Striped类型时携带了聚合设备名称参数 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
-| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
@@ -2200,6 +2219,11 @@ ubsectl-ssu attach -t Linear -n <name> -d <dev_name> [-q <host_nqn>] [-e <src_ei
 | ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
 | ERROR: The option --level or --chunk_size is only valid when --type is Striped. | Linear模式携带了条带参数 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
@@ -2258,9 +2282,13 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
-| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
@@ -2301,7 +2329,8 @@ ubsectl-ssu attach -t Striped -n <name> -d <dev_name> -l <level> -c <chunk_size>
 4. 必须指定dev_name、level和chunk_size
 5. level必须使用`raid0`或`raid5`
 6. chunk_size必须使用支持列表中的大写`K`格式，不接受小写`k`或裸数字
-7. RAID5至少需要3个命名空间（成员设备），命名空间数量不足时挂载失败
+7. RAID0至少需要2个命名空间（成员设备），命名空间数量不足时挂载失败
+8. RAID5至少需要3个命名空间（成员设备），命名空间数量不足时挂载失败
 
 **输出信息说明**
 
@@ -2325,6 +2354,11 @@ ubsectl-ssu attach -t Striped -n <name> -d <dev_name> -l <level> -c <chunk_size>
 | ERROR: The option -c or --chunk_size is required when --type is Striped. | Striped模式缺少chunk_size |
 | ERROR: Invalid level. The value must be raid0 or raid5. | level取值不合法 |
 | ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K. | chunk_size取值不合法 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
@@ -2383,9 +2417,13 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Striped. | Striped模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
+| ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
+| INFO: The SSU allocation does not exist. | 指定的SSU存储空间不存在 |
+| ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
+| ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
-| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
