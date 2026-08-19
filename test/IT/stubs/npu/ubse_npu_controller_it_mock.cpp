@@ -22,6 +22,7 @@
 #include "ubse_mti_bus_instance.h"
 #include "ubse_mti_urma.h"
 #include "ubse_npu_monitor_service_api.h"
+#include "ubse_npu_resource_collection_def.h"
 #include "ubse_os_util.h"
 
 using namespace ubse::common::def;
@@ -159,6 +160,11 @@ public:
         resList.assign(vfList.size(), true);
         return UBSE_OK;
     }
+
+    bool Check1825PfeH2NLinkStatus(const UbseMtiEid& eid) override
+    {
+        return true;
+    }
 };
 
 class UbseMtiBusInstanceStub : public UbseMtiBusInstance {
@@ -171,7 +177,7 @@ public:
         hostInst.vendor = 0;
         hostInst.guid = MakeGuid(0x05);
         hostInst.eid = UbseMtiEid{};
-        hostInst.subDeviceGuids = {};
+        hostInst.subDevices = {};
 
         busInstanceList = {hostInst};
         return UBSE_OK;
@@ -185,7 +191,7 @@ public:
         busInstance.vendor = 0;
         busInstance.guid = MakeGuid(guidCounter++);
         busInstance.eid = UbseMtiEid{};
-        busInstance.subDeviceGuids = {};
+        busInstance.subDevices = {};
         return UBSE_OK;
     }
 
@@ -246,6 +252,22 @@ UbseResult ResetNpu(const uint8_t& chipId)
 }
 
 } // namespace ubse::npu::vm_monitor
+
+namespace ubse::npu::controller {
+// IT 覆盖：跳过 H2N 链路检查（含 NPU 复位后的固定 30s 等待），加速 NPU IT 用例执行
+class UbseNpuManagerApi {
+public:
+    UbseResult CheckNicH2NLinkStatus(const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfeList,
+                                     const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& nicVfeList);
+};
+
+UbseResult UbseNpuManagerApi::CheckNicH2NLinkStatus(
+    const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfeList,
+    const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& nicVfeList)
+{
+    return UBSE_OK;
+}
+} // namespace ubse::npu::controller
 
 namespace ubse::utils {
 
