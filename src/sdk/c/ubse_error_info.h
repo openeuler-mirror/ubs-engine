@@ -58,6 +58,13 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
         &(ubs_error_info_t){"UBSE_ENGINE_ERR_NO_NEED_FREE", "Space does not exist or already freed"},
     [UBS_ENGINE_ERR_NO_NEED_DETACH - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBSE_ENGINE_ERR_NO_NEED_DETACH", "Space already detached or not attached"},
+
+    [UBS_ENGINE_ERR_SSU_SPACE_NOT_FOUND - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_SPACE_NOT_FOUND", "Space not found"},
+    [UBS_ENGINE_ERR_SSU_NEED_DETACH_BEFORE_FREE - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE", "Namespace already attached, detach before free"},
+    [UBS_ENGINE_ERR_SSU_STRATEGY_MISMATCH - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_STRATEGY_MISMATCH", "Allocation strategy does not match attach/detach strategy"},
 };
 
 #ifdef __cplusplus

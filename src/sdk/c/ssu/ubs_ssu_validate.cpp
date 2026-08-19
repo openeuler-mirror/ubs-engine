@@ -182,6 +182,11 @@ uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req)
         IPC_LOG_ERROR << "validate failed, attr: ns_num, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }
+
+    if (req->ns_num == 1 && req->strategy == UBS_SSU_ALLOC_STRATEGY_STRIPED) {
+        IPC_LOG_ERROR << "striped strategy is not supported when ns_num is 1.";
+        return UBS_ERR_INVALID_ARG;
+    }
     // ns_size 须为 1G 的整数倍
     const uint64_t ONE_G = 1024ULL * 1024 * 1024;
     if (req->ns_size == 0 || req->ns_size % ONE_G != 0) {
@@ -199,7 +204,8 @@ uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req)
         return UBS_ERR_INVALID_ARG;
     }
 
-    if (req->strategy != UBS_SSU_ALLOC_STRATEGY_STRIPED && req->strategy != UBS_SSU_ALLOC_STRATEGY_LINEAR) {
+    if (req->strategy != UBS_SSU_ALLOC_STRATEGY_STRIPED && req->strategy != UBS_SSU_ALLOC_STRATEGY_LINEAR &&
+        req->strategy != UBS_SSU_ALLOC_STRATEGY_NORMAL) {
         IPC_LOG_ERROR << "validate failed, attr: strategy, ret: " << UBS_ERR_INVALID_ARG;
         return UBS_ERR_INVALID_ARG;
     }

@@ -211,6 +211,9 @@ def validate_alloc_space_req(req: UbsSsuAllocSpaceReq) -> None:
     if req.ns_num == 0:
         logger.error("ns_num must be greater than 0")
         raise UbsErrInvalidArg("ns_num must be greater than 0")
+    if req.ns_num == 1 and req.strategy == UbsSsuAllocStrategy.STRIPED:
+        logger.error("striped strategy is not supported when ns_num is 1")
+        raise UbsErrInvalidArg("striped strategy is not supported when ns_num is 1")
     # ns_size 须为 1G 的整数倍
     ONE_G = 1024 * 1024 * 1024
     if req.ns_size == 0 or req.ns_size % ONE_G != 0:
@@ -227,7 +230,7 @@ def validate_alloc_space_req(req: UbsSsuAllocSpaceReq) -> None:
         logger.error("invalid lba format")
         raise UbsErrInvalidArg("invalid lba format")
     valid_strategy = {
-        UbsSsuAllocStrategy.STRIPED, UbsSsuAllocStrategy.LINEAR,
+        UbsSsuAllocStrategy.STRIPED, UbsSsuAllocStrategy.LINEAR, UbsSsuAllocStrategy.NORMAL,
     }
     if req.strategy not in valid_strategy:
         logger.error("invalid strategy")

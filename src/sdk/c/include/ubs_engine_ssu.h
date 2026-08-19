@@ -58,6 +58,7 @@ typedef enum {
 typedef enum {
     UBS_SSU_ALLOC_STRATEGY_STRIPED = 0, // 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
     UBS_SSU_ALLOC_STRATEGY_LINEAR = 1, // 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+    UBS_SSU_ALLOC_STRATEGY_NORMAL = 2, // 普通策略, 挂载时只挂载nvme裸设备, 不聚合块设备, 该值为推荐值
 } ubs_ssu_alloc_strategy_t;
 
 // 分配存储空间请求参数
@@ -65,7 +66,7 @@ typedef struct {
     char name[UBS_SSU_MAX_NAME_LENGTH];     // 请求标识, 最大48个字符
     uint64_t ns_size;                       // 申请总容量, 单位字节; 条带化策略时需整除ns_num,
                                             // 且整除后需为chunk_size的整数倍
-    uint32_t ns_num;                        // 命名空间数量, 等于1时strategy不生效
+    uint32_t ns_num;                        // 命名空间数量, 等于1时不能为STRIPED策略
     ubs_ssu_lba_format_t lba_format;        // LBA格式
     ubs_ssu_alloc_strategy_t strategy;      // 分配策略
     char tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
@@ -246,7 +247,7 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list);
 /**
  * @brief 分配SSU存储空间
  *
- * 根据请求参数分配指定数量和大小的命名空间, 支持顺序分配和分布式分配两种策略。
+ * 根据请求参数分配指定数量和大小的命名空间, 支持分布式(STRIPED)、顺序(LINEAR)和普通(NORMAL)三种策略。
  *
  * @param req [IN] 分配请求参数
  * @param result [OUT] 分配结果指针的地址, 由SDK内部动态分配整个 ubs_ssu_alloc_result_t 对象;
@@ -262,7 +263,7 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
- * @note 当ns_num为1时, strategy参数不生效
+ * @note 当ns_num为1时, strategy不能为UBS_SSU_ALLOC_STRATEGY_STRIPED, 仅支持LINEAR或NORMAL
  * @note 空间已分配时重复分配将报错, 不再幂等返回成功
  */
 int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t **result);

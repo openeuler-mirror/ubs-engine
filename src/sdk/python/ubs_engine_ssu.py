@@ -78,7 +78,7 @@ def ubs_ssu_alloc_info_list() -> List[UbsSsuAllocResult]:
 def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
     """分配SSU存储空间
 
-    根据请求参数分配指定数量和大小的命名空间, 支持顺序分配和分布式分配两种策略。
+    根据请求参数分配指定数量和大小的命名空间, 支持分布式(STRIPED)、顺序(LINEAR)和普通(NORMAL)三种策略。
 
     Args:
         req: 分配请求参数
@@ -96,7 +96,7 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
-        当ns_num为1时, strategy参数不生效
+        当ns_num为1时, strategy不能为UBS_SSU_ALLOC_STRATEGY_STRIPED, 仅支持LINEAR或NORMAL
        空间已分配时重复分配将报错, 不再幂等返回成功
     """
     validate_alloc_space_req(req)

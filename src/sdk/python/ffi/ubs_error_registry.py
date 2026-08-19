@@ -18,7 +18,7 @@ from .ubs_engine_exceptions import (
     UbsErrInvalidArg, UbsEngineConnectionError, UbsEngineReceiveError,
     UbsEngineAuthError, UbsEngineTimeoutError, UbsEngineInternalError,
     UbsEngineOutOfRangeError, UbsEngineExistedError, UbsEngineNotExistError,
-    UbsEngineAllocateError,
+    UbsEngineAllocateError, UbsEngineStateError, UbsEngineStrategyMismatchError,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,10 @@ _ERROR_MAP: Dict[int, _ErrorEntry] = {
     1101: ("UBSE_ERR_NODE_UNREACHABLE", UbsEngineInternalError),
     1102: ("UBSE_ERR_NODE_NOT_ACTIVE", UbsEngineInternalError),
     1103: ("UBSE_ERR_NODE_NOT_RESPONDING", UbsEngineInternalError),
+    # SSU Controller对外错误码 (1200-1299)
+    1200: ("UBSE_SSU_ERROR_SPACE_NOT_FOUND", UbsEngineNotExistError),
+    1201: ("UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE", UbsEngineStateError),
+    1202: ("UBSE_SSU_ERROR_STRATEGY_MISMATCH", UbsEngineStrategyMismatchError),
     # 重复操作错误 (2000-2099)
     2000: ("UBSE_ERR_ALREADY_ALLOCATED", UbsEngineExistedError),
     2001: ("UBSE_ERR_ALREADY_ATTACHED", UbsEngineExistedError),

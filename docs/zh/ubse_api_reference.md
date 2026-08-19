@@ -4980,6 +4980,11 @@ int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *resu
 | results      | OUT    | 已分配空间信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_alloc_info_list_free` 释放内存 |
 | result\_cnt  | OUT    | 已分配空间信息数量                                                                                    |
 
+**参数校验限制 VALIDATION**
+
+- `results`：不能为 NULL
+- `result_cnt`：不能为 NULL
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5144,6 +5149,12 @@ int32_t ubs_ssu_ns_stats_get(const char *name, ubs_ssu_ns_stats_t **ns_stats_lis
 | ns\_stats\_list | OUT    | 命名空间统计信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_stats_free` 释放内存     |
 | ns\_stats\_cnt  | OUT    | 命名空间统计信息数量                                                                                  |
 
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47（< UBS_SSU_MAX_NAME_LENGTH=48）；仅允许字符 [a-zA-Z0-9_-.:]
+- `ns_stats_list`：不能为 NULL
+- `ns_stats_cnt`：不能为 NULL
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5235,6 +5246,13 @@ int32_t ubs_ssu_connect_info_get(const char *name, ubs_ub_vfe_t *vfe,
 | connect\_info\_list | OUT    | 连接信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_connect_info_free` 释放内存                   |
 | connect\_info\_cnt  | OUT    | 连接信息数量                                                                                                    |
 
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47（< UBS_SSU_MAX_NAME_LENGTH=48）；仅允许字符 [a-zA-Z0-9_-.:]
+- `vfe`：可为 NULL；非 NULL 时作为查询过滤条件
+- `connect_info_list`：不能为 NULL
+- `connect_info_cnt`：不能为 NULL
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5321,6 +5339,17 @@ int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_
 | ------ | ------ | ---------------------------------------------------------------------------------------------------------- |
 | req    | IN     | 分配请求参数                                                                                                |
 | result | OUT    | 分配结果指针的地址，由 SDK 内部动态分配整个 `ubs_ssu_alloc_result_t` 对象；调用方需通过 `ubs_ssu_alloc_info_free` 释放 |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->ns_num`：必须 >= 1；等于 1 时 `strategy` 不能为 STRIPED
+- `req->ns_size`：必须 > 0 且为 1GiB（1024^3 字节）的整数倍；`strategy` 为 STRIPED 时需能整除 `ns_num`
+- `req->lba_format`：仅允许 UBS_SSU_LBA_FORMAT_512 或 UBS_SSU_LBA_FORMAT_4K
+- `req->strategy`：仅允许 STRIPED / LINEAR / NORMAL
+- `req->tenant`：允许为空；非空时长度 < UBS_SSU_MAX_TENANT_LENGTH(17)，仅允许 [a-zA-Z0-9_-.:]
+- `result`：不能为 NULL
 
 **返回值 RETURN VALUE**
 
@@ -5453,6 +5482,10 @@ int32_t ubs_ssu_space_free(const char *name);
 | ---- | ------ | ------------------------------------ |
 | name | IN     | 要释放的存储空间标识，与分配时的 name 参数一致 |
 
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47（< UBS_SSU_MAX_NAME_LENGTH=48）；仅允许字符 [a-zA-Z0-9_-.:]
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5502,6 +5535,11 @@ int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn);
 | name | IN     | 存储空间标识，与分配时的 name 参数一致 |
 | nqn  | IN     | Host 的 NVMe Qualified Name，标识被授权的主机 |
 
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `nqn`：不能为 NULL；长度 1~68（< UBS_SSU_MAX_NQN_LENGTH=69）
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5550,6 +5588,11 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
 | ---- | ------ | ------------------------------------ |
 | name | IN     | 存储空间标识，与分配时的 name 参数一致 |
 | nqn  | IN     | Host 的 NVMe Qualified Name，标识被撤销权限的主机 |
+
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `nqn`：不能为 NULL；长度 1~68（< UBS_SSU_MAX_NQN_LENGTH=69）
 
 **返回值 RETURN VALUE**
 
@@ -5602,6 +5645,15 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
 | req               | IN     | 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源 EID                                      |
 | ns\_dev\_paths    | OUT    | 命名空间设备路径列表，由 SDK 内部动态分配，调用方需通过 `ubs_ssu_ns_dev_paths_free` 释放                  |
 | ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `ns_dev_paths`：不能为 NULL
+- `ns_dev_path_cnt`：不能为 NULL
 
 **返回值 RETURN VALUE**
 
@@ -5692,6 +5744,13 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 | ---- | ------ | ---------------------------------------------------------- |
 | req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源 EID |
 
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5745,6 +5804,17 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
 | ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
 | dev\_path         | OUT    | 挂载后的聚合设备路径，调用方需分配不小于 `UBS_SSU_MAX_DEV_PATH_LENGTH` 字节的缓冲区                       |
 
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32（< UBS_SSU_MAX_DEV_NAME_LENGTH=33）；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `ns_dev_paths`：不能为 NULL
+- `ns_dev_path_cnt`：不能为 NULL
+- `dev_path`：调用方需分配不小于 UBS_SSU_MAX_DEV_PATH_LENGTH(63) 字节的缓冲区
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5793,6 +5863,14 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
 | name | IN/OUT | description                                                                 |
 | ---- | ------ | --------------------------------------------------------------------------- |
 | req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID 和聚合后的块设备名称 |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
 
 **返回值 RETURN VALUE**
 
@@ -5847,6 +5925,19 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
 | ns\_dev\_path\_cnt | OUT    | 命名空间设备路径数量                                                                                      |
 | dev\_path         | OUT    | 挂载后的聚合设备路径，调用方需分配不小于 `UBS_SSU_MAX_DEV_PATH_LENGTH` 字节的缓冲区                       |
 
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `req->level`：仅允许 UBS_SSU_RAID0 或 UBS_SSU_RAID5
+- `req->chunk_size`：仅允许 4K/16K/32K/64K/128K/256K/512K 枚举值
+- `ns_dev_paths`：不能为 NULL
+- `ns_dev_path_cnt`：不能为 NULL
+- `dev_path`：调用方需分配不小于 UBS_SSU_MAX_DEV_PATH_LENGTH(63) 字节的缓冲区
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5897,6 +5988,14 @@ int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
 | ---- | ------ | --------------------------------------------------------------------------- |
 | req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID、聚合后的块设备名称、RAID 级别和 chunk 大小 |
 
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+
 **返回值 RETURN VALUE**
 
 返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
@@ -5945,6 +6044,11 @@ int32_t ubs_ssu_fe_device_list(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
 | ------- | ------ | ---------------------------------------------------------------------------------------------------- |
 | fe\_list | OUT    | FE 设备信息列表，调用成功时由 SDK 内部动态分配，调用方需通过 `ubs_ssu_fe_device_list_free` 释放内存 |
 | fe\_cnt | OUT    | FE 设备数量                                                                                          |
+
+**参数校验限制 VALIDATION**
+
+- `fe_list`：不能为 NULL
+- `fe_cnt`：不能为 NULL
 
 **返回值 RETURN VALUE**
 
@@ -6033,6 +6137,12 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi, const ubs_ub_vfe_t *vfe,
 | upi                | IN     | 租户隔离标识                                                                                                                                                    |
 | vfe                | IN     | 要绑定的 VFE 信息                                                                                                                                               |
 | bus\_instance\_guid | IN/OUT | 总线实例 GUID，定长字节数组，调用方需保证缓冲区至少 `UBS_SSU_GUID_LENGTH` 字节，**不允许传 NULL**；详见下方约束                                                                 |
+
+**参数校验限制 VALIDATION**
+
+- `upi`：无校验（uint32_t 类型）
+- `vfe`：不能为 NULL
+- `bus_instance_guid`：不能为 NULL；调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH(32) 字节；全 0 或非 0 均允许（全 0 表示由 ubse 内部创建）
 
 **返回值 RETURN VALUE**
 
@@ -6125,6 +6235,12 @@ int32_t ubs_ssu_fe_device_free(uint32_t upi, const ubs_ub_vfe_t *vfe);
 | ---- | ------ | --------------------- |
 | upi  | IN     | 租户隔离标识          |
 | vfe  | IN     | 要释放的 VFE 信息     |
+
+**参数校验限制 VALIDATION**
+
+- `upi`：无校验（uint32_t 类型）
+- `vfe`：不能为 NULL
+- `vfe->bind_bus_instance_guid`：不能为全 0（必须为有效的已绑定 GUID）
 
 **返回值 RETURN VALUE**
 

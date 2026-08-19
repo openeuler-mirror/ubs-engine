@@ -53,10 +53,10 @@ var (
 	ErrQuotaExceeded     = &StatusCodeError{StatusCode: 13, ErrName: "UBSE_ERR_QUOTA_EXCEEDED"}
 
 	// IPC通信错误 (20-29)
-	ErrIPCConnectionFailed         = &StatusCodeError{StatusCode: 20, ErrName: "UBSE_ERR_IPC_CONNECTION_FAILED"}
-	ErrIPCTimeout                  = &StatusCodeError{StatusCode: 21, ErrName: "UBSE_ERR_IPC_TIMEOUT"}
-	ErrIPCServiceUnavailable       = &StatusCodeError{StatusCode: 22, ErrName: "UBSE_ERR_IPC_SERVICE_UNAVAILABLE"}
-	ErrIPCConnectionFailedPathLen  = &StatusCodeError{StatusCode: 23, ErrName: "UBSE_ERR_IPC_CONNECTION_FAILED_PATH_LENGTH"}
+	ErrIPCConnectionFailed        = &StatusCodeError{StatusCode: 20, ErrName: "UBSE_ERR_IPC_CONNECTION_FAILED"}
+	ErrIPCTimeout                 = &StatusCodeError{StatusCode: 21, ErrName: "UBSE_ERR_IPC_TIMEOUT"}
+	ErrIPCServiceUnavailable      = &StatusCodeError{StatusCode: 22, ErrName: "UBSE_ERR_IPC_SERVICE_UNAVAILABLE"}
+	ErrIPCConnectionFailedPathLen = &StatusCodeError{StatusCode: 23, ErrName: "UBSE_ERR_IPC_CONNECTION_FAILED_PATH_LENGTH"}
 
 	// 权限错误 (30-39)
 	ErrPermissionDenied     = &StatusCodeError{StatusCode: 30, ErrName: "UBSE_ERR_PERMISSION_DENIED"}
@@ -76,31 +76,31 @@ var (
 	ErrDaemonInternal    = &StatusCodeError{StatusCode: 53, ErrName: "UBSE_ERR_DAEMON_INTERNAL"}
 
 	// UBSE错误码 (1000-1099)
-	ErrEngineOutOfRange       = &StatusCodeError{StatusCode: 1000, ErrName: "UBSE_ERR_OUT_OF_RANGE"}
-	ErrEngineResource         = &StatusCodeError{StatusCode: 1001, ErrName: "UBSE_ERR_RESOURCE"}
-	ErrEngineConnectionFailed = &StatusCodeError{StatusCode: 1002, ErrName: "UBSE_ERR_CONNECTION_FAILED"}
-	ErrEngineAuthFailed       = &StatusCodeError{StatusCode: 1003, ErrName: "UBSE_ERR_AUTH_FAILED"}
-	ErrEngineTimeout          = &StatusCodeError{StatusCode: 1004, ErrName: "UBSE_ERR_TIMEOUT"}
-	ErrEngineInternal         = &StatusCodeError{StatusCode: 1005, ErrName: "UBSE_ERR_INTERNAL"}
-	ErrEngineExisted          = &StatusCodeError{StatusCode: 1006, ErrName: "UBSE_ERR_EXISTED"}
-	ErrEngineNotExist         = &StatusCodeError{StatusCode: 1007, ErrName: "UBSE_ERR_NOT_EXIST"}
-	ErrEngineUdsInfoMismatch  = &StatusCodeError{StatusCode: 1008, ErrName: "UBSE_ERR_UDSINFO_MISMATCH"}
-	ErrEngineImportAbsent     = &StatusCodeError{StatusCode: 1009, ErrName: "UBSE_ERR_IMPORT_ABSENT"}
-	ErrEngineCreating         = &StatusCodeError{StatusCode: 1010, ErrName: "UBSE_ERR_CREATING"}
-	ErrEngineDeleting         = &StatusCodeError{StatusCode: 1011, ErrName: "UBSE_ERR_DELETING"}
-	ErrEngineUnimportSuccess  = &StatusCodeError{StatusCode: 1012, ErrName: "UBSE_ERR_UNIMPORT_SUCCESS"}
-	ErrEngineAllocate         = &StatusCodeError{StatusCode: 1013, ErrName: "UBSE_ERR_ALLOCATE"}
-	ErrEngineShmNoCreate      = &StatusCodeError{StatusCode: 1014, ErrName: "UBSE_ERR_SHM_NO_CREATE"}
-	ErrEngineShmNoAttach      = &StatusCodeError{StatusCode: 1015, ErrName: "UBSE_ERR_SHM_NO_ATTACH"}
-	ErrEngineShmAttaching     = &StatusCodeError{StatusCode: 1016, ErrName: "UBSE_ERR_SHM_ATTACHING"}
-	ErrEngineShmDetaching     = &StatusCodeError{StatusCode: 1017, ErrName: "UBSE_ERR_SHM_DETACHING"}
-	ErrEngineLinkNotAllowed   = &StatusCodeError{StatusCode: 1018, ErrName: "UBSE_ERR_LINK_NOT_ALLOWED"}
-	ErrEngineLinkNotExist     = &StatusCodeError{StatusCode: 1019, ErrName: "UBSE_ERR_LINK_NOT_EXIST"}
-	ErrEngineShmNodeEmpty     = &StatusCodeError{StatusCode: 1020, ErrName: "UBSE_ERR_SHM_NODE_EMPTY"}
-	ErrEngineComFailed        = &StatusCodeError{StatusCode: 1021, ErrName: "UBSE_ERR_COM_FAILED"}
-	ErrEngineFindSrcNuma      = &StatusCodeError{StatusCode: 1022, ErrName: "UBSE_ERR_FIND_SRC_NUMA"}
-	ErrEngineShmDestroyed     = &StatusCodeError{StatusCode: 1023, ErrName: "UBSE_ERR_SHM_DESTROYED"}
-	ErrEngineShmAttachUsing   = &StatusCodeError{StatusCode: 1024, ErrName: "UBSE_ERR_SHM_ATTACH_USING"}
+	ErrEngineOutOfRange          = &StatusCodeError{StatusCode: 1000, ErrName: "UBSE_ERR_OUT_OF_RANGE"}
+	ErrEngineResource            = &StatusCodeError{StatusCode: 1001, ErrName: "UBSE_ERR_RESOURCE"}
+	ErrEngineConnectionFailed    = &StatusCodeError{StatusCode: 1002, ErrName: "UBSE_ERR_CONNECTION_FAILED"}
+	ErrEngineAuthFailed          = &StatusCodeError{StatusCode: 1003, ErrName: "UBSE_ERR_AUTH_FAILED"}
+	ErrEngineTimeout             = &StatusCodeError{StatusCode: 1004, ErrName: "UBSE_ERR_TIMEOUT"}
+	ErrEngineInternal            = &StatusCodeError{StatusCode: 1005, ErrName: "UBSE_ERR_INTERNAL"}
+	ErrEngineExisted             = &StatusCodeError{StatusCode: 1006, ErrName: "UBSE_ERR_EXISTED"}
+	ErrEngineNotExist            = &StatusCodeError{StatusCode: 1007, ErrName: "UBSE_ERR_NOT_EXIST"}
+	ErrEngineUdsInfoMismatch     = &StatusCodeError{StatusCode: 1008, ErrName: "UBSE_ERR_UDSINFO_MISMATCH"}
+	ErrEngineImportAbsent        = &StatusCodeError{StatusCode: 1009, ErrName: "UBSE_ERR_IMPORT_ABSENT"}
+	ErrEngineCreating            = &StatusCodeError{StatusCode: 1010, ErrName: "UBSE_ERR_CREATING"}
+	ErrEngineDeleting            = &StatusCodeError{StatusCode: 1011, ErrName: "UBSE_ERR_DELETING"}
+	ErrEngineUnimportSuccess     = &StatusCodeError{StatusCode: 1012, ErrName: "UBSE_ERR_UNIMPORT_SUCCESS"}
+	ErrEngineAllocate            = &StatusCodeError{StatusCode: 1013, ErrName: "UBSE_ERR_ALLOCATE"}
+	ErrEngineShmNoCreate         = &StatusCodeError{StatusCode: 1014, ErrName: "UBSE_ERR_SHM_NO_CREATE"}
+	ErrEngineShmNoAttach         = &StatusCodeError{StatusCode: 1015, ErrName: "UBSE_ERR_SHM_NO_ATTACH"}
+	ErrEngineShmAttaching        = &StatusCodeError{StatusCode: 1016, ErrName: "UBSE_ERR_SHM_ATTACHING"}
+	ErrEngineShmDetaching        = &StatusCodeError{StatusCode: 1017, ErrName: "UBSE_ERR_SHM_DETACHING"}
+	ErrEngineLinkNotAllowed      = &StatusCodeError{StatusCode: 1018, ErrName: "UBSE_ERR_LINK_NOT_ALLOWED"}
+	ErrEngineLinkNotExist        = &StatusCodeError{StatusCode: 1019, ErrName: "UBSE_ERR_LINK_NOT_EXIST"}
+	ErrEngineShmNodeEmpty        = &StatusCodeError{StatusCode: 1020, ErrName: "UBSE_ERR_SHM_NODE_EMPTY"}
+	ErrEngineComFailed           = &StatusCodeError{StatusCode: 1021, ErrName: "UBSE_ERR_COM_FAILED"}
+	ErrEngineFindSrcNuma         = &StatusCodeError{StatusCode: 1022, ErrName: "UBSE_ERR_FIND_SRC_NUMA"}
+	ErrEngineShmDestroyed        = &StatusCodeError{StatusCode: 1023, ErrName: "UBSE_ERR_SHM_DESTROYED"}
+	ErrEngineShmAttachUsing      = &StatusCodeError{StatusCode: 1024, ErrName: "UBSE_ERR_SHM_ATTACH_USING"}
 	ErrEngineShmAffinityAbnormal = &StatusCodeError{StatusCode: 1025, ErrName: "UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL"}
 	ErrEngineNumaIdNotInSocket   = &StatusCodeError{StatusCode: 1026, ErrName: "UBSE_ERR_NUMA_ID_IS_NOT_IN_SOCKET"}
 	ErrEngineNodeNotExist        = &StatusCodeError{StatusCode: 1027, ErrName: "UBSE_ERR_NODE_NOT_EXIST"}
@@ -113,6 +113,11 @@ var (
 	ErrNodeUnreachable   = &StatusCodeError{StatusCode: 1101, ErrName: "UBSE_ERR_NODE_UNREACHABLE"}
 	ErrNodeNotActive     = &StatusCodeError{StatusCode: 1102, ErrName: "UBSE_ERR_NODE_NOT_ACTIVE"}
 	ErrNodeNotResponding = &StatusCodeError{StatusCode: 1103, ErrName: "UBSE_ERR_NODE_NOT_RESPONDING"}
+
+	// SSU Controller对外错误码 (1200-1299)
+	ErrSsuSpaceNotFound        = &StatusCodeError{StatusCode: 1200, ErrName: "UBSE_SSU_ERROR_SPACE_NOT_FOUND"}
+	ErrSsuNeedDetachBeforeFree = &StatusCodeError{StatusCode: 1201, ErrName: "UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE"}
+	ErrSsuStrategyMismatch     = &StatusCodeError{StatusCode: 1202, ErrName: "UBSE_SSU_ERROR_STRATEGY_MISMATCH"}
 
 	// 重复操作错误 (2000-2099)
 	ErrAlreadyAllocated = &StatusCodeError{StatusCode: 2000, ErrName: "UBSE_ERR_ALREADY_ALLOCATED"}
@@ -180,6 +185,9 @@ var errMap = map[uint32]*StatusCodeError{
 	1101: ErrNodeUnreachable,
 	1102: ErrNodeNotActive,
 	1103: ErrNodeNotResponding,
+	1200: ErrSsuSpaceNotFound,
+	1201: ErrSsuNeedDetachBeforeFree,
+	1202: ErrSsuStrategyMismatch,
 	2000: ErrAlreadyAllocated,
 	2001: ErrAlreadyAttached,
 	2002: ErrNoNeedFree,
