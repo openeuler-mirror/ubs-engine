@@ -86,7 +86,8 @@ inline bool IsValidLBAFormat(uint32_t lbaFormat)
 inline bool IsValidAllocStrategy(uint8_t strategy)
 {
     return strategy == static_cast<uint8_t>(plugin::service::ssu::UbseSsuAllocStrategy::STRIPED) ||
-           strategy == static_cast<uint8_t>(plugin::service::ssu::UbseSsuAllocStrategy::LINEAR);
+           strategy == static_cast<uint8_t>(plugin::service::ssu::UbseSsuAllocStrategy::LINEAR) ||
+           strategy == static_cast<uint8_t>(plugin::service::ssu::UbseSsuAllocStrategy::NORMAL);
 }
 
 inline bool IsValidAggregationRaidLevel(uint8_t level)
