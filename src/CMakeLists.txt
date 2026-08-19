@@ -41,6 +41,7 @@ add_executable(ubse
         framework/plugin_mgr/ubse_plugin.cpp
         framework/trace_context/trace_context.cpp
         api_server/ubse_api_server.cpp
+        controllers/mem/mem_controller/ubse_mem_controller.cpp
 )
 
 target_include_directories(ubse PRIVATE ${CMAKE_BINARY_DIR}/rpc)
