@@ -117,9 +117,15 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
     req.nsNum = first.customData.nsNum;
     req.nsSize = first.customData.totalBytes;
     req.lbaFormat = (first.nsOptions.flbas == 1) ? UbseSsuLBAFormat::LBA_FORMAT_4K : UbseSsuLBAFormat::LBA_FORMAT_512;
-    req.strategy = (first.customData.allocStrategy == static_cast<uint8_t>(UbseSsuAllocStrategy::STRIPED)) ?
-                       UbseSsuAllocStrategy::STRIPED :
-                       UbseSsuAllocStrategy::LINEAR;
+    // 三态恢复分配策略（STRIPED/LINEAR/NORMAL），与CreateDevNameSpaces写入customData.allocStrategy一致；
+    // 非法值防御性回退NORMAL（最保守默认值，不假定存在聚合块设备）
+    if (first.customData.allocStrategy > static_cast<uint8_t>(UbseSsuAllocStrategy::NORMAL)) {
+        UBSE_LOG_ERROR << "RebuildEntry: invalid allocStrategy=" << static_cast<int>(first.customData.allocStrategy)
+                       << ", fallback to NORMAL, name=" << name;
+        req.strategy = UbseSsuAllocStrategy::NORMAL;
+    } else {
+        req.strategy = static_cast<UbseSsuAllocStrategy>(first.customData.allocStrategy);
+    }
     std::string userName(first.customData.userName,
                          strnlen(first.customData.userName, sizeof(first.customData.userName)));
 

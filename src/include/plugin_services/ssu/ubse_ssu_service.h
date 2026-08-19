@@ -41,6 +41,7 @@ enum class UbseSsuChunkSize : uint32_t {
 enum class UbseSsuAllocStrategy : uint8_t {
     STRIPED = 0, // 分布式策略，尽量从多个设备分配，均等分配，适用于条带化编址使用场景
     LINEAR = 1,  // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
+    NORMAL = 2,  // 普通策略，挂载时只挂载nvme裸设备，不聚合块设备
 };
 
 struct UbseSsuAllocIdentityInfo {

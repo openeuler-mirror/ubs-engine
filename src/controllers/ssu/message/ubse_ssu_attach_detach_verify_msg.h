@@ -32,17 +32,16 @@ struct UbseSsuNsVerifyInfo {
     std::string guid;       // 命名空间GUID，AttachDevNameSpace的GUID验证需要
 };
 
-// agent端提交verify的意图与条带化参数
+// agent端提交verify的意图与挂载/卸载方式对应策略
 // isAttach=true时master校验账本state（attach），false时校验state（detach）；
-// isStriped=true时校验条带化参数（attach），detach场景（isAttach=false）下isStriped用于标识卸载类型（线性/条带化）；
-// validateStrategy=true时master校验分配策略与挂载/卸载策略匹配（AttachLinearSpace/AttachStripedSpace/
-// DetachLinearSpace/DetachStripedSpace设置），通用AttachSpace/DetachSpace不限制分配策略，置false
+// expectedStrategy表示挂载/卸载方式对应的分配策略，master校验其与账本分配策略严格一致，
+// 禁止混用：AttachSpace/DetachSpace=NORMAL，AttachLinearSpace/DetachLinearSpace=LINEAR，
+// AttachStripedSpace/DetachStripedSpace=STRIPED
 struct UbseSsuAttachDetachVerifyOption {
     bool isAttach{true};         // true=attach校验（含state），false=detach校验
-    bool isStriped{false};       // 是否条带化
-    bool validateStrategy{false}; // 是否校验分配策略与挂载/卸载策略匹配, AttachSpace/DetachSpace不校验
-    uint32_t raidLevel{0};       // isStriped有效：RAID0/RAID5
-    uint32_t chunkSize{0};       // isStriped有效：chunk大小，单位KB
+    UbseSsuAllocStrategy expectedStrategy{UbseSsuAllocStrategy::NORMAL}; // 挂载/卸载方式对应的分配策略
+    uint32_t raidLevel{0};       // expectedStrategy==STRIPED且isAttach时有效：RAID0/RAID5
+    uint32_t chunkSize{0};       // expectedStrategy==STRIPED且isAttach时有效：chunk大小，单位KB
 };
 
 struct UbseSsuAttachDetachVerifyReq {

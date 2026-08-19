@@ -172,6 +172,88 @@ UbseSsuAllocationResult AllocateLinear(const std::vector<UbseSsuFilterDev> &filt
     return res;
 }
 
+
+// NORMAL分配默认实现：调用nsNum次线性分配（每次只分配1个NS），实现跨设备的负载均衡放置。
+// 每轮取当前剩余空间最大的设备放置一个等大NS并扣减其剩余空间，下一轮重新排序，
+// 大设备会先承担更多NS直到与其他设备剩余空间保持平衡，再轮换到下一个较大设备。
+static bool AllocateNormalNs(const std::vector<UbseSsuFilterDev> &filterDevs, uint32_t nsNum,
+                             uint64_t baseNsSize, uint64_t sectorSize, UbseSsuAllocationResult &res)
+{
+    // 动态状态：每轮按剩余空间降序重排（等价于每次线性分配的输入），并扣减已放置设备的剩余空间
+    std::vector<UbseSsuFilterDev> devs = filterDevs;
+    for (uint32_t round = 0; round < nsNum; ++round) {
+        // 排除已达NS数上限的设备（NS上限约束对线性分配不生效，需在此维护）
+        devs.erase(std::remove_if(devs.begin(), devs.end(),
+                                  [](const UbseSsuFilterDev &dev) { return dev.nsCount >= MAX_NS_PER_DEV; }),
+                   devs.end());
+        if (devs.empty()) {
+            UBSE_LOG_ERROR << "no device available for round " << round << "/" << nsNum;
+            return false;
+        }
+        std::sort(devs.begin(), devs.end(), [](const UbseSsuFilterDev &a, const UbseSsuFilterDev &b) {
+            return a.freeBytes > b.freeBytes;
+        });
+        // 调用线性分配：nsNum=1时线性算法将全部容量给剩余空间最大的设备（权重分配退化，等价于贪心选最大）
+        UbseSsuAllocRequest subReq = {.allocSize = baseNsSize, .nsNum = 1, .lbaSize = static_cast<uint32_t>(sectorSize)};
+        auto subRes = AllocateLinear(devs, subReq);
+        if (subRes.ret != UbseSsuAllocRetCode::OK || subRes.eidNsSizeList.size() != 1) {
+            UBSE_LOG_ERROR << "linear allocation failed at round " << round << "/" << nsNum;
+            return false;
+        }
+        const auto &[eid, nsSize] = subRes.eidNsSizeList[0];
+        res.eidNsSizeList.push_back({eid, nsSize});
+        // 扣减该设备剩余空间并累加其NS数（影响后续轮次的排序与上限判断）
+        for (auto &dev : devs) {
+            if (dev.eid == eid) {
+                dev.freeBytes -= nsSize;
+                dev.nsCount += 1;
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+// NORMAL分配默认实现：与LINEAR/STRIPED不同，允许一个设备上分配多个NS（nsNum可大于设备数）。
+// 通过调用nsNum次线性分配实现：每次分配1个等大NS给当前剩余空间最大的设备并更新其状态，
+// 天然实现跨设备负载均衡（大设备多承担、小设备少承担），NS等大（均分向上对齐到扇区）。
+static UbseSsuAllocationResult AllocateNormal(const std::vector<UbseSsuFilterDev> &filterDevs,
+                                              const UbseSsuAllocRequest &request)
+{
+    if (request.nsNum == 0) {
+        UBSE_LOG_ERROR << "nsNum is zero";
+        return MakeError(UbseSsuAllocRetCode::INVALID_PARAM, "Allocation Failed: nsNum is zero");
+    }
+    uint64_t sectorSize = request.lbaSize;
+    if (sectorSize == 0) {
+        UBSE_LOG_ERROR << "sectorSize is zero";
+        return MakeError(UbseSsuAllocRetCode::INVALID_PARAM, "Allocation Failed: sectorSize is zero");
+    }
+    // 每个NS大小：均分并向上对齐到扇区，保证所有NS等大
+    uint64_t perNsSize = request.allocSize / request.nsNum;
+    uint64_t baseNsSize = ((perNsSize + sectorSize - 1) / sectorSize) * sectorSize;
+    if (baseNsSize == 0) {
+        UBSE_LOG_ERROR << "allocSize is too small for " << request.nsNum << " namespaces";
+        return MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                         "Allocation Failed: allocSize is too small for " + std::to_string(request.nsNum) +
+                         " namespaces");
+    }
+
+    UbseSsuAllocationResult res = {UbseSsuAllocRetCode::OK,
+                                   "Normal Success: allocated " + std::to_string(request.nsNum) +
+                                       " namespaces",
+                                   request.nsNum,
+                                   sectorSize,
+                                   {}};
+    if (!AllocateNormalNs(filterDevs, request.nsNum, baseNsSize, sectorSize, res)) {
+        return MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
+                         "Allocation Failed: " + std::to_string(request.nsNum) +
+                             " namespaces cannot be allocated, free space insufficient or device ns limit reached");
+    }
+    UBSE_LOG_INFO << "Normal Allocation Result: " << res.msg;
+    return res;
+}
+
 // 预处理设备，初步过滤出符合条件的设备
 std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo> &devices,
                                                 const UbseSsuAllocRequest &request)
@@ -199,7 +281,7 @@ std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo
     }
 
     // 针对条带化增加容量初筛策略，过滤掉不足容纳条带化Namespace分配的设备
-    if (request.addressingType == UbseSsuAddressingType::STRIPED) {
+    if (request.strategy == UbseSsuAllocStrategy::STRIPED) {
         // STRIPED条带化分配时，request输入需要保证满足allocSize是nsNum的倍数
         // 此处默认已经校验通过
         uint64_t targetPerNs = request.allocSize / request.nsNum;
@@ -250,7 +332,15 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
 
     // VALIDATE - 检查条带化分配时，allocSize是否为nsNum的整数倍（条带化需均分到各NS）
     // 每个NS的大小（allocSize/nsNum）是否为lbaSize的整数倍
-    if (ctx.request.addressingType == UbseSsuAddressingType::STRIPED) {
+    if (ctx.request.strategy == UbseSsuAllocStrategy::STRIPED) {
+        // 条带化至少需要2个成员NS（RAID0下限；RAID5需>=3由attach侧ValidateStripedNsConfig兜底），
+        // nsNum=1时任何RAID级别都无法挂载，提前拦截避免分配出不可用的空间
+        if (ctx.request.nsNum < 2) {
+            UBSE_LOG_ERROR << "STRIPED strategy requires at least 2 namespaces, nsNum=" << ctx.request.nsNum;
+            ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                                   "Allocation Failed: STRIPED strategy requires at least 2 namespaces");
+            return false;
+        }
         if (ctx.request.allocSize % ctx.request.nsNum != 0) {
             UBSE_LOG_ERROR << "allocSize is not divisible by nsNum, allocSize=" << ctx.request.allocSize
                            << ", nsNum=" << ctx.request.nsNum;
@@ -277,8 +367,9 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
         return false;
     }
 
-    // 检查在线设备数量是否足够
-    if (ctx.selectedDevs.size() < ctx.request.nsNum) {
+    // 检查过滤后的设备数量，是否足够用于指定的nsNum数量,每个设备只分配一个namespace
+    // NORMAL策略允许同设备多NS（nsNum可大于设备数），由AllocateNormal贪心放置，跳过此检查
+    if (ctx.request.strategy != UbseSsuAllocStrategy::NORMAL && ctx.selectedDevs.size() < ctx.request.nsNum) {
         UBSE_LOG_ERROR << "only " << ctx.selectedDevs.size() << " filtered devices available, but "
                        << ctx.request.nsNum << " required";
         ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
@@ -301,7 +392,8 @@ bool UbseSsuTenantIsolationFilter::Handle(UbseSsuAllocationContext &ctx)
     ctx.selectedDevs.erase(it, ctx.selectedDevs.end());
 
     // 检查过滤后的设备数量，是否足够用于指定的nsNum数量,每个设备只分配一个namespace
-    if (ctx.selectedDevs.size() < ctx.request.nsNum) {
+    // NORMAL策略允许同设备多NS，跳过此检查
+    if (ctx.request.strategy != UbseSsuAllocStrategy::NORMAL && ctx.selectedDevs.size() < ctx.request.nsNum) {
         UBSE_LOG_ERROR << "Tenant isolation: only " << ctx.selectedDevs.size()
                        << " devices match tenant=" << requestTenant
                        << ", but " << ctx.request.nsNum << " required";
@@ -314,8 +406,11 @@ bool UbseSsuTenantIsolationFilter::Handle(UbseSsuAllocationContext &ctx)
 
 bool UbseSsuAllocateAlgorithmHandler::Handle(UbseSsuAllocationContext &ctx)
 {
-    // ALLOCATE - 根据编址方式进行分配
-    if (ctx.request.addressingType == UbseSsuAddressingType::LINEAR) {
+    // ALLOCATE - 根据分配策略选择算法
+    // NORMAL：同设备可多NS，贪心均分放置；LINEAR/STRIPED：一设备一NS
+    if (ctx.request.strategy == UbseSsuAllocStrategy::NORMAL) {
+        ctx.result = AllocateNormal(ctx.selectedDevs, ctx.request);
+    } else if (ctx.request.strategy == UbseSsuAllocStrategy::LINEAR) {
         ctx.result = AllocateLinear(ctx.selectedDevs, ctx.request);
     } else {
         ctx.result = AllocateStriped(ctx.selectedDevs, ctx.request);

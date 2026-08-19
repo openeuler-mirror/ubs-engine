@@ -61,9 +61,8 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Serialize(std::unique_ptr<uint8_t[]> &
     out << req_.requestId << req_.requestNodeId << req_.name;
     out << req_.identityInfo.uid << req_.identityInfo.userName;
     uint32_t isAttach = static_cast<uint32_t>(req_.option.isAttach);
-    uint32_t isStriped = static_cast<uint32_t>(req_.option.isStriped);
-    uint32_t validateStrategy = static_cast<uint32_t>(req_.option.validateStrategy);
-    out << isAttach << isStriped << validateStrategy;
+    uint32_t expectedStrategy = static_cast<uint32_t>(req_.option.expectedStrategy);
+    out << isAttach << expectedStrategy;
     out << req_.option.raidLevel << req_.option.chunkSize;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req serialize failed.";
@@ -80,13 +79,15 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Deserialize(const uint8_t *data, uint3
     in >> req_.requestId >> req_.requestNodeId >> req_.name;
     in >> req_.identityInfo.uid >> req_.identityInfo.userName;
     uint32_t isAttach = 0;
-    uint32_t isStriped = 0;
-    uint32_t validateStrategy = 0;
-    in >> isAttach >> isStriped >> validateStrategy;
+    uint32_t expectedStrategy = 0;
+    in >> isAttach >> expectedStrategy;
     in >> req_.option.raidLevel >> req_.option.chunkSize;
     req_.option.isAttach = (isAttach != 0);
-    req_.option.isStriped = (isStriped != 0);
-    req_.option.validateStrategy = (validateStrategy != 0);
+    if (expectedStrategy > static_cast<uint32_t>(UbseSsuAllocStrategy::NORMAL)) {
+        UBSE_LOG_ERROR << "SSU attach verify req: invalid expectedStrategy=" << expectedStrategy;
+        return UBSE_ERROR;
+    }
+    req_.option.expectedStrategy = static_cast<UbseSsuAllocStrategy>(expectedStrategy);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req deserialize failed.";
         return UBSE_ERROR;

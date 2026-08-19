@@ -108,6 +108,13 @@
 #define UBSE_ERR_NODE_NOT_RESPONDING UBSE_ERROR_DEF(1103) /* 节点无响应 */
 
 /* ****************************************************** */
+/* SSU Controller错误码，全局唯一，范围1200~1299，对外暴露的错误码 */
+/* ****************************************************** */
+#define UBSE_SSU_ERROR_SPACE_NOT_FOUND UBSE_ERROR_DEF(1200)         /* 空间不存在 */
+#define UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE UBSE_ERROR_DEF(1201) /* 命名空间已挂载，释放前需先卸载 */
+#define UBSE_SSU_ERROR_STRATEGY_MISMATCH UBSE_ERROR_DEF(1202)       /* 分配策略与挂载/卸载策略不匹配 */
+
+/* ****************************************************** */
 /* 重复操作错误码定义，全局唯一，范围2000~2099，语义为失败（重复操作一律报错） */
 /* ****************************************************** */
 #define UBSE_ERR_ALREADY_ALLOCATED UBSE_ERROR_DEF(2000) /* 空间已分配，重复分配报错 */
@@ -265,7 +272,6 @@
 
 /* ====================== SSU Controller错误码 (11300~11399) ====================== */
 /* ====================== 账本与状态错误 (11300~11309) ====================== */
-#define UBSE_SSU_ERROR_LEDGER_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(1300)     /* 账本记录不存在 */
 #define UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED UBSE_INTERNAL_ERROR_DEF(1301) /* 账本记录更新失败 */
 #define UBSE_SSU_ERROR_STATE_INVALID UBSE_INTERNAL_ERROR_DEF(1302)        /* 命名空间当前状态不允许执行该操作 */
 
@@ -282,7 +288,6 @@
 #define UBSE_SSU_ERROR_DETACH_FAILED UBSE_INTERNAL_ERROR_DEF(1321)             /* 命名空间卸载失败 */
 #define UBSE_SSU_ERROR_BLOCK_DEVICE_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1322) /* 聚合块设备创建失败 */
 #define UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED UBSE_INTERNAL_ERROR_DEF(1323) /* 聚合块设备删除失败 */
-#define UBSE_SSU_ERROR_STRATEGY_MISMATCH UBSE_INTERNAL_ERROR_DEF(1324)         /* 分配策略与挂载/卸载策略不匹配 */
 #define UBSE_SSU_ERROR_STRIPED_CONFIG_INVALID UBSE_INTERNAL_ERROR_DEF(1325)    /* 条带化参数非法（RAID级别/chunkSize/NS大小对齐） */
 #define UBSE_SSU_ERROR_ROLLBACK_FAILED UBSE_INTERNAL_ERROR_DEF(1326)           /* 操作失败且回滚未完全收敛 */
 
