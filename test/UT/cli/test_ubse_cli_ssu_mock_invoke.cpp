@@ -248,7 +248,7 @@ bool UnpackCreate(UbseUnpackUtil& unpack, UbseCliSsuAllocCreateReq& request)
     uint8_t strategy = 0;
     if (!unpack.UnpackString(request.name, SSU_CLI_MAX_NAME_LENGTH) || !unpack.UnpackUint64(request.nsSize) ||
         !unpack.UnpackUint32(request.nsNum) || !unpack.UnpackUint32(lbaFormat) ||
-        (lbaFormat != 512 && lbaFormat != 4096) || !unpack.UnpackUint8(strategy) || strategy > 1 ||
+        (lbaFormat != 512 && lbaFormat != 4096) || !unpack.UnpackUint8(strategy) || strategy > 2 ||
         !unpack.UnpackString(request.tenant, SSU_CLI_MAX_TENANT_LENGTH)) {
         return false;
     }
@@ -379,6 +379,16 @@ uint32_t mock_ssu_alloc_summary_invoke_call_normal(uint16_t moduleCode, uint16_t
     return BuildAllocationListResponse({alloc1, alloc2}, responseData);
 }
 
+uint32_t mock_ssu_alloc_summary_invoke_call_normal_strategy(uint16_t moduleCode, uint16_t opCode,
+                                                            const ubse_api_buffer_t* requestData,
+                                                            ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    auto allocation = BuildSsuAllocResult();
+    allocation.strategy = UbseSsuAllocStrategy::NORMAL;
+    return BuildAllocationListResponse({allocation}, responseData);
+}
+
 uint32_t mock_ssu_alloc_summary_invoke_call_subgib(uint16_t moduleCode, uint16_t opCode,
                                                    const ubse_api_buffer_t* requestData,
                                                    ubse_api_buffer_t* responseData)
@@ -424,6 +434,16 @@ uint32_t mock_ssu_alloc_detail_invoke_call_normal(uint16_t moduleCode, uint16_t 
     return BuildAllocationResponse(BuildSsuAllocResult(), responseData);
 }
 
+uint32_t mock_ssu_alloc_detail_invoke_call_normal_strategy(uint16_t moduleCode, uint16_t opCode,
+                                                           const ubse_api_buffer_t* requestData,
+                                                           ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    auto allocation = BuildSsuAllocResult();
+    allocation.strategy = UbseSsuAllocStrategy::NORMAL;
+    return BuildAllocationResponse(allocation, responseData);
+}
+
 uint32_t mock_ssu_alloc_detail_invoke_call_subgib(uint16_t moduleCode, uint16_t opCode,
                                                   const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
@@ -439,6 +459,16 @@ uint32_t mock_ssu_alloc_create_invoke_call_normal(uint16_t moduleCode, uint16_t 
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAllocationResponse(BuildSsuAllocResult(), responseData);
+}
+
+uint32_t mock_ssu_alloc_create_invoke_call_normal_strategy(uint16_t moduleCode, uint16_t opCode,
+                                                           const ubse_api_buffer_t* requestData,
+                                                           ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    auto allocation = BuildSsuAllocResult();
+    allocation.strategy = UbseSsuAllocStrategy::NORMAL;
+    return BuildAllocationResponse(allocation, responseData);
 }
 
 uint32_t mock_ssu_free_space_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,

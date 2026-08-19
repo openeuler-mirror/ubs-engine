@@ -54,6 +54,10 @@ uint32_t mock_ssu_alloc_summary_invoke_call_normal(uint16_t module_code, uint16_
                                                    const ubse_api_buffer_t* request_data,
                                                    ubse_api_buffer_t* response_data);
 
+uint32_t mock_ssu_alloc_summary_invoke_call_normal_strategy(uint16_t module_code, uint16_t op_code,
+                                                            const ubse_api_buffer_t* request_data,
+                                                            ubse_api_buffer_t* response_data);
+
 uint32_t mock_ssu_alloc_summary_invoke_call_subgib(uint16_t module_code, uint16_t op_code,
                                                    const ubse_api_buffer_t* request_data,
                                                    ubse_api_buffer_t* response_data);
@@ -74,9 +78,17 @@ uint32_t mock_ssu_alloc_detail_invoke_call_normal(uint16_t module_code, uint16_t
                                                   const ubse_api_buffer_t* request_data,
                                                   ubse_api_buffer_t* response_data);
 
+uint32_t mock_ssu_alloc_detail_invoke_call_normal_strategy(uint16_t module_code, uint16_t op_code,
+                                                           const ubse_api_buffer_t* request_data,
+                                                           ubse_api_buffer_t* response_data);
+
 uint32_t mock_ssu_alloc_create_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                   const ubse_api_buffer_t* request_data,
                                                   ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_alloc_create_invoke_call_normal_strategy(uint16_t module_code, uint16_t op_code,
+                                                           const ubse_api_buffer_t* request_data,
+                                                           ubse_api_buffer_t* response_data);
 
 uint32_t mock_ssu_free_space_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                 const ubse_api_buffer_t* request_data,

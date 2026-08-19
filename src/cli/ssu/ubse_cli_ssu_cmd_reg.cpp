@@ -49,6 +49,7 @@ const std::string ALLOC_DETAIL_TYPE = "alloc_detail";
 // 枚举的规范字符串字面量：输入校验与表格输出共用同一份，避免大小写/拼写漂移导致输入输出不一致。
 const std::string STRATEGY_LINEAR = "Linear";
 const std::string STRATEGY_STRIPED = "Striped";
+const std::string STRATEGY_NORMAL = "Normal";
 const std::string LBA_512B = "512B";
 const std::string LBA_4K = "4K";
 const std::string RAID0 = "raid0";
@@ -78,8 +79,9 @@ const std::string ERR_INVALID_SRC_EID =
     "ERROR: Invalid src_eid. The value must be 1-" + std::to_string(SSU_CLI_MAX_SRC_EID_LENGTH) + " characters.";
 const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must be Linear or Striped.";
 const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
-    "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
-const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+    "ERROR: The option --dev_name, --level or --chunk_size requires --type Linear or Striped.";
+const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE =
+    "ERROR: The option --dev_name requires --type Linear or Striped.";
 const std::string ERR_SUMMARY_REJECTS_NAME =
     "ERROR: The option -n or --name is only valid when --type is alloc_detail.";
 const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
@@ -97,6 +99,7 @@ const std::string ERR_STRIPED_CHUNK_SIZE_REQUIRED =
 const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be raid0 or raid5.";
 const std::string ERR_INVALID_CHUNK_SIZE =
     "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
+const std::string ERR_STRIPED_NS_NUM_REQUIRED = "ERROR: Striped strategy requires ns_num to be at least 2.";
 const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
@@ -112,6 +115,9 @@ std::string InvalidNsNumError()
 // 枚举 → 规范字符串：与 Parse* 函数反向对应，输入输出共用同一份字面量，保证往返一致。
 std::string StrategyToString(UbseSsuAllocStrategy strategy)
 {
+    if (strategy == UbseSsuAllocStrategy::NORMAL) {
+        return STRATEGY_NORMAL;
+    }
     return strategy == UbseSsuAllocStrategy::STRIPED ? STRATEGY_STRIPED : STRATEGY_LINEAR;
 }
 
@@ -456,7 +462,7 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDisplaySsu()
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("display")
         .UbseCliSetType("ssu")
-        .UbseCliAddOption("t", TYPE_OPT, "SSU display type: alloc_summary or alloc_detail.")
+        .UbseCliAddOption("t", TYPE_OPT, "SSU display type: allowed values are alloc_summary or alloc_detail.")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliSetFunc(UbseCliDisplaySsuFunc);
     return builder.UbseCliBuild();
@@ -471,10 +477,13 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliAttachSsu()
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
         .UbseCliAddOption("e", SRC_EID_OPT, "SSU source EID.")
-        .UbseCliAddOption("t", TYPE_OPT, "SSU attach type: Linear or Striped.")
+        .UbseCliAddOption("t", TYPE_OPT,
+                          "SSU attach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
+                          "Normal space operation.")
         .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
-        .UbseCliAddOption("l", LEVEL_OPT, "SSU RAID level.")
-        .UbseCliAddOption("c", CHUNK_SIZE_OPT, "SSU chunk size.")
+        .UbseCliAddOption("l", LEVEL_OPT, "SSU RAID level: allowed values are raid0 or raid5.")
+        .UbseCliAddOption("c", CHUNK_SIZE_OPT,
+                          "SSU chunk size: allowed values are 4K, 16K, 32K, 64K, 128K, 256K or 512K.")
         .UbseCliSetFunc(UbseCliAttachSsuFunc);
     return builder.UbseCliBuild();
 }
@@ -487,7 +496,9 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDetachSsu()
         .UbseCliSetType("ssu")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
-        .UbseCliAddOption("t", TYPE_OPT, "SSU detach type: Linear or Striped.")
+        .UbseCliAddOption("t", TYPE_OPT,
+                          "SSU detach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
+                          "Normal space operation.")
         .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
         .UbseCliSetFunc(UbseCliDetachSsuFunc);
     return builder.UbseCliBuild();
@@ -501,9 +512,10 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliCreateSsu()
         .UbseCliSetType("ssu")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliAddOption("s", SIZE_OPT, "SSU allocation size.")
-        .UbseCliAddOption("l", LBA_OPT, "SSU LBA format.")
+        .UbseCliAddOption("l", LBA_OPT, "SSU LBA format: allowed values are 512B or 4K.")
         .UbseCliAddOption("m", NS_NUM_OPT, "SSU namespace count.")
-        .UbseCliAddOption("r", STRATEGY_OPT, "SSU allocation strategy.")
+        .UbseCliAddOption("r", STRATEGY_OPT,
+                          "SSU allocation strategy: explicitly set Linear or Striped; if omitted, defaults to Normal.")
         .UbseCliSetFunc(UbseCliCreateSsuFunc);
     return builder.UbseCliBuild();
 }
@@ -604,6 +616,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
         strategy != params.end() && !ParseStrategy(strategy->second, request.strategy)) {
         return UbseCliStringPromptReply(ERR_INVALID_STRATEGY);
     }
+    if (request.strategy == UbseSsuAllocStrategy::STRIPED && request.nsNum < 2) {
+        return UbseCliStringPromptReply(ERR_STRIPED_NS_NUM_REQUIRED);
+    }
     return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_ALLOC_SPACE, request,
                                                                          BuildDetailOutput);
 }
@@ -625,7 +640,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDeleteSsuFunc(
     return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_FREE_SPACE, request);
 }
 
-// attach ssu 入口：通用参数先校验，随后按 --type 拆分普通/Linear/Striped 三类请求和响应。
+// attach ssu 入口：通用参数先校验，随后按省略/Linear/Striped 的 --type 选择请求和响应。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliAttachSsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
 {
@@ -656,7 +671,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliAttachSsuFunc(
     return UbseCliStringPromptReply(ERR_INVALID_ATTACH_TYPE);
 }
 
-// detach ssu 入口：通用字段先校验，再按未指定/Linear/Striped 三种 type 选择请求布局和 op code。
+// detach ssu 入口：通用字段先校验，再按省略/Linear/Striped 的 --type 选择请求布局和 op code。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDetachSsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
 {

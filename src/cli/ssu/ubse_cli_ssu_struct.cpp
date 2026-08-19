@@ -58,7 +58,8 @@ bool IsValidLbaFormat(uint32_t raw)
 bool IsValidStrategy(uint8_t raw)
 {
     return raw == static_cast<uint8_t>(UbseSsuAllocStrategy::STRIPED) ||
-           raw == static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR);
+           raw == static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR) ||
+           raw == static_cast<uint8_t>(UbseSsuAllocStrategy::NORMAL);
 }
 
 bool IsValidRaidLevel(uint8_t raw)
