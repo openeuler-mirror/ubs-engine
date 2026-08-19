@@ -106,6 +106,11 @@ private:
     // 完整配置成功后存在尚未处理的动态广播域变化，由配置互斥锁保护。
     bool broadcastRefreshPending = false;
     std::mutex configSysSentryMtx;
+
+    // xalarm 注册句柄。提升为类成员，便于 Stop 中断开底层 fd 以唤醒阻塞的 xalarmGetEventFunc。
+    // 由 registerMtx_ 保护：Stop 断开与工作线程注销可能并发；结构体仅由工作线程释放。
+    struct alarm_register* registerInfo_{nullptr};
+    std::mutex registerMtx_;
 };
 
 uint32_t HandleSysSentryNodeDiscoveryEvent(std::string& eventId, std::string& eventMessage);

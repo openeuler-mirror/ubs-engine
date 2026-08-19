@@ -192,6 +192,17 @@ void UbseTaskExecutor::Stop()
     UBSE_LOG_INFO << "Wait for the thread to exit.";
     mStopped = true;
     mStarted = false;
+
+    // 清理队列中残留的任务（Stop 期间入队但未被工作线程消费的任务），避免泄漏。
+    // 此时所有工作线程已 join 退出，无并发 Dequeue；持有 mtx 锁，无新任务入队。
+    // 仅释放任务对象本身，不执行 lambda，避免触发已停止模块的依赖。
+    UbseRunnable* task = nullptr;
+    while (mRunnableQueue.TryDequeue(task)) {
+        if (task != nullptr) {
+            task->DecreaseRef();
+        }
+    }
+
     mRunnableQueue.UnInitialize();
     UBSE_LOG_INFO << "Stop TaskExecutor end";
 }

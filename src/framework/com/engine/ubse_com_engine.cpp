@@ -1614,6 +1614,15 @@ void ReplyWhenChannelNotInMap(UbseComMessageCtx& message, const UbseComCallback&
 {
     UBSE_LOG_ERROR << "Reply fail, channel info is abnormal, channel id=" << message.GetChannelId()
                    << ", moduleCode=" << message.GetModuleCode() << ", opCode=" << message.GetOpCode();
+    std::string traceId = TraceContext::GetTraceId();
+    if (message.GetChannelPtr() == nullptr) {
+        UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << message.GetDstId();
+        if (usrCb.cb != nullptr) {
+            usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
+        }
+        return;
+    }
+    message.GetChannelPtr()->SetTraceId(traceId);
     UBSHcomRequest reqMsg;
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_CH_NOT_IN_MAP));
     reqMsg.address = reinterpret_cast<uint8_t*>(res.data()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -1624,18 +1633,13 @@ void ReplyWhenChannelNotInMap(UbseComMessageCtx& message, const UbseComCallback&
         return;
     }
     UBSHcomReplyContext replyContext(message.GetRspCtx(), 0);
-    std::string traceId = TraceContext::GetTraceId();
-    if (message.GetChannelPtr() == nullptr) {
-        UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << message.GetDstId();
-        usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
-        return;
-    }
-    message.GetChannelPtr()->SetTraceId(traceId);
     auto ret = message.GetChannelPtr()->Reply(replyContext, reqMsg, done);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Channel reply failed, " << FormatRetCode(ret) << ", moduleCode=" << message.GetModuleCode()
                        << ", opCode=" << message.GetOpCode();
-        usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_REPLY_FAIL);
+        if (usrCb.cb != nullptr) {
+            usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_REPLY_FAIL);
+        }
     } else {
         UBSE_LOG_DEBUG << "Channel reply successfully, moduleCode=" << message.GetModuleCode()
                        << ", opCode=" << message.GetOpCode();

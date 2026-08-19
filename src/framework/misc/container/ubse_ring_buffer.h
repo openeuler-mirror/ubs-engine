@@ -335,6 +335,18 @@ public:
         }
     }
 
+    /*
+     * @brief Try to dequeue an item without blocking
+     *
+     * @param item             [out] item dequeued from front
+     *
+     * @return true if successful, false if queue is empty
+     */
+    inline bool TryDequeue(T& item)
+    {
+        return mRingBuffer_.PopFront(item);
+    }
+
 private:
     RingBuffer<T> mRingBuffer_; /* ring buffer to data store */
     sem_t mSem_{};              /* semaphore to wait and notify */
