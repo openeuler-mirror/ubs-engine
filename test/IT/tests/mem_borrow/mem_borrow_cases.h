@@ -14,6 +14,7 @@
 #define IT_MEM_BORROW_CASES_H
 
 #include "it_cluster.h"
+#include "mem_borrow_p1_cases.h"
 
 #include <string>
 #include <vector>
@@ -35,9 +36,6 @@ void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster);
 // CLI内存操作测试（指定链路）：四节点场景，指定链路创建NUMA，精确校验export-node
 void RunP0CliCreateNumaLinkIdOk01(ubse::it::infra::ItCluster& cluster);
 
-// CLI内存操作测试（长选项）：使用长选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
-void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster);
-
 // CLI内存类型过滤查询测试：创建NUMA/FD/SHARE三种类型内存，按类型和名称查询借用详情，验证完整生命周期
 void RunP0CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster);
 
@@ -46,9 +44,6 @@ void RunP0CliNumaStatusOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI内存配置查询测试：查询内存配置信息，验证输出格式
 void RunP0CliMemConfigOk01(ubse::it::infra::ItCluster& cluster);
-
-// 四节点SHM attach后import_desc_cnt验证：节点1创建 → 节点2/3/4分别attach(每个返回import_desc_cnt=1) → detach → delete
-void RunP1ShmAttachMultiNode01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create ====================
 void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster);
@@ -141,6 +136,7 @@ void RunP0NumaCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_get ====================
+void RunP0NumaGetOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetOverLen01(ubse::it::infra::ItCluster& cluster);

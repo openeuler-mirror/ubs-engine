@@ -755,11 +755,16 @@ void ItNode::MarkLinkDown(const std::string& peerNodeId, const std::set<int>& ub
     // 通过集群上下文将 peerNodeId 映射为 slotId (ctx_.nodeIds 与 ctx_.clusterSlotIds 按序一一对应)
     bool found = false;
     uint32_t peerSlotId = 0;
-    for (size_t i = 0; i < ctx_.nodeIds.size(); ++i) {
-        if (ctx_.nodeIds[i] == peerNodeId) {
-            peerSlotId = ctx_.clusterSlotIds[i];
-            found = true;
-            break;
+    if (peerNodeId == "UNKNOWN") {
+        peerSlotId = UINT32_MAX;
+        found = true;
+    } else {
+        for (size_t i = 0; i < ctx_.nodeIds.size(); ++i) {
+            if (ctx_.nodeIds[i] == peerNodeId) {
+                peerSlotId = ctx_.clusterSlotIds[i];
+                found = true;
+                break;
+            }
         }
     }
     if (!found) {

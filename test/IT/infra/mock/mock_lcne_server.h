@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>

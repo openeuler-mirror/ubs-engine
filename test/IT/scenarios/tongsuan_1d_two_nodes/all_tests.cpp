@@ -687,6 +687,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaListNullPtr01)
     ubse::it::tests::mem_borrow::RunP0NumaListNullPtr01(Cluster());
 }
 
+// P0-NumaGet-Ok-01: 正常查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaGetOk01(Cluster());
+}
+
 // P0-NumaGet-NotExist-01: 查询不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetNotExist01)
 {
@@ -889,6 +895,44 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliBorrowDetailOk01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
 {
     ubse::it::tests::mem_borrow::RunP1CliCreateNumaParamVariant01(Cluster());
+}
+
+// ==================== sdk Mem P1 测试 ====================
+
+// P1-FdCreate-DiffNode-Ok-01: fd创建用例，不同节点创建同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateDiffNodeOk01(Cluster());
+}
+
+// P1-FdGet-DiffNode-Ok-01: fd获取用例，不同节点获取同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdGetDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdGetDiffNodeOk01(Cluster());
+}
+
+// P1-FdBorrowMultiTime-Ok-01: fd多轮借用用例，不同节点多轮借用同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdBorrowMultiTimeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowMultiTimeOk01(Cluster());
+}
+
+// P1-NumaCreate-MultiTime-Ok-01: numa 创建用例，多轮创建后归还
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaCreateMultiTimeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateMultiTimeOk01(Cluster());
+}
+
+// P1-NumaCreate-DiffNode-Ok-01: numa 创建用例，不同节点创建同名NUMA
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaCreateDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateDiffNodeOk01(Cluster());
+}
+
+// P1-NumaGet-DiffNode-Ok-01: numa 获取用例，不同节点获取同名NUMA
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaGetDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaGetDiffNodeOk01(Cluster());
 }
 
 // ====================================================================

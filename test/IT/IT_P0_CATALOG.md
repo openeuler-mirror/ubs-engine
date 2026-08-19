@@ -511,6 +511,7 @@ int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
+| P0-NumaGet-Ok-01 | 创建后查询成功 | 双节点 | 创建NUMA后查询 | `UBS_SUCCESS` |
 | P0-NumaGet-NotExist-01 | 查询不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
 | P0-NumaGet-NullPtr-01 | 空指针 | 双节点 | numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
 | P0-NumaGet-OverLen-01 | name超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |

@@ -583,7 +583,7 @@ void RunP0CliTopoCpuLinkChange01(ubse::it::infra::ItCluster& cluster)
     EXPECT_UBSE_OK(cluster.GetNode("1").NotifyLinkUpDown(true, "400GUB1/2/2"));
     EXPECT_UBSE_OK(cluster.GetNode("2").NotifyLinkUpDown(true, "400GUB2/2/2"));
 
-    // 查询拓扑 CLI，校验 1-2 链路 down（linkId == "-"）
+    // 查询拓扑 CLI，校验 1-2 链路 down（链路减少一条）
     std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
     EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
     EXPECT_EQ(topoLinks.size(), 11);
@@ -594,7 +594,7 @@ void RunP0CliTopoCpuLinkChange01(ubse::it::infra::ItCluster& cluster)
     EXPECT_UBSE_OK(cluster.GetNode("1").NotifyLinkUpDown(false, "400GUB1/2/2"));
     EXPECT_UBSE_OK(cluster.GetNode("2").NotifyLinkUpDown(false, "400GUB2/2/2"));
 
-    // 再次查询拓扑 CLI，校验 1-2 链路恢复 up
+    // 再次查询拓扑 CLI，校验 1-2 链路恢复 up（链路增加一条）
     EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
     EXPECT_EQ(topoLinks.size(), 12);
 }

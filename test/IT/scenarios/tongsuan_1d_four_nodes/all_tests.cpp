@@ -171,6 +171,18 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateNumaLinkIdOk01)
 // P1 测试 — SDK 对外行为语义
 // ====================================================================
 
+// P1-FdBorrow-MultiNode-Ok-01: 多节点 FD 借用用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FdBorrowMultiNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowMultiNodeOk01(Cluster());
+}
+
+// P1-NumaCreate-MultiNode-Ok-01(四节点): 多节点 NUMA 创建用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1NumaCreateMultiNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateMultiNodeOk01(Cluster());
+}
+
 // P1-ShmAttach-MultiNode-01: 四节点SHM attach后import_desc_cnt验证
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
 {

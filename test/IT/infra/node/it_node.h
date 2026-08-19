@@ -267,9 +267,9 @@ public:
 
     // --- Link (LCNE topology) fault injection via mock server ---
     /**
-     * @brief 按链路注入断链: 若本节点与 peerNodeId 在场景连接表中存在链路,
-     *        则将本侧相连端口 (对 ubpuIds 指定的 ubpu) 置为 down; 无链路则 no-op.
-     *        当peernode为UINT32_MAX时, 对指定的portIds端口均进行断链.
+     * @brief 按链路注入断链(全局状态): 若本节点与 peerNodeId 在场景连接表中存在链路,
+     *        则将本侧相连端口 (对 ubpuIds 指定的 ubpu) 置为 down; 不指定ubpuIds或无链路则 no-op.
+     *        当peernode为"UNKNOWN"时, 对指定的portIds端口均进行断链.
      *        构造断链后需要调用 NotifyLinkUpDown() 上报端口变化，否则 UBSE 不会感知端口变化。 
      */
     void MarkLinkDown(const std::string& peerNodeId, const std::set<int>& ubpuIds, const std::set<int>& portIds = {});
