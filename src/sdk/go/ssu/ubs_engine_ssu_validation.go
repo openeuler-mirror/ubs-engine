@@ -132,6 +132,9 @@ func validateAllocSpaceReq(req UbsSsuAllocSpaceReq) error {
 	if req.NsNum == 0 {
 		return fmt.Errorf("ns_num must be greater than 0")
 	}
+	if req.NsNum == 1 && req.Strategy == Striped {
+		return fmt.Errorf("striped strategy is not supported when ns_num is 1")
+	}
 	// ns_size 须为 1G 的整数倍
 	const oneG = uint64(1024 * 1024 * 1024)
 	if req.NsSize == 0 || req.NsSize%oneG != 0 {
@@ -144,7 +147,7 @@ func validateAllocSpaceReq(req UbsSsuAllocSpaceReq) error {
 	if req.LbaFormat != Fmt512 && req.LbaFormat != Fmt4K {
 		return fmt.Errorf("invalid lba_format: %d", req.LbaFormat)
 	}
-	if req.Strategy != Striped && req.Strategy != Linear {
+	if req.Strategy != Striped && req.Strategy != Linear && req.Strategy != Normal {
 		return fmt.Errorf("invalid strategy: %d", req.Strategy)
 	}
 	return validateTenant(req.Tenant)

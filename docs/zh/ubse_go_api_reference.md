@@ -101,8 +101,9 @@ const (
 // UbsSsuAllocStrategy 分配策略
 type UbsSsuAllocStrategy uint8
 const (
-    Striped UbsSsuAllocStrategy = 0 // 分布式策略
-    Linear  UbsSsuAllocStrategy = 1 // 顺序策略
+    Striped UbsSsuAllocStrategy = 0 // 分布式策略，尽量从多个设备均等分配，适用于条带化编址使用场景
+    Linear  UbsSsuAllocStrategy = 1 // 顺序策略，尽量从单个设备分配，适用于线性编址使用场景
+    Normal  UbsSsuAllocStrategy = 2 // 普通策略，挂载时只挂载nvme裸设备，不聚合块设备，该值为推荐值
 )
 ```
 
@@ -287,7 +288,7 @@ func UbsSsuAllocSpace(req UbsSsuAllocSpaceReq) (UbsSsuAllocResult, error)
 
 **描述 DESCRIPTION**
 
-根据请求参数分配指定数量和大小的命名空间，支持顺序分配（`Linear`）和分布式分配（`Striped`）两种策略。
+根据请求参数分配指定数量和大小的命名空间，支持分布式分配（`Striped`）、顺序分配（`Linear`）和普通分配（`Normal`）三种策略。
 
 **参数 PARAMETERS**
 
@@ -316,8 +317,14 @@ func UbsSsuAllocSpace(req UbsSsuAllocSpaceReq) (UbsSsuAllocResult, error)
 
 **约束 CONSTRAINTS**
 
-- 当 `NsNum` 为 1 时，`Strategy` 参数不生效。
-- 条带化策略时 `NsSize` 需整除 `NsNum`，且整除后需为 `ChunkSize` 的整数倍。
+- `Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `NsNum` 必须大于 0。
+- `NsNum` 为 1 时，`Strategy` 不能为 `Striped`（仅一个命名空间无法条带化）。
+- `NsSize` 必须大于 0 且为 1G（`1024*1024*1024`）的整数倍。
+- 条带化策略时 `NsSize` 需整除 `NsNum`。
+- `LbaFormat` 必须为 `Fmt512`（512）或 `Fmt4K`（4096）。
+- `Strategy` 必须为 `Striped`（0）、`Linear`（1）或 `Normal`（2）。
+- `Tenant` 允许为空；非空时长度不超过 `UbsSsuMaxTenantLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 
 **附注 NOTES**
 
@@ -391,7 +398,7 @@ func UbsSsuFreeSpace(name string) error
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UbsSsuMaxNameLength - 1` 个字符。
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 - 释放操作不再幂等，释放不存在的空间将报错。
 
 **附注 NOTES**
@@ -439,8 +446,8 @@ func UbsSsuAddAccessPermission(name string, nqn string) error
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UbsSsuMaxNameLength - 1` 个字符。
-- `nqn` 长度不能超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `nqn` 不能为空，长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
 
 **附注 NOTES**
 
@@ -487,8 +494,8 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UbsSsuMaxNameLength - 1` 个字符。
-- `nqn` 长度不能超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `nqn` 不能为空，长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
 
 **附注 NOTES**
 
@@ -537,7 +544,9 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error)
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
 
 **附注 NOTES**
 
@@ -617,7 +626,10 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 
 **约束 CONSTRAINTS**
 
-卸载前需确保没有进程正在使用该存储空间。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- 卸载前需确保没有进程正在使用该存储空间。
 
 **附注 NOTES**
 
@@ -667,7 +679,11 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 
 **约束 CONSTRAINTS**
 
-线性编址模式下，数据按顺序填充各成员设备。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- 线性编址模式下，数据按顺序填充各成员设备。
 
 **附注 NOTES**
 
@@ -714,7 +730,10 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
 
 **附注 NOTES**
 
@@ -763,7 +782,13 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 
 **约束 CONSTRAINTS**
 
-RAID5 至少需要 `UbsSsuRaid5MinMemberNum`（3）个成员设备。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- `req.Level` 必须为 `Raid0`（0）或 `Raid5`（5）。
+- `req.ChunkSize` 必须为 `Size4K`（4）、`Size16K`（16）、`Size32K`（32）、`Size64K`（64）、`Size128K`（128）、`Size256K`（256）或 `Size512K`（512）。
+- RAID5 至少需要 `UbsSsuRaid5MinMemberNum`（3）个成员设备。
 
 **附注 NOTES**
 
@@ -810,7 +835,11 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
+- `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- 卸载操作不校验 `Level` 和 `ChunkSize`。
 
 **附注 NOTES**
 
@@ -858,7 +887,7 @@ func UbsSsuGetNsStats(name string) ([]UbsSsuNsStats, error)
 
 **约束 CONSTRAINTS**
 
-`name` 长度不能超过 `UbsSsuMaxNameLength - 1` 个字符。
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 
 **附注 NOTES**
 
@@ -907,11 +936,12 @@ func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, erro
 
 **约束 CONSTRAINTS**
 
-`name` 长度不能超过 `UbsSsuMaxNameLength - 1` 个字符。
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `vfe` 可为 `nil`，表示不限定 VFE，此时连接信息里的 `src_eid` 为 host 侧分配给 ssu 的 fe 的 eid；指定 vfe 时 `src_eid` 为指定 vfe 的 eid。
 
 **附注 NOTES**
 
-`vfe` 参数可为 `nil`，表示不限定 VFE。
+暂无。
 
 ### UbsSsuGetFeDeviceList
 
@@ -1001,8 +1031,8 @@ func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid string) (str
 
 **约束 CONSTRAINTS**
 
-- `busInstanceGuid` 非空时长度须为 `UbsSsuMaxGuidLength`，为空字符串表示由 ubse 内部创建。
 - `vfe` 不能为 `nil`。
+- `busInstanceGuid` 允许为空字符串（表示由 ubse 内部创建 vm busInstance）；非空时长度须为 `UbsSsuMaxGuidLength`（32）。
 
 **附注 NOTES**
 
@@ -1079,7 +1109,8 @@ func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe) error
 
 **约束 CONSTRAINTS**
 
-`vfe` 不能为 `nil`。
+- `vfe` 不能为 `nil`。
+- `vfe.BindBusInstanceGuid` 必须为 32 个字符（`UbsSsuMaxGuidLength`）。
 
 **附注 NOTES**
 

@@ -126,6 +126,16 @@ class UbsEngineAllocateError(UbsError):
     pass
 
 
+class UbsEngineStateError(UbsError):
+    """资源状态不允许执行该操作（如命名空间已挂载时需先卸载才能释放）"""
+    pass
+
+
+class UbsEngineStrategyMismatchError(UbsError):
+    """分配策略与挂载/卸载策略不匹配"""
+    pass
+
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

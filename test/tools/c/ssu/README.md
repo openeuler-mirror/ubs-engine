@@ -17,7 +17,9 @@ SDK 请求，并把 SDK 返回值输出为 JSON，适合接口联调、手工验
 - 构建程序时需要 `ubs_engine.h` 和 `ubs_engine_ssu.h` 
 - 运行命令时需要可访问的 UBS-Engine 服务
 
-脚本使用同目录 `include/` 中的头文件。程序运行时通过 `dlopen` 加载 SDK 动态库。
+脚本在构建前自动将 `include/` 中的头文件以软链接形式指向
+`src/sdk/c/include/` 中的 SDK 源头文件，避免手工副本漂移。
+程序运行时通过 `dlopen` 加载 SDK 动态库。
 
 ## 构建
 

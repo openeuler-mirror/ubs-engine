@@ -124,9 +124,9 @@ from ubse.models.ubs_engine_model_ssu import (
 | `name` | `str` | `""` | 请求标识，最大 48 个字符 |
 | `ns_size` | `int` | `0` | 申请总容量，单位字节 |
 | `ns_num` | `int` | `1` | 命名空间数量，等于 1 时 `strategy` 不生效 |
-| `lba_format` | `UbsSsuLbaFormat` | `FORMAT_4K` | LBA 格式 |
-| `strategy` | `UbsSsuAllocStrategy` | `STRIPED` | 分配策略 |
-| `tenant` | `bytes` | `b''` | 请求方 tenant（租户隔离标识） |
+| `lba_format` | `UbsSsuLbaFormat` | `FORMAT_512` | LBA 格式 |
+| `strategy` | `UbsSsuAllocStrategy` | `NORMAL` | 分配策略 |
+| `tenant` | `str` | `""` | 请求方 tenant（租户隔离标识） |
 
 `UbsSsuSpaceReq`：挂载 / 卸载存储空间请求参数。
 
@@ -237,7 +237,7 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult
 
 **描述 DESCRIPTION**
 
-根据请求参数分配指定数量和大小的命名空间，支持顺序分配和分布式分配两种策略。
+根据请求参数分配指定数量和大小的命名空间，支持分布式分配（`STRIPED`）、顺序分配（`LINEAR`）和普通分配（`NORMAL`）三种策略。
 
 **参数 PARAMETERS**
 
@@ -265,7 +265,14 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult
 
 **约束 CONSTRAINTS**
 
-- 当 `ns_num` 为 1 时，`strategy` 参数不生效。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `ns_num` 必须大于 0。
+- `ns_num` 为 1 时，`strategy` 不能为 `STRIPED`（仅一个命名空间无法条带化）。
+- `ns_size` 必须大于 0 且为 1G（`1024*1024*1024`）的整数倍。
+- 条带化策略时 `ns_size` 需整除 `ns_num`。
+- `lba_format` 必须为 `FORMAT_512`（512）或 `FORMAT_4K`（4096）。
+- `strategy` 必须为 `STRIPED`（0）、`LINEAR`（1）或 `NORMAL`（2）。
+- `tenant` 允许为空；非空时长度不超过 `UBS_SSU_MAX_TENANT_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 - 空间已分配时重复分配将报错，不再幂等返回成功。
 
 **附注 NOTES**
@@ -332,7 +339,7 @@ def ubs_ssu_space_free(name: str) -> None
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 - 释放操作不再幂等，释放不存在的空间将报错。
 
 **附注 NOTES**
@@ -380,8 +387,8 @@ def ubs_ssu_access_permission_add(name: str, nqn: str) -> None
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
-- `nqn` 长度不能超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `nqn` 不能为空，长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
 
 **附注 NOTES**
 
@@ -428,8 +435,8 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None
 
 **约束 CONSTRAINTS**
 
-- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
-- `nqn` 长度不能超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `nqn` 不能为空，长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
 
 **附注 NOTES**
 
@@ -477,7 +484,9 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
 
 **附注 NOTES**
 
@@ -540,7 +549,10 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None
 
 **约束 CONSTRAINTS**
 
-卸载前需确保没有进程正在使用该存储空间。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
+- 卸载前需确保没有进程正在使用该存储空间。
 
 **附注 NOTES**
 
@@ -588,7 +600,11 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
 
 **约束 CONSTRAINTS**
 
-线性编址模式下，数据按顺序填充各成员设备。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
+- `req.dev_name` 不能为空，长度不超过 `UBS_SSU_MAX_DEV_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- 线性编址模式下，数据按顺序填充各成员设备。
 
 **附注 NOTES**
 
@@ -635,7 +651,10 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
+- `req.dev_name` 不能为空，长度不超过 `UBS_SSU_MAX_DEV_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
 
 **附注 NOTES**
 
@@ -682,7 +701,13 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
 
 **约束 CONSTRAINTS**
 
-RAID5 至少需要 3 个成员设备（`UBS_SSU_RAID5_MIN_MEMBER_NUM`）。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
+- `req.dev_name` 不能为空，长度不超过 `UBS_SSU_MAX_DEV_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- `req.level` 必须为 `RAID0`（0）或 `RAID5`（5）。
+- `req.chunk_size` 必须为 `CHUNK_4K`（4）、`CHUNK_16K`（16）、`CHUNK_32K`（32）、`CHUNK_64K`（64）、`CHUNK_128K`（128）、`CHUNK_256K`（256）或 `CHUNK_512K`（512）。
+- RAID5 至少需要 `UBS_SSU_RAID5_MIN_MEMBER_NUM`（3）个成员设备。
 
 **附注 NOTES**
 
@@ -729,7 +754,11 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None
 
 **约束 CONSTRAINTS**
 
-无。
+- `req.name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `req.nqn` 允许为空；非空时长度不超过 `UBS_SSU_MAX_NQN_LENGTH - 1` 个字符。
+- `req.src_eid` 允许为空；非空时长度不超过 `UBS_SSU_MAX_EID_LENGTH - 1` 个字符。
+- `req.dev_name` 不能为空，长度不超过 `UBS_SSU_MAX_DEV_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- 卸载操作不校验 `level` 和 `chunk_size`。
 
 **附注 NOTES**
 
@@ -776,7 +805,7 @@ def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]
 
 **约束 CONSTRAINTS**
 
-`name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 
 **附注 NOTES**
 
@@ -824,11 +853,12 @@ def ubs_ssu_connect_info_get(name: str, vfe: Optional[UbsUbVfe] = None) -> List[
 
 **约束 CONSTRAINTS**
 
-`name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `name` 不能为空，长度不超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `vfe` 可为 `None`，表示不限定 VFE，此时连接信息里的 `src_eid` 为 host 侧分配给 ssu 的 fe 的 eid；指定 vfe 时 `src_eid` 为指定 vfe 的 eid。
 
 **附注 NOTES**
 
-`vfe` 参数可为 `None`，表示不限定 VFE，此时连接信息里的 `src_eid` 为 host 侧分配给 ssu 的 fe 的 eid；指定 vfe 时 `src_eid` 为指定 vfe 的 eid。
+暂无。
 
 ### ubs\_ssu\_fe\_device\_list
 
@@ -916,7 +946,8 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: str) -> str
 
 **约束 CONSTRAINTS**
 
-`guid` 非空时长度须为 `UBS_SSU_GUID_LENGTH`，为空字符串表示由 ubse 内部创建。
+- `vfe` 不能为 `None`，且 `vfe.vfe_guid` 和 `vfe.bind_bus_instance_guid` 长度须为 `UBS_SSU_GUID_LENGTH`（32）。
+- `guid` 允许为空字符串（表示由 ubse 内部创建 vm busInstance）；非空时长度须为 `UBS_SSU_GUID_LENGTH`（32）。
 
 **附注 NOTES**
 
@@ -977,7 +1008,8 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe) -> None
 
 **约束 CONSTRAINTS**
 
-无。
+- `vfe` 不能为 `None`。
+- `vfe.bind_bus_instance_guid` 必须为 32 个字符（`UBS_SSU_GUID_LENGTH`）。
 
 **附注 NOTES**
 

@@ -61,6 +61,7 @@ class UbsSsuAllocStrategy(IntEnum):
     """分配策略"""
     STRIPED = 0  # 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
     LINEAR = 1  # 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+    NORMAL = 2  # 普通策略, 挂载时只挂载nvme裸设备, 不聚合块设备, 该值为默认值
 
 
 # ====================== SSU 数据结构 ======================
@@ -74,7 +75,7 @@ class UbsSsuNamespaceInfo:
     namespace_id: int = 0  # 命名空间ID
     ns_dev_path: str = ""  # 命名空间设备路径
     ns_size: int = 0  # 分配的容量, 单位字节
-    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
+    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_512  # LBA格式
     allow_host_nqn_list: List[str] = field(default_factory=list)  # 允许访问的Host NQN列表
 
     def __str__(self):
@@ -100,7 +101,7 @@ class UbsSsuNamespaceInfo:
 class UbsSsuAllocResult:
     """分配存储空间结果"""
     name: str = ""  # 请求标识, 最大48个字符
-    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.STRIPED  # 分配策略
+    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.NORMAL  # 分配策略
     namespaces: List[UbsSsuNamespaceInfo] = field(default_factory=list)  # 命名空间信息列表
 
     def __str__(self):
@@ -123,9 +124,9 @@ class UbsSsuAllocSpaceReq:
     """分配存储空间请求参数"""
     name: str = ""  # 请求标识, 最大48个字符
     ns_size: int = 0  # 申请总容量, 单位字节
-    ns_num: int = 1  # 命名空间数量, 等于1时strategy不生效
-    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
-    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.STRIPED  # 分配策略
+    ns_num: int = 1  # 命名空间数量, 等于1时不能为STRIPED策略
+    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_512  # LBA格式
+    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.NORMAL  # 分配策略
     tenant: str = ""  # 请求方tenant(租户隔离标识)
 
 

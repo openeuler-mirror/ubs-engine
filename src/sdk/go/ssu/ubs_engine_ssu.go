@@ -43,6 +43,11 @@ const (
 	maxDevPaths     = 1024
 )
 
+// invokeCall 指向 ipc.InvokeCall 的包级变量,默认为真实实现。
+// UT 可在同包 test 文件中替换为 mock 实现,并用 defer 恢复,实现 IPC 层的 mock。
+// 注意:全局变量非并发安全,UT 间需串行替换或自行加锁保护。
+var invokeCall = ipc.InvokeCall
+
 // ==================== 类型定义 ====================
 
 // UbsSsuLbaFormat LBA格式
@@ -80,6 +85,7 @@ type UbsSsuAllocStrategy uint8
 const (
 	Striped UbsSsuAllocStrategy = 0 // 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
 	Linear  UbsSsuAllocStrategy = 1 // 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+	Normal  UbsSsuAllocStrategy = 2 // 普通策略, 挂载时只挂载nvme裸设备, 不聚合块设备, 该值为推荐值
 )
 
 // ==================== 结构体类型, 与ubs_ssu_service.h保持一致 ====================
@@ -107,7 +113,7 @@ type UbsSsuAllocResult struct {
 type UbsSsuAllocSpaceReq struct {
 	Name      string              // 请求标识, 最大48个字符
 	NsSize    uint64              // 申请总容量, 单位字节, 条带化策略时需整除nsNum且整除后需为chunkSize的整数倍
-	NsNum     uint32              // 命名空间数量, 等于1时strategy不生效
+	NsNum     uint32              // 命名空间数量, 等于1时不能为STRIPED策略
 	LbaFormat UbsSsuLbaFormat     // LBA格式
 	Strategy  UbsSsuAllocStrategy // 分配策略
 	Tenant    string              // 请求方tenant(租户隔离标识)
@@ -187,7 +193,7 @@ type UbsSsuNsStats struct {
 //   - []UbsSsuAllocResult: 已分配空间信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuListAllocInfo() ([]UbsSsuAllocResult, error) {
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuListAllocInfo, nil)
+	response, err := invokeCall(UbseModuleCode, UbseSsuListAllocInfo, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +215,7 @@ func UbsSsuAllocSpace(req UbsSsuAllocSpaceReq) (UbsSsuAllocResult, error) {
 		return UbsSsuAllocResult{}, err
 	}
 	request := packAllocSpaceReq(req)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAllocSpaceReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuAllocSpaceReq, request)
 	if err != nil {
 		return UbsSsuAllocResult{}, err
 	}
@@ -230,7 +236,7 @@ func UbsSsuFreeSpace(name string) error {
 		return err
 	}
 	request := pack.NewBinaryPacker().PackString(name, UbsSsuMaxNameLength).Bytes()
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFreeSpaceReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuFreeSpaceReq, request)
 	return err
 }
 
@@ -253,7 +259,7 @@ func UbsSsuAddAccessPermission(name string, nqn string) error {
 		PackString(name, UbsSsuMaxNameLength).
 		PackString(nqn, UbsSsuMaxNqnLength).
 		Bytes()
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAddAccessPermissionReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuAddAccessPermissionReq, request)
 	return err
 }
 
@@ -276,7 +282,7 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error {
 		PackString(name, UbsSsuMaxNameLength).
 		PackString(nqn, UbsSsuMaxNqnLength).
 		Bytes()
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuRemoveAccessPermissionReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuRemoveAccessPermissionReq, request)
 	return err
 }
 
@@ -295,7 +301,7 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
 		return nil, err
 	}
 	request := packSpaceReq(req)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachSpaceReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuAttachSpaceReq, request)
 	if err != nil {
 		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
 		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
@@ -325,7 +331,7 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
 		return err
 	}
 	request := packSpaceReq(req)
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachSpaceReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuDetachSpaceReq, request)
 	return err
 }
 
@@ -345,7 +351,7 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 		return nil, "", err
 	}
 	request := packLinearSpaceReq(req)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachLinearSpaceReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuAttachLinearSpaceReq, request)
 	if err != nil {
 		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
 		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
@@ -375,7 +381,7 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
 		return err
 	}
 	request := packLinearSpaceReq(req)
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachLinearSpaceReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuDetachLinearSpaceReq, request)
 	return err
 }
 
@@ -396,7 +402,7 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 		return nil, "", err
 	}
 	request := packStripedSpaceReq(req)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachStripedSpaceReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuAttachStripedSpaceReq, request)
 	if err != nil {
 		// ErrAlreadyAttached 时服务端依然返回已挂载的设备路径, 需解包后随错误一起返回;
 		// 解包失败时不应吞掉 unpackErr, 需将其与原错误一起包装返回, 便于定位问题
@@ -426,7 +432,7 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
 		return err
 	}
 	request := packStripedSpaceReq(req)
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachStripedSpaceReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuDetachStripedSpaceReq, request)
 	return err
 }
 
@@ -445,7 +451,7 @@ func UbsSsuGetNsStats(name string) ([]UbsSsuNsStats, error) {
 		return nil, err
 	}
 	request := pack.NewBinaryPacker().PackString(name, UbsSsuMaxNameLength).Bytes()
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetNsStatsReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuGetNsStatsReq, request)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +475,7 @@ func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, erro
 		return nil, err
 	}
 	request := packConnectInfoReq(name, vfe)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetConnectInfoReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuGetConnectInfoReq, request)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +490,7 @@ func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, erro
 //   - []UbsSsuFe: FE设备信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuGetFeDeviceList() ([]UbsSsuFe, error) {
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetFeDeviceListReq, nil)
+	response, err := invokeCall(UbseModuleCode, UbseSsuGetFeDeviceListReq, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +516,7 @@ func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid string) (str
 		return "", err
 	}
 	request := packFeDeviceAllocReq(upi, vfe, busInstanceGuid)
-	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFeDeviceAllocReq, request)
+	response, err := invokeCall(UbseModuleCode, UbseSsuFeDeviceAllocReq, request)
 	if err != nil {
 		return "", err
 	}
@@ -532,6 +538,6 @@ func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe) error {
 		return err
 	}
 	request := packFeDeviceFreeReq(upi, vfe)
-	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFeDeviceFreeReq, request)
+	_, err := invokeCall(UbseModuleCode, UbseSsuFeDeviceFreeReq, request)
 	return err
 }
