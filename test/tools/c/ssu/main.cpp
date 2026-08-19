@@ -125,11 +125,9 @@ std::vector<std::string> SplitTokens(const std::string& line)
         char c = line[i];
         if (c == '"') {
             if (!inQuote) {
-                inQuote = true;
                 hasToken = true;
-            } else {
-                inQuote = false;
             }
+            inQuote = !inQuote;
         } else if (std::isspace(static_cast<unsigned char>(c)) && !inQuote) {
             if (hasToken) {
                 tokens.push_back(token);
@@ -321,12 +319,7 @@ public:
 
     uint32_t GetUint32(const std::string& name) const
     {
-        const std::string& v = Get(name);
-        try {
-            return static_cast<uint32_t>(std::stoul(v));
-        } catch (...) {
-            return 0;
-        }
+        return static_cast<uint32_t>(GetUint64(name));
     }
 
     uint64_t GetUint64(const std::string& name) const
@@ -335,14 +328,19 @@ public:
         try {
             return std::stoull(v);
         } catch (...) {
+            parseError_ = true;
             return 0;
         }
     }
+
+    /** 数值参数转换是否发生过失败 */
+    bool HasParseError() const { return parseError_; }
 
 private:
     std::string cmd_;
     std::vector<std::string> positionals_;
     std::map<std::string, std::string> values_;
+    mutable bool parseError_ = false;
 };
 
 } // namespace
@@ -513,6 +511,73 @@ private:
         lastCmdOk_ = false;
         std::cerr << "ERROR: " << errMsg << std::endl;
         return false;
+    }
+
+    /** 检查数值参数转换是否失败, 失败则打印 "输入格式不对" 并返回 false, 避免进入后续 SDK 校验流程 */
+    bool CheckFormatOrReport(const ArgParser& parser)
+    {
+        if (parser.HasParseError()) {
+            lastCmdOk_ = false;
+            std::cerr << "ERROR: 输入格式不对" << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    /** 简单成功/失败输出: 成功输出 success, 失败输出 error */
+    void EmitSimpleResult(int32_t ret)
+    {
+        if (ret == UBS_SUCCESS) {
+            EmitSuccess();
+        } else {
+            EmitError(ret);
+        }
+    }
+
+    // ==================== 请求结构体组装辅助 ====================
+
+    /** 从 parser 组装 ubs_ub_vfe_t (slot_id/chip_id/die_id/pfe_id/vfe_id/guid) */
+    void FillVfeFromParser(ubs_ub_vfe_t& vfe, const ArgParser& parser)
+    {
+        std::memset(&vfe, 0, sizeof(vfe));
+        vfe.slot_id = parser.GetUint8("slot_id");
+        vfe.chip_id = parser.GetUint8("chip_id");
+        vfe.die_id = parser.GetUint8("die_id");
+        vfe.pfe_id = parser.GetUint16("pfe_id");
+        vfe.vfe_id = parser.GetUint16("vfe_id");
+        FillGuid(vfe.vfe_guid, parser.Get("vfe_guid"));
+        FillGuid(vfe.bind_bus_instance_guid, parser.Get("bind_bus_instance_guid"));
+    }
+
+    /** 从 parser 组装 ubs_ssu_space_req_t (name/nqn/src_eid) */
+    void FillSpaceReq(ubs_ssu_space_req_t& req, const ArgParser& parser)
+    {
+        std::memset(&req, 0, sizeof(req));
+        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
+        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
+        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
+    }
+
+    /** 从 parser 组装 ubs_ssu_linear_space_req_t (name/nqn/src_eid/dev_name) */
+    void FillLinearSpaceReq(ubs_ssu_linear_space_req_t& req, const ArgParser& parser)
+    {
+        std::memset(&req, 0, sizeof(req));
+        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
+        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
+        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
+        CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
+    }
+
+    /** 从 parser 组装 ubs_ssu_striped_space_req_t (name/nqn/src_eid/dev_name/level/chunk_size) */
+    void FillStripedSpaceReq(ubs_ssu_striped_space_req_t& req, const ArgParser& parser)
+    {
+        std::memset(&req, 0, sizeof(req));
+        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
+        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
+        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
+        CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
+        req.level = static_cast<ubs_ssu_raid_level_t>(parser.GetUint32("level"));
+        req.chunk_size = static_cast<ubs_ssu_chunk_size_t>(parser.GetUint32("chunk_size"));
     }
 
     // ==================== JSON 结构体编码 ====================
@@ -688,6 +753,10 @@ private:
         req.strategy = static_cast<ubs_ssu_alloc_strategy_t>(parser.GetUint32("strategy"));
         CopyToFixed(req.tenant, UBS_SSU_MAX_TENANT_LENGTH, parser.Get("tenant"));
 
+        if (!CheckFormatOrReport(parser)) {
+            return;
+        }
+
         ubs_ssu_alloc_result_t* result = nullptr;
         int32_t ret = ubs_ssu_space_alloc(&req, &result);
         if (ret == UBS_SUCCESS) {
@@ -711,11 +780,7 @@ private:
             return;
         }
         int32_t ret = ubs_ssu_space_free(parser.Get("name").c_str());
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
-        }
+        EmitSimpleResult(ret);
     }
 
     // ssu_list_alloc_info
@@ -783,15 +848,12 @@ private:
         ubs_ub_vfe_t vfe;
         ubs_ub_vfe_t* vfePtr = nullptr;
         if (parser.GetUint32("vfe_present") != 0) {
-            std::memset(&vfe, 0, sizeof(vfe));
-            vfe.slot_id = parser.GetUint8("slot_id");
-            vfe.chip_id = parser.GetUint8("chip_id");
-            vfe.die_id = parser.GetUint8("die_id");
-            vfe.pfe_id = parser.GetUint16("pfe_id");
-            vfe.vfe_id = parser.GetUint16("vfe_id");
-            FillGuid(vfe.vfe_guid, parser.Get("vfe_guid"));
-            FillGuid(vfe.bind_bus_instance_guid, parser.Get("bind_bus_instance_guid"));
+            FillVfeFromParser(vfe, parser);
             vfePtr = &vfe;
+        }
+
+        if (!CheckFormatOrReport(parser)) {
+            return;
         }
 
         ubs_ssu_connect_info_t* list = nullptr;
@@ -838,11 +900,7 @@ private:
             return;
         }
         int32_t ret = ubs_ssu_access_permission_remove(parser.Get("name").c_str(), parser.Get("nqn").c_str());
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
-        }
+        EmitSimpleResult(ret);
     }
 
     // ssu_attach_space <name> <nqn> <src_eid>
@@ -857,10 +915,7 @@ private:
             return;
         }
         ubs_ssu_space_req_t req;
-        std::memset(&req, 0, sizeof(req));
-        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
-        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
-        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
+        FillSpaceReq(req, parser);
 
         char** nsDevPaths = nullptr;
         uint32_t nsDevPathCnt = 0;
@@ -886,17 +941,10 @@ private:
             return;
         }
         ubs_ssu_space_req_t req;
-        std::memset(&req, 0, sizeof(req));
-        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
-        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
-        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
+        FillSpaceReq(req, parser);
 
         int32_t ret = ubs_ssu_space_detach(&req);
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
-        }
+        EmitSimpleResult(ret);
     }
 
     // ssu_attach_linear_space <name> <nqn> <src_eid> <dev_name>
@@ -912,11 +960,7 @@ private:
             return;
         }
         ubs_ssu_linear_space_req_t req;
-        std::memset(&req, 0, sizeof(req));
-        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
-        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
-        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
-        CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
+        FillLinearSpaceReq(req, parser);
 
         char** nsDevPaths = nullptr;
         uint32_t nsDevPathCnt = 0;
@@ -944,18 +988,10 @@ private:
             return;
         }
         ubs_ssu_linear_space_req_t req;
-        std::memset(&req, 0, sizeof(req));
-        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
-        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
-        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
-        CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
+        FillLinearSpaceReq(req, parser);
 
         int32_t ret = ubs_ssu_linear_space_detach(&req);
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
-        }
+        EmitSimpleResult(ret);
     }
 
     // ssu_attach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
@@ -980,6 +1016,10 @@ private:
         CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
         req.level = static_cast<ubs_ssu_raid_level_t>(parser.GetUint32("level"));
         req.chunk_size = static_cast<ubs_ssu_chunk_size_t>(parser.GetUint32("chunk_size"));
+
+        if (!CheckFormatOrReport(parser)) {
+            return;
+        }
 
         char** nsDevPaths = nullptr;
         uint32_t nsDevPathCnt = 0;
@@ -1008,20 +1048,14 @@ private:
             return;
         }
         ubs_ssu_striped_space_req_t req;
-        std::memset(&req, 0, sizeof(req));
-        CopyToFixed(req.name, UBS_SSU_MAX_NAME_LENGTH, parser.Get("name"));
-        CopyToFixed(req.nqn, UBS_SSU_MAX_NQN_LENGTH, parser.Get("nqn"));
-        CopyToFixed(req.src_eid, UBS_SSU_MAX_EID_LENGTH, parser.Get("src_eid"));
-        CopyToFixed(req.dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH, parser.Get("dev_name"));
-        req.level = static_cast<ubs_ssu_raid_level_t>(parser.GetUint32("level"));
-        req.chunk_size = static_cast<ubs_ssu_chunk_size_t>(parser.GetUint32("chunk_size"));
+        FillStripedSpaceReq(req, parser);
+
+        if (!CheckFormatOrReport(parser)) {
+            return;
+        }
 
         int32_t ret = ubs_ssu_striped_space_detach(&req);
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
-        }
+        EmitSimpleResult(ret);
     }
 
     // ssu_get_fe_device_list
@@ -1062,19 +1096,16 @@ private:
         }
 
         ubs_ub_vfe_t vfe;
-        std::memset(&vfe, 0, sizeof(vfe));
-        vfe.slot_id = parser.GetUint8("slot_id");
-        vfe.chip_id = parser.GetUint8("chip_id");
-        vfe.die_id = parser.GetUint8("die_id");
-        vfe.pfe_id = parser.GetUint16("pfe_id");
-        vfe.vfe_id = parser.GetUint16("vfe_id");
-        FillGuid(vfe.vfe_guid, parser.Get("vfe_guid"));
-        FillGuid(vfe.bind_bus_instance_guid, parser.Get("bind_bus_instance_guid"));
+        FillVfeFromParser(vfe, parser);
 
         uint8_t busInstanceGuid[UBS_SSU_GUID_LENGTH] = {0};
         FillGuid(busInstanceGuid, parser.Get("bus_instance_guid"));
 
         uint32_t upi = parser.GetUint32("upi");
+        if (!CheckFormatOrReport(parser)) {
+            return;
+        }
+
         int32_t ret = ubs_ssu_fe_device_alloc(upi, &vfe, busInstanceGuid);
         if (ret == UBS_SUCCESS) {
             EmitResponse(GuidToJson(busInstanceGuid));
@@ -1101,22 +1132,15 @@ private:
         }
 
         ubs_ub_vfe_t vfe;
-        std::memset(&vfe, 0, sizeof(vfe));
-        vfe.slot_id = parser.GetUint8("slot_id");
-        vfe.chip_id = parser.GetUint8("chip_id");
-        vfe.die_id = parser.GetUint8("die_id");
-        vfe.pfe_id = parser.GetUint16("pfe_id");
-        vfe.vfe_id = parser.GetUint16("vfe_id");
-        FillGuid(vfe.vfe_guid, parser.Get("vfe_guid"));
-        FillGuid(vfe.bind_bus_instance_guid, parser.Get("bind_bus_instance_guid"));
+        FillVfeFromParser(vfe, parser);
 
         uint32_t upi = parser.GetUint32("upi");
-        int32_t ret = ubs_ssu_fe_device_free(upi, &vfe);
-        if (ret == UBS_SUCCESS) {
-            EmitSuccess();
-        } else {
-            EmitError(ret);
+        if (!CheckFormatOrReport(parser)) {
+            return;
         }
+
+        int32_t ret = ubs_ssu_fe_device_free(upi, &vfe);
+        EmitSimpleResult(ret);
     }
 };
 
