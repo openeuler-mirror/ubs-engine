@@ -3,7 +3,7 @@
 %undefine _debuginfo_subpackages
 
 # -*- rpm-spec -*-
-Summary:        RPM package
+Summary:        ubse daemon
 Name:           ubs-engine
 Version:        1.0.1
 Release:        1
@@ -11,7 +11,6 @@ License:        Mulan PSL v2
 URL:            https://atomgit.com/openeuler/ubs-engine
 Source0:        %{name}-%{version}.tar.gz
 Group:          System Environment/Base
-Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
 
 BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3 python3-setuptools
@@ -21,6 +20,7 @@ BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
 BuildRequires:  libvirt-devel >= 9.0 kernel-devel
+BuildRequires:  python3-setuptools
 Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.40.0 ubs-comm-lib >= 1.0.0-27 obmm
 Requires: tar systemd
 Requires(pre): coreutils shadow systemd glibc-common
@@ -56,6 +56,11 @@ Requires: libboundscheck, libstdc++
 Conflicts: %{name} < %{version}-%{release}
 Obsoletes: %{name}-client-libs < %{version}-%{release}
 Provides: %{name}-client-libs = %{version}-%{release}
+%post client-libs
+/sbin/ldconfig
+
+%postun client-libs
+/sbin/ldconfig
 
 %description client-libs
 UBSE client shared library (%{lib_name}.so.%{lib_soversion}) for third-party applications to access UBSE services.
@@ -70,6 +75,11 @@ Summary: Development package for UBSE client SDK
 Requires: %{name}-client-libs = %{version}-%{release}
 Requires: pkgconfig
 Provides: %{name}-client-devel = %{version}-%{release}
+%post client-devel
+/sbin/ldconfig
+
+%postun client-devel
+/sbin/ldconfig
 
 %description client-devel
 Header files and static libraries for developing applications that use the UBSE client SDK.
@@ -93,6 +103,11 @@ Summary: virtagent plugin
 Requires: %{name} = %{version}-%{release}
 %description virtagent
 Package for virt_agent plugin
+%post virtagent
+/sbin/ldconfig
+
+%postun virtagent
+/sbin/ldconfig
 
 # ========================================================
 #                   SUBPACKAGE: ubs-engine-ucache
@@ -102,6 +117,11 @@ Summary: ucache plugin
 Requires: %{name} = %{version}-%{release}
 %description ucache
 Development package for ucache plugin
+%post ucache
+/sbin/ldconfig
+
+%postun ucache
+/sbin/ldconfig
 
 # ========================================================
 #                   SUBPACKAGE: ubs-engine-rmrs
@@ -120,6 +140,10 @@ if id "ubse" > /dev/null 2>&1; then
 else
     echo "Warning: ubse user does not exist, skip group addition" >&2
 fi
+/sbin/ldconfig
+
+%postun rmrs
+/sbin/ldconfig
 
 %define project_dir %{name}-%{version}
 %define cmake_build_dir cmake-build-relwithdebinfo
@@ -254,8 +278,8 @@ cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{build
 #install rmrs
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmempooling.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{buildroot}/etc/ubse/plugins/
-mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
-cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
+mkdir -p %{buildroot}/usr/include/mempooling/
+cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/include/mempooling/
 
 #install bandbridge kernel module (only on aarch64)
 %ifarch aarch64
@@ -380,6 +404,7 @@ fi
 if [ "$ENABLE_AI" = "true" ]; then
  	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
 fi
+# 此处仅enable服务的原因是：如果软件包在安装时 systemctl start，可能会在管理员不希望该服务运行的场景下（例如：正在进行系统维护、缺少必要的配置文件、或者处于测试环境）引发意外问题甚至导致安装失败。
 systemctl enable %{service_name}
 if [ "$MXE_SCENE" == "vm" ]; then
     update_config /etc/ubse/ubse_plugin_admission.conf
@@ -417,14 +442,13 @@ fi
 depmod -a $(uname -r)
 %endif
 systemctl daemon-reload
-remove_directory %{log_dir}
 remove_directory %{cert_dir}
 remove_directory %{socket_dir}
 remove_directory %{lcne_cert_dir}
 
 deleted_semaphore
 if id "%{system_user}" &>/dev/null; then
-    userdel -r "%{system_user}" &>/dev/null || true
+    userdel "%{system_user}" &>/dev/null || true
 fi
 if getent group "%{system_group}" &>/dev/null; then
     groupdel "%{system_group}"
@@ -495,7 +519,7 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libmempooling.so
 %defattr(644,root,root,755)
-/usr/local/mempooling/include/mempooling/
+/usr/include/mempooling/
 
 %files processmem
 %config(noreplace) %{_sysconfdir}/ubse/plugins/plugin_process_mem.conf
