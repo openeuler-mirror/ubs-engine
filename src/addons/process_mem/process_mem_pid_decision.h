@@ -128,6 +128,10 @@ private:
 
     uint32_t ReturnDebtToLocal(pid_t pid, const def::ReturnRequestItem& item, uint64_t& nodeFree, ReturnScene scene);
 
+    uint32_t ReturnDebtUnified(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
+
+    uint32_t ReturnDebtByUbse(pid_t pid, const def::ReturnRequestItem& item);
+
     uint32_t ReturnDebtRemoteToRemote(const def::ReturnRequestItem& item, const std::string& oldLenderNodeId,
                                       int oldRemoteNuma, pid_t pid, int srcNuma, uint64_t migrateBytes);
 
@@ -169,8 +173,8 @@ private:
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
-    bool ReturnOnePidDebt(const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt, bool procExited,
-                          uint32_t& freedCount, uint64_t& freedBytes, uint32_t& failCount);
+    bool ReturnOnePidDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt, uint32_t& freedCount,
+                          uint64_t& freedBytes, uint32_t& failCount);
 
     void RecoverBindDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt);
     void RecoverPidMigratedBytes(pid_t pid,
