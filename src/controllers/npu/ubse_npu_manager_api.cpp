@@ -13,6 +13,7 @@
 #include "ubse_npu_manager_api.h"
 
 #include <unistd.h>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <queue>
@@ -30,6 +31,7 @@
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
+#include "out_of_band/ubse_mti_util.h"
 #include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 
 namespace ubse::npu::controller {
@@ -40,11 +42,23 @@ using namespace ubse::mti::_1825;
 using namespace ubse::mti::bus_instance;
 using namespace ubse::mti::urma;
 
-constexpr uint8_t SLEEP_TIME = 2;
-
+constexpr uint8_t SLEEP_TIME = 5;
 constexpr uint8_t ROLLBACK_RETRY_TIME = 2;
 constexpr uint8_t COMMON_RETRY_TIME = 5;
 constexpr uint8_t HEX_RADIX = 16;
+constexpr uint8_t NPU_RESET_SLEEP_TIME = 30;
+constexpr uint8_t H2N_SLEEP_TIME = 5;
+constexpr uint8_t H2N_RETRY_TIME = 120;
+
+// UT 覆盖时缩短睡眠与重试次数，避免长耗时
+#ifdef UBSE_UT_FAST_RETRY
+#undef NPU_RESET_SLEEP_TIME
+#undef H2N_SLEEP_TIME
+#undef H2N_RETRY_TIME
+#define NPU_RESET_SLEEP_TIME 0
+#define H2N_SLEEP_TIME 0
+#define H2N_RETRY_TIME 1
+#endif
 
 struct OperationHistory {
     std::function<UbseResult()> operation;
@@ -138,6 +152,9 @@ public:
     UbseResult UnRegisterIDevFromBusi(std::vector<std::shared_ptr<CollectionDeviceDavid>>& devList,
                                       const CollectionDevId& busiGuid);
 
+    UbseResult CheckNicH2NLinkStatus(const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfeList,
+                                     const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& nicVfeList);
+
     template <typename T>
     UbseResult RegisterNicToBusi(std::vector<std::shared_ptr<T>>& devList, const CollectionDevId& busiGuid);
 
@@ -159,10 +176,6 @@ public:
     void SetState(NpuManagerState state);
 
     NpuManagerState GetState();
-
-    bool GetCollectionReady();
-
-    void SetCollectionReady(bool ready);
 
     void FreeQueue(const UbseAllocRequest& requestInfo, const CollectionDevId& hostBusInstanceGuid,
                    std::vector<std::shared_ptr<CollectionDeviceDavid>>& npus,
@@ -215,13 +228,14 @@ private:
             this->SendRegisterNicRequest(busInstance, nicList, needRollback);
         }
     }
+    bool CheckNicPfeH2NLinkStatus(const std::shared_ptr<CollectionDeviceNicPfe>& nicPfe, uint32_t& remainBudget) const;
 
 private:
     std::stack<std::shared_ptr<OperationHistory>> operationHistory_;
     std::queue<std::shared_ptr<OperationHistory>> futureProcedure_;
     uint8_t retryTime_ = COMMON_RETRY_TIME;
-    NpuManagerState state_;
-    bool collectionReady_ = false;
+    // 状态用atomic：无锁读（GetState/各处状态判断）；写操作由状态机保证单线程
+    std::atomic<NpuManagerState> state_;
 };
 
 void StartCollect()
@@ -234,9 +248,7 @@ void StartCollect()
                 UBSE_LOG_WARN << "NpuControllerModule start. Failed to collect static resource. It will retry later";
             } else {
                 UBSE_LOG_INFO << "Success to collect static resource";
-                auto& manager = UbseNpuManagerApi::GetInstance();
-                manager.SetCollectionReady(true);
-                manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+                UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
             }
         });
         collectStaticResourceThread.detach();
@@ -258,6 +270,7 @@ UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& ne
         std::unique_lock<std::mutex> lock(manager.mtx_);
         manager.cv_.wait(lock,
                          [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
     }
 
     auto& collection = ResourceCollection::GetInstance();
@@ -265,6 +278,7 @@ UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& ne
     // 如果传入newBusInstanceGuid， 校验(不存在则返回入参错误）
     if (!requestInfo.busInstanceGuid.empty() and collection.GetDeviceByGuid(requestInfo.busInstanceGuid) == nullptr) {
         UBSE_LOG_ERROR << "Bus Instance Guid is invalid";
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
@@ -274,10 +288,9 @@ UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& ne
     auto ret = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get alloc npu,nic pfe,nic vfe device list from collection";
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return ret; // 如果绑定失败，返回错误码
     }
-
-    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
 
     ret = AllocDevicesAction(requestInfo, newBusInstanceGuid, npuList, nicPfeList, nicVfeList);
     if (ret != UBSE_OK) {
@@ -340,9 +353,13 @@ UbseResult AllocDevicesAction(const UbseAllocRequest& requestInfo, std::string& 
         UBSE_LOG_ERROR << "Failed to reset npu";
         return ret; // 如果复位失败，返回错误码
     }
-    UbseResult res = AllocNic(nicPfeList, nicVfeList, newBusInstanceGuid);
-    if (res != UBSE_OK) {
-        return res;
+    if (manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Check Nic H2N link status failed";
+        return UBSE_ERROR;
+    }
+    ret = AllocNic(nicPfeList, nicVfeList, newBusInstanceGuid);
+    if (ret != UBSE_OK) {
+        return ret;
     }
 
     UBSE_LOG_INFO << "Success to alloc npu,nic devices. Bus instance guid: " << newBusInstanceGuid;
@@ -409,6 +426,7 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
         std::unique_lock<std::mutex> lock(manager.mtx_);
         manager.cv_.wait(lock,
                          [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
     }
 
     auto& collection = ResourceCollection::GetInstance();
@@ -416,12 +434,14 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
         collection.GetDeviceByGuid(requestInfo.busInstanceGuid));
 
     if (CheckBusi(busInstance) != UBSE_OK) {
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
     uint16_t upi;
     if (ConvertStrToUint16(busInstance->GetUpiStr(), upi, HEX_RADIX) != UBSE_OK) {
         UBSE_LOG_ERROR << "Invalid upi:" << busInstance->GetUpiStr();
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
@@ -436,12 +456,12 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
         std::shared_ptr<CollectionDeviceDavid> npu = vfe->GetBondingDevDavid();
         if (npu == nullptr) {
             UBSE_LOG_ERROR << "Failed to get bonding npu device for vfe " << vfe->GetIdStr();
+            manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
             return UBSE_ERROR;
         }
         npus.push_back(npu);
     }
 
-    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
     auto tmpRequest = requestInfo;
     tmpRequest.upiStr = upi;
     auto ret = FreeUbDevicesAction(tmpRequest, npus, nicPfes, nicVfes);
@@ -587,11 +607,6 @@ UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>>& devList)
     auto& manager = UbseNpuManagerApi::GetInstance();
     if (CheckCollection("query ub device") != UBSE_OK) {
         return UBSE_ERROR;
-    }
-    {
-        std::unique_lock<std::mutex> lock(manager.mtx_);
-        manager.cv_.wait(lock,
-                         [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
     }
     UBSE_LOG_INFO << "Start to query all bus instances and nic, npu devices...";
     auto& collection = ResourceCollection::GetInstance();
@@ -1054,18 +1069,19 @@ UbseResult FilterDeviceVMBusi(std::shared_ptr<CollectionDeviceBusi>& busInstance
 
 UbseResult CheckCollection(const std::string& action)
 {
-    if (!UbseNpuManagerApi::GetInstance().GetCollectionReady()) {
-        UBSE_LOG_INFO << "Find collection resource not ready. Retry to collection static resource.";
-        UbseResult res = ResourceCollection::GetInstance().CollectStaticResource();
-        if (res != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to collect static resource. Can not " << action;
-            return UBSE_ERROR;
-        } else {
-            UbseNpuManagerApi::GetInstance().SetCollectionReady(true);
-            UBSE_LOG_INFO << "Retry to collect static resource successfully. Go on to " << action;
-            UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
-        }
+    auto& collection = ResourceCollection::GetInstance();
+    // 采集完成即可继续；RUNNING期间的重试会被CollectStaticResource的重入保护拒绝并返回失败
+    if (collection.GetState() == CollectionState::FINISH) {
+        return UBSE_OK;
     }
+    UBSE_LOG_INFO << "Find collection resource not finished. Retry to collect static resource.";
+    if (collection.CollectStaticResource() != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to collect static resource. Can not " << action;
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "Retry to collect static resource successfully. Go on to " << action;
+    // 首次采集失败后重试成功，推进状态机INIT→AVAILABLE（FINISH状态下不可能有请求处于RUNNING_*，转换安全）
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
     return UBSE_OK;
 }
 
@@ -1187,6 +1203,45 @@ UbseResult UbseNpuManagerApi::UnRegisterIDevFromBusi(std::vector<std::shared_ptr
     return UBSE_OK;
 }
 
+bool UbseNpuManagerApi::CheckNicPfeH2NLinkStatus(const std::shared_ptr<CollectionDeviceNicPfe>& nicPfe,
+                                                 uint32_t& remainBudget) const
+{
+    if (nicPfe == nullptr) {
+        UBSE_LOG_ERROR << "nicPfe is null";
+        return false;
+    }
+    UBSE_LOG_INFO << "Start check 1825 pfe H2N link status, pfe guid:" << nicPfe->GetGuid();
+    bool status = false;
+    const UbseMtiEid eid = nicPfe->GetEid();
+    // EID未采集（全零）时H2N查询必然失败，前置校验避免无效的长时间重试
+    constexpr UbseMtiEid zeroEid{};
+    if (eid == zeroEid) {
+        UBSE_LOG_ERROR << "PFE eid is not collected, skip H2N link check, pfe guid:" << nicPfe->GetGuid();
+        return false;
+    }
+    std::string eidStr;
+    if (!mti::EidArrayToStr(eid, eidStr)) {
+        UBSE_LOG_ERROR << "Failed to convert eid to string";
+        return false;
+    }
+    // 共享总重试预算，预算耗尽即失败，避免单个PFE长时间占用状态机
+    while (!status) {
+        status = UbseMti1825::GetInstance().Check1825PfeH2NLinkStatus(eid);
+        if (status) {
+            break;
+        }
+        if (remainBudget == 0) {
+            break; // 总预算耗尽，交给上层判定失败
+        }
+        UBSE_LOG_DEBUG << "Check 1825 pfe H2N link status not ready, remain retry budget: " << remainBudget
+                       << ", eid:" << eidStr;
+        std::this_thread::sleep_for(std::chrono::seconds(H2N_SLEEP_TIME));
+        remainBudget--;
+    }
+    UBSE_LOG_INFO << "Finish check 1825 pfe H2N link status, status:" << status << ",eid:" << eidStr;
+    return status;
+}
+
 template <typename T>
 UbseResult UbseNpuManagerApi::RegisterNicToBusi(std::vector<std::shared_ptr<T>>& devList,
                                                 const CollectionDevId& busiGuid)
@@ -1204,7 +1259,7 @@ UbseResult UbseNpuManagerApi::RegisterNicToBusi(std::vector<std::shared_ptr<T>>&
     bool needRollback = false;
     UbseResult ret = SendRegisterNicRequest<T>(busInstance, devList, needRollback);
     if (ret != UBSE_OK) {
-        if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
+        if (state_ == NpuManagerState::RUNNING_ALLOC) {
             // 回滚当前
             SendUnRegisterNicRequest<T>(devList, needRollback);
         }
@@ -1471,37 +1526,37 @@ UbseResult UbseNpuManagerApi::RollBack()
             continue;
         }
         SetState(NpuManagerState::ROLLBACK_BG);
-        // 创建异步线程，继续rollback
-        std::thread rollbackThread([this]() {
-            std::lock_guard<std::mutex> lock(mtx_);
-            while (!operationHistory_.empty()) {
-                std::shared_ptr<OperationHistory> op_bg = operationHistory_.top();
-                operationHistory_.pop();
-                UbseResult res = op_bg->operation();
-                if (res == UBSE_ERROR) {
-                    UBSE_LOG_ERROR << "rollback failed";
-                    break;
+        // 创建异步线程，继续rollback。ROLLBACK_BG期间请求线程阻塞在wait(AVAILABLE)，
+        // operationHistory_仅本线程访问（状态机保证互斥），无需加锁
+        try {
+            std::thread rollbackThread([this]() {
+                while (!operationHistory_.empty()) {
+                    std::shared_ptr<OperationHistory> op_bg = operationHistory_.top();
+                    operationHistory_.pop();
+                    UbseResult res = op_bg->operation();
+                    if (res == UBSE_ERROR) {
+                        UBSE_LOG_ERROR << "rollback failed";
+                        break;
+                    }
                 }
-            }
+                SetState(NpuManagerState::AVAILABLE);
+            });
+            // 分离线程，使其在主线程结束后继续运行
+            rollbackThread.detach();
+        } catch (const std::system_error& e) {
+            // 线程创建失败必须归还状态，否则状态机卡在ROLLBACK_BG导致后续请求永久阻塞
+            UBSE_LOG_ERROR << "Create rollback background thread failed: " << e.what();
             SetState(NpuManagerState::AVAILABLE);
-            cv_.notify_all();
-        });
-        // 分离线程，使其在主线程结束后继续运行
-        rollbackThread.detach();
+        } catch (...) {
+            UBSE_LOG_ERROR << "Unknown error while creating rollback background thread";
+            SetState(NpuManagerState::AVAILABLE);
+        }
         return result;
     }
     SetState(NpuManagerState::AVAILABLE);
     return UBSE_OK;
 }
-bool UbseNpuManagerApi::GetCollectionReady()
-{
-    return collectionReady_;
-}
 
-void UbseNpuManagerApi::SetCollectionReady(bool ready)
-{
-    collectionReady_ = ready;
-}
 void UbseNpuManagerApi::FreeQueue(const UbseAllocRequest& requestInfo, const CollectionDevId& hostBusInstanceGuid,
                                   std::vector<std::shared_ptr<CollectionDeviceDavid>>& npus,
                                   std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfes,
@@ -1528,6 +1583,9 @@ void UbseNpuManagerApi::FreeQueue(const UbseAllocRequest& requestInfo, const Col
     // 调用ipmi接口，复位NPU
     auto ubDevs = requestInfo.ubDevList;
     addOperation([this, ubDevs]() mutable -> UbseResult { return this->ResetNpu(ubDevs); });
+
+    addOperation(
+        [this, nicPfes, nicVfes]() mutable -> UbseResult { return this->CheckNicH2NLinkStatus(nicPfes, nicVfes); });
 
     // 调用LCNE接口，解注册1825 vfe
     addOperation([this, nicVfes, busInstanceGuid]() mutable -> UbseResult {
@@ -1566,21 +1624,32 @@ UbseResult UbseNpuManagerApi::ExecuteFreeQueue()
 
 void UbseNpuManagerApi::ExecuteFreeQueueBackGround()
 {
-    std::thread futureThread([this]() {
-        std::lock_guard<std::mutex> lock(mtx_);
-        while (!futureProcedure_.empty()) {
-            std::shared_ptr<OperationHistory> op_bg = futureProcedure_.front();
-            UbseResult res = op_bg->operation();
-            futureProcedure_.pop();
-            if (res == UBSE_ERROR) {
-                UBSE_LOG_WARN << "Background running free queue failed. " << FormatRetCode(res);
-                break;
+    // FREE_BG期间请求线程阻塞在wait(AVAILABLE)，futureProcedure_仅本线程访问
+    // （状态机保证互斥），无需加锁；处理逻辑与ExecuteFreeQueue保持一致
+    try {
+        std::thread futureThread([this]() {
+            while (!futureProcedure_.empty()) {
+                std::shared_ptr<OperationHistory> op_bg = futureProcedure_.front();
+                UbseResult res = op_bg->operation();
+                if (res == UBSE_ERROR) {
+                    // 单个操作失败即中断队列，失败操作及剩余操作保留在队列中，
+                    // 由下一次RUNNING_FREE统一清理
+                    UBSE_LOG_WARN << "Background running free queue failed. " << FormatRetCode(res);
+                    break;
+                }
+                futureProcedure_.pop();
             }
-        }
+            SetState(NpuManagerState::AVAILABLE);
+        });
+        futureThread.detach();
+    } catch (const std::system_error& e) {
+        // 线程创建失败必须归还状态，否则状态机卡在FREE_BG导致后续请求永久阻塞
+        UBSE_LOG_ERROR << "Create free queue background thread failed: " << e.what();
         SetState(NpuManagerState::AVAILABLE);
-        cv_.notify_all();
-    });
-    futureThread.detach();
+    } catch (...) {
+        UBSE_LOG_ERROR << "Unknown error while creating free queue background thread";
+        SetState(NpuManagerState::AVAILABLE);
+    }
 }
 
 std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::FilterUnregisteredDevices(
@@ -1662,7 +1731,7 @@ UbseResult UbseNpuManagerApi::RegisterVfeToBusi(std::vector<std::shared_ptr<Coll
     bool needRollback = false;
     UbseResult ret = SendRegisterVfeRequest(busInstance, vfeList, needRollback);
     if (ret != UBSE_OK) {
-        if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
+        if (state_ == NpuManagerState::RUNNING_ALLOC) {
             // 回滚当前
             SendUnRegisterVfeRequest(vfeList, needRollback);
         }
@@ -1762,11 +1831,9 @@ UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(const std::vector<std::sh
         UBSE_LOG_DEBUG << "UnRegister Nic List is empty.";
         return UBSE_OK;
     }
-    auto busi = devList[0]->GetBondingDevBusi();
-    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
     std::vector<UbseMti1825Vf> mti1825VfList = ConvertToUbseMti1825Vf(devList);
-
     for (uint8_t i = 0; i < retryTime_; i++) {
+        UbseMtiBusInst mtiBusi;
         std::vector<bool> resList;
         res = UbseMti1825::GetInstance().UnReg1825FeFromVmBusInstance(mtiBusi, mti1825VfList, resList);
         if (res != UBSE_OK) {
@@ -1795,15 +1862,9 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
         UBSE_LOG_DEBUG << "UnRegister Vfe List is empty.";
         return UBSE_OK;
     }
-    auto busi = devList[0]->GetBondingDevBusi();
-    if (busi.empty()) {
-        UBSE_LOG_ERROR << "bonding busi is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi[0]);
     std::vector<UbseMtiIdevVfe> mtiVfeList = ConvertToUbseMtiIdevVfeList(devList);
-
     for (uint8_t i = 0; i < retryTime_; i++) {
+        UbseMtiBusInst mtiBusi;
         std::vector<bool> resList;
         res = UbseMtiUrma::GetInstance().UnRegDavidFeFromVmBusInstance(mtiBusi, mtiVfeList, resList);
         if (res != UBSE_OK) {
@@ -1957,6 +2018,9 @@ void UbseNpuManagerApi::SetState(NpuManagerState stateX)
     state_ = stateX;
     if (stateX == NpuManagerState::AVAILABLE) {
         retryTime_ = COMMON_RETRY_TIME;
+        // 持锁notify与wait的谓词检查配对，避免丢失唤醒
+        std::lock_guard<std::mutex> lock(mtx_);
+        cv_.notify_all();
     } else if (stateX == NpuManagerState::ROLLBACK) {
         retryTime_ = ROLLBACK_RETRY_TIME;
         RollBack();
@@ -1970,17 +2034,72 @@ void UbseNpuManagerApi::SetState(NpuManagerState stateX)
             futureProcedure_.pop();
         }
         retryTime_ = COMMON_RETRY_TIME;
-    } else if (stateX == NpuManagerState::ROLLBACK_BG) {
-        retryTime_ = COMMON_RETRY_TIME;
     } else if (stateX == NpuManagerState::FREE_BG) {
         retryTime_ = COMMON_RETRY_TIME;
         ExecuteFreeQueueBackGround();
+    } else if (stateX == NpuManagerState::ROLLBACK_BG) {
+        retryTime_ = COMMON_RETRY_TIME;
     }
 }
 
 UbseNpuManagerApi::NpuManagerState UbseNpuManagerApi::GetState()
 {
-    return state_;
+    return state_.load();
+}
+
+UbseResult UbseNpuManagerApi::CheckNicH2NLinkStatus(
+    const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfeList,
+    const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& nicVfeList)
+{
+    // 判断当前是否为server场景，非server场景直接返回成功。
+    auto& collection = ResourceCollection::GetInstance();
+    ProductType productType;
+    const auto ret = collection.GetProductType(productType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetProductType failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    if (productType != ProductType::SERVER) {
+        UBSE_LOG_INFO << "GetProductType is not SERVER";
+        return UBSE_OK;
+    }
+    // 汇总待检查的 PFE：直接传入的 PFE 与各 VFE 的父 PFE（判空并去重，避免重复检查）
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> tempNicPfeList;
+    tempNicPfeList.reserve(nicPfeList.size() + nicVfeList.size());
+    for (const auto& nicPfe : nicPfeList) {
+        if (nicPfe == nullptr) {
+            continue;
+        }
+        tempNicPfeList.push_back(nicPfe);
+    }
+    for (const auto& nicVfe : nicVfeList) {
+        if (nicVfe == nullptr) {
+            continue;
+        }
+        auto parent = nicVfe->GetParentNicPfe();
+        if (parent == nullptr) {
+            UBSE_LOG_WARN << "Nic vfe parent pfe is null, vfe guid:" << nicVfe->GetGuid();
+            continue;
+        }
+        if (std::find(tempNicPfeList.begin(), tempNicPfeList.end(), parent) == tempNicPfeList.end()) {
+            tempNicPfeList.push_back(parent);
+        }
+    }
+    if (tempNicPfeList.empty()) {
+        return UBSE_OK;
+    }
+    // NPU复位后，1825 H2N链路从正常变为DOWN大约要5s，所以需要先SLEEP一段时间再查询H2N状态
+    std::this_thread::sleep_for(std::chrono::seconds(NPU_RESET_SLEEP_TIME));
+    // 整个H2N检查共享统一的总重试预算（H2N_RETRY_TIME），
+    // 避免多个PFE各自重试导致状态机被长时间阻塞；每个PFE至少检查一次
+    uint32_t remainBudget = H2N_RETRY_TIME;
+    for (const auto& nicPfe : tempNicPfeList) {
+        if (!CheckNicPfeH2NLinkStatus(nicPfe, remainBudget)) {
+            UBSE_LOG_ERROR << "Failed to check nic pfe H2N link status";
+            return UBSE_ERROR;
+        }
+    }
+    return UBSE_OK;
 }
 
 UbseResult AllocNic(std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfeList,

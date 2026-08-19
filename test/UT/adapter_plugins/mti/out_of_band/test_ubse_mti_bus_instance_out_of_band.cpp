@@ -342,7 +342,7 @@ TEST_F(TestUbseMtiBusInstanceOutOfBand, GetBusInstanceList_FullSuccessWithSubDev
     g_lsubOutput = "BusInstance show format: guid type eid upi\n"
                    "0123456789abcdef0123456789abcdef VM 00001 0100\n";
     g_subDeviceOutput = "Uents under this busInstance:\n"
-                        "01234567\n";
+                        "01234\n";
     g_readFileResult = "0123456789abcdef0123456789abcdef\n";
 
     const auto execFunc = &UbseOsUtil::Exec;
@@ -356,7 +356,7 @@ TEST_F(TestUbseMtiBusInstanceOutOfBand, GetBusInstanceList_FullSuccessWithSubDev
     EXPECT_EQ(UBSE_OK, ret);
     ASSERT_EQ(busInstanceList.size(), 1u);
     EXPECT_EQ(UbseMtiBusInstanceType::VM, busInstanceList[0].type);
-    ASSERT_EQ(busInstanceList[0].subDeviceGuids.size(), 1u);
+    ASSERT_EQ(busInstanceList[0].subDevices.size(), 1u);
 }
 
 // ==================== 继承关系测试 ====================
