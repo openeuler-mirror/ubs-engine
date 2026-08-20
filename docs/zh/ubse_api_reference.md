@@ -4414,6 +4414,108 @@ int main(void)
 }
 ```
 
+### ubs\_npu\_product\_type\_query
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+int32_t ubs_npu_product_type_query(ubs_product_type* product_type);
+```
+
+**描述 DESCRIPTION**
+
+查询当前主机的产品类型。产品类型为部署期确定的硬件静态属性，在UBSE进程生命周期内不会变化，取值如下：
+
+| 取值 | 含义            |
+| ---- | --------------- |
+| 0    | SERVER（服务器） |
+| 1    | POD_16_1825     |
+| 2    | POD_32_1825     |
+
+**参数 PARAMETERS**
+
+| name          | IN/OUT | description                  |
+| ------------- | ------ | ---------------------------- |
+| product\_type | OUT    | 产品类型(ubs_product_type)，调用方需预先申请内存 |
+
+- 数据结构说明
+
+```c
+typedef enum {
+    UBS_PRODUCT_TYPE_SERVER = 0,
+    UBS_PRODUCT_TYPE_POD_16_1825 = 1,
+    UBS_PRODUCT_TYPE_POD_32_1825 = 2
+} ubs_product_type;
+```
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_BUFFER\_TOO\_SMALL         | 响应缓冲过小      |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+调用方需预先申请 `ubs_product_type` 内存，传入有效指针。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，查询当前主机的产品类型。
+
+```c
+#include <stdio.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_product_type product_type = UBS_PRODUCT_TYPE_SERVER;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_npu_product_type_query(&product_type);
+    if (UBS_SUCCESS != ret) {
+        perror("query product type failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    if (product_type == UBS_PRODUCT_TYPE_SERVER) {
+        printf("product_type=SERVER\n");
+    } else if (product_type == UBS_PRODUCT_TYPE_POD_16_1825) {
+        printf("product_type=POD_16_1825\n");
+    } else if (product_type == UBS_PRODUCT_TYPE_POD_32_1825) {
+        printf("product_type=POD_32_1825\n");
+    }
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
 ### ubs\_npu\_device\_alloc
 
 **库 LIBRARY**
