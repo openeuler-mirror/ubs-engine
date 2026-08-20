@@ -838,9 +838,11 @@ uint32_t PidFaultHandler::PidExecuteRecvHandler(const UbseByteBuffer& req, UbseB
     // 本节点本轮错误记录（按时序）: 逐步骤记入带上下文明细，出口全量入日志并透传最早一条随响应回传master
     std::vector<FaultErrorRecord> errRecords;
 
-    // Step 1: 直接归还（故障numa无使用的借用，迁回+归还；UBSE_ERR_NOT_EXIST视为已归还，保证幂等）
+    // Step 1: 直接归还（故障numa无使用的借用，无数据需迁回；且故障场景前置条件可能是ubturbo已挂、
+    // smap链路根本调不了，故smapBack=false走纯memfabric归还，不依赖smap；
+    // UBSE_ERR_NOT_EXIST视为已归还，保证幂等）
     for (const auto& borrowId : request.directReturnBorrowIds) {
-        MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, true, true, true);
+        MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, true, false, true);
         if (ret != MEM_POOLING_OK && ret != UBSE_ERR_NOT_EXIST) {
             LOG_ERROR << "Direct return failed for borrowId=" << borrowId << ", ret=" << ret << ".";
             errRecords.push_back({MEM_POOLING_FAULT_RETURN_MEM_ERROR,
