@@ -16,7 +16,6 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
@@ -26,8 +25,10 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_node_mgr.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;  // 节点侧采集失败重试周期，单位/s
 const uint32_t UBSE_NODE_REPORT_INTERVAL = 2;         // 节点侧主动向中心侧上报节点内存，拓扑周期；单位秒
@@ -870,7 +871,10 @@ UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
 
     std::vector<UbseNodeInfo> infos{};
     infos.reserve(allNodes.size());
-    for (const auto &[_, info] : allNodes) {
+    for (const auto& [_, info] : allNodes) {
+        if (info.groupId != nodeMgr::GetCurrentNode().groupId) {
+            continue;
+        }
         infos.push_back(info);
     }
     if (infos.empty()) {
@@ -920,7 +924,10 @@ UbseResult UbseNodeControllerAgent::ForwardCabinetFullToPrev()
 
     std::vector<UbseNodeInfo> infos{};
     infos.reserve(allNodes.size());
-    for (const auto &[_, info] : allNodes) {
+    for (const auto& [_, info] : allNodes) {
+        if (info.groupId != nodeMgr::GetCurrentNode().groupId) {
+            continue;
+        }
         infos.push_back(info);
     }
     if (infos.empty()) {

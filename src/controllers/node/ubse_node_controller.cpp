@@ -1159,7 +1159,8 @@ bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterSta
             return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
                    updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
         case UbseNodeClusterState::UBSE_NODE_WORKING:
             return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
@@ -1823,6 +1824,19 @@ void UbseNodeController::CleanAfterMasterSwitchRole()
     std::unique_lock<std::shared_mutex> lock(rwMutex);
     for (auto it = nodeInfos.begin(); it != nodeInfos.end();) {
         if (it->first != currentNodeId) {
+            it = nodeInfos.erase(it);
+        } else {
+            it->second.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
+            ++it;
+        }
+    }
+}
+
+void UbseNodeController::CleanAfterGlobalMasterSwitchRole()
+{
+    std::unique_lock<std::shared_mutex> lock(rwMutex);
+    for (auto it = nodeInfos.begin(); it != nodeInfos.end();) {
+        if (it->second.groupId != nodeMgr::GetCurrentNode().groupId) {
             it = nodeInfos.erase(it);
         } else {
             it->second.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;

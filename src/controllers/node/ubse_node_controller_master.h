@@ -84,6 +84,8 @@ private:
 
     void UbseNodeCycleLedger(const std::string& nodeId);
 
+    void UbseNodeRetryLedger(const std::string& nodeId);
+
     void UbseNodeUpLedger(const std::string& nodeId);
 
     void UbseNodeLedger(const std::string& nodeId);
