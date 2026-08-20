@@ -912,7 +912,7 @@ static uint32_t VerifyAttachDetachPreconditionViaRpc(const std::string &name,
 // agent端回滚已attach的NS的前向声明（实现在文件后部，供master/agent共用）
 static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceInfo> &attachedNsList,
                                             const UbseSsuSpaceReq &req,
-                                            const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                            std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                             const UbseSsuAttachDetachVerifyResp *verifyResp = nullptr);
 
 // 校验条带化场景下的参数
@@ -1055,7 +1055,8 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
         if (nsRet != UBSE_OK) {
             UBSE_LOG_ERROR << "AgentAttach: AttachSingleNsVerified failed, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
-            RollbackAttachedNsAndLedger(attachedNsList, req, {}, &verifyResp);
+            std::unordered_map<std::string, UbseSsuDevInfoPtr> emptyDevMap;
+            RollbackAttachedNsAndLedger(attachedNsList, req, emptyDevMap, &verifyResp);
             return nsRet;
         }
         attachedNsList.push_back(nsInfo);
@@ -1071,7 +1072,8 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
             if (!devName.empty()) {
                 UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(devName);
             }
-            RollbackAttachedNsAndLedger(attachedNsList, req, {}, &verifyResp);
+            std::unordered_map<std::string, UbseSsuDevInfoPtr> emptyDevMap;
+            RollbackAttachedNsAndLedger(attachedNsList, req, emptyDevMap, &verifyResp);
             return createRet;
         }
     }
@@ -1283,11 +1285,17 @@ static uint32_t AttachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsu
 
 // master端detach单个命名空间
 static uint32_t DetachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuAllocIdentityInfo &identity,
-                               const std::string &nqn, const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+                               const std::string &nqn, std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
 {
     auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
     if (targetNs == nullptr) {
-        // 设备或NS不在缓存中，说明已被detach，视为幂等成功
+        // 缓存未命中：从硬件实时刷新（刚attach的ns可能尚未被定时采集覆盖）
+        std::unordered_set<std::string> refreshedEids;
+        RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+        targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+    }
+    if (targetNs == nullptr) {
+        // 刷新后仍查不到，说明已被detach或删除，视为幂等成功
         UBSE_LOG_INFO << "DetachSingleNs: device or namespace not found in cache, treat as already detached, eid="
                       << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
         return UBSE_OK;
@@ -1312,7 +1320,7 @@ static uint32_t DetachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsu
 // verifyResp为空：master端路径，用collector缓存detach，isMaster=true
 static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceInfo> &attachedNsList,
                                             const UbseSsuSpaceReq &req,
-                                            const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                            std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                             const UbseSsuAttachDetachVerifyResp *verifyResp)
 {
     bool isMaster = verifyResp == nullptr ? true : false;
@@ -1737,7 +1745,7 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 // 删除块设备 + detach所有NS + 账本状态回退（ATTACHED -> CREATED）
 static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
-                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                             std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                              const std::string &expectedDevName)
 {
     // 删除前校验请求的devName与账本记录一致（账本为attach时写入的权威值），防止误删他人/无关聚合块设备；
