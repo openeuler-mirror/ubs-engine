@@ -171,9 +171,21 @@ TEST_F(TestUbseElectionRoleInitializer, RecvHeartPkt_ShouldSwitchStandby_WhenNod
     EXPECT_EQ(type, RoleType::STANDBY);
 }
 
+TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnEarly_WhenModulesNotReady)
+{
+    MOCKER(&UbseContext::IsAllModulesReady).stubs().will(returnValue(false));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState).expects(never());
+    Initializer initer;
+
+    initer.ProcTimer();
+
+    EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::INITIALIZER);
+}
+
 TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMatser_WhenSmallestISMeStatge1)
 {
     // given
+    MOCKER(&UbseContext::IsAllModulesReady).stubs().will(returnValue(true));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
@@ -199,6 +211,7 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMatser_WhenSmalles
 TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge2)
 {
     // given
+    MOCKER(&UbseContext::IsAllModulesReady).stubs().will(returnValue(true));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
@@ -224,6 +237,7 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge2
 TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge3)
 {
     // given
+    MOCKER(&UbseContext::IsAllModulesReady).stubs().will(returnValue(true));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()

@@ -779,9 +779,6 @@ UbseResult UbseNodeController::UpdateNodeInfoFirstAdd(const std::string& nodeId,
     UBSE_LOG_INFO << "[FIRST_ADD] write success, nodeId=" << nodeId
                   << ", state=" << static_cast<uint32_t>(nodeInfoCopy.clusterState)
                   << ", global=" << static_cast<uint32_t>(nodeInfoCopy.globalState);
-    if (info.nodeId != currentNodeId && info.groupId != nodeMgr::GetCurrentNode().groupId) {
-        return UBSE_OK;
-    }
     if (nodeId == currentNodeId) {
         ExecLocalStateHandler(nodeInfoCopy, localHandlers);
     }
@@ -831,9 +828,6 @@ UbseResult UbseNodeController::UpdateNodeInfoExistingRecovery(const std::string&
         UBSE_LOG_INFO << "[RECOVERY] state unchanged, skip notify, nodeId=" << nodeId;
         return UBSE_OK;
     }
-    if (nodeInfoCopy.groupId != nodeMgr::GetCurrentNode().groupId) {
-        return UBSE_OK;
-    }
     auto ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[RECOVERY] notify failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
@@ -868,9 +862,6 @@ UbseResult UbseNodeController::UpdateNodeInfoExistingNormal(const std::string& n
     if (!curNodeInCache) {
         UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, reject update, nodeId=" << info.nodeId;
         return UBSE_ERROR_NULLPTR;
-    }
-    if (nodeInfoCopy.groupId != curGroupId) {
-        return UBSE_OK;
     }
     auto ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
     if (ret != UBSE_OK) {

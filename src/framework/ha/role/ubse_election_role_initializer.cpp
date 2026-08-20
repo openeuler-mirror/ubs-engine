@@ -87,6 +87,10 @@ void Initializer::ProcRoleSwitch(const std::vector<Node> &allNodes)
 
 void Initializer::ProcTimer()
 {
+    if (!::ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
+        return;
+    }
+
     std::vector<Node> electNodes;
     if (UbseElectionNodeMgr::GetInstance().GetLocalNodeState() != UbseNodeLocalState::UBSE_NODE_READY) {
         return;
