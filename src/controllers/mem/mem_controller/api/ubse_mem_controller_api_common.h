@@ -25,10 +25,10 @@
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
-#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_ledger.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mmi_interface.h"
 #include "lock/ubse_lock.h"
+#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_ledger.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::MemOperationType;

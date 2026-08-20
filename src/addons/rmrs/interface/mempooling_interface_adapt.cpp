@@ -1114,11 +1114,11 @@ static MpResult SetRemoteNumaInfoBeforeEscape(const MigrateEscapeMsg& msg)
             continue;
         }
         seenDestNids.insert(destNid);
-        uint64_t totalSizeKB = MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(
-                                   validDebtInfos, static_cast<int16_t>(destNid)) /
-                               1024;
+        uint64_t totalSizeKB =
+            MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(destNid)) / 1024;
         if (totalSizeKB > 0) {
-            infos.push_back({.srcNumaId = 0, .presentNumaId = static_cast<uint16_t>(destNid), .borrowSize = totalSizeKB});
+            infos.push_back(
+                {.srcNumaId = 0, .presentNumaId = static_cast<uint16_t>(destNid), .borrowSize = totalSizeKB});
         }
     }
     if (!infos.empty() && smap::MpSmapHelper::SetSmapRemoteNumaInfo(-1, infos) != MEM_POOLING_OK) {

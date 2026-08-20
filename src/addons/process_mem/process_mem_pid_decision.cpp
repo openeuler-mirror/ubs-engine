@@ -167,8 +167,9 @@ void QuerySmapProcessConfigs(std::unordered_map<pid_t, std::unordered_map<int, u
     }
     constexpr int kCapacity = 512;
     std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debts;
-    if (QueryDebtWithRetry([&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); }) !=
-        UBSE_OK) {
+    if (QueryDebtWithRetry([&debts]() {
+            return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts);
+        }) != UBSE_OK) {
         UBSE_LOG_WARN << "[process_mem] recover config: get import debts failed";
         failedNumas = std::nullopt;
         return;
@@ -1008,9 +1009,8 @@ void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t n
     auto nodeId = GetCurrentNodeId();
 
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debts;
-    auto ret = QueryDebtWithRetry([&debts, &nodeId]() {
-        return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts);
-    });
+    auto ret = QueryDebtWithRetry(
+        [&debts, &nodeId]() { return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts); });
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[process_mem] return passive round=" << roundNum << " get own debts failed, ret=" << ret;
         return;
@@ -1048,8 +1048,8 @@ void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t n
     }
 
     if (emergency) {
-        UBSE_LOG_INFO << "[process_mem] oom lender_emergency: broadcasting to " << groups.size()
-                      << " borrowers=[" << borrowerList << "] lent_debts=" << lentDebtCount;
+        UBSE_LOG_INFO << "[process_mem] oom lender_emergency: broadcasting to " << groups.size() << " borrowers=["
+                      << borrowerList << "] lent_debts=" << lentDebtCount;
     } else {
         UBSE_LOG_INFO << "[process_mem] return passive lender=" << nodeId << " broadcasting to " << groups.size()
                       << " borrowers=[" << borrowerList << "] (nodeFree=" << BytesToGbDouble(nodeFree)
@@ -1188,9 +1188,8 @@ uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene)
     auto nodeId = GetCurrentNodeId();
 
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debts;
-    auto ret = QueryDebtWithRetry([&debts, &nodeId]() {
-        return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts);
-    });
+    auto ret = QueryDebtWithRetry(
+        [&debts, &nodeId]() { return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts); });
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
                       << " skip: get own debts failed, ret=" << ret;
@@ -1264,7 +1263,8 @@ uint32_t ProcessMemPidDecision::HandlePidExited(pid_t pid)
 void ProcessMemPidDecision::RecoverBorrowFromObmm()
 {
     std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debts;
-    auto ret = QueryDebtWithRetry([&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); });
+    auto ret = QueryDebtWithRetry(
+        [&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); });
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[process_mem] recover borrow: get import debts failed, ret=" << ret;
         return;
@@ -1487,7 +1487,8 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
     }
 
     std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debts;
-    auto ret = QueryDebtWithRetry([&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); });
+    auto ret = QueryDebtWithRetry(
+        [&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); });
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[process_mem] reconcile: get import debts failed, ret=" << ret << ", skip round";
         return ret;
@@ -1637,9 +1638,8 @@ uint32_t ProcessMemPidDecision::ReturnOneDebt(const def::ReturnRequestItem& item
     auto nodeId = GetCurrentNodeId();
 
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debts;
-    auto ret = QueryDebtWithRetry([&debts, &nodeId]() {
-        return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts);
-    });
+    auto ret = QueryDebtWithRetry(
+        [&debts, &nodeId]() { return ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts); });
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << item.name
                       << " skip: get own debts failed, ret=" << ret;
@@ -1794,8 +1794,7 @@ uint32_t ProcessMemPidDecision::ReturnDebtRemoteToRemote(const def::ReturnReques
                       << " remote_to_remote: old debt delete retry succeeded";
     } else {
         UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
-                      << " amount_gb=" << BytesToGbDouble(item.size)
-                      << " migrate_gb=" << BytesToGbDouble(migrateBytes)
+                      << " amount_gb=" << BytesToGbDouble(item.size) << " migrate_gb=" << BytesToGbDouble(migrateBytes)
                       << " remote_to_remote: old_lender=" << oldLenderNodeId << " new_remote_numa=" << newRemoteNuma
                       << " new_debt_id=" << newDebtId;
     }

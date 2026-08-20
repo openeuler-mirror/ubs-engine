@@ -1,16 +1,16 @@
 #ifndef UBSE_AUTO_SIMPO_H
 #define UBSE_AUTO_SIMPO_H
 
-#include "ubse_auto_serial_util.hpp"
 #include "ubse_base_message.h"
 #include "ubse_error.h"
+#include "ubse_auto_serial_util.hpp"
 
 namespace ubse::simpo::util {
 template <class Arg>
 class UbseAutoSimpo : public message::UbseBaseMessage {
 public:
     UbseAutoSimpo() = default;
-    explicit UbseAutoSimpo(uint8_t *data, uint32_t size)
+    explicit UbseAutoSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -37,8 +37,7 @@ template <class Arg>
 message::UbseResult UbseAutoSimpo<Arg>::Serialize()
 {
     serial::UbseSerialization out;
-    if (!ubse::serial::util::SerializeField(out, mErrCode) ||
-        !ubse::serial::util::SerializeField(out, simpoMesg)) {
+    if (!ubse::serial::util::SerializeField(out, mErrCode) || !ubse::serial::util::SerializeField(out, simpoMesg)) {
         return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
@@ -53,8 +52,7 @@ message::UbseResult UbseAutoSimpo<Arg>::Deserialize()
         return UBSE_ERROR;
     }
     serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    if (!ubse::serial::util::DeSerializeField(in, mErrCode) ||
-        !ubse::serial::util::DeSerializeField(in, simpoMesg)) {
+    if (!ubse::serial::util::DeSerializeField(in, mErrCode) || !ubse::serial::util::DeSerializeField(in, simpoMesg)) {
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -73,7 +71,7 @@ template <class... Args>
 class UbseAutoSimpoTuple : public message::UbseBaseMessage {
 public:
     UbseAutoSimpoTuple() = default;
-    explicit UbseAutoSimpoTuple(uint8_t *data, uint32_t size)
+    explicit UbseAutoSimpoTuple(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -112,8 +110,7 @@ template <class... Args>
 message::UbseResult UbseAutoSimpoTuple<Args...>::Serialize()
 {
     serial::UbseSerialization out;
-    if (!ubse::serial::util::SerializeField(out, mErrCode) ||
-        !ubse::serial::util::SerializeField(out, simpoMesg)) {
+    if (!ubse::serial::util::SerializeField(out, mErrCode) || !ubse::serial::util::SerializeField(out, simpoMesg)) {
         return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
@@ -128,8 +125,7 @@ message::UbseResult UbseAutoSimpoTuple<Args...>::Deserialize()
         return UBSE_ERROR;
     }
     serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    if (!ubse::serial::util::DeSerializeField(in, mErrCode) ||
-        !ubse::serial::util::DeSerializeField(in, simpoMesg)) {
+    if (!ubse::serial::util::DeSerializeField(in, mErrCode) || !ubse::serial::util::DeSerializeField(in, simpoMesg)) {
         return UBSE_ERROR;
     }
     return UBSE_OK;

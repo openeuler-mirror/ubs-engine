@@ -15,8 +15,8 @@
 
 #include <gtest/gtest.h>
 
-#include <unistd.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_console_log.h"
@@ -111,14 +111,16 @@ void RunP1FdBorrowMultiNodeOk01(ubse::it::infra::ItCluster& cluster)
     // 两个线程同时提交创建FD请求
     std::thread thread1([&]() {
         ubs_mem_fd_desc_t fdDesc{};
-        ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc)) << "node 1 create " << name << " failed";
+        ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+            << "node 1 create " << name << " failed";
     });
 
     auto& sdk2 = cluster.GetSdkClient("3");
     const char* name2 = "it_p1_fd_borrow_multi_node_ok_01_2";
     std::thread thread2([&]() {
         ubs_mem_fd_desc_t fdDesc2{};
-        ASSERT_IT_OK(sdk2.MemFdCreate(name2, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2)) << "node 3 create " << name2 << " failed";
+        ASSERT_IT_OK(sdk2.MemFdCreate(name2, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2))
+            << "node 3 create " << name2 << " failed";
     });
 
     thread1.join();
@@ -134,11 +136,13 @@ void RunP1FdBorrowMultiTimeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_fd_borrow_multi_time_ok_01";
     ubs_mem_fd_desc_t fdDesc{};
-    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+        << "node 1 create " << name << " failed";
 
     const char* name2 = "it_p1_fd_borrow_multi_time_ok_01_2";
     ubs_mem_fd_desc_t fdDesc2{};
-    ASSERT_IT_OK(sdk.MemFdCreate(name2, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2)) << "node 1 borrow " << name2 << " failed";
+    ASSERT_IT_OK(sdk.MemFdCreate(name2, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2))
+        << "node 1 borrow " << name2 << " failed";
 
     // 清理
     ASSERT_IT_OK(sdk.MemFdDelete(name)) << "node 1 delete " << name << " failed";
@@ -146,9 +150,10 @@ void RunP1FdBorrowMultiTimeOk01(ubse::it::infra::ItCluster& cluster)
 
     // 重新创建，再归还
     ubs_mem_fd_desc_t fdDesc3{};
-    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc3)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc3))
+        << "node 1 create " << name << " failed";
 
-    ASSERT_IT_OK(sdk.MemFdDelete(name)) << "node 1 delete " << name << " failed";    
+    ASSERT_IT_OK(sdk.MemFdDelete(name)) << "node 1 delete " << name << " failed";
     IT_LOG_INFO << "P1-FdBorrow-MultiTime-Ok-01 passed";
 }
 
@@ -158,14 +163,16 @@ void RunP1FdCreateDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_fd_create_diff_node_ok_01";
     ubs_mem_fd_desc_t fdDesc{};
-    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc)) << "node 1 create " << name << " failed";
-    
+    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+        << "node 1 create " << name << " failed";
+
     // 清理
     ASSERT_IT_OK(sdk.MemFdDelete(name)) << "node 1 delete " << name << " failed";
-    
+
     auto& sdk2 = cluster.GetSdkClient("2");
     ubs_mem_fd_desc_t fdDesc2{};
-    ASSERT_IT_OK(sdk2.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2)) << "node 2 create " << name << " failed";
+    ASSERT_IT_OK(sdk2.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc2))
+        << "node 2 create " << name << " failed";
 
     // 清理
     ASSERT_IT_OK(sdk2.MemFdDelete(name)) << "node 2 delete " << name << " failed";
@@ -178,7 +185,8 @@ void RunP1FdGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_fd_get_diff_node_ok_01";
     ubs_mem_fd_desc_t fdDesc{};
-    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+        << "node 1 create " << name << " failed";
 
     ubs_mem_fd_desc_t fdDescGet{};
     ASSERT_IT_OK(sdk.MemFdGet(name, &fdDescGet)) << "node 1 get " << name << " failed";
@@ -194,27 +202,29 @@ void RunP1FdGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P1-FdGet-DiffNode-Ok-01 passed";
 }
 
-// P1-NumaCreate-MultiNode-Ok-01(四节点): 多节点 NUMA 创建用例 
+// P1-NumaCreate-MultiNode-Ok-01(四节点): 多节点 NUMA 创建用例
 void RunP1NumaCreateMultiNodeOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_numa_create_multi_node_ok_01";
-    
+
     // 两个线程同时提交创建FD请求
     std::thread thread1([&]() {
-            ubs_mem_numa_desc_t numaDesc{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)) << "node 1 create " << name << " failed";
+        ubs_mem_numa_desc_t numaDesc{};
+        ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc))
+            << "node 1 create " << name << " failed";
     });
 
     auto& sdk2 = cluster.GetSdkClient("3");
     const char* name2 = "it_p1_numa_create_multi_node_ok_01_2";
     std::thread thread2([&]() {
         ubs_mem_numa_desc_t numaDesc2{};
-        ASSERT_IT_OK(sdk2.MemNumaCreate(name2, numaSize, MEM_DISTANCE_L0, &numaDesc2)) << "node 2 create " << name2 << " failed";
+        ASSERT_IT_OK(sdk2.MemNumaCreate(name2, numaSize, MEM_DISTANCE_L0, &numaDesc2))
+            << "node 2 create " << name2 << " failed";
     });
 
     thread1.join();
-    thread2.join();  
+    thread2.join();
 
     // 清理
     ASSERT_IT_OK(sdk.MemNumaDelete(name)) << "node 1 delete " << name << " failed";
@@ -228,11 +238,13 @@ void RunP1NumaCreateMultiTimeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_numa_create_multi_ok_01";
     ubs_mem_numa_desc_t numaDesc{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc))
+        << "node 1 create " << name << " failed";
 
     const char* name2 = "it_p1_numa_create_multi_ok_01_2";
     ubs_mem_numa_desc_t numaDesc2{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name2, numaSize, MEM_DISTANCE_L0, &numaDesc2)) << "node 2 create " << name2 << " failed";
+    ASSERT_IT_OK(sdk.MemNumaCreate(name2, numaSize, MEM_DISTANCE_L0, &numaDesc2))
+        << "node 2 create " << name2 << " failed";
 
     // 清理
     ASSERT_IT_OK(sdk.MemNumaDelete(name)) << "node 1 delete " << name << " failed";
@@ -240,7 +252,8 @@ void RunP1NumaCreateMultiTimeOk01(ubse::it::infra::ItCluster& cluster)
 
     // 重新创建，再归还
     ubs_mem_numa_desc_t numaDesc3{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc3)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc3))
+        << "node 1 create " << name << " failed";
 
     ASSERT_IT_OK(sdk.MemNumaDelete(name)) << "node 1 delete " << name << " failed";
     IT_LOG_INFO << "P1-NumaCreate-MultiTime-Ok-01 passed";
@@ -252,14 +265,16 @@ void RunP1NumaCreateDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_numa_create_diff_node_ok_01";
     ubs_mem_numa_desc_t numaDesc{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc))
+        << "node 1 create " << name << " failed";
 
     // 清理
     ASSERT_IT_OK(sdk.MemNumaDelete(name)) << "node 1 delete " << name << " failed";
 
     auto& sdk2 = cluster.GetSdkClient("2");
     ubs_mem_numa_desc_t numaDesc2{};
-    ASSERT_IT_OK(sdk2.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc2)) << "node 2 create " << name << " failed";
+    ASSERT_IT_OK(sdk2.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc2))
+        << "node 2 create " << name << " failed";
 
     // 清理
     ASSERT_IT_OK(sdk2.MemNumaDelete(name)) << "node 2 delete " << name << " failed";
@@ -272,7 +287,8 @@ void RunP1NumaGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p1_numa_get_diff_node_ok_01";
     ubs_mem_numa_desc_t numaDesc{};
-    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)) << "node 1 create " << name << " failed";
+    ASSERT_IT_OK(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc))
+        << "node 1 create " << name << " failed";
 
     ubs_mem_numa_desc_t numaDescGet{};
     ASSERT_IT_OK(sdk.MemNumaGet(name, &numaDescGet)) << "node 1 get numa failed";
