@@ -521,7 +521,9 @@ MpResult PidFaultDecision::MakeDecisions(const std::string& faultNodeId, const s
                      << ") shrunk to demandKB=" << shrunkDemandKB << ", groupTasks=" << group.taskIds.size() << ".";
             PrintBorrowGroupDetail(plan.planId, group);
         } else {
-            // 缩量后仍无法分配: 本组全部NEW task本轮放弃（组字段已清空，task已从plan移除）
+            // 缩量后仍无法分配: 本组全部NEW task本轮放弃（组字段已清空，task已从plan移除），
+            // 标记容量不足供执行器归LACK_REMOTE_MEM错误（区别于节点不可达的IPC错误）
+            plan.capacityShortage = true;
             LOG_WARN << "Plan " << plan.planId << " group(socket=" << group.constraintSocketId
                      << ") no lendable numa fits (maxCapKB=" << maxCapKB << "), NEW tasks deferred this round.";
         }

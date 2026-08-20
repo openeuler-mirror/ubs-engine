@@ -26,13 +26,13 @@ namespace mempooling {
  * 一轮故障处理内可能同时出现多个错误（多借入节点/多task/多borrowId各有不同失败原因）。
  * 处理原则:
  * 1. 每个失败点都记录一条带上下文的FaultErrorRecord（code+detail），全部明细经
- *    JoinFaultErrorRecords拼入带关键字"[PidFaultErr]"的日志，供grep一键检索;
+ *    JoinFaultErrorRecords拼入带关键字"[OvercommitFaultErr]"的日志，供grep一键检索;
  * 2. 出口只能向RAS返回一个码，透传按时间序取最早记录的一条（先发生的错误往往是
  *    后续级联失败的根因，如借用失败早于迁移失败）。
  */
 
-// 统一日志关键字: grep "PidFaultErr" 可检索一轮处理的全部错误明细
-constexpr const char* kPidFaultErrTag = "[OvercommitFaultErr]";
+// 统一日志关键字: grep "OvercommitFaultErr" 可检索一轮处理的全部错误明细
+constexpr const char* kOvercommitFaultErrTag = "[OvercommitFaultErr]";
 
 // 单条错误记录: code为mp_error.h定义的故障码，detail携带失败主体与原因上下文
 struct FaultErrorRecord {
@@ -62,12 +62,12 @@ static inline bool IsDefinedFaultErrorCode(MpResult code) noexcept
     }
 }
 
-// 把错误记录列表拼成"[PidFaultErr] total=2 | {code=5 ...} | {code=1 ...}"形式，
+// 把错误记录列表拼成"[OvercommitFaultErr] total=2 | {code=5 ...} | {code=1 ...}"形式，
 // 一行日志看清本轮全部错误明细（含关键字与总数，供检索与快速定位）
 static inline std::string JoinFaultErrorRecords(const std::vector<FaultErrorRecord>& records)
 {
     std::ostringstream oss;
-    oss << kPidFaultErrTag << " total=" << records.size();
+    oss << kOvercommitFaultErrTag << " total=" << records.size();
     for (const auto& rec : records) {
         oss << " | {code=" << rec.code << " " << rec.detail << "}";
     }

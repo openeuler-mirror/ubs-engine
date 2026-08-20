@@ -352,6 +352,12 @@ MpResult PidFaultExecutor::ExecuteAll(const std::string& faultNodeId, std::vecto
             errRecords.push_back({MEM_POOLING_FAULT_IPC_ERROR, "node=" + plan.borrowInNodeId + " plan=" + plan.planId +
                                                                    " DEFER, borrow-in node unreachable"});
         }
+        if (plan.capacityShortage) {
+            // 决策阶段判定集群无新可借容量（BFD缩量后仍无numa可容纳），归借用内存不足错误
+            errRecords.push_back(
+                {MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR,
+                 "node=" + plan.borrowInNodeId + " plan=" + plan.planId + " capacity shortage, no lendable numa fits"});
+        }
     }
 
     // Phase A: master串行借用（避免多借入节点并行借用导致碎片化）

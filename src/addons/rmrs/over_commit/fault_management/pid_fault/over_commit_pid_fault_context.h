@@ -174,6 +174,8 @@ struct FaultExecutePlan {
     std::string planId;
     std::string borrowInNodeId;
     PlanType planType = PlanType::EXECUTE;
+    // 决策阶段BFD缩量后仍无借出numa可容纳（集群无新可借容量），执行器据此归LACK_REMOTE_MEM错误
+    bool capacityShortage = false;
 
     // 迁移任务组: NEW任务phase=NONE待master借用; RESUME任务phase>=BORROWED已带newBorrowId
     std::vector<MigrationTask> tasks;

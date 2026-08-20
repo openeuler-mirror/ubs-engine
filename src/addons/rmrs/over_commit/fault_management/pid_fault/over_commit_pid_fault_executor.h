@@ -37,7 +37,7 @@ public:
      * @param faultNodeId 故障节点ID
      * @param plans 执行计划列表（借用结果会写回NEW task）
      * @return MEM_POOLING_OK 全部成功; 否则每个失败点记录带上下文的错误明细
-     *         （全量入带关键字[PidFaultErr]的日志），并透传时间上最早的一条
+     *         （全量入带关键字[OvercommitFaultErr]的日志），并透传时间上最早的一条
      *         MEM_POOLING_FAULT_* 错误码（见over_commit_pid_fault_error_util.h）
      */
     MpResult ExecuteAll(const std::string& faultNodeId, std::vector<FaultExecutePlan>& plans);

@@ -159,6 +159,29 @@ TEST_F(TestPidFaultErrorCodeExecutor, ExecuteAll_DeferOnly_ReturnIpcError)
     EXPECT_EQ(ret, MEM_POOLING_FAULT_IPC_ERROR);
 }
 
+// ==================== P4-5: 容量不足(无新可借出节点) → n=4 LACK_REMOTE_MEM ====================
+
+/*
+ * 用例描述：决策阶段BFD缩量后仍无借出numa可容纳（集群无新可借容量），计划标记capacityShortage
+ * 前置条件：plan为EXECUTE类型但capacityShortage=true且无可下发task
+ * 步骤：ExecuteAll执行单个capacityShortage计划
+ * 预期：返回MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR（而非归为IPC错误）
+ */
+TEST_F(TestPidFaultErrorCodeExecutor, ExecuteAll_CapacityShortage_ReturnLackRemoteMemError)
+{
+    FaultExecutePlan plan;
+    plan.planId = "plan-cap";
+    plan.borrowInNodeId = "nodeC";
+    plan.planType = PlanType::EXECUTE;
+    plan.capacityShortage = true;
+
+    PidFaultExecutor executor;
+    std::vector<FaultExecutePlan> plans{plan};
+    MpResult ret = executor.ExecuteAll("node1", plans);
+
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+}
+
 // ==================== P4-3: 下发RPC失败 → n=1 IPC ====================
 
 /*

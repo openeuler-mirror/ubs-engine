@@ -49,7 +49,7 @@ public:
  * 用例描述：多错误并存时透传时序最早一条（先发生的往往是级联失败根因），明细可拼接检索
  * 前置条件：无
  * 步骤：构造不同时序的错误记录调用EarliestFaultErrorCode/JoinFaultErrorRecords
- * 预期：返回最早一条错误码；拼接串含关键字[PidFaultErr]、总数与逐条明细
+ * 预期：返回最早一条错误码；拼接串含关键字[OvercommitFaultErr]、总数与逐条明细
  */
 TEST_F(TestPidFaultErrorCodeCollector, FaultErrorRecords_EarliestPassthroughAndDetailJoin)
 {
@@ -75,9 +75,9 @@ TEST_F(TestPidFaultErrorCodeCollector, FaultErrorRecords_EarliestPassthroughAndD
     EXPECT_TRUE(IsDefinedFaultErrorCode(MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR));
     EXPECT_FALSE(IsDefinedFaultErrorCode(MEM_POOLING_ERROR));
 
-    // 明细拼接: 含关键字/总数/逐条明细，供grep "PidFaultErr"一键检索
+    // 明细拼接: 含关键字/总数/逐条明细，供grep "OvercommitFaultErr"一键检索
     std::string joined = JoinFaultErrorRecords(records);
-    EXPECT_NE(joined.find("[PidFaultErr]"), std::string::npos);
+    EXPECT_NE(joined.find("[OvercommitFaultErr]"), std::string::npos);
     EXPECT_NE(joined.find("total=2"), std::string::npos);
     EXPECT_NE(joined.find("task=t1 migrate failed"), std::string::npos);
 }
