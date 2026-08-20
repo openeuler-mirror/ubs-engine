@@ -46,7 +46,7 @@ void SetupSubHealthConfigMock(bool enable, const std::string& strategy, bool len
     bool en = enable;
     MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
         .stubs()
-        .with(eq(std::string(CONF_MEM_SECTION)), eq(std::string("subHealth.enable")), outBound(en))
+        .with(eq(std::string(CONF_MEM_SECTION)), eq(std::string("subHealthPenaltyEnabled")), outBound(en))
         .will(returnValue(UBSE_OK));
 
     std::string strat = strategy;
@@ -286,7 +286,7 @@ TEST_F(TestSchedulerRequest, GetParamOptTypeMismatch)
 // DISABLED 模式（enable=false）→ 不注入任何亚健康插件
 TEST_F(TestSchedulerRequest, SubHealthDisabledDoesNotInject)
 {
-    SetupSubHealthConfigMock(false, "weight", 1.0f, false);
+    SetupSubHealthConfigMock(false, "weight", false);
 
     UbseMemFdBorrowReq req{};
     req.requestNodeId = "1";
@@ -305,7 +305,7 @@ TEST_F(TestSchedulerRequest, SubHealthDisabledDoesNotInject)
 // EXCLUDE 模式 → 追加 SubHealthFilter，不追加 SubHealthScore
 TEST_F(TestSchedulerRequest, SubHealthExcludeInjectsFilterOnly)
 {
-    SetupSubHealthConfigMock(true, "exclude", 1.0f, false);
+    SetupSubHealthConfigMock(true, "exclude", false);
 
     UbseMemFdBorrowReq req{};
     req.requestNodeId = "1";
@@ -381,7 +381,7 @@ TEST_F(TestSchedulerRequest, SubHealthWeightAppliesToAddrBorrow)
     UbseMemAddrBorrowReq req{};
     req.requestNodeId = "1";
     req.importNodeId = "2";
-    UbseMemExportAddr addr{};
+    UbseMemAddrInfo addr{};
     addr.size = 128 * MB;
     req.exportAddrList = {addr};
 

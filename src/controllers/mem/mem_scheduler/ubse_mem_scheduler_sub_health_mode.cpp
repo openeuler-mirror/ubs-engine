@@ -59,8 +59,7 @@ SubHealthMode ResolveSubHealthModeFromConfig()
         UBSE_LOG_INFO << "Config ubse.memory.subHealthPenaltyEnabled=false, subHealth disabled";
         return SubHealthMode::DISABLED;
     }
-    // 亚健康仅适用于 1D 组网；CLOS 场景下即使配置 enable=true 也强制 disable。
-    // CLOS 的链路质量由 LocalPortDownFilter + RegionFilter 负责，亚健康数据链路不覆盖 CLOS。
+    // CLOS 组网由 LocalPortDownFilter + RegionFilter 负责链路质量，亚健康不覆盖。
     if (::ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
         UBSE_LOG_WARN << "Current topo is CLOS, subHealth disabled even though config enable=true";
         return SubHealthMode::DISABLED;

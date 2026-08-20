@@ -17,9 +17,7 @@
 
 namespace ubse::mem::scheduler {
 
-// 链路亚健康过滤插件（EXCLUDE 模式生效）。
-// 剔除当前处于亚健康的 socket 对；socket 被全部剔除的 node 一并移除。
-// fail-closed：IsSocketPairSubHealthy 返回 false（含查询失败/无数据）时视为健康，不剔除。
+// 链路亚健康过滤插件（EXCLUDE 模式生效）。剔除亚健康 socket 对；查询无结果时 fail-closed。
 class SubHealthFilter : public SchedulerFilter {
 public:
     UbseResult FilterNodes(std::vector<NodeInfo>& nodes, const SchedulerNodeManager& nodeInfo,

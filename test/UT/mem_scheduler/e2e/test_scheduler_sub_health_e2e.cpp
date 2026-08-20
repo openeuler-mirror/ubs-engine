@@ -41,7 +41,7 @@ UbseMemNumaBorrowImportObj MakeNumaObj(const std::string& name, uint64_t size)
     obj.req.requestNodeId = "1";
     obj.req.importNodeId = "1";
     obj.req.size = size;
-    obj.req.srcSocket = 0; // 有效 socket，走 IsSocketPairSubHealthy
+    obj.req.srcSocket = 36; // 有效 socket，走 IsSocketPairSubHealthy
     obj.status.state = UBSE_MEM_SCHEDULING;
     return obj;
 }

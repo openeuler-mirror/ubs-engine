@@ -21,11 +21,10 @@ UbseResult SubHealthScore::ScoreNodes(const std::vector<NodeInfo>& nodes, const 
 {
     (void)account;
     const auto importNodeId = request.requestNodeId_;
-    constexpr double SUB_HEALTHY_PENALTY = 1.0; // 固定惩罚基准分，影响强度由 wSubHealth 权重控制
+    constexpr double SUB_HEALTHY_PENALTY = 1.0;
 
     size_t idx = 0;
-    // importSocketId 有效（Numa 借用）→ 4 元组精确匹配；
-    // importSocketId 无效（FD/Addr 借用）→ 3 元组 host-export 匹配。
+    // Numa 借用有 importSocket 走 4 元组匹配；FD/Addr 借用走 3 元组 host-export 匹配。
     const bool hasImportSocket = request.importSocketId_ != static_cast<SocketId>(-1);
     for (const auto& node : nodes) {
         for (const auto& socketInfo : node.socketInfos) {

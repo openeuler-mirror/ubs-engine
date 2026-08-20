@@ -143,6 +143,18 @@ void TestSchedulerEndToEnd::SetupLenderBalanceConfig(bool enabled)
         .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(val))
         .will(returnValue(UBSE_OK));
 
+    bool subHealthEnableDefault = false;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("subHealthPenaltyEnabled")), outBound(subHealthEnableDefault))
+        .will(returnValue(UBSE_OK));
+
+    std::string subHealthStrategyDefault = "weight";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("subHealth.strategy")), outBound(subHealthStrategyDefault))
+        .will(returnValue(UBSE_OK));
+
     SchedulerImpl::GetInstance().ClearCache();
     SchedulerImpl::GetInstance().initialized_ = false;
     SchedulerImpl::GetInstance().Init();
@@ -237,7 +249,7 @@ void TestSchedulerEndToEnd::SetupSubHealthConfig(bool enable, const std::string&
     bool en = enable;
     MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
         .stubs()
-        .with(eq(std::string("ubse.memory")), eq(std::string("subHealth.enable")), outBound(en))
+        .with(eq(std::string("ubse.memory")), eq(std::string("subHealthPenaltyEnabled")), outBound(en))
         .will(returnValue(UBSE_OK));
 
     std::string strat = strategy;

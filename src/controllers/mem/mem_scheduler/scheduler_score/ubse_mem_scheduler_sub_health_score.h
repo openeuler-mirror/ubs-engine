@@ -17,10 +17,8 @@
 
 namespace ubse::mem::scheduler {
 
-// 链路亚健康评分插件（WEIGHT 模式生效）。
-// 健康 socket 评分为 0；亚健康 socket 评分为 1.0（固定正惩罚 cost）。
-// 亚健康影响强度完全由 wSubHealth 权重（0.10）控制，单一旋钮，无额外系数。
-// fail-closed：IsSocketPairSubHealthy 返回 false（含查询失败/无数据）时视为健康，评分为 0。
+// 链路亚健康评分插件（WEIGHT 模式生效）。健康 socket 评 0，亚健康 socket 评 1.0；
+// 影响强度由 wSubHealth 权重控制。查询无结果时 fail-closed 视为健康。
 class SubHealthScore : public SchedulerScore {
 public:
     UbseResult ScoreNodes(const std::vector<NodeInfo>& nodes, const SchedulerNodeManager& nodeInfo,

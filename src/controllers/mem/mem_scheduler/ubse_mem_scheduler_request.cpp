@@ -37,12 +37,8 @@ bool IsLenderBalanceEnabled()
     return lenderBalance;
 }
 
-// 根据 subHealthPenaltyEnabled / subHealth.strategy 向请求注入亚健康插件：
-// - EXCLUDE: 追加 SubHealthFilter（硬剔除亚健康链路）
-// - WEIGHT:  追加 SubHealthScore（亚健康权重 wSubHealth=0.10），非 lenderBalance 时切换为 WEIGHT 权重；
-//            lenderBalance 模式下保留 ForLenderBalance() 权重，SubHealthScore 以 0 权重运行
-// - DISABLED: 不注入
-// 亚健康影响强度完全由 wSubHealth 权重控制，无额外 penaltyFactor 系数。
+// 根据派生模式注入亚健康插件：EXCLUDE 追加 SubHealthFilter；WEIGHT 追加 SubHealthScore
+// 且在非 lenderBalance 模式下切换为 WEIGHT 权重。lenderBalance 模式下保留权重，SubHealthScore 以 0 权重运行。
 void ApplySubHealth(SchedulerRequest& req, bool lenderBalance)
 {
     auto mode = ResolveSubHealthModeFromConfig();
@@ -219,7 +215,7 @@ SchedulerRequest SchedulerRequest::FromAddrBorrowReq(const adapter_plugins::mmi:
     } else {
         schedulerReq.weights_ = ScoreWeights::ForBorrow();
     }
-    // Addr 借用不接入亚健康：无 importSocket 概念，亚健康判定不适用
+    ApplySubHealth(schedulerReq, lenderBalance);
     schedulerReq.requestMode_ = RequestMode::BORROW;
     schedulerReq.params_["isAddr"] = true;
 

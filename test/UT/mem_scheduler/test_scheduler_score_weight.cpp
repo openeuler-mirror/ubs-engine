@@ -12,7 +12,7 @@
 
 #include "test_scheduler_score_weight.h"
 
-#include "ubse_mem_scheduler_score_weight.h"
+#include "scheduler_score/ubse_mem_scheduler_score_weight.h"
 
 namespace ubse::mem::scheduler::ut {
 

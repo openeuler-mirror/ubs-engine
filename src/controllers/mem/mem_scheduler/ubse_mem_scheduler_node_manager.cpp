@@ -544,8 +544,6 @@ bool SchedulerNodeManager::IsFullyConnected() const
 bool SchedulerNodeManager::IsSocketPairSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
                                                   SocketId importSocketId, SocketId exportSocketId) const
 {
-    // 转发 UbseNodeController 查询。亚健康缓存由 node_controller 维护，
-    // 数据来源为数据注入链路（通过 RegSubHealthQueryHandler 或 UpdateSubHealthCache 推送）。
     return ::ubse::nodeController::UbseNodeController::GetInstance().IsSocketPairSubHealthy(
         importNodeId, exportNodeId, importSocketId, exportSocketId);
 }
@@ -553,8 +551,6 @@ bool SchedulerNodeManager::IsSocketPairSubHealthy(const NodeId& importNodeId, co
 bool SchedulerNodeManager::IsHostExportSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
                                                   SocketId exportSocketId) const
 {
-    // 转发 UbseNodeController 查询（host-export 粒度，不含 importSocket）。
-    // 用于 FD/Addr 借用场景：无 importSocket 概念，按 (importNode, exportNode, exportSocket) 匹配。
     return ::ubse::nodeController::UbseNodeController::GetInstance().IsHostExportSubHealthy(
         importNodeId, exportNodeId, exportSocketId);
 }

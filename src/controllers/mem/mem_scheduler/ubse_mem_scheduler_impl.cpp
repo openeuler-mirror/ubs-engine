@@ -115,10 +115,7 @@ UbseResult SchedulerImpl::Init()
     if (initialized_) {
         return UBSE_OK;
     }
-    // 由 subHealthPenaltyEnabled / subHealth.strategy 派生：DISABLED/EXCLUDE/WEIGHT
-    // 一次性解析并传给两个 manager，保证 filter/score 注册一致：
-    //   EXCLUDE → filterManager 注册 SubHealthFilter
-    //   WEIGHT  → scoreManager  注册 SubHealthScore
+    // 一次性解析 subHealthMode，保证 filter/score 注册一致。
     const SubHealthMode subHealthMode = ResolveSubHealthModeFromConfig();
     filterManager_->Init(subHealthMode);
     scoreManager_->Init(subHealthMode);

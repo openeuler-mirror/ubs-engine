@@ -52,13 +52,10 @@ public:
     SchedulerNumaInfo* GetNumaInfo(const NodeId& nodeId, NumaId numaId) const;
     SocketId GetSocketIdByNumaId(const NodeId& nodeId, NumaId numaId) const;
     bool IsFullyConnected() const;
-    // 查询 socket 对亚健康状态。转发 UbseNodeController::IsSocketPairSubHealthy。
-    // 参数顺序与 UbseNodeController 对齐：(importNode, exportNode, importSocket, exportSocket)。
-    // 用于 Numa 借用（importSocket 有效）；FD/Addr 借用请用 IsHostExportSubHealthy。
+    // 查询 socket 对亚健康状态，转发 UbseNodeController。用于 Numa 借用（importSocket 有效）。
     bool IsSocketPairSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
                                 SocketId importSocketId, SocketId exportSocketId) const;
-    // 查询借入节点到借出 Socket 是否存在亚健康链路。转发 UbseNodeController::IsHostExportSubHealthy。
-    // 不校验 importSocket，用于 FD/Addr 借用（无 importSocket 概念）。
+    // 查询借入节点到借出 Socket 是否存在亚健康链路，不含 importSocket。用于 FD/Addr 借用。
     bool IsHostExportSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
                                 SocketId exportSocketId) const;
     std::set<std::pair<NodeId, SocketId>> GetReachablePeers(const NodeId& nodeId) const;

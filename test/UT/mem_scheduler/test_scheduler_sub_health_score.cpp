@@ -17,7 +17,7 @@
 #include "ubse_mem_scheduler_account_manager.h"
 #include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_mem_scheduler_request.h"
-#include "ubse_mem_scheduler_sub_health_score.h"
+#include "scheduler_score/ubse_mem_scheduler_sub_health_score.h"
 
 namespace ubse::mem::scheduler::ut {
 

@@ -25,8 +25,7 @@ UbseResult SubHealthFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sche
         if (n.nodeId == importNodeId) {
             continue;
         }
-        // importSocketId 有效（Numa 借用）→ 4 元组精确匹配；
-        // importSocketId 无效（FD/Addr 借用）→ 3 元组 host-export 匹配。
+        // Numa 借用有 importSocket 走 4 元组匹配；FD/Addr 借用走 3 元组 host-export 匹配。
         const bool hasImportSocket = request.importSocketId_ != static_cast<SocketId>(-1);
         EraseSocketsIf(n.socketInfos, [&](const SocketInfo& socketInfo) {
             bool subHealthy = hasImportSocket
