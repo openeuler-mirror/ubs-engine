@@ -28,14 +28,12 @@ void SchedulerNumaInfo::Init(const UbseNumaInfo& ubseNumaInfo)
     numaId_ = ubseNumaInfo.location.numaId;
 }
 
-uint64_t SchedulerNumaInfo::GetAvailableLendSize(uint64_t waterLine, uint64_t blockSize) const
+uint64_t SchedulerNumaInfo::GetAvailableLendSize(uint64_t waterLine) const
 {
     uint64_t limit = memTotal_ * waterLine / MAX_PERCENT;
     uint64_t free = memUsed_ > limit ? 0 : limit - memUsed_;
     uint64_t reserve = (memLent_ + memShared_) > limit ? 0 : limit - (memLent_ + memShared_);
-    uint64_t available = std::min(free, reserve);
-    uint64_t block = blockSize == 0 ? 1 : blockSize;
-    return (available / block) * block;
+    return std::min(free, reserve);
 }
 
 } // namespace ubse::mem::scheduler

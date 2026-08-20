@@ -31,8 +31,6 @@ UbseResult FreeMemoryFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sch
             RecordWarning(std::string("GetNodeInfo failed, node=") + node.nodeId);
             continue;
         }
-        uint64_t blockSize = static_cast<uint64_t>(nodePtr->GetBlockSize()) * ONE_M;
-
         auto isFreeMemoryInsufficient = [&](const SocketInfo& socketInfo) {
             auto* socket = nodeInfo.GetSocketInfo(node.nodeId, socketInfo.socketId);
             if (socket == nullptr) {
@@ -40,7 +38,7 @@ UbseResult FreeMemoryFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sch
                               ", socket=" + std::to_string(socketInfo.socketId));
                 return true;
             }
-            uint64_t available = socket->GetAvailableLendSize(static_cast<uint64_t>(highWatermark), blockSize);
+            uint64_t available = socket->GetAvailableLendSize(static_cast<uint64_t>(highWatermark));
             if (available < requestSize) {
                 RecordReject(node.nodeId, std::string("socket=") + std::to_string(socketInfo.socketId) +
                                               " available=" + std::to_string(available / ONE_M) + "MB" +

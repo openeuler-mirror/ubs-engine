@@ -11,6 +11,7 @@
  */
 #include <algorithm>
 
+#include "ubse_math_util.h"
 #include "ubse_mem_scheduler_impl.h"
 #include "ubse_node_controller.h"
 
@@ -27,22 +28,22 @@ using NumaInfoPtr = SchedulerNumaInfo*;
 void FillFromNumaList(const std::vector<NumaInfoPtr>& numaList, const ScoredNode& node, const SchedulerRequest& request,
                       adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t& remaining)
 {
-    uint64_t blockSize = algoResult.blockSize * ONE_M;
+    uint64_t blockSize = 0;
+    if (!ubse::utils::SizeMb2Byte(algoResult.blockSize, blockSize)) {
+        blockSize = 1; // 转换溢出时退化为不按块对齐
+    }
     auto highWatermarkOpt = request.GetParamOpt<size_t>("highWatermark");
     uint64_t waterLine = static_cast<uint64_t>(highWatermarkOpt.value_or(MAX_PERCENT));
     for (const auto& numaInfo : numaList) {
         if (remaining == 0) {
             break;
         }
-        uint64_t available = numaInfo->GetAvailableLendSize(waterLine, blockSize);
+        uint64_t available = (numaInfo->GetAvailableLendSize(waterLine) / blockSize) * blockSize;
         if (available < blockSize) {
             continue;
         }
+        // requestSize_(remaining) 已按 blockSize 对齐，min 结果天然块对齐
         uint64_t borrowSize = std::min(available, remaining);
-        borrowSize = ((borrowSize + blockSize - 1) / blockSize) * blockSize;
-        if (borrowSize > available) {
-            borrowSize = (available / blockSize) * blockSize;
-        }
         UBSE_LOG_INFO << "Add algoResult export numaInfo, nodeId=" << node.nodeId << ", socketId=" << node.socketId
                       << ", numaId=" << numaInfo->GetNumaId() << ", borrowSize=" << borrowSize;
 
@@ -216,7 +217,10 @@ UbseResult SchedulerImpl::SelectNumaByLenderInfo(const SchedulerRequest& request
 {
     const NodeId importNodeId = request.importNodeId_;
 
-    uint64_t blockSize = algoResult.blockSize * ONE_M;
+    uint64_t blockSize = 0;
+    if (!ubse::utils::SizeMb2Byte(algoResult.blockSize, blockSize)) {
+        blockSize = 1; // 转换溢出时退化为不按块对齐
+    }
     uint64_t borrowSize = ((lenderInfo.lender_size + blockSize - 1) / blockSize) * blockSize;
     UBSE_LOG_INFO << "Add algoResult export numaInfo, nodeId=" << lenderInfo.nodeId
                   << ", socketId=" << algoResult.attachSocketId << ", numaId=" << lenderInfo.numaId
