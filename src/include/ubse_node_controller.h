@@ -380,6 +380,9 @@ public:
     // 当主节点出现主备切换，主降备场景下，旧主清理掉内存记录的其余节点信息
     void CleanAfterMasterSwitchRole();
 
+    // 分层选举场景下，当全局主发生倒换，清理内存中的非本机柜内的其余节点信息
+    void CleanAfterGlobalMasterSwitchRole();
+
     // 到主节点获取全量直连信息
     std::map<std::string, PhysicalLink> UbseGetDirConnectInfo();
     // 到主节点获取当前物理集群内，全量已部署的节点信息
