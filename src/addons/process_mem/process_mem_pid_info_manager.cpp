@@ -284,7 +284,7 @@ uint32_t ProcessMemPidInfoManager::ValidateProcMemTarget(const def::ProcessMemNe
         if (IsRootPid(pid)) {
             UBSE_LOG_ERROR << "SetProcMemConfig: PID " << pid
                            << " is a root process, not allowed (filter_root_process=true)";
-            return UBSE_ERR_INVALID_ARG;
+            return UBSE_ERR_ACCESS_DENIED;
         }
 
         outStartTime = startTime;

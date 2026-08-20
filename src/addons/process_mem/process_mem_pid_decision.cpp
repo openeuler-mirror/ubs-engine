@@ -43,7 +43,6 @@ constexpr uint64_t BYTES_PER_GB = 1073741824;
 constexpr uint64_t BYTES_PER_MB = 1048576;
 constexpr uint64_t MB_128 = 128;
 constexpr uint64_t RETURN_HEADROOM_BYTES = 5 * BYTES_PER_GB;
-constexpr uint64_t NORMAL_POLL_INTERVAL_MS = 1000;
 constexpr uint32_t kBorrowHighWatermark = 100;
 constexpr uint32_t kMaxReturnRetry = 100;
 constexpr int64_t kEmergencyBroadcastIntervalMs = 2000;
@@ -271,7 +270,8 @@ void ProcessMemPidDecision::LoadConfig()
     const std::string samePlaneKey = "borrow.must_same_plane";
     bool mustSamePlane = false;
     ubse::config::UbseGetBool(section, samePlaneKey, mustSamePlane);
-    // 配置语义: true=必须同平面(严格过滤); UbseMemBorrower.samePlanePrefer 语义相反: true=软优先
+    // Config semantics: true=must be same plane (strict filtering);
+    // UbseMemBorrower.samePlanePrefer is the opposite: true=soft preference
     samePlanePrefer_ = !mustSamePlane;
 }
 
@@ -394,8 +394,8 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     }
 
     uint64_t rawShortage = shortage;
-    uint64_t pendingBorrow = GetPendingBorrowTotal();
-    shortage = (shortage > pendingBorrow) ? (shortage - pendingBorrow) : 0;
+    uint64_t pendingMigrate = GetPendingMigrateTotal();
+    shortage = (shortage > pendingMigrate) ? (shortage - pendingMigrate) : 0;
 
     uint64_t initialShortage = shortage;
 
@@ -405,7 +405,7 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     auto candidates = BuildCandidates(roundNum);
     if (candidates.empty()) {
         UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " shortage_gb=" << BytesToGb(rawShortage)
-                      << " pending_gb=" << BytesToGb(pendingBorrow)
+                      << " pending_migrate_gb=" << BytesToGb(pendingMigrate)
                       << " borrowed_gb=0 slots=0 remaining_shortage_gb=" << BytesToGb(shortage)
                       << " dur_ms=0 (no candidates)";
         return;
@@ -418,7 +418,7 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     uint64_t borrowed = (shortage <= initialShortage) ? (initialShortage - shortage) : 0;
 
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " shortage_gb=" << BytesToGb(rawShortage)
-                  << " pending_gb=" << BytesToGb(pendingBorrow) << " borrowed_gb=" << BytesToGb(borrowed)
+                  << " pending_migrate_gb=" << BytesToGb(pendingMigrate) << " borrowed_gb=" << BytesToGb(borrowed)
                   << " remaining_shortage_gb=" << BytesToGb(shortage) << " dur_ms=" << durMs;
 }
 
@@ -450,7 +450,7 @@ bool ProcessMemPidDecision::CheckNodeFreeMemory(uint64_t& outShortage)
     auto freeBytes = GetNodeFreeBytes();
     if (!freeBytes.has_value()) {
         UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNumber_.load()
-                      << " read memAvailable failed, skip round decision";
+                      << " read local numa free failed, skip round decision";
         return false;
     }
     uint64_t totalFree = *freeBytes;
@@ -471,22 +471,36 @@ bool ProcessMemPidDecision::CheckNodeFreeMemory(uint64_t& outShortage)
     return true;
 }
 
-uint64_t ProcessMemPidDecision::GetPendingBorrowTotal() const
+uint64_t ProcessMemPidDecision::GetPendingMigrateTotal() const
 {
-    uint64_t total = 0;
+    // 预期远端总占用 = 借用账本中已下发的迁移量, 归还侧暂不参与扣减
+    uint64_t expected = 0;
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& s : entry.borrow.slots) {
-            if (s.status == def::BorrowSlotStatus::BORROWING) {
-                total += s.migratedBytes;
+            if (s.status == def::BorrowSlotStatus::BORROWING || s.status == def::BorrowSlotStatus::COMPLETED) {
+                expected += s.migratedBytes;
             }
         }
     }
-    return total;
+    // 真实远端占用来自采集快照; 两者差值即为在途迁移量(smap 尚未落地的部分)
+    auto usedKb = ReadRemoteNumaUsedKb();
+    if (!usedKb.has_value()) {
+        return 0;
+    }
+    uint64_t actual = *usedKb * 1024;
+    return (expected > actual) ? (expected - actual) : 0;
+}
+
+uint64_t ProcessMemPidDecision::GetUbseBlockSizeBytes()
+{
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
+    uint64_t blockSizeMb = (curNodeInfo.blockSize == 0) ? MB_128 : curNodeInfo.blockSize;
+    return blockSizeMb * BYTES_PER_MB;
 }
 
 CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
-                                    std::vector<def::BorrowCandidate>& candidates)
+                                    std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes)
 {
     if (entry.maxMemory == 0 || entry.remoteRatio <= 0.0) {
         return CandidateSkip::CAN_MIGRATE;
@@ -503,6 +517,8 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
     uint64_t targetRemote = static_cast<uint64_t>(entry.vmRss * entry.remoteRatio);
     uint64_t canMigrate = (targetRemote > entry.borrow.currentRemote) ? (targetRemote - entry.borrow.currentRemote) : 0;
     canMigrate = (canMigrate > pendingBorrow) ? (canMigrate - pendingBorrow) : 0;
+    // 分配量按 ubse blockSize 粒度向下取整; ==0 保护用于满足 G.INT.03 静态检查(检查器不做跨函数分析)
+    canMigrate = (blockSizeBytes == 0) ? canMigrate : (canMigrate / blockSizeBytes) * blockSizeBytes;
     if (canMigrate == 0) {
         return CandidateSkip::CAN_MIGRATE;
     }
@@ -537,9 +553,10 @@ std::vector<def::BorrowCandidate> ProcessMemPidDecision::BuildCandidates(uint64_
 
     std::vector<def::BorrowCandidate> candidates;
     size_t skipCanMigrate = 0;
+    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
 
     for (const auto& [pid, entry] : cacheSnapshot) {
-        auto skip = AppendBorrowCandidate(pid, entry, candidates);
+        auto skip = AppendBorrowCandidate(pid, entry, candidates, blockSizeBytes);
         if (skip == CandidateSkip::CAN_MIGRATE) {
             ++skipCanMigrate;
         }
@@ -571,7 +588,7 @@ std::vector<def::BorrowCandidate> ProcessMemPidDecision::BuildCandidates(uint64_
 
     UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum
                    << " step=candidates total_managed=" << cacheSnapshot.size() << " eligible=" << candidates.size()
-                   << " skip_canmigrate=" << skipCanMigrate;
+                   << " skip_canmigrate=" << skipCanMigrate << " block_size_mb=" << (blockSizeBytes / BYTES_PER_MB);
 
     LogBorrowCandidates(roundNum, candidates);
     return candidates;
@@ -611,13 +628,19 @@ void ProcessMemPidDecision::ExecuteBorrowRound(const std::vector<def::BorrowCand
                                                uint64_t roundNum, bool emergency)
 {
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
+    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
 
     for (const auto& candidate : candidates) {
         if (shortage == 0) {
             break;
         }
 
+        // 向上取整到 blockSize: 缺口不足一个block时仍按整块迁移, 只要pid内存够就多迁一部分, shortage允许多减;
         uint64_t amount = std::min(candidate.canMigrate, shortage);
+        amount = (blockSizeBytes == 0) ? amount : ((amount + blockSizeBytes - 1) / blockSizeBytes) * blockSizeBytes;
+        if (amount == 0) {
+            break;
+        }
 
         int srcNumaId = CollectSrcNuma(candidate.pid, roundNum);
 
@@ -642,7 +665,7 @@ void ProcessMemPidDecision::ExecuteBorrowRound(const std::vector<def::BorrowCand
             TraceContext::Clear();
         });
 
-        shortage -= amount;
+        shortage = (amount >= shortage) ? 0 : (shortage - amount);
     }
 }
 
@@ -689,8 +712,8 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                 return;
             }
         }
-        BuildMigrateTargets(newBorrow, increments, numaTargets);
-        if (numaTargets.empty() || RmrsMigrateToNumas(pid, numaTargets) != 0) {
+        BuildMigrateTargets(newBorrow, increments, numaTargets, pid, debtId);
+        if (numaTargets.empty() || RmrsMigrateToNumas(pid, debtId, numaTargets) != 0) {
             result = def::AtomicMigrateResult::kFail;
             return;
         }
@@ -811,7 +834,8 @@ bool ProcessMemPidDecision::CreateNumaDebt(pid_t pid, uint64_t need, int srcNuma
 
 void ProcessMemPidDecision::BuildMigrateTargets(const def::BorrowState& borrow,
                                                 const std::map<int, uint64_t>& increments,
-                                                std::vector<std::pair<int, uint64_t>>& numaTargets)
+                                                std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid,
+                                                const std::string& debtId)
 {
     numaTargets.clear();
     constexpr uint64_t pageSizeBytes = 4 * 1024;
@@ -829,7 +853,8 @@ void ProcessMemPidDecision::BuildMigrateTargets(const def::BorrowState& borrow,
         }
         numaTargets.emplace_back(numaId, alignedBytes);
         auto incIt = increments.find(numaId);
-        UBSE_LOG_INFO << "[process_mem] numa_target_migrate numa=" << numaId << " target_gb=" << BytesToGbDouble(target)
+        UBSE_LOG_INFO << "[process_mem] numa_target_migrate pid=" << pid << " debt_id=" << debtId << " numa=" << numaId
+                      << " target_gb=" << BytesToGbDouble(target)
                       << " increment_gb=" << BytesToGbDouble(incIt != increments.end() ? incIt->second : 0);
     }
 }
@@ -879,15 +904,17 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
                   << " numa_target_migrate";
 }
 
-int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets)
+int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
+                                              const std::vector<std::pair<int, uint64_t>>& numaTargets)
 {
     std::vector<mempooling::smap::MigrateOutPayload> payloads{};
     mempooling::smap::MigrateOutPayload payload{};
     constexpr size_t kMaxInner = static_cast<size_t>(mempooling::smap::REMOTE_NUMA_NUM);
     size_t innerCount = std::min(numaTargets.size(), kMaxInner);
     if (numaTargets.size() > kMaxInner) {
-        UBSE_LOG_WARN << "[process_mem] borrow pid=" << pid << " numa_targets=" << numaTargets.size()
-                      << " exceed inner capacity " << kMaxInner << ", truncated";
+        UBSE_LOG_WARN << "[process_mem] borrow pid=" << pid << " debt_id=" << debtId
+                      << " numa_targets=" << numaTargets.size() << " exceed inner capacity " << kMaxInner
+                      << ", truncated";
     }
     for (size_t i = 0; i < innerCount; ++i) {
         mempooling::smap::MigrateOutPayloadInner inner{};
@@ -895,14 +922,16 @@ int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::vector<std::
         inner.memSize = numaTargets[i].second / 1024; // smap 期望 KB, 输入为字节
         inner.destNid = numaTargets[i].first;
         payload.inner[i] = inner;
-        UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << " dest_numa=" << inner.destNid
-                      << " mem_size_kb=" << inner.memSize << " src_bytes=" << numaTargets[i].second;
+        UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << " debt_id=" << debtId
+                      << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
+                      << " src_bytes=" << numaTargets[i].second;
     }
     payload.count = static_cast<int>(innerCount);
     payload.pid = pid;
     payloads.push_back(payload);
     if (!pid::bridge::ProcessMemPidBridge::rmrsMigrateOut) {
-        UBSE_LOG_ERROR << "[process_mem] borrow pid=" << pid << " rmrsMigrateOut not loaded, skip migrate";
+        UBSE_LOG_ERROR << "[process_mem] borrow pid=" << pid << " debt_id=" << debtId
+                       << " rmrsMigrateOut not loaded, skip migrate";
         return -1;
     }
     return pid::bridge::ProcessMemPidBridge::rmrsMigrateOut(payloads, 0);
@@ -976,32 +1005,27 @@ bool ProcessMemPidDecision::CheckPidTimeoutSlots(pid_t pid, def::BorrowState& bo
 
 std::optional<uint64_t> ProcessMemPidDecision::GetNodeFreeBytes()
 {
-    auto memAvailableKb = ReadMemAvailableKb();
-    if (!memAvailableKb.has_value()) {
+    auto freeKb = ReadLocalNumaFreeKb();
+    if (!freeKb.has_value()) {
         return std::nullopt;
     }
-    return *memAvailableKb * 1024;
+    return *freeKb * 1024;
 }
 
-std::optional<uint64_t> ProcessMemPidDecision::ReadMemAvailableKb()
+std::optional<uint64_t> ProcessMemPidDecision::ReadLocalNumaFreeKb()
 {
-    if (memAvailableReader) {
-        return memAvailableReader();
+    if (localNumaFreeKbReader) {
+        return localNumaFreeKbReader();
     }
-    std::ifstream meminfo("/proc/meminfo");
-    std::string line;
-    while (std::getline(meminfo, line)) {
-        if (line.rfind("MemAvailable:", 0) == 0) {
-            std::istringstream iss(line);
-            std::string key;
-            uint64_t kb = 0;
-            if (iss >> key >> kb) {
-                return kb;
-            }
-            return std::nullopt;
-        }
+    return collect::ProcessMemPidCollect::GetInstance().GetLocalNumaFreeKb();
+}
+
+std::optional<uint64_t> ProcessMemPidDecision::ReadRemoteNumaUsedKb() const
+{
+    if (remoteNumaUsedKbReader) {
+        return remoteNumaUsedKbReader();
     }
-    return std::nullopt;
+    return collect::ProcessMemPidCollect::GetInstance().GetRemoteNumaUsedKb();
 }
 
 void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency)
@@ -1114,8 +1138,8 @@ void ProcessMemPidDecision::RunReturnDebt(pid_t pid, def::ReturnRequestItem item
     }
 
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name, def::ReturnStatus::NONE);
-    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
-                   << " failed (ret=" << ret << "), retry later";
+    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                   << " debt_id=" << item.name << " failed (ret=" << ret << "), retry later";
     uint32_t retryCount = 0;
     RetryReturnEnqueue(retryCount, [this, pid, item, scene]() { return EnqueueReturnDebt(pid, item, scene); });
 }
@@ -1126,11 +1150,12 @@ uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnReq
     if (scene == ReturnScene::TIMEOUT) {
         auto delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
         if (delRet == UBSE_OK || delRet == UBSE_ERR_NOT_EXIST) {
-            UBSE_LOG_INFO << "[process_mem] return timeout debt_id=" << item.name
+            UBSE_LOG_INFO << "[process_mem] return timeout pid=" << pid << " debt_id=" << item.name
                           << " amount_gb=" << BytesToGbDouble(item.size) << " ubse_return_ok ubse_ret=" << delRet;
             return UBSE_OK;
         }
-        UBSE_LOG_WARN << "[process_mem] return timeout debt_id=" << item.name << " ubse delete failed ret=" << delRet;
+        UBSE_LOG_WARN << "[process_mem] return timeout pid=" << pid << " debt_id=" << item.name
+                      << " ubse delete failed ret=" << delRet;
         return delRet;
     }
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name,
@@ -1142,8 +1167,8 @@ uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnReq
     }
     auto nodeFreeOpt = GetNodeFreeBytes();
     if (!nodeFreeOpt.has_value()) {
-        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
-                      << " read memAvailable failed, retry later";
+        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                      << " debt_id=" << item.name << " read local numa free failed, retry later";
         return UBSE_ERROR;
     }
     return ReturnOneDebt(item, *nodeFreeOpt);
@@ -1232,7 +1257,7 @@ bool ProcessMemPidDecision::ReturnOnePidDebt(pid_t pid, const ubse::mem::control
     auto ret = ReturnDebtUnified(pid, item, ReturnScene::EXITED);
     if (ret != UBSE_OK) {
         ++failCount;
-        UBSE_LOG_WARN << "[process_mem] return exited debt_id=" << debt.name << " failed ret=" << ret;
+        UBSE_LOG_WARN << "[process_mem] return exited pid=" << pid << " debt_id=" << debt.name << " failed ret=" << ret;
         return false;
     }
     ++freedCount;
@@ -1541,6 +1566,10 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
             if (slot.returnStatus == def::ReturnStatus::RETURNING) {
                 continue; // 归还流程收尾，避免并发双删
             }
+            // 借用中: 债务可能尚未创建/账本尚未可见, 误删会中止借入, 由超时检查兜底清理
+            if (slot.status == def::BorrowSlotStatus::BORROWING) {
+                continue;
+            }
             if (ledgerNames.count(slot.debtId) == 0) {
                 vanished.push_back(slot.debtId);
             }
@@ -1624,8 +1653,8 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
             continue;
         }
         std::vector<std::pair<int, uint64_t>> numaTargets;
-        BuildMigrateTargets(it->second.borrow, {}, numaTargets);
-        int ret = RmrsMigrateToNumas(pid, numaTargets);
+        BuildMigrateTargets(it->second.borrow, {}, numaTargets, pid, "");
+        int ret = RmrsMigrateToNumas(pid, "", numaTargets);
         UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued targets=" << numaTargets.size()
                       << " ret=" << ret;
     }
@@ -1687,7 +1716,7 @@ uint32_t ProcessMemPidDecision::ReturnOneDebt(const def::ReturnRequestItem& item
         }
     }
     if (migrateBytes != item.size) {
-        UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
+        UBSE_LOG_INFO << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
                       << " migrate_size_gb=" << BytesToGbDouble(migrateBytes)
                       << " debt_size_gb=" << BytesToGbDouble(item.size);
     }
@@ -1699,32 +1728,34 @@ uint32_t ProcessMemPidDecision::ReturnDebtByUbse(pid_t pid, const def::ReturnReq
 {
     auto delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
     if (delRet == UBSE_OK || delRet == UBSE_ERR_NOT_EXIST) {
-        UBSE_LOG_INFO << "[process_mem] return debt_id=" << item.name << " amount_gb=" << BytesToGbDouble(item.size)
-                      << " ubse_return_ok ubse_ret=" << delRet;
+        UBSE_LOG_INFO << "[process_mem] return pid=" << pid << " debt_id=" << item.name
+                      << " amount_gb=" << BytesToGbDouble(item.size) << " ubse_return_ok ubse_ret=" << delRet;
         ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturned(pid, item.name, item.size);
         return UBSE_OK;
     }
-    UBSE_LOG_WARN << "[process_mem] return debt_id=" << item.name << " ubse delete failed ret=" << delRet;
+    UBSE_LOG_WARN << "[process_mem] return pid=" << pid << " debt_id=" << item.name
+                  << " ubse delete failed ret=" << delRet;
     return delRet;
 }
 
 uint32_t ProcessMemPidDecision::ReturnDebtUnified(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene)
 {
     if (!pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate) {
-        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
-                      << " rmrsFreeWithMigrate not loaded, fallback to ubse return";
+        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                      << " debt_id=" << item.name << " rmrsFreeWithMigrate not loaded, fallback to ubse return";
         return ReturnDebtByUbse(pid, item);
     }
     // 优先 rmrsFree: 完整归还(借用块数据同 numa 搬迁到 spare + 释放块 + 删 ubse 债务)
     auto freeRet = pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(item.name);
     if (freeRet == MEM_POOLING_HANDLING_FAULT) {
         // 远端 numa 处于故障处理(reboot/BMC 下电/OS panic)中, 故障处理完成锁释放后可重试
-        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
-                      << " rmrs free blocked by fault handling ret=" << freeRet << ", retry later";
+        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                      << " debt_id=" << item.name << " rmrs free blocked by fault handling ret=" << freeRet
+                      << ", retry later";
         return freeRet;
     }
     // 其余错误码(含成功/进程删除/迁移失败等)统一 fallback 到 ubse 内存归还接口收尾(幂等)
-    UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
+    UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid << " debt_id=" << item.name
                   << " rmrs_free_ret=" << freeRet << ", fallback to ubse return";
     return ReturnDebtByUbse(pid, item);
 }
@@ -1734,12 +1765,12 @@ uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRe
 {
     auto backRet = ReturnDebtUnified(pid, item, scene);
     if (backRet != UBSE_OK) {
-        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
-                      << " migrate failed ret=" << backRet;
+        UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                      << " debt_id=" << item.name << " migrate failed ret=" << backRet;
         return backRet;
     }
 
-    UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
+    UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid << " debt_id=" << item.name
                   << " amount_gb=" << BytesToGbDouble(item.size) << " rmrs_free (本地充裕)";
     nodeFree += item.size;
     return UBSE_OK;
@@ -1813,12 +1844,12 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
     int migrateRet = MigrateDebtRemoteToRemote(pid, ctx.oldRemoteNuma, newRemoteNuma, migrateBytes);
     if (migrateRet != 0) {
         auto delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(newDebtId);
-        UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << item.name
+        UBSE_LOG_WARN << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
                       << " remote_to_remote failed ret=" << migrateRet << " keep old lender"
                       << " new_debt_id=" << newDebtId << " ubse_return ubse_ret=" << delRet;
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
+    UBSE_LOG_INFO << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
                   << " remote_to_remote migrated ok old_remote_numa=" << ctx.oldRemoteNuma
                   << " new_remote_numa=" << newRemoteNuma << " new_debt_id=" << newDebtId
                   << " migrate_gb=" << BytesToGbDouble(migrateBytes);
@@ -1992,56 +2023,33 @@ uint32_t ProcessMemPidDecision::OomPollOnce()
 {
     OomRearrangeMigrated();
     uint64_t roundNum = oomRoundNumber_.fetch_add(1) + 1;
-    auto memAvailableOpt = ReadMemAvailableKb();
     auto nodeFreeOpt = GetNodeFreeBytes();
-    if (!memAvailableOpt.has_value() || !nodeFreeOpt.has_value()) {
-        UBSE_LOG_WARN << "[process_mem] oom detector: read memAvailable failed, skip round";
-        return NORMAL_POLL_INTERVAL_MS;
+    if (!nodeFreeOpt.has_value()) {
+        UBSE_LOG_WARN << "[process_mem] oom detector oom_round=" << roundNum
+                      << ": read local numa free failed, skip round";
+        return fastPollIntervalMs_;
     }
-    uint64_t memAvailableBytes = *memAvailableOpt * 1024;
-    uint64_t detectThresholdBytes = freeMemoryThresholdBytes_ * 3;
     uint64_t nodeFree = *nodeFreeOpt;
 
-    if (memAvailableBytes < detectThresholdBytes) {
-        if (!oomFastPoll_) {
-            oomFastWindowCount_ = 0;
-            oomFastWindowMin_ = 0;
-        }
-        oomFastPoll_ = true;
-        UBSE_LOG_INFO << "[process_mem] oom detector: fast poll enabled (MemAvailable="
-                      << BytesToGbDouble(memAvailableBytes) << "GB < detect=" << BytesToGbDouble(detectThresholdBytes)
-                      << "GB)";
+    UpdateOomFastWindow(roundNum, nodeFree);
 
-        UpdateOomFastWindow(nodeFree);
-
-        if (memAvailableBytes < emergencyThresholdBytes_) {
-            OomEmergencyBorrow(roundNum, nodeFree);
-            auto now = std::chrono::steady_clock::now();
-            auto sinceLast =
-                std::chrono::duration_cast<std::chrono::milliseconds>(now - lastEmergencyBroadcast_).count();
-            if (sinceLast >= kEmergencyBroadcastIntervalMs) {
-                BroadcastPassiveReturn(roundNum, nodeFree, true);
-                lastEmergencyBroadcast_ = now;
-            }
+    if (nodeFree < emergencyThresholdBytes_) {
+        OomEmergencyBorrow(roundNum, nodeFree);
+        auto now = std::chrono::steady_clock::now();
+        auto sinceLast = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastEmergencyBroadcast_).count();
+        if (sinceLast >= kEmergencyBroadcastIntervalMs) {
+            BroadcastPassiveReturn(roundNum, nodeFree, true);
+            lastEmergencyBroadcast_ = now;
         }
-    } else {
-        oomFastPoll_ = false;
-        oomFastWindowCount_ = 0;
-        oomFastWindowMin_ = 0;
-        UBSE_LOG_INFO << "[process_mem] oom detector: fast poll disabled (MemAvailable="
-                      << BytesToGbDouble(memAvailableBytes) << "GB >= detect=" << BytesToGbDouble(detectThresholdBytes)
-                      << "GB)";
     }
 
-    UBSE_LOG_DEBUG << "[process_mem] oom detector heartbeat: MemAvailable=" << BytesToGbDouble(memAvailableBytes)
-                   << "GB detect=" << BytesToGbDouble(detectThresholdBytes)
-                   << "GB emergency=" << BytesToGbDouble(emergencyThresholdBytes_)
-                   << "GB poll=" << (oomFastPoll_ ? "fast" : "normal");
-
-    return oomFastPoll_ ? fastPollIntervalMs_ : NORMAL_POLL_INTERVAL_MS;
+    UBSE_LOG_DEBUG << "[process_mem] oom detector heartbeat oom_round=" << roundNum
+                   << " LocalNumaFree=" << BytesToGbDouble(nodeFree)
+                   << "GB emergency=" << BytesToGbDouble(emergencyThresholdBytes_) << "GB";
+    return fastPollIntervalMs_;
 }
 
-void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t nodeFree)
+void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t roundNum, uint64_t nodeFree)
 {
     if (oomFastWindowCount_ == 0) {
         oomFastWindowMin_ = nodeFree;
@@ -2050,8 +2058,8 @@ void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t nodeFree)
     }
     ++oomFastWindowCount_;
     if (oomFastWindowCount_ >= observeCycles_) {
-        UBSE_LOG_DEBUG << "[process_mem] oom active window settle: samples=" << oomFastWindowCount_
-                       << " min_gb=" << BytesToGbDouble(oomFastWindowMin_)
+        UBSE_LOG_DEBUG << "[process_mem] oom active window settle oom_round=" << roundNum
+                       << " samples=" << oomFastWindowCount_ << " min_gb=" << BytesToGbDouble(oomFastWindowMin_)
                        << " threshold_gb=" << BytesToGbDouble(freeMemoryThresholdBytes_);
         if (oomFastWindowMin_ > freeMemoryThresholdBytes_) {
             OomActiveReturn(oomFastWindowMin_);
@@ -2067,8 +2075,8 @@ void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeF
         return;
     }
     uint64_t shortage = freeMemoryThresholdBytes_ - nodeFree;
-    uint64_t pendingBorrow = GetPendingBorrowTotal();
-    shortage = (shortage > pendingBorrow) ? (shortage - pendingBorrow) : 0;
+    uint64_t pendingMigrate = GetPendingMigrateTotal();
+    shortage = (shortage > pendingMigrate) ? (shortage - pendingMigrate) : 0;
 
     auto candidates = BuildCandidates(roundNum);
     if (candidates.empty()) {

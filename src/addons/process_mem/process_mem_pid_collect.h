@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <shared_mutex>
@@ -59,6 +60,10 @@ public:
 
     uint32_t CollectProcessNumaMemDistribution(pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution);
 
+    std::optional<uint64_t> GetLocalNumaFreeKb();
+
+    std::optional<uint64_t> GetRemoteNumaUsedKb();
+
 #ifdef UB_ENVIRONMENT
     void SetCollectVmRssOverride(std::function<void(PidCollectInfoMap&, uint64_t)> fn);
 #endif
@@ -78,6 +83,8 @@ private:
 
     void CollectChildProcesses(uint64_t roundNum, const std::set<pid_t>& curPids);
 
+    void CollectNodeFreeMemory(uint64_t roundNum);
+
     std::set<pid_t> lastPidSet_{};
 
     ubse::task_executor::UbseTaskExecutorPtr collectExecutor_{};
@@ -92,6 +99,10 @@ private:
 
     std::unordered_map<std::string, VmRssCollectHandler> vmRssHandlers_{};
     std::shared_mutex vmRssHandlersMutex_{};
+
+    std::optional<uint64_t> localNumaFreeKbSnapshot_{};
+    std::optional<uint64_t> remoteNumaUsedKbSnapshot_{};
+    std::mutex numaSnapshotMutex_{};
 
 #ifdef UB_ENVIRONMENT
     std::function<void(PidCollectInfoMap&, uint64_t)> collectVmRssOverride_{};

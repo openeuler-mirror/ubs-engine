@@ -73,9 +73,9 @@ UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo)
                       << ", will use default value: true";
         ubseNodeInfo.isLender = true;
     }
-    // 读取 node_max_lend_gb 配置，各节点独立上报，由 master 侧 scheduler 汇聚
-    // 范围 [0, 65535] GB，0 = 不限制；越界回退 0（不限制）
-    const std::string nodeMaxLendKey = "scheduler.node_max_lend_gb";
+    // Read the per-node lending limit. Each node reports its own value, aggregated on the master scheduler side.
+    // Range [0, 65535] GB, 0 = unlimited; out of range falls back to 0 (unlimited)
+    const std::string nodeMaxLendKey = "scheduler.node_lending_limit";
     uint32_t nodeMaxLendGb = 0;
     ret = confModule->GetConf<uint32_t>(IS_LENDER_SECTION, nodeMaxLendKey, nodeMaxLendGb);
     constexpr uint32_t maxNodeMaxLendGb = 65535;
