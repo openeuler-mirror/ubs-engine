@@ -38,6 +38,10 @@ public:
     RequestMode requestMode_{RequestMode::BORROW};
     NodeId requestNodeId_{};
     NodeId importNodeId_{};
+    // 借用方（import）接收内存的 socket。NumaBorrow 从 req.srcSocket 填入；
+    // FdBorrow/AddrBorrow 无此信息，留默认无效值 static_cast<SocketId>(-1)。
+    // 用于亚健康链路判定（与同事 LinkKey 的 importSocket 对齐）。
+    SocketId importSocketId_{static_cast<SocketId>(-1)};
     uint64_t requestSize_{0};
     std::vector<NodeId> provideNodes_;
     bool checkMode_{false}; // true: 单节点校验模式 (Filter 链输出空列表即失败)

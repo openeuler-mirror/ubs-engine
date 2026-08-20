@@ -23,6 +23,7 @@
 #include "ubse_mem_types.h"
 #include "ubse_noncopyable.h"
 #include "scheduler_filter/ubse_mem_scheduler_filter.h"
+#include "ubse_mem_scheduler_sub_health_mode.h"
 
 namespace ubse::mem::scheduler {
 
@@ -35,7 +36,9 @@ public:
     }
     ~SchedulerFilterManager();
 
-    UbseResult Init();
+    // mode 由 SchedulerImpl 一次性解析并传入，保证 filter/score 注册一致性。
+    //   EXCLUDE → 注册 SubHealthFilter；WEIGHT/DISABLED → 不注册。
+    UbseResult Init(SubHealthMode mode);
     void RegisterFilter(std::unique_ptr<SchedulerFilter> filter);
 
     UbseResult FilterNodes(std::vector<NodeInfo>& nodes, const SchedulerRequest& request);

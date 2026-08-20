@@ -22,6 +22,7 @@
 #include "scheduler_score/ubse_mem_scheduler_region_balance_score.h"
 #include "scheduler_score/ubse_mem_scheduler_reliability_balance_score.h"
 #include "scheduler_score/ubse_mem_scheduler_share_reliability_score.h"
+#include "scheduler_score/ubse_mem_scheduler_sub_health_score.h"
 
 namespace ubse::mem::scheduler {
 
@@ -33,7 +34,7 @@ SchedulerScoreManager::SchedulerScoreManager(SchedulerNodeManager* node, Schedul
 {
 }
 
-UbseResult SchedulerScoreManager::Init()
+UbseResult SchedulerScoreManager::Init(SubHealthMode mode)
 {
     RegisterScore(std::make_unique<LatencyScore>());
     RegisterScore(std::make_unique<RegionBalanceScore>());
@@ -42,7 +43,11 @@ UbseResult SchedulerScoreManager::Init()
     RegisterScore(std::make_unique<BorrowReliabilityScore>());
     RegisterScore(std::make_unique<ShareReliabilityScore>());
     RegisterScore(std::make_unique<DivideNumaScore>());
-    UBSE_LOG_INFO << "Register scores: " << scoreMap_.size();
+    // WEIGHT 模式才注册：亚健康以权重形式参与评分（wSubHealth=0.10）
+    if (mode == SubHealthMode::WEIGHT) {
+        RegisterScore(std::make_unique<SubHealthScore>());
+    }
+    UBSE_LOG_INFO << "Register scores: " << scoreMap_.size() << ", subHealthMode=" << static_cast<int>(mode);
     return UBSE_OK;
 }
 
@@ -84,6 +89,9 @@ double SchedulerScoreManager::GetWeightFor(const std::string& name, const ScoreW
     }
     if (name == "DivideNumaScore") {
         return weights.wDivideNuma;
+    }
+    if (name == "SubHealthScore") {
+        return weights.wSubHealth;
     }
     return 0.0;
 }

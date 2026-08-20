@@ -16,6 +16,7 @@
 #include "ubse_logger.h"
 #include "ubse_math_util.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
+#include "ubse_mem_scheduler_sub_health_mode.h"
 
 namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
@@ -34,6 +35,29 @@ bool IsLenderBalanceEnabled()
     bool lenderBalance = false;
     confModule->GetConf<bool>(CONF_MEM_SECTION, CONF_LENDER_BALANCE, lenderBalance);
     return lenderBalance;
+}
+
+// 根据 subHealthPenaltyEnabled / subHealth.strategy 向请求注入亚健康插件：
+// - EXCLUDE: 追加 SubHealthFilter（硬剔除亚健康链路）
+// - WEIGHT:  追加 SubHealthScore（亚健康权重 wSubHealth=0.10），非 lenderBalance 时切换为 WEIGHT 权重；
+//            lenderBalance 模式下保留 ForLenderBalance() 权重，SubHealthScore 以 0 权重运行
+// - DISABLED: 不注入
+// 亚健康影响强度完全由 wSubHealth 权重控制，无额外 penaltyFactor 系数。
+void ApplySubHealth(SchedulerRequest& req, bool lenderBalance)
+{
+    auto mode = ResolveSubHealthModeFromConfig();
+    if (mode == SubHealthMode::DISABLED) {
+        return;
+    }
+    if (mode == SubHealthMode::EXCLUDE) {
+        req.filterNames_.emplace_back("SubHealthFilter");
+        return;
+    }
+    // WEIGHT
+    req.scoreNames_.emplace_back("SubHealthScore");
+    if (!lenderBalance) {
+        req.weights_ = ScoreWeights::ForBorrow(SubHealthMode::WEIGHT);
+    }
 }
 
 } // namespace
@@ -76,12 +100,14 @@ SchedulerRequest SchedulerRequest::FromFdBorrowReq(const adapter_plugins::mmi::U
     schedulerReq.scoreNames_ = {
         "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
     };
-    if (IsLenderBalanceEnabled()) {
+    bool lenderBalance = IsLenderBalanceEnabled();
+    if (lenderBalance) {
         schedulerReq.scoreNames_[3] = "ReliabilityBalanceScore";
         schedulerReq.weights_ = ScoreWeights::ForLenderBalance();
     } else {
         schedulerReq.weights_ = ScoreWeights::ForBorrow();
     }
+    ApplySubHealth(schedulerReq, lenderBalance);
     schedulerReq.requestMode_ = RequestMode::BORROW;
 
     return schedulerReq;
@@ -94,6 +120,10 @@ SchedulerRequest SchedulerRequest::FromNumaBorrowReq(const adapter_plugins::mmi:
     schedulerReq.importNodeId_ = req.importNodeId;
     schedulerReq.requestNodeId_ = req.requestNodeId;
     schedulerReq.requestSize_ = req.size;
+    // srcSocket=-1 表示无效，转成 SocketId 类型的无效值（与 SchedulerRequest 默认值一致）
+    schedulerReq.importSocketId_ = req.srcSocket >= 0
+        ? static_cast<SocketId>(req.srcSocket)
+        : static_cast<SocketId>(-1);
     size_t highWatermark = req.highWatermark;
     if (highWatermark > MAX_PERCENT) {
         UBSE_LOG_WARN << "highWatermark=" << highWatermark << " exceeds MAX_PERCENT, capping to " << MAX_PERCENT;
@@ -138,12 +168,14 @@ SchedulerRequest SchedulerRequest::FromNumaBorrowReq(const adapter_plugins::mmi:
     schedulerReq.scoreNames_ = {
         "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
     };
-    if (IsLenderBalanceEnabled()) {
+    bool lenderBalance = IsLenderBalanceEnabled();
+    if (lenderBalance) {
         schedulerReq.scoreNames_[3] = "ReliabilityBalanceScore";
         schedulerReq.weights_ = ScoreWeights::ForLenderBalance();
     } else {
         schedulerReq.weights_ = ScoreWeights::ForBorrow();
     }
+    ApplySubHealth(schedulerReq, lenderBalance);
     schedulerReq.requestMode_ = RequestMode::BORROW;
 
     return schedulerReq;
@@ -180,7 +212,14 @@ SchedulerRequest SchedulerRequest::FromAddrBorrowReq(const adapter_plugins::mmi:
     schedulerReq.scoreNames_ = {
         "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
     };
-    schedulerReq.weights_ = ScoreWeights::ForBorrow();
+    bool lenderBalance = IsLenderBalanceEnabled();
+    if (lenderBalance) {
+        schedulerReq.scoreNames_[3] = "ReliabilityBalanceScore";
+        schedulerReq.weights_ = ScoreWeights::ForLenderBalance();
+    } else {
+        schedulerReq.weights_ = ScoreWeights::ForBorrow();
+    }
+    // Addr 借用不接入亚健康：无 importSocket 概念，亚健康判定不适用
     schedulerReq.requestMode_ = RequestMode::BORROW;
     schedulerReq.params_["isAddr"] = true;
 

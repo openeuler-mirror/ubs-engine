@@ -18,6 +18,7 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_math_util.h"
+#include "ubse_node_controller.h"
 #include "ubse_str_util.h"
 
 namespace ubse::mem::scheduler {
@@ -538,6 +539,24 @@ bool SchedulerNodeManager::IsFullyConnected() const
     // 当前集群假设为全互联拓扑（Fat-Tree / Full-Mesh），
     // 所有节点对之间均可直达，无需按拓扑过滤。
     return true;
+}
+
+bool SchedulerNodeManager::IsSocketPairSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
+                                                  SocketId importSocketId, SocketId exportSocketId) const
+{
+    // 转发 UbseNodeController 查询。亚健康缓存由 node_controller 维护，
+    // 数据来源为数据注入链路（通过 RegSubHealthQueryHandler 或 UpdateSubHealthCache 推送）。
+    return ::ubse::nodeController::UbseNodeController::GetInstance().IsSocketPairSubHealthy(
+        importNodeId, exportNodeId, importSocketId, exportSocketId);
+}
+
+bool SchedulerNodeManager::IsHostExportSubHealthy(const NodeId& importNodeId, const NodeId& exportNodeId,
+                                                  SocketId exportSocketId) const
+{
+    // 转发 UbseNodeController 查询（host-export 粒度，不含 importSocket）。
+    // 用于 FD/Addr 借用场景：无 importSocket 概念，按 (importNode, exportNode, exportSocket) 匹配。
+    return ::ubse::nodeController::UbseNodeController::GetInstance().IsHostExportSubHealthy(
+        importNodeId, exportNodeId, exportSocketId);
 }
 
 void SchedulerNodeManager::Clear()
