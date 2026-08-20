@@ -179,7 +179,7 @@ func unpackAllocResultImpl(u *pack.BinaryUnpacker) (UbsSsuAllocResult, error) {
 	if err != nil {
 		return UbsSsuAllocResult{}, err
 	}
-	if strategyRaw != uint8(Striped) && strategyRaw != uint8(Linear) {
+	if strategyRaw != uint8(Striped) && strategyRaw != uint8(Linear) && strategyRaw != uint8(Normal) {
 		return UbsSsuAllocResult{}, fmt.Errorf("invalid strategy: %d", strategyRaw)
 	}
 	namespaces, err := pack.UnpackList(u, maxNamespaces, unpackNamespaceInfo)
