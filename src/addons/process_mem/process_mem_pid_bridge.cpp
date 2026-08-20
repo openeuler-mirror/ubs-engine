@@ -84,8 +84,7 @@ uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
 
     std::string masterNode;
     if (ubse::election::UbseGetMasterNodeId(masterNode) != UBSE_OK || masterNode.empty()) {
-        UBSE_LOG_ERROR << "SendReturnRequestToNode: get master node failed, target=" << nodeId
-                       << ", retry next round";
+        UBSE_LOG_ERROR << "SendReturnRequestToNode: get master node failed, target=" << nodeId << ", retry next round";
         return UBSE_ERROR;
     }
     auto endpoint = GetProcessMemReturnEndpoint(
@@ -93,11 +92,11 @@ uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
     UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
     auto ret = ubse::com::UbseRpcSend(endpoint, request, nullptr, [](void*, const UbseByteBuffer&, uint32_t) {});
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendReturnRequestToNode: rpc send failed to master=" << masterNode
-                       << ", target=" << nodeId << ", ret=" << ret;
+        UBSE_LOG_ERROR << "SendReturnRequestToNode: rpc send failed to master=" << masterNode << ", target=" << nodeId
+                       << ", ret=" << ret;
     } else {
-        UBSE_LOG_INFO << "SendReturnRequestToNode: rpc send ok to master=" << masterNode
-                      << ", target=" << nodeId << ", items=" << items.size();
+        UBSE_LOG_INFO << "SendReturnRequestToNode: rpc send ok to master=" << masterNode << ", target=" << nodeId
+                      << ", items=" << items.size();
     }
     return ret;
 }
@@ -119,8 +118,8 @@ void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& r
         auto endpoint = GetProcessMemReturnEndpoint(
             static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), targetNodeId);
         UbseByteBuffer forwardReq{.data = req.data, .len = req.len, .freeFunc = nullptr};
-        auto fwdRet = ubse::com::UbseRpcSend(endpoint, forwardReq, nullptr,
-                                             [](void*, const UbseByteBuffer&, uint32_t) {});
+        auto fwdRet =
+            ubse::com::UbseRpcSend(endpoint, forwardReq, nullptr, [](void*, const UbseByteBuffer&, uint32_t) {});
         if (fwdRet != UBSE_OK) {
             UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: forward failed to target=" << targetNodeId
                            << ", ret=" << fwdRet;

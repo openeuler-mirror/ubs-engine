@@ -13,8 +13,8 @@
 #define UBSE_AUTO_SERIAL_UTIL_H
 #include <cstddef>
 #include <string>
-#include <unordered_set>
 #include <type_traits>
+#include <unordered_set>
 #include <vector>
 
 #include "src/framework/serde/ubse_serial_util.h"
@@ -41,10 +41,12 @@ constexpr auto GetMembers()
 
 // === 可反射类 ===
 template <typename T, typename = void>
-struct is_reflectable : std::false_type {};
+struct is_reflectable : std::false_type {
+};
 
 template <typename T>
-struct is_reflectable<T, std::void_t<decltype(SerializableMembers<T>::value())>> : std::true_type {};
+struct is_reflectable<T, std::void_t<decltype(SerializableMembers<T>::value())>> : std::true_type {
+};
 
 template <typename T>
 constexpr bool is_reflectable_v = is_reflectable<T>::value;
@@ -54,28 +56,28 @@ template <class T>
 constexpr bool is_basic_v = std::is_arithmetic_v<T> || std::is_same_v<std::decay_t<T>, std::string>;
 
 template <class T>
-std::enable_if_t<is_basic_v<T>, bool> SerializeField(UbseSerialization &out, const T &v)
+std::enable_if_t<is_basic_v<T>, bool> SerializeField(UbseSerialization& out, const T& v)
 {
     out << v;
     return out.Check();
 }
 
 template <class T>
-std::enable_if_t<is_basic_v<T>, bool> DeSerializeField(UbseDeSerialization &in, T &v)
+std::enable_if_t<is_basic_v<T>, bool> DeSerializeField(UbseDeSerialization& in, T& v)
 {
     in >> v;
     return in.Check();
 }
 
 template <class T>
-std::enable_if_t<std::is_enum_v<T>, bool> SerializeField(UbseSerialization &out, const T &v)
+std::enable_if_t<std::is_enum_v<T>, bool> SerializeField(UbseSerialization& out, const T& v)
 {
     out << enum_v(v);
     return out.Check();
 }
 
 template <class T>
-std::enable_if_t<std::is_enum_v<T>, bool> DeSerializeField(UbseDeSerialization &in, T &v)
+std::enable_if_t<std::is_enum_v<T>, bool> DeSerializeField(UbseDeSerialization& in, T& v)
 {
     in >> enum_v(v);
     return in.Check();
@@ -88,7 +90,8 @@ std::enable_if_t<std::is_enum_v<T>, bool> DeSerializeField(UbseDeSerialization &
 // auto_serial headers (e.g. ubse_mem_auto_serial.h).
 // ============================================================
 template <typename T>
-struct is_raw_memcopy : std::false_type {};
+struct is_raw_memcopy : std::false_type {
+};
 
 template <typename T>
 inline std::enable_if_t<is_raw_memcopy<T>::value, bool> SerializeField(UbseSerialization& out, const T& v)
@@ -112,10 +115,12 @@ inline std::enable_if_t<is_raw_memcopy<T>::value, bool> DeSerializeField(UbseDeS
 // auto_serial headers (e.g. ubse_mem_auto_serial.h).
 // ============================================================
 template <typename T>
-struct is_bitfield : std::false_type {};
+struct is_bitfield : std::false_type {
+};
 
 template <typename T>
-struct bitfield_traits {};
+struct bitfield_traits {
+};
 
 template <typename T>
 inline std::enable_if_t<is_bitfield<T>::value, bool> SerializeField(UbseSerialization& out, const T& v)
@@ -138,41 +143,41 @@ inline std::enable_if_t<is_bitfield<T>::value, bool> DeSerializeField(UbseDeSeri
 
 // === 反射 + 容器前置声明（容器重载互相嵌套需要 Phase 1 可见）===
 template <class T>
-std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization &out, const T &obj);
+std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization& out, const T& obj);
 
 template <class T>
-std::enable_if_t<is_reflectable_v<T>, bool> DeSerializeField(UbseDeSerialization &in, T &obj);
+std::enable_if_t<is_reflectable_v<T>, bool> DeSerializeField(UbseDeSerialization& in, T& obj);
 
 template <class K, class V>
-bool SerializeField(UbseSerialization &out, const std::unordered_map<K, V> &v);
+bool SerializeField(UbseSerialization& out, const std::unordered_map<K, V>& v);
 
 template <class K, class V>
-bool DeSerializeField(UbseDeSerialization &in, std::unordered_map<K, V> &v);
+bool DeSerializeField(UbseDeSerialization& in, std::unordered_map<K, V>& v);
 
 template <typename... Args>
-bool SerializeField(UbseSerialization &out, const std::tuple<Args...> &tup);
+bool SerializeField(UbseSerialization& out, const std::tuple<Args...>& tup);
 
 template <typename... Args>
-bool DeSerializeField(UbseDeSerialization &in, std::tuple<Args...> &tup);
+bool DeSerializeField(UbseDeSerialization& in, std::tuple<Args...>& tup);
 
 template <typename T, size_t N>
-bool SerializeField(UbseSerialization &out, const T (&arr)[N]);
+bool SerializeField(UbseSerialization& out, const T (&arr)[N]);
 
 template <typename T, size_t N>
-bool DeSerializeField(UbseDeSerialization &in, T (&arr)[N]);
+bool DeSerializeField(UbseDeSerialization& in, T (&arr)[N]);
 
 template <class T>
-bool SerializeField(UbseSerialization &out, const std::unordered_set<T> &v);
+bool SerializeField(UbseSerialization& out, const std::unordered_set<T>& v);
 
 template <class T>
-bool DeSerializeField(UbseDeSerialization &in, std::unordered_set<T> &v);
+bool DeSerializeField(UbseDeSerialization& in, std::unordered_set<T>& v);
 
 // === 5. 容器支持 vector ===
 template <class T>
-bool SerializeField(UbseSerialization &out, const std::vector<T> &v)
+bool SerializeField(UbseSerialization& out, const std::vector<T>& v)
 {
     out << array_len_insert(v.size());
-    for (const auto &item : v) {
+    for (const auto& item : v) {
         if (!SerializeField(out, item)) {
             return false;
         }
@@ -181,7 +186,7 @@ bool SerializeField(UbseSerialization &out, const std::vector<T> &v)
 }
 
 template <class T>
-bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
+bool DeSerializeField(UbseDeSerialization& in, std::vector<T>& v)
 {
     uint64_t n;
     in >> array_len_capture(n);
@@ -189,7 +194,7 @@ bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
         return false;
     }
     v.resize(n);
-    for (auto &item : v) {
+    for (auto& item : v) {
         if (!DeSerializeField(in, item)) {
             return false;
         }
@@ -199,12 +204,12 @@ bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
 
 // === 6. 容器支持（示例：unordered_map）===
 template <class K, class V>
-bool SerializeField(UbseSerialization &out, const std::unordered_map<K, V> &v)
+bool SerializeField(UbseSerialization& out, const std::unordered_map<K, V>& v)
 {
     if (!SerializeField(out, v.size())) {
         return false;
     }
-    for (const auto &[serialKey, serialValue] : v) {
+    for (const auto& [serialKey, serialValue] : v) {
         if (!SerializeField(out, serialKey) || !SerializeField(out, serialValue)) {
             return false;
         }
@@ -213,7 +218,7 @@ bool SerializeField(UbseSerialization &out, const std::unordered_map<K, V> &v)
 }
 
 template <class K, class V>
-bool DeSerializeField(UbseDeSerialization &in, std::unordered_map<K, V> &v)
+bool DeSerializeField(UbseDeSerialization& in, std::unordered_map<K, V>& v)
 {
     size_t n;
     if (!DeSerializeField(in, n) || n > ONCE_LIMIT_LEN) {
@@ -234,53 +239,57 @@ bool DeSerializeField(UbseDeSerialization &in, std::unordered_map<K, V> &v)
 }
 
 template <typename... Args>
-bool SerializeField(UbseSerialization &out, const std::tuple<Args...> &tup)
+bool SerializeField(UbseSerialization& out, const std::tuple<Args...>& tup)
 {
     return std::apply(
-        [&out](const auto &...args) {
+        [&out](const auto&... args) {
             return (SerializeField(out, args) && ...); // C++17 折叠表达式
         },
         tup);
 }
 
 template <typename... Args>
-bool DeSerializeField(UbseDeSerialization &in, std::tuple<Args...> &tup)
+bool DeSerializeField(UbseDeSerialization& in, std::tuple<Args...>& tup)
 {
-    return std::apply([&in](auto &...args) { return (DeSerializeField(in, args) && ...); }, tup);
+    return std::apply([&in](auto&... args) { return (DeSerializeField(in, args) && ...); }, tup);
 }
 
 // === C-style array support (must be BEFORE reflectable templates for Phase-1 lookup) ===
 template <typename T, size_t N>
-bool SerializeField(UbseSerialization &out, const T (&arr)[N])
+bool SerializeField(UbseSerialization& out, const T (&arr)[N])
 {
     for (size_t i = 0; i < N; ++i) {
-        if (!SerializeField(out, arr[i])) return false;
+        if (!SerializeField(out, arr[i]))
+            return false;
     }
     return true;
 }
 
 template <typename T, size_t N>
-bool DeSerializeField(UbseDeSerialization &in, T (&arr)[N])
+bool DeSerializeField(UbseDeSerialization& in, T (&arr)[N])
 {
     for (size_t i = 0; i < N; ++i) {
-        if (!DeSerializeField(in, arr[i])) return false;
+        if (!DeSerializeField(in, arr[i]))
+            return false;
     }
     return true;
 }
 
 // === unordered_set support ===
 template <class T>
-bool SerializeField(UbseSerialization &out, const std::unordered_set<T> &v)
+bool SerializeField(UbseSerialization& out, const std::unordered_set<T>& v)
 {
-    if (!SerializeField(out, v.size())) return false;
-    for (const auto &item : v) {
-        if (!SerializeField(out, item)) return false;
+    if (!SerializeField(out, v.size()))
+        return false;
+    for (const auto& item : v) {
+        if (!SerializeField(out, item))
+            return false;
     }
     return true;
 }
 
 template <class T>
-bool DeSerializeField(UbseDeSerialization &in, std::unordered_set<T> &v)
+bool DeSerializeField(UbseDeSerialization& in, std::unordered_set<T>& v)
 {
     size_t n;
     if (!DeSerializeField(in, n) || n > ONCE_LIMIT_LEN) {
@@ -300,29 +309,27 @@ bool DeSerializeField(UbseDeSerialization &in, std::unordered_set<T> &v)
 
 // === 反射类型（定义在末尾，确保所有重载对泛型 lambda 可见）===
 template <class T>
-std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization &out, const T &obj)
+std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization& out, const T& obj)
 {
     if constexpr (!std::is_same_v<base_type_t<T>, void>) {
-        if (!SerializeField(out, static_cast<const base_type_t<T> &>(obj))) {
+        if (!SerializeField(out, static_cast<const base_type_t<T>&>(obj))) {
             return false;
         }
     }
-    return std::apply(
-        [&](auto... ptrs) { return (SerializeField(out, obj.*ptrs) && ...); },
-        SerializableMembers<T>::value());
+    return std::apply([&](auto... ptrs) { return (SerializeField(out, obj.*ptrs) && ...); },
+                      SerializableMembers<T>::value());
 }
 
 template <class T>
-std::enable_if_t<is_reflectable_v<T>, bool> DeSerializeField(UbseDeSerialization &in, T &obj)
+std::enable_if_t<is_reflectable_v<T>, bool> DeSerializeField(UbseDeSerialization& in, T& obj)
 {
     if constexpr (!std::is_same_v<base_type_t<T>, void>) {
-        if (!DeSerializeField(in, static_cast<base_type_t<T> &>(obj))) {
+        if (!DeSerializeField(in, static_cast<base_type_t<T>&>(obj))) {
             return false;
         }
     }
-    return std::apply(
-        [&](auto... ptrs) { return (DeSerializeField(in, obj.*ptrs) && ...); },
-        SerializableMembers<T>::value());
+    return std::apply([&](auto... ptrs) { return (DeSerializeField(in, obj.*ptrs) && ...); },
+                      SerializableMembers<T>::value());
 }
 } // namespace ubse::serial::util
 
