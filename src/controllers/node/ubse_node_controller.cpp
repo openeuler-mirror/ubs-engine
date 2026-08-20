@@ -14,14 +14,23 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <exception>
+#include <fstream>
 #include <queue>
 #include <regex>
 #include <set>
 
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+#include "rapidjson/istreamwrapper.h"
+
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
+#include "ubse_event.h"
 #include "ubse_net_util.h"
 #include "ubse_node.h"
 #include "ubse_node_com_urma_collector.h"
@@ -31,6 +40,7 @@
 #include "ubse_node_mgr.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
+#include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
@@ -54,6 +64,49 @@ const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
 constexpr size_t MAX_IP_ADDR_NUM = 1024;
 constexpr uint32_t FAULT_STATE_PROTECT_SECONDS = 60;
+const std::string UBSE_NODE_SUB_HEALTH_TIMER = "UbseNodeSubHealth";
+const std::string UBSE_PORT_UP_DOWN_EVENT = "topology.port.linkupdown";
+const std::string SUB_HEALTH_CONF_SECTION = "ubse.memory";
+const std::string SUB_HEALTH_ENABLED_KEY = "subHealthPenaltyEnabled";
+const std::string SUB_HEALTH_REFRESH_INTERVAL_KEY = "subHealthRefreshInterval";
+constexpr uint32_t SUB_HEALTH_DEFAULT_REFRESH_INTERVAL = 60;
+const std::string SUB_HEALTH_DETECTION_FILE = "/ko/qlt/hikptool/build/detection.json";
+
+struct SubHealthPortLocation {
+    std::string nodeId;
+    uint32_t socketId;
+    bool available;
+};
+
+std::string NormalizeSubHealthEid(std::string eid)
+{
+    std::transform(eid.begin(), eid.end(), eid.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return eid;
+}
+
+bool IsSubHealthNodeAvailable(const UbseNodeInfo& nodeInfo)
+{
+    return nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_UNKNOWN &&
+           nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT;
+}
+
+size_t UbseNodeController::SubHealthSocketPairHash::operator()(const SubHealthSocketPair& key) const
+{
+    size_t hash = std::hash<std::string>{}(key.importNodeId);
+    hash ^= std::hash<std::string>{}(key.exportNodeId) << 1;
+    hash ^= std::hash<uint32_t>{}(key.importSocketId) << 2;
+    hash ^= std::hash<uint32_t>{}(key.exportSocketId) << 3;
+    return hash;
+}
+
+size_t UbseNodeController::SubHealthHostExportHash::operator()(const SubHealthHostExport& key) const
+{
+    size_t hash = std::hash<std::string>{}(key.importNodeId);
+    hash ^= std::hash<std::string>{}(key.exportNodeId) << 1;
+    hash ^= std::hash<uint32_t>{}(key.exportSocketId) << 2;
+    return hash;
+}
 
 /**
  * 从 LCNE 模块获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
@@ -76,7 +129,7 @@ std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
     }
 
     nodeInfos.reserve(ubseNodeInfos.size());
-    for (const auto &node : ubseNodeInfos) {
+    for (const auto& node : ubseNodeInfos) {
         if (isClosType && node.nodeId != currentNodeId) {
             continue;
         }
@@ -115,18 +168,15 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         auto cachedNodes = getCachedNodes();
 
         std::stringstream nodeList;
-        for (const auto &[nodeId, nodeInfo] : cachedNodes) {
-            nodeList << nodeId
-                     << "(group=" << nodeInfo.groupId
-                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                     << "), ";
+        for (const auto& [nodeId, nodeInfo] : cachedNodes) {
+            nodeList << nodeId << "(group=" << nodeInfo.groupId
+                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState) << "), ";
         }
 
         UBSE_LOG_INFO << "[GET_ALL_RESULT] source=local"
                       << ", reason=non-clos leader"
-                      << ", currentNodeId=" << currentNodeId
-                      << ", nodeCount=" << cachedNodes.size()
-                      << ", nodes=[" << nodeList.str() << "]";
+                      << ", currentNodeId=" << currentNodeId << ", nodeCount=" << cachedNodes.size() << ", nodes=["
+                      << nodeList.str() << "]";
         return cachedNodes;
     }
 
@@ -142,8 +192,7 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         return {};
     }
 
-    UBSE_LOG_INFO << "[GET_ALL_ROUTE] currentNodeId=" << currentNodeId
-                  << ", isClosType=" << isClosType
+    UBSE_LOG_INFO << "[GET_ALL_ROUTE] currentNodeId=" << currentNodeId << ", isClosType=" << isClosType
                   << ", targetMasterId=" << masterNode.id;
 
     // CLOS场景下，UbseGetMasterNode返回全局主
@@ -151,27 +200,22 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         auto cachedNodes = getCachedNodes();
 
         std::stringstream nodeList;
-        for (const auto &[nodeId, nodeInfo] : cachedNodes) {
-            nodeList << nodeId
-                     << "(group=" << nodeInfo.groupId
-                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                     << "), ";
+        for (const auto& [nodeId, nodeInfo] : cachedNodes) {
+            nodeList << nodeId << "(group=" << nodeInfo.groupId
+                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState) << "), ";
         }
 
         UBSE_LOG_INFO << "[GET_ALL_RESULT] source=local"
                       << ", reason=target is current node"
-                      << ", currentNodeId=" << currentNodeId
-                      << ", targetMasterId=" << masterNode.id
-                      << ", nodeCount=" << cachedNodes.size()
-                      << ", nodes=[" << nodeList.str() << "]";
+                      << ", currentNodeId=" << currentNodeId << ", targetMasterId=" << masterNode.id
+                      << ", nodeCount=" << cachedNodes.size() << ", nodes=[" << nodeList.str() << "]";
         return cachedNodes;
     }
 
     std::vector<UbseNodeInfo> infos{};
     ret = GetAllNodeInfoFromRemote(masterNode.id, infos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id
-                       << " failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id << " failed, " << FormatRetCode(ret);
         return {};
     }
 
@@ -179,19 +223,15 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
     maps.reserve(infos.size());
 
     std::stringstream nodeList;
-    for (const auto &info : infos) {
+    for (const auto& info : infos) {
         maps[info.nodeId] = info;
-        nodeList << info.nodeId
-                 << "(group=" << info.groupId
-                 << ",state=" << static_cast<uint32_t>(info.clusterState)
+        nodeList << info.nodeId << "(group=" << info.groupId << ",state=" << static_cast<uint32_t>(info.clusterState)
                  << "), ";
     }
 
     UBSE_LOG_INFO << "[GET_ALL_RESULT] source=remote"
-                  << ", currentNodeId=" << currentNodeId
-                  << ", targetMasterId=" << masterNode.id
-                  << ", nodeCount=" << maps.size()
-                  << ", nodes=[" << nodeList.str() << "]";
+                  << ", currentNodeId=" << currentNodeId << ", targetMasterId=" << masterNode.id
+                  << ", nodeCount=" << maps.size() << ", nodes=[" << nodeList.str() << "]";
 
     return maps;
 }
@@ -227,7 +267,7 @@ UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
 UbseNodeInfo UbseNodeController::GetNodeBySlotId(uint32_t slotId)
 {
     std::shared_lock<std::shared_mutex> lock(rwMutex);
-    for (auto &iter : nodeInfos) {
+    for (auto& iter : nodeInfos) {
         if (iter.second.slotId != slotId) {
             continue;
         }
@@ -454,7 +494,7 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
         std::unique_lock<std::shared_mutex> lock(rwMutex);
         clusterNotifyHandlers.push_back(handler);
         nodeInfoList.reserve(nodeInfos.size());
-        for (const auto &[_, nodeInfo] : nodeInfos) {
+        for (const auto& [_, nodeInfo] : nodeInfos) {
             nodeInfoList.push_back(nodeInfo);
         }
     }
@@ -466,7 +506,7 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
     if (!module->IsLeader()) {
         return UBSE_OK;
     }
-    for (const auto &nodeInfo : nodeInfoList) {
+    for (const auto& nodeInfo : nodeInfoList) {
         auto ret = handler(nodeInfo);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
@@ -480,14 +520,568 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
     return UBSE_OK;
 }
 
-uint32_t UbseNodeController::RegGlobalStateNotifyHandler(const UbseGlobalStateNotifyHandler &handler)
+uint32_t UbseNodeController::RegGlobalStateNotifyHandler(const UbseGlobalStateNotifyHandler& handler)
 {
     std::unique_lock<std::shared_mutex> lock(rwMutex);
     globalNotifyHandlers.push_back(handler);
     return UBSE_OK;
 }
 
-uint32_t UbseNodeController::ExecGlobalStateNotifyHandler(const UbseNodeInfo &node)
+uint32_t ParseSubHealthLinkArray(
+    const rapidjson::Value& result, const std::string& srcEid, const SubHealthPortLocation& srcLocation,
+    const std::unordered_map<std::string, SubHealthPortLocation>& portLocations,
+    UbseSubHealthFlagMap& subHealthFlags, size_t& linkCount)
+{
+    const char* dstEidsKey = "sub_health_dst_eids";
+    const char* latenciesKey = "sub_health_latencies";
+
+    if (!result.HasMember(dstEidsKey) || !result[dstEidsKey].IsArray() ||
+        !result.HasMember(latenciesKey) || !result[latenciesKey].IsArray()) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] invalid detection result"
+                       << ", srcEid=" << srcEid;
+        return UBSE_ERROR_INVAL;
+    }
+
+    const auto& dstEids = result[dstEidsKey];
+    const auto& latencies = result[latenciesKey];
+
+    if (dstEids.Size() != latencies.Size()) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] dst eid and latency size mismatch"
+                       << ", srcEid=" << srcEid
+                       << ", dstCount=" << dstEids.Size()
+                       << ", latencyCount=" << latencies.Size();
+        return UBSE_ERROR_INVAL;
+    }
+
+    for (rapidjson::SizeType i = 0; i < dstEids.Size(); ++i) {
+        if (!dstEids[i].IsString() || !latencies[i].IsNumber()) {
+            UBSE_LOG_ERROR << "[SUB_HEALTH] invalid link item"
+                           << ", srcEid=" << srcEid
+                           << ", index=" << i;
+            return UBSE_ERROR_INVAL;
+        }
+
+        std::string dstEid = dstEids[i].GetString();
+        auto dstIter = portLocations.find(NormalizeSubHealthEid(dstEid));
+        if (dstIter == portLocations.end()) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] destination primary eid not found in topology"
+                          << ", srcEid=" << srcEid
+                          << ", dstEid=" << dstEid
+                          << ", keep old cache";
+            return UBSE_ERROR;
+        }
+
+        const auto& dstLocation = dstIter->second;
+        double latency = latencies[i].GetDouble();
+
+        // detection.json中记录的链路已经由hikptool判定为亚健康
+        bool isSubHealthy = srcLocation.available && dstLocation.available;
+
+        // 正向：src -> dst
+        UbseSubHealthLinkKey linkKey{
+            {srcLocation.nodeId, srcLocation.socketId},
+            {dstLocation.nodeId, dstLocation.socketId},
+        };
+
+        auto flagIter = subHealthFlags.find(linkKey);
+        if (flagIter == subHealthFlags.end()) {
+            subHealthFlags[linkKey] = isSubHealthy;
+        } else {
+            // 同一个SocketPair可能对应多条链路，任意链路亚健康则SocketPair亚健康
+            flagIter->second = flagIter->second || isSubHealthy;
+        }
+
+        // 反向：dst -> src，亚健康链路按双向缓存
+        UbseSubHealthLinkKey reverseLinkKey{
+            {dstLocation.nodeId, dstLocation.socketId},
+            {srcLocation.nodeId, srcLocation.socketId},
+        };
+
+        auto reverseIter = subHealthFlags.find(reverseLinkKey);
+        if (reverseIter == subHealthFlags.end()) {
+            subHealthFlags[reverseLinkKey] = isSubHealthy;
+        } else {
+            reverseIter->second = reverseIter->second || isSubHealthy;
+        }
+
+        ++linkCount;
+
+        if (isSubHealthy) {
+            UBSE_LOG_INFO << "[SUB_HEALTH] sub healthy link detected"
+                          << ", srcEid=" << srcEid
+                          << ", dstEid=" << dstEid
+                          << ", latency=" << latency << "ms"
+                          << ", nodeId=" << srcLocation.nodeId
+                          << ", socketId=" << srcLocation.socketId
+                          << ", peerNodeId=" << dstLocation.nodeId
+                          << ", peerSocketId=" << dstLocation.socketId
+                          << ", cacheDirection=bidirectional";
+        }
+    }
+
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHealthFlags)
+{
+    std::ifstream file(SUB_HEALTH_DETECTION_FILE);
+    if (!file.is_open()) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] open detection file failed"
+                      << ", file=" << SUB_HEALTH_DETECTION_FILE
+                      << ", keep old cache";
+        return UBSE_ERROR;
+    }
+
+    rapidjson::IStreamWrapper stream(file);
+    rapidjson::Document document;
+    document.ParseStream(stream);
+
+    if (document.HasParseError()) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] parse detection file failed"
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE
+                       << ", offset=" << document.GetErrorOffset()
+                       << ", error=" << rapidjson::GetParseError_En(document.GetParseError())
+                       << ", keep old cache";
+        return UBSE_ERROR_INVAL;
+    }
+
+    if (!document.IsObject()) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] detection root is not object"
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE
+                       << ", keep old cache";
+        return UBSE_ERROR_INVAL;
+    }
+
+    if (document.ObjectEmpty()) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] detection result is empty, no sub healthy link"
+                      << ", file=" << SUB_HEALTH_DETECTION_FILE;
+        return UBSE_OK;
+    }
+
+    auto allNodes = GetAllNodes();
+    if (allNodes.empty()) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] get all nodes failed, keep old cache";
+        return UBSE_ERROR;
+    }
+
+    // 构建Primary EID到nodeId/socketId的映射
+    std::unordered_map<std::string, SubHealthPortLocation> portLocations;
+
+    for (const auto& [nodeId, nodeInfo] : allNodes) {
+        bool available = IsSubHealthNodeAvailable(nodeInfo);
+
+        for (const auto& cpuItem : nodeInfo.cpuInfos) {
+            const auto& cpuInfo = cpuItem.second;
+
+            std::string primaryEid = NormalizeSubHealthEid(cpuInfo.primaryEid);
+            if (primaryEid.empty()) {
+                continue;
+            }
+
+            auto iter = portLocations.find(primaryEid);
+            if (iter != portLocations.end()) {
+                if (iter->second.nodeId != nodeId || iter->second.socketId != cpuInfo.socketId) {
+                    UBSE_LOG_ERROR << "[SUB_HEALTH] duplicated primary eid"
+                                   << ", eid=" << cpuInfo.primaryEid
+                                   << ", oldNodeId=" << iter->second.nodeId
+                                   << ", oldSocketId=" << iter->second.socketId
+                                   << ", newNodeId=" << nodeId
+                                   << ", newSocketId=" << cpuInfo.socketId
+                                   << ", keep old cache";
+                    return UBSE_ERROR;
+                }
+                continue;
+            }
+
+            portLocations[primaryEid] = {
+                nodeId,
+                cpuInfo.socketId,
+                available,
+            };
+
+            UBSE_LOG_INFO << "[SUB_HEALTH] primary eid mapping"
+                          << ", nodeId=" << nodeId
+                          << ", socketId=" << cpuInfo.socketId
+                          << ", primaryEid=" << cpuInfo.primaryEid;
+        }
+    }
+
+    if (portLocations.empty()) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] primary eid mapping is empty, keep old cache";
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] build primary eid mapping success"
+                  << ", nodeCount=" << allNodes.size()
+                  << ", eidCount=" << portLocations.size();
+
+    size_t sourceCount = 0;
+    size_t linkCount = 0;
+
+    for (auto hostIter = document.MemberBegin(); hostIter != document.MemberEnd(); ++hostIter) {
+        std::string host = hostIter->name.GetString();
+
+        if (!hostIter->value.IsObject()) {
+            UBSE_LOG_ERROR << "[SUB_HEALTH] host detection result is not object"
+                           << ", host=" << host
+                           << ", keep old cache";
+            return UBSE_ERROR_INVAL;
+        }
+
+        const auto& socketResults = hostIter->value;
+
+        for (auto socketIter = socketResults.MemberBegin(); socketIter != socketResults.MemberEnd(); ++socketIter) {
+            if (!socketIter->value.IsObject()) {
+                UBSE_LOG_ERROR << "[SUB_HEALTH] socket detection result is not object"
+                               << ", host=" << host
+                               << ", socket=" << socketIter->name.GetString()
+                               << ", keep old cache";
+                return UBSE_ERROR_INVAL;
+            }
+
+            const auto& result = socketIter->value;
+
+            if (!result.HasMember("src_eid") || !result["src_eid"].IsString()) {
+                UBSE_LOG_ERROR << "[SUB_HEALTH] src_eid is invalid"
+                               << ", host=" << host
+                               << ", socket=" << socketIter->name.GetString()
+                               << ", keep old cache";
+                return UBSE_ERROR_INVAL;
+            }
+
+            std::string srcEid = result["src_eid"].GetString();
+
+            auto srcIter = portLocations.find(NormalizeSubHealthEid(srcEid));
+            if (srcIter == portLocations.end()) {
+                UBSE_LOG_WARN << "[SUB_HEALTH] source primary eid not found in topology"
+                              << ", host=" << host
+                              << ", socket=" << socketIter->name.GetString()
+                              << ", srcEid=" << srcEid
+                              << ", keep old cache";
+                return UBSE_ERROR;
+            }
+
+            ++sourceCount;
+
+            auto ret = ParseSubHealthLinkArray(result, srcEid, srcIter->second, portLocations, subHealthFlags,
+                                               linkCount);
+            if (ret != UBSE_OK) {
+                return ret;
+            }
+        }
+    }
+
+    size_t subHealthyCount = 0;
+    for (const auto& item : subHealthFlags) {
+        if (item.second) {
+            ++subHealthyCount;
+        }
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] load detection success"
+                  << ", file=" << SUB_HEALTH_DETECTION_FILE
+                  << ", sourceCount=" << sourceCount
+                  << ", linkCount=" << linkCount
+                  << ", socketPairCount=" << subHealthFlags.size()
+                  << ", subHealthyPairCount=" << subHealthyCount;
+
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::UpdateSubHealthCache(const UbseSubHealthFlagMap& subHealthFlags)
+{
+    std::unordered_set<SubHealthSocketPair, SubHealthSocketPairHash> newSocketPairCache;
+    std::unordered_set<SubHealthHostExport, SubHealthHostExportHash> newHostExportCache;
+
+    for (const auto& [linkKey, isSubHealthy] : subHealthFlags) {
+        if (!isSubHealthy) {
+            continue;
+        }
+
+        const auto& importEndpoint = linkKey.first;
+        const auto& exportEndpoint = linkKey.second;
+
+        if (importEndpoint.first.empty() || exportEndpoint.first.empty()) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] node id is empty, keep old cache";
+            return UBSE_ERROR_INVAL;
+        }
+
+        SubHealthSocketPair socketPair{
+            importEndpoint.first,
+            exportEndpoint.first,
+            importEndpoint.second,
+            exportEndpoint.second,
+        };
+
+        newSocketPairCache.insert(socketPair);
+
+        newHostExportCache.insert({
+            socketPair.importNodeId,
+            socketPair.exportNodeId,
+            socketPair.exportSocketId,
+        });
+    }
+    size_t subHealthyCount = 0;
+    {
+        std::unique_lock<std::shared_mutex> lock(subHealthMutex_);
+
+        for (const auto& item : newSocketPairCache) {
+            if (subHealthSocketPairCache_.find(item) == subHealthSocketPairCache_.end()) {
+                UBSE_LOG_INFO << "[SUB_HEALTH] link becomes sub healthy"
+                              << ", importNodeId=" << item.importNodeId << ", importSocketId=" << item.importSocketId
+                              << ", exportNodeId=" << item.exportNodeId << ", exportSocketId=" << item.exportSocketId;
+            }
+        }
+
+        for (const auto& item : subHealthSocketPairCache_) {
+            if (newSocketPairCache.find(item) == newSocketPairCache.end()) {
+                UBSE_LOG_INFO << "[SUB_HEALTH] link recovers healthy"
+                              << ", importNodeId=" << item.importNodeId << ", importSocketId=" << item.importSocketId
+                              << ", exportNodeId=" << item.exportNodeId << ", exportSocketId=" << item.exportSocketId;
+            }
+        }
+
+        subHealthSocketPairCache_ = std::move(newSocketPairCache);
+        subHealthHostExportCache_ = std::move(newHostExportCache);
+        subHealthyCount = subHealthSocketPairCache_.size();
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] cache refresh success"
+                  << ", socketPairCount=" << subHealthFlags.size() << ", subHealthyPairCount=" << subHealthyCount;
+
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::RefreshSubHealthCache()
+{
+    if (!subHealthEnabled_.load()) {
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] start refresh"
+                  << ", file=" << SUB_HEALTH_DETECTION_FILE;
+
+    UbseSubHealthFlagMap subHealthFlags;
+    auto ret = LoadSubHealthDetection(subHealthFlags);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] load detection failed, keep old cache, "
+                      << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = UpdateSubHealthCache(subHealthFlags);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] update cache failed, keep old cache, "
+                      << FormatRetCode(ret);
+        return ret;
+    }
+
+    return UBSE_OK;
+}
+
+void UbseNodeController::TriggerSubHealthRefresh()
+{
+    if (!subHealthEnabled_.load()) {
+        return;
+    }
+
+    bool expected = false;
+    if (!subHealthRefreshPending_.compare_exchange_strong(expected, true)) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(subHealthExecutorMutex_);
+    if (subHealthExecutor_ == nullptr) {
+        subHealthRefreshPending_.store(false);
+        UBSE_LOG_WARN << "[SUB_HEALTH] executor is null, skip refresh";
+        return;
+    }
+
+    subHealthExecutor_->Execute([this]() {
+        // 当前刷新任务已开始，允许后续变化再合并提交一个刷新任务
+        subHealthRefreshPending_.store(false);
+
+        auto ret = RefreshSubHealthCache();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] refresh failed, " << FormatRetCode(ret);
+        }
+    });
+}
+
+void UbseNodeController::RebuildHostExportSubHealthCacheLocked()
+{
+    subHealthHostExportCache_.clear();
+
+    for (const auto& item : subHealthSocketPairCache_) {
+        subHealthHostExportCache_.insert({
+            item.importNodeId,
+            item.exportNodeId,
+            item.exportSocketId,
+        });
+    }
+}
+
+void UbseNodeController::ClearSubHealthCacheForNode(const std::string& nodeId)
+{
+    if (nodeId.empty()) {
+        return;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(subHealthMutex_);
+
+    size_t removed = 0;
+    for (auto iter = subHealthSocketPairCache_.begin(); iter != subHealthSocketPairCache_.end();) {
+        if (iter->importNodeId == nodeId || iter->exportNodeId == nodeId) {
+            iter = subHealthSocketPairCache_.erase(iter);
+            ++removed;
+            continue;
+        }
+        ++iter;
+    }
+
+    if (removed == 0) {
+        return;
+    }
+
+    RebuildHostExportSubHealthCacheLocked();
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] clear node cache, nodeId=" << nodeId << ", removed=" << removed;
+}
+
+bool UbseNodeController::IsSocketPairSubHealthy(const std::string& importNodeId, const std::string& exportNodeId,
+                                                uint32_t importSocketId, uint32_t exportSocketId) const
+{
+    if (!subHealthEnabled_.load()) {
+        return false;
+    }
+
+    std::shared_lock<std::shared_mutex> lock(subHealthMutex_);
+    return subHealthSocketPairCache_.find({importNodeId, exportNodeId, importSocketId, exportSocketId}) !=
+           subHealthSocketPairCache_.end();
+}
+
+bool UbseNodeController::IsHostExportSubHealthy(const std::string& importNodeId, const std::string& exportNodeId,
+                                                uint32_t exportSocketId) const
+{
+    if (!subHealthEnabled_.load()) {
+        return false;
+    }
+
+    std::shared_lock<std::shared_mutex> lock(subHealthMutex_);
+    return subHealthHostExportCache_.find({importNodeId, exportNodeId, exportSocketId}) !=
+           subHealthHostExportCache_.end();
+}
+
+uint32_t UbseNodeController::SubHealthPortChangeHandler(std::string&, std::string& eventMessage)
+{
+    if (eventMessage.rfind("UP;", 0) != 0) {
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] port up, trigger refresh, eventMessage=" << eventMessage;
+    UbseNodeController::GetInstance().TriggerSubHealthRefresh();
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::StartSubHealth()
+{
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] clos scenario is not supported, skip start";
+        return UBSE_OK;
+    }
+
+    auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
+    if (confModule == nullptr) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] conf module not init";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+
+    bool enabled = false;
+    auto ret = confModule->GetConf<bool>(SUB_HEALTH_CONF_SECTION, SUB_HEALTH_ENABLED_KEY, enabled);
+    if (ret != UBSE_OK || !enabled) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] disabled";
+        return UBSE_OK;
+    }
+
+    uint32_t refreshInterval = SUB_HEALTH_DEFAULT_REFRESH_INTERVAL;
+    ret = confModule->GetConf<uint32_t>(SUB_HEALTH_CONF_SECTION, SUB_HEALTH_REFRESH_INTERVAL_KEY, refreshInterval);
+    if (ret != UBSE_OK || refreshInterval == 0) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] invalid refresh interval, use default=" << SUB_HEALTH_DEFAULT_REFRESH_INTERVAL
+                      << "s";
+        refreshInterval = SUB_HEALTH_DEFAULT_REFRESH_INTERVAL;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(subHealthExecutorMutex_);
+        subHealthExecutor_ = ubse::task_executor::UbseTaskExecutor::Create("UbseNodeSubHealth", NO_1, NO_1024);
+        if (subHealthExecutor_ == nullptr || !subHealthExecutor_->Start()) {
+            UBSE_LOG_ERROR << "[SUB_HEALTH] start executor failed";
+            subHealthExecutor_ = nullptr;
+            return UBSE_ERROR_NULLPTR;
+        }
+    }
+
+    subHealthEnabled_.store(true);
+
+    ret = ubse::timer::UbseTimerHandlerRegister(
+        UBSE_NODE_SUB_HEALTH_TIMER,
+        [this]() -> uint32_t {
+            TriggerSubHealthRefresh();
+            return UBSE_OK;
+        },
+        refreshInterval);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] register refresh timer failed, " << FormatRetCode(ret);
+        StopSubHealth();
+        return ret;
+    }
+
+    std::string eventId = UBSE_PORT_UP_DOWN_EVENT;
+    ret = ubse::event::UbseSubEvent(eventId, SubHealthPortChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] subscribe port event failed, " << FormatRetCode(ret);
+        StopSubHealth();
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] start success, refreshInterval=" << refreshInterval << "s";
+    return UBSE_OK;
+}
+
+void UbseNodeController::StopSubHealth()
+{
+    if (!subHealthEnabled_.exchange(false)) {
+        return;
+    }
+
+    ubse::timer::UbseTimerHandlerUnregister(UBSE_NODE_SUB_HEALTH_TIMER);
+
+    std::string eventId = UBSE_PORT_UP_DOWN_EVENT;
+    auto ret = ubse::event::UbseUnSubEvent(eventId, SubHealthPortChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] unsubscribe port event failed, " << FormatRetCode(ret);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(subHealthExecutorMutex_);
+        if (subHealthExecutor_ != nullptr) {
+            subHealthExecutor_->Stop();
+            subHealthExecutor_ = nullptr;
+        }
+    }
+
+    subHealthRefreshPending_.store(false);
+
+    {
+        std::unique_lock<std::shared_mutex> lock(subHealthMutex_);
+        subHealthSocketPairCache_.clear();
+        subHealthHostExportCache_.clear();
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] stop success";
+}
+
+uint32_t UbseNodeController::ExecGlobalStateNotifyHandler(const UbseNodeInfo& node)
 {
     std::vector<UbseGlobalStateNotifyHandler> handlers;
     {
@@ -599,10 +1193,9 @@ bool UbseNodeController::IsHierarchical() const
     return this->isHierarchical;
 }
 
-bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo &reportNodeInfo,
-                                                       UbseNodeClusterState oldState,
-                                                       UbseNodeClusterState mergedState,
-                                                       bool isExisting, bool &needRecovery)
+bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo& reportNodeInfo,
+                                                        UbseNodeClusterState oldState, UbseNodeClusterState mergedState,
+                                                        bool isExisting, bool& needRecovery)
 {
     needRecovery = false;
 
@@ -968,7 +1561,7 @@ void UbseNodeController::UpdateConnect(PhysicalLink& physicalLink, std::string& 
         devDirConnectInfo[linkId] = physicalLink;
     } else {
         // 已存在, 更新为可用, 并合并信息
-        PhysicalLink &existing = it->second;
+        PhysicalLink& existing = it->second;
         // 合并接口信息
         if (existing.interfaceName.empty() && !physicalLink.interfaceName.empty()) {
             existing.interfaceName = physicalLink.interfaceName;
@@ -1069,7 +1662,7 @@ void UbseNodeController::UpdateNodeInfoLocalState(UbseNodeLocalState state)
     UBSE_LOG_INFO << "local node update local state to " << static_cast<uint32_t>(state);
 }
 
-uint32_t GenerateFaultUbseNode(const std::string &nodeId, UbseNodeInfo &faultNodeInfo)
+uint32_t GenerateFaultUbseNode(const std::string& nodeId, UbseNodeInfo& faultNodeInfo)
 {
     faultNodeInfo.nodeId = nodeId;
     auto ret = ConvertStrToUint32(faultNodeInfo.nodeId, faultNodeInfo.slotId);
@@ -1103,7 +1696,7 @@ uint32_t GenerateFaultUbseNode(const std::string &nodeId, UbseNodeInfo &faultNod
     return UBSE_OK;
 }
 
-uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string &nodeId, UbseNodeGlobalState state)
+uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string& nodeId, UbseNodeGlobalState state)
 {
     std::unique_lock<std::shared_mutex> lock(rwMutex);
     auto iter = nodeInfos.find(nodeId);
@@ -1129,13 +1722,13 @@ uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string &nodeId
 void UbseNodeController::ResetAllGlobalStates()
 {
     std::unique_lock<std::shared_mutex> lock(rwMutex);
-    for (auto &[nodeId, info] : nodeInfos) {
+    for (auto& [nodeId, info] : nodeInfos) {
         info.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
     }
     UBSE_LOG_INFO << "all nodes globalState reset to GLOBAL_INIT";
 }
 
-uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeId, UbseNodeClusterState state)
+uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeId, UbseNodeClusterState state)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to update cluster state=" << static_cast<uint32_t>(state);
     UbseResult ret = UBSE_OK;
@@ -1152,6 +1745,7 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeI
         nodeInfos[nodeId] = faultNodeInfo;
         faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
         rwMutex.unlock();
+        ClearSubHealthCacheForNode(nodeId);
         UBSE_LOG_WARN << "nodeId=" << nodeId << " cluster node info not collect, set default item.";
         return UBSE_OK;
     }
@@ -1190,6 +1784,12 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeI
 
     nodeInfos[nodeId].clusterState = state;
     rwMutex.unlock();
+
+    if (state == UbseNodeClusterState::UBSE_NODE_UNKNOWN || state == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        ClearSubHealthCacheForNode(nodeId);
+    } else if (state == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        TriggerSubHealthRefresh();
+    }
     rwMutex.lock_shared();
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "nodeId=" << nodeId << " not exists.";
@@ -1444,8 +2044,8 @@ uint32_t SerializeDevDirConnectInfo(std::map<std::string, PhysicalLink>& devDirC
 
 // 通用IP数据验证和复制函数
 template <typename IpAddrType>
-UbseResult ValidateAndCopyIpData(const std::vector<uint8_t> &srcData, IpAddrType &destAddr, size_t expectedSize,
-                                 const char *ipTypeName)
+UbseResult ValidateAndCopyIpData(const std::vector<uint8_t>& srcData, IpAddrType& destAddr, size_t expectedSize,
+                                 const char* ipTypeName)
 {
     if (srcData.size() != expectedSize) {
         UBSE_LOG_ERROR << ipTypeName << " address size mismatch. Expected: " << expectedSize
@@ -1686,7 +2286,7 @@ uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink>& devDi
         if (!inStream.Check()) {
             return UBSE_ERROR;
         }
-        auto &physicalLink = devDirConnectInfo[linkId];
+        auto& physicalLink = devDirConnectInfo[linkId];
         inStream >> physicalLink.slotId >> physicalLink.chipId >> physicalLink.portId >> physicalLink.interfaceName >>
             physicalLink.peerSlotId >> physicalLink.peerChipId >> physicalLink.peerPortId >>
             physicalLink.peerInterfaceName;

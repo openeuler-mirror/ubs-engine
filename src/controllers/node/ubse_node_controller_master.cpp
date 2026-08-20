@@ -120,6 +120,31 @@ static void CollectGroupNodeIds(const ubse::election::GroupTopology &group, bool
     }
 }
 
+static bool HasSubHealthPortUpChange(const UbseNodeInfo& oldInfo, const UbseNodeInfo& newInfo)
+{
+    for (const auto& [location, newCpuInfo] : newInfo.cpuInfos) {
+        auto oldCpuIter = oldInfo.cpuInfos.find(location);
+
+        for (const auto& [portId, newPortInfo] : newCpuInfo.portInfos) {
+            if (newPortInfo.portStatus != PortStatus::UP) {
+                continue;
+            }
+
+            if (oldCpuIter == oldInfo.cpuInfos.end()) {
+                return true;
+            }
+
+            auto oldPortIter = oldCpuIter->second.portInfos.find(portId);
+            if (oldPortIter == oldCpuIter->second.portInfos.end() ||
+                oldPortIter->second.portStatus != PortStatus::UP) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 UbseResult ClusterInfoQueryHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 template <typename Handler>
@@ -883,14 +908,27 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
         return UBSE_ERROR_INVAL;
     }
 
+    auto oldNodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeInfo.nodeId);
+    bool hasPortUp = HasSubHealthPortUpChange(oldNodeInfo, nodeInfo);
+
     // 如果需要，创建临时变量
     UbseNodeInfo nodeInfoCopy = nodeInfo;
-    UbseNodeController::GetInstance().UpdateNodeInfo(nodeInfoCopy.nodeId, nodeInfoCopy);
+    auto ret = UbseNodeController::GetInstance().UpdateNodeInfo(nodeInfoCopy.nodeId, nodeInfoCopy);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId << " update lcne topology failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
     UbseNodeController::GetInstance().UpdateDevDirConnectInfo();
+
+    if (hasPortUp) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] lcne topology up, trigger refresh, nodeId=" << nodeInfo.nodeId;
+        UbseNodeController::GetInstance().TriggerSubHealthRefresh();
+    }
 
     // 创建临时变量给UbsePubEvent
     std::string eventMessageCopy = nodeInfo.eventMessage;
-    auto ret = UbsePubEvent(LCNE_CHANGE_REPORT_EVENT, eventMessageCopy);
+    ret = UbsePubEvent(LCNE_CHANGE_REPORT_EVENT, eventMessageCopy);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbsePubEvent failed";
         return ret;
