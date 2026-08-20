@@ -11,11 +11,16 @@
  */
 
 #include "over_commit_pid_fault_pipeline.h"
+#include <unordered_set>
+#include "ubse_error.h"
 #include "ubse_logger.h"
+#include "mem_borrow_executor.h"
 #include "mp_configuration.h"
 #include "over_commit_pid_fault_collector.h"
+#include "over_commit_pid_fault_context.h"
 #include "over_commit_pid_fault_decision.h"
 #include "over_commit_pid_fault_executor.h"
+#include "over_commit_pid_fault_state_store.h"
 #include "over_commit_pid_fault_task_builder.h"
 
 namespace mempooling {
@@ -55,9 +60,14 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
         return ret;
     }
 
+    // ==================== Phase 2.5: 孤儿task对账清理 ====================
+    // 已持久化但本轮采集目标已消失（VM/容器退出）的task: 归还其新借用并清理状态;
+    // 必须在nodePlans为空的提前return之前执行，否则孤儿永远无人清理（借用/状态泄漏）
+    MpResult reconcileRet = ReconcileOrphanTasks(faultNodeId, context, nodePlans);
+
     if (nodePlans.empty()) {
-        LOG_INFO << "No tasks to process, return OK.";
-        return MEM_POOLING_OK;
+        LOG_INFO << "No tasks to process.";
+        return reconcileRet;
     }
 
     // ==================== Phase 3: 借用决策 ====================
@@ -83,10 +93,71 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
     LOG_DEBUG << "Phase 3 -> 4: executePlans=" << executePlans.size() << ".";
     PidFaultExecutor executor;
     ret = executor.ExecuteAll(faultNodeId, executePlans);
+    // 主链路成功时透出对账失败（孤儿新借用未归还，状态保留下轮重试）; 主链路失败时以主链路错误码为准
+    if (ret == MEM_POOLING_OK) {
+        ret = reconcileRet;
+    }
 
     LOG_INFO << "===== ProcessBorrowOutNodeFaultByPid END, result="
              << (ret == MEM_POOLING_OK ? "SUCCESS" : "PARTIAL_FAIL") << ", ret=" << ret << " =====";
     return ret;
+}
+
+MpResult PidFaultPipeline::ReconcileOrphanTasks(const std::string& faultNodeId, const OverCommitFaultContext& context,
+                                                const std::vector<BorrowInNodePlan>& nodePlans)
+{
+    FaultProcessState state;
+    MpResult ret = PidFaultStateStore::Instance().Query(faultNodeId, state);
+    if (ret != MEM_POOLING_OK || state.taskStates.empty()) {
+        return MEM_POOLING_OK; // 无持久化状态，无需对账
+    }
+
+    // 本轮构建出的task集合（命中者走正常RESUME链路，非孤儿）
+    std::unordered_set<std::string> currentTaskIds;
+    for (const auto& nodePlan : nodePlans) {
+        for (const auto& task : nodePlan.tasks) {
+            currentTaskIds.insert(task.taskId);
+        }
+    }
+
+    MpResult overallRet = MEM_POOLING_OK;
+    for (const auto& persistState : state.taskStates) {
+        if (currentTaskIds.count(persistState.taskId) > 0) {
+            continue; // 本轮仍在，正常RESUME推进
+        }
+        // 安全准则: 仅当借入节点本轮采集成功（nodeToPidMemInfos含键）才可判定目标真消失;
+        // 采集失败/未采集时无法区分"目标消失"与"采集失败"，保留状态下轮重试，防误归还
+        if (context.nodeToPidMemInfos.count(persistState.borrowInNodeId) == 0) {
+            LOG_DEBUG << "Orphan check skip task " << persistState.taskId << ": node " << persistState.borrowInNodeId
+                      << " not collected this round.";
+            continue;
+        }
+
+        LOG_WARN << "Orphan task detected: " << persistState.taskId << " node=" << persistState.borrowInNodeId
+                 << " phase=" << static_cast<uint32_t>(persistState.phase)
+                 << " vanished from this round's collect, reclaim.";
+
+        // 持有新借用时先归还（借用账本在master，master侧直接归还; smapBack=false不依赖ubturbo，
+        // 故障场景前置条件可能是ubturbo已挂; UBSE_ERR_NOT_EXIST视为已归还，保证幂等）
+        if (persistState.phase >= TaskPhase::BORROWED && !persistState.newBorrowId.empty()) {
+            MpResult freeRet =
+                MemBorrowExecutor::Instance().MemFreeWithOps(persistState.newBorrowId, true, false, true);
+            if (freeRet != MEM_POOLING_OK && freeRet != UBSE_ERR_NOT_EXIST) {
+                LOG_ERROR << "Orphan task " << persistState.taskId << " free newBorrowId=" << persistState.newBorrowId
+                          << " failed, ret=" << freeRet << ", keep state for next round.";
+                overallRet = MEM_POOLING_FAULT_RETURN_MEM_ERROR;
+                continue; // 归还失败不删状态，下轮重试
+            }
+        }
+
+        if (PidFaultStateStore::Instance().RemoveCompletedTask(faultNodeId, persistState.taskId) != MEM_POOLING_OK) {
+            LOG_ERROR << "Orphan task " << persistState.taskId << " remove state failed.";
+            overallRet = MEM_POOLING_FAULT_RETURN_MEM_ERROR;
+            continue;
+        }
+        LOG_INFO << "Orphan task " << persistState.taskId << " reclaimed, state removed.";
+    }
+    return overallRet;
 }
 
 } // namespace mempooling
