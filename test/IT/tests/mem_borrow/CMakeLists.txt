@@ -1,6 +1,7 @@
 add_library(it_mem_borrow_cases STATIC
     mem_borrow_cases.cpp
     mem_borrow_fault_log_cases.cpp
+    mem_borrow_p1_cases.cpp
 )
 target_include_directories(it_mem_borrow_cases PUBLIC
     ${CMAKE_SOURCE_DIR}/test/IT

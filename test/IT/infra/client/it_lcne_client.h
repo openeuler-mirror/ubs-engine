@@ -64,6 +64,15 @@ struct LcneLinkInfo {
 };
 
 /**
+ * @brief 链路断链注入请求: nodeA 与 nodeB 之间, 对指定 ubpu 的相连端口置为 down.
+ */
+struct LcneLinkDown {
+    std::string nodeA;
+    std::string nodeB;
+    std::vector<int> ubpuIds;
+};
+
+/**
  * @brief LCNE logic-entity信息（从logic-entities接口获取）
  */
 struct LcneLogicEntityInfo {

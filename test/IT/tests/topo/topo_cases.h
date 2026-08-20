@@ -63,6 +63,11 @@ void RunP0CliNodeBadParam01(ubse::it::infra::ItCluster& cluster);
 // P0-CliNode-BadParam-02: CLI display node -n 0/-n 256/-n abc 非法参数报错
 void RunP0CliNodeBadParam02(ubse::it::infra::ItCluster& cluster);
 
+// P0-CliTopoCpu-LinkChange-01: 1-2 链路断链
+void RunP0CliTopoCpuLinkChange01(ubse::it::infra::ItCluster& cluster);
+
+// P1-CliTopoCpu-LinkOneNodeOnline-01: 链路一端节点在线, 另一侧节点离线
+void RunP1CliTopoCpuLinkOneNodeOnline01(ubse::it::infra::ItCluster& cluster);
 } // namespace ubse::it::tests::topo
 
 #endif // IT_TOPO_CASES_H

@@ -297,6 +297,29 @@ UbseResult ItCluster::GetAllLcneLogicEntities(std::vector<LcneLogicEntityInfo>& 
     return UBSE_OK;
 }
 
+void ItCluster::MarkPortDown(const std::vector<LcneLinkDown>& links)
+{
+    for (const auto& link : links) {
+        auto nodeA = nodes_.find(link.nodeA);
+        auto nodeB = nodes_.find(link.nodeB);
+        if (nodeA == nodes_.end() || nodeB == nodes_.end()) {
+            IT_LOG_WARN << "MarkPortDown: unknown node " << link.nodeA << " / " << link.nodeB << ", skip";
+            continue;
+        }
+        // 集群下发到链路两端节点, 节点再转发给各自的 lcne_server;
+        // 若场景连接表中两者之间无链路, 节点内部会 no-op
+        nodeA->second->MarkLinkDown(link.nodeB, std::set<int>(link.ubpuIds.begin(), link.ubpuIds.end()));
+        nodeB->second->MarkLinkDown(link.nodeA, std::set<int>(link.ubpuIds.begin(), link.ubpuIds.end()));
+        IT_LOG_INFO << "MarkPortDown: node " << link.nodeA << " <-> node " << link.nodeB << ", ubpu = " << [&link]() {
+            std::stringstream ss;
+            for (auto& ubpuId : link.ubpuIds) {
+                ss << ubpuId << " ";
+            }
+            return ss.str();
+        }() << "(inject down)";
+    }
+}
+
 UbseResult ItCluster::KillNode(const std::string& nodeId)
 {
     auto it = nodes_.find(nodeId);
@@ -304,7 +327,7 @@ UbseResult ItCluster::KillNode(const std::string& nodeId)
         IT_LOG_ERROR << "Node not found: " << nodeId;
         return UBSE_ERROR_DEF(1);
     }
-    return it->second->Kill();
+    return it->second->KillUBSE();
 }
 
 UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElection, uint32_t electionTimeoutMs)
@@ -315,7 +338,7 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
         return UBSE_ERROR_DEF(1);
     }
 
-    UbseResult ret = it->second->Restart();
+    UbseResult ret = it->second->RestartUBSE();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to restart node " << nodeId;
         return ret;

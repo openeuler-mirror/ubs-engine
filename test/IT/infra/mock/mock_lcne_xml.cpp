@@ -11,8 +11,7 @@
  */
 
 #include "mock_lcne_xml.h"
-
-#include <map>
+#include "mock_lcne_port.h"
 
 namespace ubse::it::infra::lcne_xml {
 
@@ -179,20 +178,9 @@ std::string HostInfoXml(uint32_t slotId)
            "</vbussw-inventory>";
 }
 
-std::string TopologyNodesXml(uint32_t slotId, const std::vector<uint32_t>& /*clusterSlotIds*/)
+std::string TopologyNodesXml(uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds)
 {
-    // 真实环境数据规律: 每节点2个ubpu, 各9个physical-port
-    // 端口状态: port 0/2/3/6/7/8=down, port 1/4/5=up
-    // 对称连接: 同一条链路两端使用相同端口号
-    // 连接映射表 (portId -> remoteSlotId):
-    //   slot1: port1->2, port4->3, port5->4
-    //   slot2: port1->1, port4->4, port5->3
-    //   slot3: port1->4, port4->1, port5->2
-    //   slot4: port1->3, port4->2, port5->1
-    static const std::map<uint32_t, std::map<int, uint32_t>> upPortMap = {{1, {{1, 2}, {4, 3}, {5, 4}}},
-                                                                          {2, {{1, 1}, {4, 4}, {5, 3}}},
-                                                                          {3, {{1, 4}, {4, 1}, {5, 2}}},
-                                                                          {4, {{1, 3}, {4, 2}, {5, 1}}}};
+    const auto upPortMap = lcne_port::SelectUpPortMap(slotId, clusterSlotIds.size());
 
     std::string xml = "<lingqu-topology xmlns=\"urn:huawei:yang:huawei-lingqu-topology\">\n  <nodes>\n";
     for (int ubpu = 1; ubpu <= 2; ++ubpu) {
@@ -202,6 +190,7 @@ std::string TopologyNodesXml(uint32_t slotId, const std::vector<uint32_t>& /*clu
         xml += "      <iou>1</iou>\n";
         xml += "      <ubpu-type>CPU-LINK</ubpu-type>\n";
         xml += "      <physical-ports>\n";
+        const auto ubpuPortsIt = upPortMap.find(ubpu);
         for (int portId = 0; portId < 9; ++portId) {
             xml += "        <physical-port>\n";
             xml += "          <physical-port-id>" + std::to_string(portId) + "</physical-port-id>\n";
@@ -209,11 +198,11 @@ std::string TopologyNodesXml(uint32_t slotId, const std::vector<uint32_t>& /*clu
                    std::to_string(portId + 1) + "</interface-name>\n";
             xml += "          <physical-port-role>internal-port</physical-port-role>\n";
 
-            auto slotIt = upPortMap.find(slotId);
-            auto portIt = (slotIt != upPortMap.end()) ? slotIt->second.find(portId) : slotIt->second.end();
-            if (portIt != slotIt->second.end()) {
+            // 本节点在场景连接表中, 且该端口存在时才为 up, 否则为 down
+            const bool isUp = ubpuPortsIt != upPortMap.end() && ubpuPortsIt->second.count(portId) != 0;
+            if (isUp) {
                 xml += "          <physical-port-status>up</physical-port-status>\n";
-                xml += "          <remote-slot>" + std::to_string(portIt->second) + "</remote-slot>\n";
+                xml += "          <remote-slot>" + std::to_string(ubpuPortsIt->second.at(portId)) + "</remote-slot>\n";
                 xml += "          <remote-ubpu>" + std::to_string(ubpu) + "</remote-ubpu>\n";
                 xml += "          <remote-iou>1</remote-iou>\n";
                 xml += "          <remote-physical-port-id>" + std::to_string(portId) + "</remote-physical-port-id>\n";
@@ -347,6 +336,25 @@ std::string SubscriptionResponseXml()
            "    <result>ok</result>\n"
            "  </rpc_reply>\n"
            "</restconf>";
+}
+
+std::string LinkUpDownNotificationXml(const std::string& linkUpDown, const std::string& interfaceName)
+{
+    const std::string operStatus = (linkUpDown == "link-down") ? "down" : "up";
+    return "<notification xmlns=\"urn:ietf:params:xml:ns:netconf:notification:1.0\">\n"
+           "  <" +
+           linkUpDown +
+           ">\n"
+           "    <oper-status>" +
+           operStatus +
+           "</oper-status>\n"
+           "    <main-if-name>" +
+           interfaceName +
+           "</main-if-name>\n"
+           "  </" +
+           linkUpDown +
+           ">\n"
+           "</notification>";
 }
 
 std::string AddDecoderResponseJson()

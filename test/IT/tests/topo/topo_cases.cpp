@@ -575,4 +575,60 @@ void RunP0CliNodeBadParam02(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-CliNode-BadParam-02 passed";
 }
 
+// P0-CliTopoCpu-LinkChange-01(四节点): 1-2 链路断链
+void RunP0CliTopoCpuLinkChange01(ubse::it::infra::ItCluster& cluster)
+{
+    // 构造 1-2 ubpu=2 断链, 1、2 节点分别上报 link-down
+    cluster.MarkPortDown({{"1", "2", {2}}});
+    EXPECT_UBSE_OK(cluster.GetNode("1").NotifyLinkUpDown(true, "400GUB1/2/2"));
+    EXPECT_UBSE_OK(cluster.GetNode("2").NotifyLinkUpDown(true, "400GUB2/2/2"));
+
+    // 查询拓扑 CLI，校验 1-2 链路 down（链路减少一条）
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
+    EXPECT_EQ(topoLinks.size(), 11);
+
+    // 恢复断链, 1、2 节点分别上报 link-up
+    cluster.GetNode("1").ClearLinkDowns();
+    cluster.GetNode("2").ClearLinkDowns();
+    EXPECT_UBSE_OK(cluster.GetNode("1").NotifyLinkUpDown(false, "400GUB1/2/2"));
+    EXPECT_UBSE_OK(cluster.GetNode("2").NotifyLinkUpDown(false, "400GUB2/2/2"));
+
+    // 再次查询拓扑 CLI，校验 1-2 链路恢复 up（链路增加一条）
+    EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
+    EXPECT_EQ(topoLinks.size(), 12);
+}
+
+// P1-CliTopoCpu-LinkOneNodeOnline-01: 链路一端节点在线, 另一侧节点离线
+void RunP1CliTopoCpuLinkOneNodeOnline01(ubse::it::infra::ItCluster& cluster)
+{
+    // 停止2节点后，查询拓扑 CLI，校验 1-2 链路 down（linkId == "-"）
+    IT_LOG_INFO << "Stopping node 2...";
+    EXPECT_UBSE_OK(cluster.GetNode("2").StopUBSE());
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
+    EXPECT_EQ(topoLinks.size(), 2);
+    EXPECT_TRUE(topoLinks[0].linkId == "-" && topoLinks[1].linkId == "-") << "1-2 link should be down";
+
+    IT_LOG_INFO << "Restarting node 1...";
+    EXPECT_UBSE_OK(cluster.GetNode("1").RestartUBSE());
+
+    auto ret = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() -> bool {
+            std::string masterNodeId;
+            return cluster.GetMasterNodeId(masterNodeId) == UBSE_OK;
+        },
+        30000);
+    EXPECT_UBSE_OK(ret) << "1 node should be running";
+    EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
+    EXPECT_EQ(topoLinks.size(), 2);
+    EXPECT_TRUE(topoLinks[0].linkId == "-" && topoLinks[1].linkId == "-") << "1-2 link should be down";
+
+    // 重启2节点后，查询拓扑 CLI，校验 1-2 链路 up
+    IT_LOG_INFO << "Restarting node 2...";
+    ASSERT_IT_OK(cluster.RestartNode("2", true, 30000));
+    EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
+    EXPECT_EQ(topoLinks.size(), 2);
+    EXPECT_FALSE(topoLinks[0].linkId == "-" || topoLinks[1].linkId == "-") << "1-2 link should be up";
+}
 } // namespace ubse::it::tests::topo

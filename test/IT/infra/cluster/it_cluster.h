@@ -126,6 +126,12 @@ public:
     UbseResult GetAllLcneLogicEntities(std::vector<LcneLogicEntityInfo>& entities);
 
     /**
+     * @brief 批量注入断链: 对每个 link, 若 nodeA 与 nodeB 在场景连接表中存在链路,
+     *        则将两端相连端口 (对指定 ubpu) 置为 down; 若本身无连接则忽略 (no-op).
+     */
+    void MarkPortDown(const std::vector<LcneLinkDown>& links);
+
+    /**
      * @brief Kill a specific node (SIGKILL) for fault injection.
      * @param nodeId The node to kill
      * @return UBSE_OK on success
