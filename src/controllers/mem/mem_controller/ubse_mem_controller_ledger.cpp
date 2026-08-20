@@ -5,6 +5,7 @@
 #include "ubse_mem_controller_ledger.h"
 
 #include <ubse_node.h>
+#include <chrono>
 #include <cstdint>
 #include <set>
 #include <string>
@@ -47,6 +48,7 @@ using namespace ubse::security;
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::adapter_plugins::mti::mami;
 using namespace ubse::common::def;
 using namespace ubse::com;
 using namespace ubse::mem::def;
@@ -232,6 +234,33 @@ NodeMemDebtInfo GetMasterCtxLedger(const std::string& nodeId)
     return {};
 }
 
+struct PairHash {
+    std::size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
+    {
+        return std::hash<uint64_t>{}((static_cast<uint64_t>(p.first) << NO_32) | p.second);
+    }
+};
+
+static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPorts(const std::string& targetNodeId)
+{
+    auto allLinkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> linkUpPorts;
+    for (const auto& [_, physicalLink] : allLinkInfos) {
+        // interfaceName非空，本端端口UP
+        if (std::to_string(physicalLink.slotId) == targetNodeId && !physicalLink.interfaceName.empty()) {
+            UBSE_LOG_INFO << "physicalLink=" << physicalLink.interfaceName << ", chipId=" << physicalLink.chipId
+                          << ", portId=" << physicalLink.portId;
+            linkUpPorts.insert({physicalLink.chipId, physicalLink.portId});
+        }
+        if (std::to_string(physicalLink.peerSlotId) == targetNodeId && !physicalLink.peerInterfaceName.empty()) {
+            UBSE_LOG_INFO << "physicalLink=" << physicalLink.peerInterfaceName
+                          << ", peerChipId=" << physicalLink.peerChipId << ", peerPortId=" << physicalLink.peerPortId;
+            linkUpPorts.insert({physicalLink.peerChipId, physicalLink.peerPortId});
+        }
+    }
+    return linkUpPorts;
+}
+
 template <typename ImportObj, typename ExportObjMap>
 bool IsSingleImportDebt(const ImportObj& importObj, const ExportObjMap& exportObjMap, const std::string& name,
                         const std::string& nodeId)
@@ -267,28 +296,65 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj& importObj, const Export
         exportDebtName = name + "_" + nodeId;
     }
 
-    if (exportObjMap.find(exportDebtName) != exportObjMap.end()) {
-        return ret;
-    }
-
-    bool isValid = true;
-    for (const auto& decoderval : importObj.status.decoderResult) {
-        if (!decoderval.valid) {
-            isValid = false;
-            break;
+    bool isSingleDebt = (exportObjMap.find(exportDebtName) == exportObjMap.end());
+    int retry = 10;
+    int sleepTimeMs = 200;
+    if (isSingleDebt) {
+        if (importObj.status.decoderResult.empty()) {
+            UBSE_LOG_WARN << "importObj.status.decoderResult is empty, skip invalidate. name=" << name
+                          << ", importNodeId=" << nodeId << ", borrowType=" << int(borrowType);
+            return ret;
         }
-    }
-
-    if (!isValid) {
-        int retry = 10;
-        UBSE_LOG_INFO << "Start to invalidate import debt, name=" << name << ", importNodeId=" << nodeId
+        if (!IsValidDecoderStateTransition(importObj.status.decoderResult[0].state,
+                                           UbseDecoderState::DECODER_PERMANENT_INVALID)) {
+            UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << nodeId << ", borrowType=" << int(borrowType)
+                          << ", invalid decoder state transition to permanent invalid, skip. decoderState="
+                          << int(importObj.status.decoderResult[0].state);
+            return ret;
+        }
+        UBSE_LOG_INFO << "Start to permanently invalidate import debt, name=" << name << ", importNodeId=" << nodeId
                       << ", borrowType=" << int(borrowType);
         while (retry > 0) {
             retry--;
-            ret = SendInvalidateSingleImportDebtRpc(nodeId, name, borrowType);
+            ret = SendInvalidateSingleImportDebtRpc(nodeId, name, borrowType,
+                                                    UbseDecoderState::DECODER_PERMANENT_INVALID);
             if (ret == UBSE_OK) {
                 break;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
+        }
+    } else {
+        if (importObj.status.decoderResult.empty() || importObj.algoResult.importNumaInfos.empty()) {
+            UBSE_LOG_WARN << "decoderResult.size=" << importObj.status.decoderResult.size()
+                          << " importNumaInfos.size()=" << importObj.algoResult.importNumaInfos.size()
+                          << ",skip invalidate. name=" << name << ", importNodeId=" << nodeId
+                          << ", borrowType=" << int(borrowType);
+            return ret;
+        }
+        auto linkUpPorts = GetLinkUpPorts(nodeId);
+        bool hasUpPort = false;
+        auto numaInfo = importObj.algoResult.importNumaInfos.front();
+        if (linkUpPorts.find({numaInfo.chipId, numaInfo.portId}) != linkUpPorts.end()) {
+            hasUpPort = true;
+        }
+        auto targetDecoderState = hasUpPort ? UbseDecoderState::DECODER_VALID : UbseDecoderState::DECODER_TEMP_INVALID;
+        if (!IsValidDecoderStateTransition(importObj.status.decoderResult[0].state, targetDecoderState)) {
+            UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << nodeId << ", borrowType=" << int(borrowType)
+                          << ", invalid decoder state transition, skip. decoderState="
+                          << int(importObj.status.decoderResult[0].state)
+                          << ", targetState=" << int(targetDecoderState);
+            return ret;
+        }
+        UBSE_LOG_INFO << "name=" << name << ", importNodeId=" << nodeId << ", borrowType=" << int(borrowType)
+                      << "start to change import curState=" << int(importObj.status.decoderResult[0].state)
+                      << ", targetState=" << int(targetDecoderState);
+        while (retry > 0) {
+            retry--;
+            ret = SendInvalidateSingleImportDebtRpc(nodeId, name, borrowType, targetDecoderState);
+            if (ret == UBSE_OK) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
         }
     }
     return ret;
@@ -476,8 +542,11 @@ UbseResult MasterHandleSingleImportDebtWithExportNode(
 }
 
 template <typename ImportObjMap>
-UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std::string& name)
+UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std::string& name,
+                                           UbseDecoderState targetState)
 {
+    UBSE_LOG_INFO << "begin to invalidate import debt, name=" << name
+                  << ", targetState=" << static_cast<int>(targetState);
     if (importObjMap.find(name) == importObjMap.end()) {
         UBSE_LOG_INFO << "ImportObjMap not found name=" << name;
         return UBSE_OK;
@@ -485,15 +554,16 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std
     auto& debtObj = importObjMap.at(name);
     uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(debtObj.req.ubseMemPrivData);
 
-    auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId);
+    auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId, targetState);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, " << FormatRetCode(ret);
         return ret;
     }
+    UBSE_LOG_INFO << "invalidate import debt done, name=" << name << ", targetState=" << static_cast<int>(targetState);
     return ret;
 }
 
-UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type)
+UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type, UbseDecoderState targetState)
 {
     auto agentDebtInfo = GetNodeMemDebtInfoMap();
     ubse::nodeController::UbseNodeInfo curNode = UbseNodeController::GetInstance().GetCurNode();
@@ -501,16 +571,16 @@ UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType 
     uint32_t ret = UBSE_ERROR;
     switch (type) {
         case UbseMemBorrowType::FD_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.fdImportObjMap, name);
+            ret = AgentInvalidateImportDebtHelper(debtInfo.fdImportObjMap, name, targetState);
             break;
         case UbseMemBorrowType::NUMA_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.numaImportObjMap, name);
+            ret = AgentInvalidateImportDebtHelper(debtInfo.numaImportObjMap, name, targetState);
             break;
         case UbseMemBorrowType::ADDR_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.addrImportObjMap, name);
+            ret = AgentInvalidateImportDebtHelper(debtInfo.addrImportObjMap, name, targetState);
             break;
         case UbseMemBorrowType::SHM_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.shareImportObjMap, name);
+            ret = AgentInvalidateImportDebtHelper(debtInfo.shareImportObjMap, name, targetState);
             break;
         default:
             break;
@@ -2613,33 +2683,6 @@ UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name)
     UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjPtrs.size()
                   << " import objects.";
     return {exportObjPtr, importObjPtrs};
-}
-
-struct PairHash {
-    std::size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
-    {
-        return std::hash<uint64_t>{}((static_cast<uint64_t>(p.first) << NO_32) | p.second);
-    }
-};
-
-static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPorts(const std::string& targetNodeId)
-{
-    auto allLinkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
-    std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> linkUpPorts;
-    for (const auto& [_, physicalLink] : allLinkInfos) {
-        // interfaceName非空，本端端口UP
-        if (std::to_string(physicalLink.slotId) == targetNodeId && !physicalLink.interfaceName.empty()) {
-            UBSE_LOG_INFO << "physicalLink=" << physicalLink.interfaceName << ", chipId=" << physicalLink.chipId
-                          << ", portId=" << physicalLink.portId;
-            linkUpPorts.insert({physicalLink.chipId, physicalLink.portId});
-        }
-        if (std::to_string(physicalLink.peerSlotId) == targetNodeId && !physicalLink.peerInterfaceName.empty()) {
-            UBSE_LOG_INFO << "physicalLink=" << physicalLink.peerInterfaceName
-                          << ", peerChipId=" << physicalLink.peerChipId << ", peerPortId=" << physicalLink.peerPortId;
-            linkUpPorts.insert({physicalLink.peerChipId, physicalLink.peerPortId});
-        }
-    }
-    return linkUpPorts;
 }
 
 static void BuildLinkToNumaMap(const std::string& targetNodeId,

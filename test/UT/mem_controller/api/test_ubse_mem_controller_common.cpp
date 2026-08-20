@@ -125,7 +125,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UnImportToAddDecoderEntryTest)
     UbseMemObmmInfo ubseMemObmmInfo;
     ubseMemObmmInfo.memId = 1;
     importObj.exportObmmInfo.push_back(ubseMemObmmInfo);
-    UbseMamiMemImportResult importResult;
+    UbseMamiMemImportResult importResult{};
     importResult.marId = 0;
     importObj.status.decoderResult.push_back(importResult);
     UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);

@@ -53,7 +53,7 @@ struct UbseDevName {
 struct UbseDevPortName {
     std::string name;
     UbseDevPortName() {}
-    UbseDevPortName(const std::string& nodeId, const std::string& chipId, const std::string& cardId,
+    UbseDevPortName(const std::string& nodeId, const std::string& chipId, const std::string& dieId,
                     const std::string& portId);
     explicit UbseDevPortName(const std::string& name);
     explicit UbseDevPortName(std::string&& name);
@@ -82,7 +82,7 @@ struct UbseMtiCpuTopoPortInfo {
     // 对端信息
     std::string remoteSlotId;  // LCNE提供的对端槽位号
     std::string remoteChipId;  // LCNE提供的对端chipID
-    std::string remoteCardId;  // LCNE提供的对端IOdie-ID
+    std::string remoteDieId;   // LCNE提供的对端IOdie-ID
     std::string remoteIfName;  // 对端端口名（带宽）
     std::string remotePortId;  // 对端端口名
     UbseDevName remoteDevName; // 对端设备名称
@@ -103,7 +103,7 @@ public:
     UbseDevName devName; // 本设备名称
     std::string slotId;  // 槽位号(NodeId)
     std::string chipId;  // 模组号(SocketId)
-    std::string cardId;  // 卡号(IODieId)
+    std::string dieId;   // IO Die号(IODieId)
     UbseDevType type;    // 设备类型
     // IODie
     std::string eid;  // 本设备eid(UB-Controller-Eid),不在本节点拓扑中
@@ -126,7 +126,7 @@ struct UbseMtiCpuTopoInfo {
     uint32_t busNodeCna;    // 本设备cna标识
     std::string primaryEid; // cpu对应的urma通信eid
     std::string chipId;     // LCNE提供的chipid
-    std::string cardId;     // IOdie-ID
+    std::string dieId;      // IOdie-ID
     std::string eid;        // 本设备eid
     std::string guid;       // 本设备guid
     UbsePortMap portInfos;  // port信息,k:DevPortName,v:边信息

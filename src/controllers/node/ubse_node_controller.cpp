@@ -921,14 +921,14 @@ UbseResult GetUbseCpuInfoOffset(
     for (auto cpu : cpuInfos) {
         UbseSerialization item;
         item << cpu.first.nodeId << cpu.first.chipId << cpu.second.slotId << cpu.second.socketId
-             << cpu.second.primaryEid << cpu.second.chipId << cpu.second.cardId << cpu.second.eid << cpu.second.guid
+             << cpu.second.primaryEid << cpu.second.chipId << cpu.second.dieId << cpu.second.eid << cpu.second.guid
              << cpu.second.busNodeCna;
         item << (right_v<size_t>(cpu.second.portInfos.size()));
         for (auto portInfo : cpu.second.portInfos) {
             UbseSerialization portItem;
             portItem << portInfo.first << portInfo.second.ifName << portInfo.second.portRole
                      << enum_v(portInfo.second.portStatus) << portInfo.second.portCna << portInfo.second.urmaEid
-                     << portInfo.second.remoteSlotId << portInfo.second.remoteChipId << portInfo.second.remoteCardId
+                     << portInfo.second.remoteSlotId << portInfo.second.remoteChipId << portInfo.second.remoteDieId
                      << portInfo.second.remoteIfName << portInfo.second.remotePortId;
             item << portItem;
         }
@@ -1158,7 +1158,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
             UBSE_LOG_ERROR << "cpy primary eid failed, ErrorCode=" << cpyRet;
             return cpyRet;
         }
-        item >> info.chipId >> info.cardId >> info.eid >> info.guid >> info.busNodeCna;
+        item >> info.chipId >> info.dieId >> info.eid >> info.guid >> info.busNodeCna;
         size_t portNum = 0;
         item >> portNum;
         if (!inStream.Check()) {
@@ -1171,7 +1171,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
             UbsePortInfo portInfo{};
             port >> portInfo.portId >> portInfo.ifName >> portInfo.portRole >> enum_v(portInfo.portStatus) >>
                 portInfo.portCna >> portInfo.urmaEid >> portInfo.remoteSlotId >> portInfo.remoteChipId >>
-                portInfo.remoteCardId >> portInfo.remoteIfName >> portInfo.remotePortId;
+                portInfo.remoteDieId >> portInfo.remoteIfName >> portInfo.remotePortId;
             if (!inStream.Check()) {
                 UBSE_LOG_ERROR << "Ubse deserialize portInfo failed";
                 return UBSE_ERROR;

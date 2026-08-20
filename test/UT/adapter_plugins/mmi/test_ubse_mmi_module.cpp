@@ -218,7 +218,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
     port.portStatus = nodeController::PortStatus::UP;
     port.remoteSlotId = "2";
     port.remoteChipId = "0";
-    port.remoteCardId = "0";
+    port.remoteDieId = "0";
     port.remotePortId = "0";
     port.remoteIfName = "remoteIf";
     info.portInfos["1"] = port;

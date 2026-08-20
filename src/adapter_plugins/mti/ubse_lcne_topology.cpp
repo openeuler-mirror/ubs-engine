@@ -13,6 +13,7 @@
 #include "ubse_lcne_topology.h"
 
 #include <shared_mutex>
+#include <string>
 #include <thread>
 
 #include "ubse_conf_module.h"
@@ -59,9 +60,8 @@ UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, c
         UBSE_LOG_WARN << "[MTI] interfaceName is empty.";
         return UBSE_ERROR;
     }
-    std::string slotId;
-    std::string chipId;
     std::string portId;
+    UbseDeviceInfo devInfo;
     bool found = false;
     UbseDevTopology devTopology;
     if (UbseGetDevTopology(devTopology) != UBSE_OK) {
@@ -72,22 +72,23 @@ UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, c
         auto& [deviceInfo, portMap] = devTopo.second;
         for (auto& [portName, portInfo] : portMap) {
             if (portInfo.ifName == interfaceName) {
-                slotId = deviceInfo.slotId;
-                chipId = deviceInfo.chipId;
+                devInfo = deviceInfo;
                 portId = portInfo.portId;
                 found = true;
                 break;
             }
         }
-        if (found)
+        if (found) {
             break;
+        }
     }
-    if (!found || slotId.empty() || chipId.empty() || portId.empty()) {
+    if (!found || devInfo.slotId.empty() || devInfo.chipId.empty() || devInfo.dieId.empty() || portId.empty()) {
         UBSE_LOG_WARN << "[MTI] Topology information corresponding to interface=" << interfaceName << " not found.";
         return UBSE_ERROR;
     }
     const std::string status = (linkUpDown == "link-down") ? "DOWN" : "UP";
-    std::string eventMessage = status + ";" + slotId + ":" + chipId + ":" + portId + ":" + interfaceName;
+    std::string eventMessage =
+        status + ";" + devInfo.slotId + ":" + devInfo.chipId + ":" + devInfo.dieId + ":" + portId + ":" + interfaceName;
 
     UBSE_LOG_INFO << "[MTI] Pub event=" << g_ubseEventPortUpDown << ", eventMessage=" << eventMessage;
 
@@ -299,7 +300,7 @@ void UbseLcneTopology::UbseNodeAddTopology(std::vector<LcneNodeInfo>& lcneNodes)
         UbseDeviceInfo nodeInfo;
         nodeInfo.slotId = node.slotId;
         nodeInfo.chipId = node.chipId;
-        nodeInfo.cardId = node.cardId;
+        nodeInfo.dieId = node.dieId;
         nodeInfo.type = StringToUbseDevType(node.type);
         std::string localDevNameStr = node.slotId + "-" + node.chipId;
         UbseDevName devName(localDevNameStr);
@@ -313,7 +314,7 @@ void UbseLcneTopology::UbseNodeAddTopology(std::vector<LcneNodeInfo>& lcneNodes)
             portInfo.portRole = port.portRole;
             portInfo.remoteSlotId = port.remoteSlotId;
             portInfo.remoteChipId = port.remoteChipId;
-            portInfo.remoteCardId = port.remoteCardId;
+            portInfo.remoteDieId = port.remoteDieId;
             portInfo.remotePortId = port.remotePortId;
             portInfo.portStatus = StringToPortStatus(port.portStatus);
             UbseDevPortName devPortName(port.portId);

@@ -34,15 +34,19 @@
 #include "ubse_ipc_common_def.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_json_util.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_share_api.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
 #include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::adapter_plugins::mti::mami;
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::election;
@@ -932,11 +936,11 @@ UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& mem
 }
 
 static UbseResult ParsePortDownUpEventMsg(const std::string& eventMsg, PortEventInfo& info)
-
 {
     size_t semiPos = eventMsg.find(';');
     if (semiPos == std::string::npos) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid eventMsg format, expected 'STATUS;slotId:chipId:portId'.";
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid eventMsg format, expected 'STATUS;slotId:chipId:dieId:portId:"
+                          "interfaceName'.";
         return UBSE_ERROR_INVAL;
     }
 
@@ -945,31 +949,39 @@ static UbseResult ParsePortDownUpEventMsg(const std::string& eventMsg, PortEvent
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid port status=" << info.status << ", expected 'DOWN' or 'UP'.";
         return UBSE_ERROR_INVAL;
     }
-
-    std::string locationInfo = eventMsg.substr(semiPos + 1);
-    size_t pos1 = locationInfo.find(':');
-    if (pos1 == std::string::npos) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing slotId:chipId:portId.";
-        return UBSE_ERROR_INVAL;
+    std::vector<std::string> fields;
+    size_t start = semiPos + 1;
+    for (int i = 0; i < 4 && start <= eventMsg.size(); ++i) {
+        size_t colonPos = eventMsg.find(':', start);
+        if (colonPos == std::string::npos) {
+            fields.push_back(eventMsg.substr(start));
+            start = eventMsg.size() + 1;
+            break;
+        }
+        fields.push_back(eventMsg.substr(start, colonPos - start));
+        start = colonPos + 1;
     }
-    size_t pos2 = locationInfo.find(':', pos1 + 1);
-    if (pos2 == std::string::npos) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing chipId:portId.";
-        return UBSE_ERROR_INVAL;
-    }
-    size_t pos3 = locationInfo.find(':', pos2 + 1);
-    if (pos3 == std::string::npos) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing portId.";
-        return UBSE_ERROR_INVAL;
+    if (start <= eventMsg.size()) {
+        fields.push_back(eventMsg.substr(start)); // interfaceName 取剩余全部内容
     }
 
-    info.slotId = locationInfo.substr(0, pos1);
-    info.chipId = locationInfo.substr(pos1 + 1, pos2 - pos1 - 1);
-    info.portId = locationInfo.substr(pos2 + 1, pos3 - pos2 - 1);
+    if (fields.size() < 5) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, expected 'slotId:chipId:dieId:portId:"
+                          "interfaceName'.";
+        return UBSE_ERROR_INVAL;
+    }
 
-    if (info.slotId.empty() || info.chipId.empty() || info.portId.empty()) {
+    info.slotId = fields[0];
+    info.chipId = fields[1];
+    info.dieId = fields[2];
+    info.portId = fields[3];
+    info.interfaceName = fields[4];
+
+    if (info.slotId.empty() || info.chipId.empty() || info.dieId.empty() || info.portId.empty() ||
+        info.interfaceName.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Parsed empty field from eventMsg, slotId=" << info.slotId
-                       << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+                       << ", chipId=" << info.chipId << ", dieId=" << info.dieId << ", portId=" << info.portId
+                       << ", interfaceName=" << info.interfaceName << ".";
         return UBSE_ERROR_INVAL;
     }
 
@@ -1033,9 +1045,154 @@ static UbseResult ReportPortFaultHandles(const PortEventInfo& info, const std::s
     return ExtractFaultMemBlockInVecAndCallSengFunc<OpCode, ModuleCode, FaultType>(handleInfo, handleType, getIdList);
 }
 
+static bool ParsePortInfo(const PortEventInfo& info, uint32_t& chipId, uint32_t& dieId, uint32_t& portId)
+{
+    if (utils::ConvertStrToUint32(info.chipId, chipId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid chipId format, chipId=" << info.chipId;
+        return false;
+    }
+    if (utils::ConvertStrToUint32(info.dieId, dieId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid dieId format, dieId=" << info.dieId;
+        return false;
+    }
+    if (utils::ConvertStrToUint32(info.portId, portId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid portId format, portId=" << info.portId;
+        return false;
+    }
+    return true;
+}
+
+template <typename ImportObjType>
+static bool IsImportObjMatchPort(const std::shared_ptr<const ImportObjType>& objPtr, const std::string& slotId,
+                                 uint32_t targetChipId, uint32_t targetDieId, uint32_t targetPortId)
+{
+    std::pair<uint32_t, uint32_t> chipDiePair{};
+    if (decoder::utils::MemDecoderUtils::GetChipAndDieId(objPtr->algoResult.attachSocketId, chipDiePair) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] GetChipAndDieId failed, skip import object.";
+        return false;
+    }
+    if (chipDiePair.first != targetChipId || chipDiePair.second != targetDieId) {
+        return false;
+    }
+    for (const auto& numaInfo : objPtr->algoResult.importNumaInfos) {
+        if (numaInfo.nodeId == slotId && numaInfo.portId == targetPortId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <typename ImportObjType>
+static std::vector<std::string> CollectMatchedImportNames(const std::string& slotId, uint32_t targetChipId,
+                                                          uint32_t targetDieId, uint32_t targetPortId)
+{
+    auto& ledger = debt::UbseMemDebtLedger::GetInstance();
+    auto nodeImportMap = ledger.GetDebtMap<ImportObjType>().FindNodeMap(slotId);
+    if (!nodeImportMap) {
+        return {};
+    }
+
+    std::vector<std::string> names;
+    for (const auto& [name, objPtr] : nodeImportMap->GetAll()) {
+        if (!objPtr) {
+            continue;
+        }
+        if (objPtr->status.state != UBSE_MEM_IMPORT_SUCCESS) {
+            continue;
+        }
+        if (IsImportObjMatchPort(objPtr, slotId, targetChipId, targetDieId, targetPortId)) {
+            names.push_back(name);
+        }
+    }
+    return names;
+}
+
+template <typename ImportObjType>
+static bool InvalidateDecodersForImport(const std::string& slotId, const std::string& name, const std::string& typeStr)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Invalidate decoders for import, slotId=" << slotId << ", name=" << name
+                  << ", type=" << typeStr << ".";
+    auto& ledger = debt::UbseMemDebtLedger::GetInstance();
+    auto objPtr = ledger.GetDebtMap<ImportObjType>().GetResource(slotId, name);
+    if (!objPtr) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Import object not found, name=" << name << ", type=" << typeStr << ".";
+        return false;
+    }
+    if (objPtr->status.decoderResult.empty()) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Import object has no decoders, name=" << name << ", type=" << typeStr << ".";
+        return false;
+    }
+    auto decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(objPtr->req.ubseMemPrivData);
+    auto copyObj = *objPtr;
+    const int maxRetryCount = 3;
+    const int retryIntervalSeconds = 5;
+    auto ret = UBSE_OK;
+    for (int retry = 0; retry < maxRetryCount; retry++) {
+        ret = AgentInvalidateDecoderEntry(objPtr->algoResult.attachSocketId, copyObj.status, decoderId,
+                                          UbseDecoderState::DECODER_TEMP_INVALID);
+        if (ret == UBSE_OK) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(retryIntervalSeconds));
+    }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] AgentInvalidateDecoderEntry failed for " << typeStr << " name=" << name
+                       << ", " << FormatRetCode(ret);
+        return false;
+    }
+    const auto targetState = UbseDecoderState::DECODER_TEMP_INVALID;
+    // 原子合并：基于账本最新对象，仅吸收本次硬件已成功置为 targetState 的 decoder 状态，并复查资源生命周期，
+    // 避免用旧快照整对象覆盖并发写回（如RPC路径的 PERMANENT_INVALID/销毁），导致decoder状态机与硬件状态偏离。
+    auto updated = ledger.GetDebtMap<ImportObjType>().UpdateResource(
+        slotId, name, [&copyObj, targetState, &name, &typeStr](auto& latest) {
+            if (latest.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+                UBSE_LOG_WARN << "[MEM_CONTROLLER] Import object destroyed concurrently, skip write back, name=" << name
+                              << ", type=" << typeStr << ".";
+                return false;
+            }
+            for (const auto& invalidated : copyObj.status.decoderResult) {
+                if (invalidated.state != targetState) {
+                    continue;
+                }
+                for (auto& latestDec : latest.status.decoderResult) {
+                    if (latestDec.marId == invalidated.marId && latestDec.handle == invalidated.handle &&
+                        IsValidDecoderStateTransition(latestDec.state, targetState)) {
+                        latestDec.state = targetState;
+                    }
+                }
+            }
+            return true;
+        });
+    if (!updated) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Import object removed concurrently, skip write back, name=" << name
+                      << ", type=" << typeStr << ".";
+        return false;
+    }
+    UBSE_LOG_INFO << "invalidate import debt done, name=" << name << ", targetState=" << static_cast<int>(targetState);
+    return true;
+}
+
+template <typename ImportObjType>
+static void InvalidatePortDownDecoderForType(const PortEventInfo& info, const std::string& typeStr)
+{
+    uint32_t targetChipId = 0;
+    uint32_t targetDieId = 0;
+    uint32_t targetPortId = 0;
+    if (!ParsePortInfo(info, targetChipId, targetDieId, targetPortId)) {
+        return;
+    }
+
+    auto matchedNames = CollectMatchedImportNames<ImportObjType>(info.slotId, targetChipId, targetDieId, targetPortId);
+    for (const auto& name : matchedNames) {
+        InvalidateDecodersForImport<ImportObjType>(info.slotId, name, typeStr);
+    }
+}
+
 template <UbMemFaultType FaultType>
 static void ReportAllPortFaultHandles(const PortEventInfo& info, const std::string& action)
 {
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Report all port fault handles, slotId=" << info.slotId
+                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ". action=" << action;
     auto ret =
         ReportPortFaultHandles<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER, FaultType, debt::ShareHandleInfoVec>(
             info, "share", debt::UbseQuerySharePortFaultHandleInfo,
@@ -1067,6 +1224,11 @@ static void ReportAllPortFaultHandles(const PortEventInfo& info, const std::stri
                 AgentModifyRemoteNumaStatus(numaStatus);
             }
         }
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Invalidate port down decoders";
+        InvalidatePortDownDecoderForType<UbseMemFdBorrowImportObj>(info, "fd");
+        InvalidatePortDownDecoderForType<UbseMemNumaBorrowImportObj>(info, "numa");
+        InvalidatePortDownDecoderForType<UbseMemShareBorrowImportObj>(info, "share");
+        InvalidatePortDownDecoderForType<UbseMemAddrBorrowImportObj>(info, "addr");
     }
     ret = ReportPortFaultHandles<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER, FaultType, debt::FdHandleInfoVec>(
         info, "fd", debt::UbseQueryFdPortFaultHandleInfo, [](const auto& h) -> const auto& { return h.memIds; });
@@ -1079,7 +1241,7 @@ static void ReportAllPortFaultHandles(const PortEventInfo& info, const std::stri
 UbseResult UbseMemFaultManager::OnePortDownHandle(const PortEventInfo& info)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Handling new port down event, slotId=" << info.slotId
-                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+                  << ", chipId=" << info.chipId << ", dieId=" << info.dieId << ", portId=" << info.portId << ".";
     if (executorPtr == nullptr) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit OnPortDown task.";
         return UBSE_ERROR_NULLPTR;

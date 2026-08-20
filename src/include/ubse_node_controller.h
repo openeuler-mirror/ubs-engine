@@ -44,7 +44,7 @@ public:
     // 对端信息
     std::string remoteSlotId; // LCNE提供的对端槽位号
     std::string remoteChipId; // LCNE提供的对端chipID
-    std::string remoteCardId; // LCNE提供的对端IOdie-ID
+    std::string remoteDieId;  // LCNE提供的对端IOdie-ID
     std::string remoteIfName; // 对端端口名（带宽）
     std::string remotePortId; // 对端端口名
 };
@@ -54,7 +54,7 @@ struct UbseCpuInfo {
     uint32_t socketId;                                       // os文件的socketId
     char primaryEid[40];                                     // cpu对应的urma通信eid
     std::string chipId;                                      // LCNE提供的chipid
-    std::string cardId;                                      // IOdie-ID
+    std::string dieId;                                       // IOdie-ID
     std::string eid;                                         // 本设备eid
     std::string guid;                                        // 本设备guid
     uint32_t busNodeCna;                                     // 本设备cna标识

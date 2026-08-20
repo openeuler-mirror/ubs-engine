@@ -1128,15 +1128,16 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer& req, UbseByteBuffer& re
 }
 
 UbseResult SendInvalidateSingleImportDebtRpc(const std::string& nodeId, const std::string& debtName,
-                                             UbseMemBorrowType type)
+                                             UbseMemBorrowType type,
+                                             adapter_plugins::mti::mami::UbseDecoderState targetState)
 {
     const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                               static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
-    UbseMemOptReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemOptReqSimpo();
+    UbseMemInvalidateReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemInvalidateReqSimpo();
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMesgInfo(std::make_tuple(debtName, type, nodeId));
+    ubseRequestPtr->SetUbseMesgInfo(std::make_tuple(debtName, type, nodeId, static_cast<uint8_t>(targetState)));
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemOptResultSimpo();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -1156,7 +1157,7 @@ UbseResult SendInvalidateSingleImportDebtRpc(const std::string& nodeId, const st
 
 UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    UbseMemOptReqSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    UbseMemInvalidateReqSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
     resp = {nullptr, 0, [size](uint8_t* p) noexcept {
@@ -1168,8 +1169,15 @@ UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer& req, U
     }
     std::string name = std::get<0>(simpo.GetUbseMesgInfo());
     UbseMemBorrowType type = std::get<1>(simpo.GetUbseMesgInfo());
-    UBSE_LOG_INFO << "Agent invalidate import debt, name=" << name << ", type=" << int(type);
-    auto result = AgentInvalidateImportDebt(name, type);
+    uint8_t rawState = simpo.Get<3>();
+    if (rawState > static_cast<uint8_t>(adapter_plugins::mti::mami::UbseDecoderState::DECODER_NONE)) {
+        UBSE_LOG_WARN << "Invalid decoderState received from RPC, value=" << static_cast<int>(rawState);
+        return UBSE_ERROR_INVAL;
+    }
+    auto decoderState = static_cast<adapter_plugins::mti::mami::UbseDecoderState>(rawState);
+    UBSE_LOG_INFO << "Agent invalidate import debt, name=" << name << ", type=" << int(type)
+                  << ", decoderState=" << static_cast<int>(decoderState);
+    auto result = AgentInvalidateImportDebt(name, type, decoderState);
     UbseMemOptResultSimpoPtr resultSimpo = new (std::nothrow) UbseMemOptResultSimpo();
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";

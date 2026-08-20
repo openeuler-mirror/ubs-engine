@@ -75,7 +75,7 @@ TEST_F(TestNodeControllerCollector, CollectCpuInfo)
     cpuTopoInfo.nodeId = 1;
     cpuTopoInfo.chipId = "2";
     cpuTopoInfo.primaryEid = "primaryEid";
-    cpuTopoInfo.cardId = "cardId";
+    cpuTopoInfo.dieId = "dieId";
     cpuTopoInfo.busNodeCna = 100;
     cpuTopoInfo.eid = "eid";
     cpuTopoInfo.guid = "guid";
@@ -562,7 +562,7 @@ TEST_F(TestNodeControllerCollector, AddEdgeInfo)
     info.portCna = 1;
     info.remoteSlotId = "remoteSlot";
     info.remoteChipId = "remoteChip";
-    info.remoteCardId = "remoteCard";
+    info.remoteDieId = "remoteCard";
     info.remoteIfName = "remoteIfName";
     info.remotePortId = "remotePort";
 
@@ -576,7 +576,7 @@ TEST_F(TestNodeControllerCollector, AddEdgeInfo)
     EXPECT_EQ(portInfo.portCna, 1);
     EXPECT_EQ(portInfo.remoteSlotId, "remoteSlot");
     EXPECT_EQ(portInfo.remoteChipId, "remoteChip");
-    EXPECT_EQ(portInfo.remoteCardId, "remoteCard");
+    EXPECT_EQ(portInfo.remoteDieId, "remoteCard");
     EXPECT_EQ(portInfo.remoteIfName, "remoteIfName");
     EXPECT_EQ(portInfo.remotePortId, "remotePort");
 }

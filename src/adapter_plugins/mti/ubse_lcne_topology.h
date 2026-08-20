@@ -39,7 +39,7 @@ struct LcnePortInfo {
     std::string portStatus;
     std::string remoteSlotId; // 对端槽位号
     std::string remoteChipId; // 对端模组号
-    std::string remoteCardId; // 对端卡号
+    std::string remoteDieId;  // 对端 IO Die号
     std::string remoteIfName; // 对端端口名（带宽）
     std::string remotePortId; // 对端端口号
 };
@@ -47,7 +47,7 @@ struct LcnePortInfo {
 struct LcneNodeInfo {
     std::string slotId; // 槽位号
     std::string chipId; // 模组号
-    std::string cardId; // 卡号
+    std::string dieId;  // IO Die号
     std::string type;   // 设备类型
     std::vector<LcnePortInfo> ports;
 };
@@ -61,7 +61,7 @@ struct LcnePortCnaInfo {
 struct LcneNodeCnaInfo {
     std::string slotId;        // 槽位号
     std::string chipId;        // 模组号
-    std::string cardId;        // 卡号
+    std::string dieId;         // IO Die号
     std::string busNodeCna;    // <bus-node-cna>
     uint32_t busNodeCnaUint32; // 转为标准的cna值
     std::vector<LcnePortCnaInfo> ports;

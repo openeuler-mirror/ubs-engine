@@ -35,7 +35,7 @@ void TestUbseNodeController::SetUp()
     info.slotId = 1;
     info.chipId = "1";
     info.eid = "1";
-    info.cardId = "1";
+    info.dieId = "1";
     info.eid = "1";
     info.guid = "1";
     info.busNodeCna = 1;
@@ -46,7 +46,7 @@ void TestUbseNodeController::SetUp()
     port.portStatus = PortStatus::UP;
     port.remoteSlotId = "0";
     port.remoteChipId = "0";
-    port.remoteCardId = "0";
+    port.remoteDieId = "0";
     port.remotePortId = "0";
     port.remoteIfName = "remoteIf";
     info.portInfos["1"] = port;
