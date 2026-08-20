@@ -1210,11 +1210,6 @@ bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo& repo
     bool sameGroup = (reportNodeInfo.groupId == curGroupId);
 
     if (sameGroup) {
-        if (isExisting) {
-            // 后续添加同组：按状态机迁移规则校验
-            return CanUpdateNodeClusterState(oldState, mergedState);
-        }
-        // 首次添加同组：直接允许
         return true;
     }
 
@@ -1298,6 +1293,9 @@ uint32_t UbseNodeController::UpdateClosHierarchicalNodeInfo(const std::string& n
     auto reportClusterState = info.clusterState;
     info.localState = existing.localState;
     info.globalState = existing.globalState;
+    if (info.groupId == nodeMgr::GetCurrentNode().groupId) {
+        info.clusterState = existing.clusterState;
+    }
     if (info.guid.empty() && !existing.guid.empty()) {
         info.guid = existing.guid;
     }
