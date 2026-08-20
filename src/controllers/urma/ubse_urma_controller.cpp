@@ -649,7 +649,7 @@ static UbseResult ValidateRemoteUrmaQueryNode(uint32_t nodeId)
     if (!std::any_of(staticNodes.begin(), staticNodes.end(),
                      [&](const auto& info) { return info.nodeId == nodeIdText; })) {
         UBSE_LOG_WARN << "URMA query node is not in the cluster, nodeId=" << nodeId;
-        return UBSE_URMACONTRL_ERROR_DEV_NOT_EXIST;
+        return UBSE_ERR_NOT_EXIST;
     }
 
     const auto currentNodes = UbseNodeController::GetInstance().GetAllNodes();
