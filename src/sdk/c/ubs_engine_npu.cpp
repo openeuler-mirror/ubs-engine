@@ -62,6 +62,35 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
     return ret;
 }
 
+int32_t ubs_npu_product_type_query(ubs_product_type* product_type)
+{
+    if (product_type == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    ubse_api_buffer_t requestBuffer = {nullptr, 0};
+    ubse_api_buffer_t responseBuffer = {nullptr, 0};
+
+    const uint32_t ipcRet = ubse_invoke_call(UBSE_NPU, UBSE_NPU_QUERY_PRODUCT_TYPE, &requestBuffer, &responseBuffer);
+    ubse_api_buffer_free(&requestBuffer);
+
+    if (ipcRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ipcRet;
+        ubse_api_buffer_free(&responseBuffer);
+        return ubse_map_daemon_error(ipcRet);
+    }
+
+    if (responseBuffer.length < sizeof(uint8_t)) {
+        IPC_LOG_ERROR << "response buffer too small";
+        ubse_api_buffer_free(&responseBuffer);
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+
+    *product_type = static_cast<ubs_product_type>(responseBuffer.buffer[0]);
+    ubse_api_buffer_free(&responseBuffer);
+    return UBS_SUCCESS;
+}
+
 int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
                              ubs_ub_devices_list_t* device_list)
 {

@@ -109,6 +109,18 @@ UbseResult QueryTidUbaSize(const UbseIpcMessage& req, const UbseRequestContext& 
     return UBSE_OK;
 }
 
+UbseResult QueryProductType(const UbseIpcMessage& req, const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "Received QueryProductType request";
+    auto ret = ExecuteDispatcher(req, context, QueryProductTypeExecute);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "QueryProductType failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "QueryProductType success";
+    return UBSE_OK;
+}
+
 UbseResult RegisterSdkDispatcher()
 {
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -121,6 +133,7 @@ UbseResult RegisterSdkDispatcher()
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_ALLOC_UB_DEVICES, AllocUbDevice, NPU_PERMISSION);
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_FREE_UB_DEVICES, FreeUbDevice, NPU_PERMISSION);
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_QUERY_UBA_TID_SIZE, QueryTidUbaSize, NPU_PERMISSION);
+    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_QUERY_PRODUCT_TYPE, QueryProductType, NPU_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of Npu SDK IPC-API failed.";
         return ret;

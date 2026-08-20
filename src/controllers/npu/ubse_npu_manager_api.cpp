@@ -1105,6 +1105,11 @@ UbseResult QueryUbaTidSizeImpl(const std::string& busInstanceGuid, UbaTidSize& i
     return res;
 }
 
+UbseResult GetProductTypeImpl(ProductType& productType)
+{
+    return ResourceCollection::GetInstance().GetProductType(productType);
+}
+
 UbseNpuManagerApi& UbseNpuManagerApi::GetInstance()
 {
     static UbseNpuManagerApi npuManager;
