@@ -34,7 +34,8 @@ UbseResult LendCountFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sche
             node.socketInfos.clear();
             continue;
         }
-        uint32_t requiredBlocks = (requestSizeMb + blockSize - 1) / blockSize;
+        // requestSize_ 已在构建请求时按 blockSize 向上取整，requestSizeMb 为 blockSize 的整数倍
+        uint32_t requiredBlocks = requestSizeMb / blockSize;
 
         auto isOverMaxTimes = [&](const SocketInfo& socketInfo) {
             auto* socket = nodeInfo.GetSocketInfo(node.nodeId, socketInfo.socketId);

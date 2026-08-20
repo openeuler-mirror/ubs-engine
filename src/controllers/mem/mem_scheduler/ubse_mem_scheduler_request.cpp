@@ -21,15 +21,52 @@ UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 namespace {
 // 同平面优先评分权重: 从 wBalance 中分出, 保持权重总和不变
 constexpr double AFFINITY_SCORE_WEIGHT = 0.1;
+
+uint64_t AlignRequestSize(uint64_t size, uint32_t blockSizeMb)
+{
+    // blockSizeMb 为 0 表示未获取到对齐粒度，保持原始值；
+    if (size == 0 || blockSizeMb == 0) {
+        return size;
+    }
+    uint64_t blockBytes = 0;
+    if (!ubse::utils::SizeMb2Byte(blockSizeMb, blockBytes)) {
+        UBSE_LOG_WARN << "blockSizeMb=" << blockSizeMb << " overflow when converting to bytes, keep raw size=" << size;
+        return size;
+    }
+    uint64_t aligned = 0;
+    if (!ubse::utils::SafeAdd(size, blockBytes - 1, aligned)) {
+        UBSE_LOG_WARN << "requestSize=" << size << " overflow when aligning to blockSize=" << blockSizeMb
+                      << "MB, keep raw size";
+        return size;
+    }
+    return (aligned / blockBytes) * blockBytes;
+}
+
+uint32_t GetRequestNodeBlockSize(const NodeId& importNodeId, const NodeId& requestNodeId, SchedulerNodeManager* info)
+{
+    if (info == nullptr) {
+        return 0;
+    }
+    const auto& sizeNodeId = importNodeId.empty() ? requestNodeId : importNodeId;
+    auto* reqNode = info->GetNodeInfo(sizeNodeId);
+    if (reqNode == nullptr) {
+        UBSE_LOG_WARN << "Failed to find node info for requestSize align, nodeId=" << sizeNodeId
+                      << ", requestSize stays unaligned";
+        return 0;
+    }
+    return reqNode->GetBlockSize();
+}
 } // namespace
 
-SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req,
+                                                     SchedulerNodeManager* info)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
     schedulerReq.requestNodeId_ = req.requestNodeId;
     schedulerReq.importNodeId_ = req.importNodeId;
-    schedulerReq.requestSize_ = req.size;
+    schedulerReq.requestSize_ = AlignRequestSize(
+        req.size, GetRequestNodeBlockSize(schedulerReq.importNodeId_, schedulerReq.requestNodeId_, info));
 
     schedulerReq.filterNames_ = {
         "ConfigConsistencyFilter", "RoleConflictFilter",     "LenderRoleFilter",   "GroupFilter",
@@ -64,13 +101,15 @@ SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi:
     return schedulerReq;
 }
 
-SchedulerRequest SchedulerRequest::BuildFromNumaBorrow(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromNumaBorrow(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req,
+                                                       SchedulerNodeManager* info)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
     schedulerReq.importNodeId_ = req.importNodeId;
     schedulerReq.requestNodeId_ = req.requestNodeId;
-    schedulerReq.requestSize_ = req.size;
+    schedulerReq.requestSize_ = AlignRequestSize(
+        req.size, GetRequestNodeBlockSize(schedulerReq.importNodeId_, schedulerReq.requestNodeId_, info));
     size_t highWatermark = req.highWatermark;
     if (highWatermark > MAX_PERCENT) {
         UBSE_LOG_WARN << "highWatermark=" << highWatermark << " exceeds MAX_PERCENT, capping to " << MAX_PERCENT;
@@ -157,12 +196,14 @@ SchedulerRequest SchedulerRequest::BuildFromAddrBorrow(const adapter_plugins::mm
     return schedulerReq;
 }
 
-SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req,
+                                                        SchedulerNodeManager* info)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
     schedulerReq.requestNodeId_ = req.requestNodeId;
-    schedulerReq.requestSize_ = req.size;
+    schedulerReq.requestSize_ = AlignRequestSize(
+        req.size, GetRequestNodeBlockSize(schedulerReq.importNodeId_, schedulerReq.requestNodeId_, info));
     schedulerReq.provideNodes_ = req.providerList;
     schedulerReq.params_["shmRegion"] = req.shmRegion;
 
@@ -195,10 +236,6 @@ SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::m
 SchedulerRequest SchedulerRequest::SetupFromNodeConf(SchedulerRequest&& req, SchedulerNodeManager* info)
 {
     if (req.requestMode_ == RequestMode::SHARE) {
-        if (req.params_.find("samePlanePrefer") != req.params_.end()) {
-            UBSE_LOG_WARN << "samePlanePrefer not supported for SHARE request, ignored";
-            req.params_.erase("samePlanePrefer");
-        }
         req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "ShareReliabilityScore",
                            "DivideNumaScore"};
         req.weights_ = ScoreWeights::ForShare();

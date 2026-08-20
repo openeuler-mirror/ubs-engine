@@ -67,9 +67,12 @@ public:
         params_[key] = value;
     }
 
-    static SchedulerRequest BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req);
-    static SchedulerRequest BuildFromNumaBorrow(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req);
-    static SchedulerRequest BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req);
+    static SchedulerRequest BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req,
+                                              SchedulerNodeManager* info = nullptr);
+    static SchedulerRequest BuildFromNumaBorrow(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req,
+                                                SchedulerNodeManager* info = nullptr);
+    static SchedulerRequest BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req,
+                                                 SchedulerNodeManager* info = nullptr);
     static SchedulerRequest BuildFromAddrBorrow(const adapter_plugins::mmi::UbseMemAddrBorrowReq& req);
 
     template <typename MemObj>
@@ -82,26 +85,26 @@ template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemFdBorrowImportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromFdBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromFdBorrow(obj.req, info), info);
 }
 template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemFdBorrowExportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromFdBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromFdBorrow(obj.req, info), info);
 }
 
 template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemNumaBorrowImportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromNumaBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromNumaBorrow(obj.req, info), info);
 }
 template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemNumaBorrowExportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromNumaBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromNumaBorrow(obj.req, info), info);
 }
 
 template <>
@@ -122,13 +125,13 @@ template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemShareBorrowImportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromShareBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromShareBorrow(obj.req, info), info);
 }
 template <>
 inline SchedulerRequest SchedulerRequest::BuildRequest(adapter_plugins::mmi::UbseMemShareBorrowExportObj& obj,
                                                        SchedulerNodeManager* info)
 {
-    return SetupFromNodeConf(BuildFromShareBorrow(obj.req), info);
+    return SetupFromNodeConf(BuildFromShareBorrow(obj.req, info), info);
 }
 
 } // namespace ubse::mem::scheduler
