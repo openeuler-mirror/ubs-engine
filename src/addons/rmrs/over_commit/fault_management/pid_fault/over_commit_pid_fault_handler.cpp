@@ -16,7 +16,6 @@
 #include <fstream>
 #include <future>
 #include <map>
-#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include "ubse_error.h"
@@ -836,15 +835,16 @@ uint32_t PidFaultHandler::PidExecuteRecvHandler(const UbseByteBuffer& req, UbseB
 
     FaultPidExecuteResponse response;
     response.retCode = MEM_POOLING_OK;
-    // 本节点本轮失败码集合: 逐步骤记入，出口按排障优先级聚合后随响应回传master
-    std::set<MpResult> failCodes;
+    // 本节点本轮错误记录（按时序）: 逐步骤记入带上下文明细，出口全量入日志并透传最早一条随响应回传master
+    std::vector<FaultErrorRecord> errRecords;
 
     // Step 1: 直接归还（故障numa无使用的借用，迁回+归还；UBSE_ERR_NOT_EXIST视为已归还，保证幂等）
     for (const auto& borrowId : request.directReturnBorrowIds) {
         MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, true, true, true);
         if (ret != MEM_POOLING_OK && ret != UBSE_ERR_NOT_EXIST) {
             LOG_ERROR << "Direct return failed for borrowId=" << borrowId << ", ret=" << ret << ".";
-            (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+            errRecords.push_back({MEM_POOLING_FAULT_RETURN_MEM_ERROR,
+                                  "borrowId=" + borrowId + " direct return failed, ret=" + std::to_string(ret)});
         } else {
             LOG_DEBUG << "Direct return ok: borrowId=" << borrowId << ", ret=" << ret << ".";
             response.freedBorrowIds.push_back(borrowId);
@@ -931,7 +931,10 @@ uint32_t PidFaultHandler::PidExecuteRecvHandler(const UbseByteBuffer& req, UbseB
             taskResult.retCode = MEM_POOLING_FAULT_MIGRATE_ERROR;
         }
         if (taskResult.retCode != MEM_POOLING_OK) {
-            (void)failCodes.insert(taskResult.retCode);
+            errRecords.push_back(
+                {taskResult.retCode, "task=" + taskResult.taskId + " stopped at phase=" +
+                                         std::to_string(static_cast<uint32_t>(taskResult.completedPhase)) +
+                                         ", retCode=" + std::to_string(taskResult.retCode)});
         }
         LOG_DEBUG << "Task result: taskId=" << taskResult.taskId
                   << ", completedPhase=" << static_cast<uint32_t>(taskResult.completedPhase)
@@ -939,8 +942,11 @@ uint32_t PidFaultHandler::PidExecuteRecvHandler(const UbseByteBuffer& req, UbseB
         response.taskResults.push_back(std::move(taskResult));
     }
 
-    // 出口聚合: 按数据面>通信面>资源面>执行面优先级取一个码随响应回传（空集合=全部成功）
-    response.retCode = AggregateFaultErrorCodes(failCodes);
+    // 出口: 全量错误明细带关键字入日志，透传时序最早一条随响应回传（空列表=全部成功）
+    if (!errRecords.empty()) {
+        LOG_WARN << JoinFaultErrorRecords(errRecords);
+    }
+    response.retCode = EarliestFaultErrorCode(errRecords);
 
     // 序列化响应
     RmrsOutStream builder;

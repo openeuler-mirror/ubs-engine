@@ -43,35 +43,43 @@ public:
     }
 };
 
-// ==================== 聚合规则（error_util） ====================
+// ==================== 透传规则与错误明细工具（error_util） ====================
 
 /*
- * 用例描述：多类失败并存时按排障优先级聚合（数据面>通信面>资源面>执行面）
+ * 用例描述：多错误并存时透传时序最早一条（先发生的往往是级联失败根因），明细可拼接检索
  * 前置条件：无
- * 步骤：构造不同错误码组合调用AggregateFaultErrorCodes
- * 预期：返回优先级最高者；空集合返回OK
+ * 步骤：构造不同时序的错误记录调用EarliestFaultErrorCode/JoinFaultErrorRecords
+ * 预期：返回最早一条错误码；拼接串含关键字[PidFaultErr]、总数与逐条明细
  */
-TEST_F(TestPidFaultErrorCodeCollector, AggregateFaultErrorCodes_PriorityOrder)
+TEST_F(TestPidFaultErrorCodeCollector, FaultErrorRecords_EarliestPassthroughAndDetailJoin)
 {
-    // 数据面(n=5)压过通信面/执行面
-    std::set<MpResult> codes = {MEM_POOLING_FAULT_RETURN_MEM_ERROR, MEM_POOLING_FAULT_IPC_ERROR,
-                                MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR};
-    EXPECT_EQ(AggregateFaultErrorCodes(codes), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+    // 透传规则: 取时序最早一条（采集失败先于IPC失败 → 透传采集错误码）
+    std::vector<FaultErrorRecord> records = {
+        {MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR, "node=A peer collect failed"},
+        {MEM_POOLING_FAULT_IPC_ERROR, "node=B rpc failed"},
+    };
+    EXPECT_EQ(EarliestFaultErrorCode(records), MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
 
-    // 通信面(n=1)压过执行面
-    codes = {MEM_POOLING_FAULT_RETURN_MEM_ERROR, MEM_POOLING_FAULT_MIGRATE_ERROR, MEM_POOLING_FAULT_IPC_ERROR};
-    EXPECT_EQ(AggregateFaultErrorCodes(codes), MEM_POOLING_FAULT_IPC_ERROR);
+    // 时序反转: IPC先发生 → 透传IPC错误码
+    records = {
+        {MEM_POOLING_FAULT_IPC_ERROR, "node=B rpc failed"},
+        {MEM_POOLING_FAULT_MIGRATE_ERROR, "task=t1 migrate failed"},
+    };
+    EXPECT_EQ(EarliestFaultErrorCode(records), MEM_POOLING_FAULT_IPC_ERROR);
 
-    // 资源面(n=4)压过借用执行(n=6)
-    codes = {MEM_POOLING_FAULT_BORROW_MEM_ERROR, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR};
-    EXPECT_EQ(AggregateFaultErrorCodes(codes), MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
+    // 空列表=全部成功
+    EXPECT_EQ(EarliestFaultErrorCode({}), MEM_POOLING_OK);
 
-    // 执行面内部: 迁移(n=2)压过归还(n=7)
-    codes = {MEM_POOLING_FAULT_RETURN_MEM_ERROR, MEM_POOLING_FAULT_MIGRATE_ERROR};
-    EXPECT_EQ(AggregateFaultErrorCodes(codes), MEM_POOLING_FAULT_MIGRATE_ERROR);
+    // 故障特殊码识别: 六类故障码为已定义，普通错误码需调用方归一
+    EXPECT_TRUE(IsDefinedFaultErrorCode(MEM_POOLING_FAULT_RETURN_MEM_ERROR));
+    EXPECT_TRUE(IsDefinedFaultErrorCode(MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR));
+    EXPECT_FALSE(IsDefinedFaultErrorCode(MEM_POOLING_ERROR));
 
-    // 空集合=全部成功
-    EXPECT_EQ(AggregateFaultErrorCodes({}), MEM_POOLING_OK);
+    // 明细拼接: 含关键字/总数/逐条明细，供grep "PidFaultErr"一键检索
+    std::string joined = JoinFaultErrorRecords(records);
+    EXPECT_NE(joined.find("[PidFaultErr]"), std::string::npos);
+    EXPECT_NE(joined.find("total=2"), std::string::npos);
+    EXPECT_NE(joined.find("task=t1 migrate failed"), std::string::npos);
 }
 
 // ==================== P1-1: 账本查询失败 → n=5 RESOURCE_COLLECT ====================
@@ -160,6 +168,49 @@ TEST_F(TestPidFaultErrorCodeCollector, QueryPidMemDistribution_AllNodesRpcFail_R
     MpResult ret = collector.QueryPidMemDistribution("node1", context);
 
     EXPECT_EQ(ret, MEM_POOLING_FAULT_IPC_ERROR);
+    EXPECT_FALSE(context.nodeReachability["nodeA"].ubseReachable);
+}
+
+// RPC成功但对端采集失败: 模拟借入节点libvirt停等采集依赖异常，响应携带采集错误码
+static uint32_t MockRpcSendWithPeerCollectError(const ubse::com::UbseComEndpoint& endpoint, const UbseByteBuffer& req,
+                                                void* ctx, const ubse::com::UbseComRespHandler& handler)
+{
+    (void)endpoint;
+    (void)req;
+    FaultPidQueryResponse resp;
+    resp.retCode = MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+    RmrsOutStream out;
+    FaultPidQueryResponseSerialization(out, resp);
+    UbseByteBuffer buf = {.data = out.GetBufferPointer(), .len = out.GetSize(), .freeFunc = nullptr};
+    handler(ctx, buf, MEM_POOLING_OK);
+    return MEM_POOLING_OK;
+}
+
+// ==================== P1-5: RPC通但对端采集失败 → 透传对端采集错误码 ====================
+
+/*
+ * 用例描述：RPC通信正常但借入节点采集失败（如libvirt服务停），全节点失败时透传对端错误码
+ * 前置条件：UbseRpcSend成功，响应retCode为采集错误
+ * 步骤：构造单受影响节点上下文，调用QueryPidMemDistribution
+ * 预期：透传MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR（而非归为IPC错误）
+ */
+TEST_F(TestPidFaultErrorCodeCollector, QueryPidMemDistribution_PeerCollectFail_PassThroughError)
+{
+    MOCKER_CPP(&MpConfiguration::GetMpSceneType, MpSceneType(*)(MpConfiguration*))
+        .stubs()
+        .will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(&ubse::com::UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                                    const ubse::com::UbseComRespHandler&))
+        .stubs()
+        .will(invoke(MockRpcSendWithPeerCollectError));
+
+    PidFaultCollector collector;
+    OverCommitFaultContext context;
+    context.affectedBorrowInNodeIds = {"nodeA"};
+    context.nodeToFaultNumaIds["nodeA"] = {0};
+    MpResult ret = collector.QueryPidMemDistribution("node1", context);
+
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
     EXPECT_FALSE(context.nodeReachability["nodeA"].ubseReachable);
 }
 

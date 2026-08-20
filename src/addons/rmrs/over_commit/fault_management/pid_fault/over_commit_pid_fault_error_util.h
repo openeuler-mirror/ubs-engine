@@ -13,64 +13,64 @@
 #ifndef MEMPOOLING_OVER_COMMIT_PID_FAULT_ERROR_UTIL_H
 #define MEMPOOLING_OVER_COMMIT_PID_FAULT_ERROR_UTIL_H
 
-#include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "mp_error.h"
 
 namespace mempooling {
 
 /**
- * @brief PID粒度故障处理错误码聚合工具
+ * @brief PID粒度故障处理错误记录与透传工具
  *
- * 一轮故障处理内可能同时出现多类失败，出口只能向RAS返回一个码。
- * 按运维排障优先级聚合: 数据面 > 通信面 > 资源面 > 执行面
- * （详见 docs/RMRS超分PID故障处理错误码对接方案.md §5）
+ * 一轮故障处理内可能同时出现多个错误（多借入节点/多task/多borrowId各有不同失败原因）。
+ * 处理原则:
+ * 1. 每个失败点都记录一条带上下文的FaultErrorRecord（code+detail），全部明细经
+ *    JoinFaultErrorRecords拼入带关键字"[PidFaultErr]"的日志，供grep一键检索;
+ * 2. 出口只能向RAS返回一个码，透传按时间序取最早记录的一条（先发生的错误往往是
+ *    后续级联失败的根因，如借用失败早于迁移失败）。
  */
 
-// 错误码排障优先级: 数值越大越优先上报
-static inline int GetFaultErrorCodePriority(MpResult code) noexcept
+// 统一日志关键字: grep "PidFaultErr" 可检索一轮处理的全部错误明细
+constexpr const char* kPidFaultErrTag = "[OvercommitFaultErr]";
+
+// 单条错误记录: code为mp_error.h定义的故障码，detail携带失败主体与原因上下文
+struct FaultErrorRecord {
+    MpResult code = MEM_POOLING_OK;
+    std::string detail;
+};
+
+// 透传规则: 取时间上最早记录的一条错误码; 空列表返回MEM_POOLING_OK
+static inline MpResult EarliestFaultErrorCode(const std::vector<FaultErrorRecord>& records) noexcept
+{
+    return records.empty() ? MEM_POOLING_OK : records.front().code;
+}
+
+// 判断是否为已定义的故障特殊码（priority==0表示未归类，调用方需归一到故障码再记录）
+static inline bool IsDefinedFaultErrorCode(MpResult code) noexcept
 {
     switch (code) {
-        case MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR: // 数据面不可信，后续动作无意义，最先报
-            return 6;
-        case MEM_POOLING_FAULT_IPC_ERROR: // 通信面异常，影响所有后续动作
-            return 5;
-        case MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR: // 腾内存动作
-            return 4;
-        case MEM_POOLING_FAULT_BORROW_MEM_ERROR: // 借用执行异常
-            return 3;
-        case MEM_POOLING_FAULT_MIGRATE_ERROR: // 查ubturbo
-            return 2;
-        case MEM_POOLING_FAULT_RETURN_MEM_ERROR: // 查ubse状态
-            return 1;
+        case MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR:
+        case MEM_POOLING_FAULT_IPC_ERROR:
+        case MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR:
+        case MEM_POOLING_FAULT_BORROW_MEM_ERROR:
+        case MEM_POOLING_FAULT_MIGRATE_ERROR:
+        case MEM_POOLING_FAULT_RETURN_MEM_ERROR:
+            return true;
         default:
-            return 0;
+            return false;
     }
 }
 
-// 从本轮出现的错误码集合中取优先级最高者; 空集合返回MEM_POOLING_OK
-static inline MpResult AggregateFaultErrorCodes(const std::set<MpResult>& codes) noexcept
-{
-    MpResult aggregated = MEM_POOLING_OK;
-    for (const auto& code : codes) {
-        if (GetFaultErrorCodePriority(code) > GetFaultErrorCodePriority(aggregated)) {
-            aggregated = code;
-        }
-    }
-    return aggregated;
-}
-
-// 把错误码集合拼成"[ 5 6 ]"形式，日志里一行看清本轮出现的全部码
-// 注: 不加noexcept——ostringstream可能抛bad_alloc，标记后异常会直接terminate
-static inline std::string JoinFaultErrorCodes(const std::set<MpResult>& codes)
+// 把错误记录列表拼成"[PidFaultErr] total=2 | {code=5 ...} | {code=1 ...}"形式，
+// 一行日志看清本轮全部错误明细（含关键字与总数，供检索与快速定位）
+static inline std::string JoinFaultErrorRecords(const std::vector<FaultErrorRecord>& records)
 {
     std::ostringstream oss;
-    oss << "[";
-    for (const auto& code : codes) {
-        oss << " " << code;
+    oss << kPidFaultErrTag << " total=" << records.size();
+    for (const auto& rec : records) {
+        oss << " | {code=" << rec.code << " " << rec.detail << "}";
     }
-    oss << " ]";
     return oss.str();
 }
 
