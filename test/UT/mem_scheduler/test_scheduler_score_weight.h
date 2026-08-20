@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef TEST_SCHEDULER_REQUEST_H
-#define TEST_SCHEDULER_REQUEST_H
+#ifndef TEST_SCHEDULER_SCORE_WEIGHT_H
+#define TEST_SCHEDULER_SCORE_WEIGHT_H
 
 #include <gtest/gtest.h>
 
 namespace ubse::mem::scheduler::ut {
 
-class TestSchedulerRequest : public testing::Test {
+class TestSchedulerScoreWeight : public testing::Test {
 protected:
     void SetUp() override;
     void TearDown() override;
@@ -25,4 +25,4 @@ protected:
 
 } // namespace ubse::mem::scheduler::ut
 
-#endif
+#endif // TEST_SCHEDULER_SCORE_WEIGHT_H

@@ -31,6 +31,7 @@
 #include "scheduler_filter/ubse_mem_scheduler_socket_affinity_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_specified_lender_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_specified_link_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_sub_health_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_topo_reachability_filter.h"
 
 namespace ubse::mem::scheduler {
@@ -38,7 +39,7 @@ UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
 SchedulerFilterManager::~SchedulerFilterManager() = default;
 
-UbseResult SchedulerFilterManager::Init()
+UbseResult SchedulerFilterManager::Init(SubHealthMode mode)
 {
     RegisterFilter(std::make_unique<ConfigConsistencyFilter>());
     RegisterFilter(std::make_unique<RoleConflictFilter>());
@@ -58,7 +59,11 @@ UbseResult SchedulerFilterManager::Init()
     RegisterFilter(std::make_unique<RegionFilter>());
     RegisterFilter(std::make_unique<LocalPortDownFilter>());
     RegisterFilter(std::make_unique<FreeMemoryFilter>());
-    UBSE_LOG_INFO << "Register filters: " << filterMap_.size();
+    // EXCLUDE 模式才注册：亚健康链路直接从候选剔除
+    if (mode == SubHealthMode::EXCLUDE) {
+        RegisterFilter(std::make_unique<SubHealthFilter>());
+    }
+    UBSE_LOG_INFO << "Register filters: " << filterMap_.size() << ", subHealthMode=" << static_cast<int>(mode);
 
     return UBSE_OK;
 }

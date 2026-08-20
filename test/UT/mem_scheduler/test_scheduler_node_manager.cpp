@@ -17,6 +17,7 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_mem_scheduler_node_manager.h"
+#include "ubse_mem_scheduler_request.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::scheduler::ut {
@@ -165,5 +166,8 @@ TEST_F(TestSchedulerNodeManager, GetGroupNodesEmptyWithoutConfig)
     mgr.UpdateGroupNodeList("1", "host-1");
     EXPECT_TRUE(mgr.GetGroupNodes("1").empty());
 }
+
+// IsSocketPairSubHealthy / IsHostExportSubHealthy 现在转发到 UbseNodeController 查询，
+// 不再由 SchedulerNodeManager 自维护表。转发逻辑由集成测试覆盖，UT 不再单独验证。
 
 } // namespace ubse::mem::scheduler::ut

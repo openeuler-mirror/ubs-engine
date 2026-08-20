@@ -223,6 +223,18 @@ void SetupDefaultConfig()
         .stubs()
         .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBalanceDefault))
         .will(returnValue(UBSE_OK));
+
+    bool subHealthEnableDefault = false;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("subHealthPenaltyEnabled")), outBound(subHealthEnableDefault))
+        .will(returnValue(UBSE_OK));
+
+    std::string subHealthStrategyDefault = "weight";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("subHealth.strategy")), outBound(subHealthStrategyDefault))
+        .will(returnValue(UBSE_OK));
 }
 
 } // namespace ubse::mem::scheduler::ut

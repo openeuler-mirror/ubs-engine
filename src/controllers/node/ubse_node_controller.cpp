@@ -70,7 +70,7 @@ const std::string SUB_HEALTH_CONF_SECTION = "ubse.memory";
 const std::string SUB_HEALTH_ENABLED_KEY = "subHealthPenaltyEnabled";
 const std::string SUB_HEALTH_REFRESH_INTERVAL_KEY = "subHealthRefreshInterval";
 constexpr uint32_t SUB_HEALTH_DEFAULT_REFRESH_INTERVAL = 60;
-const std::string SUB_HEALTH_DETECTION_FILE = "/ko/qlt/hikptool/build/detection.json";
+const std::string SUB_HEALTH_DETECTION_FILE = "/var/log/ubse/detection.json";  
 
 struct SubHealthPortLocation {
     std::string nodeId;

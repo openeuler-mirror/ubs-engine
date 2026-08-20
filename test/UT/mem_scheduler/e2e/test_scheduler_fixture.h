@@ -28,6 +28,8 @@ protected:
     void SetupLenderBalanceConfig(bool enabled);
     void SetupFilterTestConfig(const std::string& providerStr, bool providerOk, const std::string& groupStr,
                                bool groupOk);
+    // 配置 subHealthPenaltyEnabled / subHealth.strategy 并重新 Init SchedulerImpl
+    void SetupSubHealthConfig(bool enable, const std::string& strategy);
 };
 
 } // namespace ubse::mem::scheduler::ut

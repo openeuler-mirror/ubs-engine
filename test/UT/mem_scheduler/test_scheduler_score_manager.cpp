@@ -39,7 +39,7 @@ TEST_F(TestSchedulerScoreManager, InitRegistersAllScores)
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
 
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     EXPECT_NE(mgr.FindScoreByName("LatencyScore"), nullptr);
     EXPECT_NE(mgr.FindScoreByName("RegionBalanceScore"), nullptr);
@@ -65,7 +65,7 @@ TEST_F(TestSchedulerScoreManager, GetWeightForKnownNames)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     ScoreWeights w = ScoreWeights::ForBorrow();
 
@@ -90,7 +90,7 @@ TEST_F(TestSchedulerScoreManager, ScoreAndRankEmptyNodesReturnsOk)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     std::vector<NodeInfo> nodes;
     SchedulerRequest req;
@@ -106,7 +106,7 @@ TEST_F(TestSchedulerScoreManager, ScoreAndRankEmptyScoreNamesReturnsOk)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     NodeInfo node;
     node.nodeId = "1";
@@ -123,7 +123,7 @@ TEST_F(TestSchedulerScoreManager, ScoreAndRankWithTopK)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     NodeInfo n1;
     n1.nodeId = "1";
@@ -149,7 +149,7 @@ TEST_F(TestSchedulerScoreManager, ScoreAndRankTopKZeroReturnsAll)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     NodeInfo n1;
     n1.nodeId = "1";
@@ -172,7 +172,7 @@ TEST_F(TestSchedulerScoreManager, ReliabilityBalanceScoreExecutes)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerScoreManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     ASSERT_NE(mgr.FindScoreByName("ReliabilityBalanceScore"), nullptr);
 
@@ -192,6 +192,46 @@ TEST_F(TestSchedulerScoreManager, ReliabilityBalanceScoreExecutes)
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(results.size(), 1u);
     EXPECT_GT(results[0].totalCost, 0.0);
+}
+
+// WEIGHT 模式 → SubHealthScore 被注册
+TEST_F(TestSchedulerScoreManager, InitWeightModeRegistersSubHealthScore)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+
+    mgr.Init(SubHealthMode::WEIGHT);
+
+    EXPECT_NE(mgr.FindScoreByName("SubHealthScore"), nullptr);
+}
+
+// DISABLED / EXCLUDE 模式 → SubHealthScore 不注册
+TEST_F(TestSchedulerScoreManager, InitNonWeightModeDoesNotRegisterSubHealthScore)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+
+    mgr.Init(SubHealthMode::DISABLED);
+    EXPECT_EQ(mgr.FindScoreByName("SubHealthScore"), nullptr);
+
+    SchedulerScoreManager mgr2(&nodeMgr, &accMgr);
+    mgr2.Init(SubHealthMode::EXCLUDE);
+    EXPECT_EQ(mgr2.FindScoreByName("SubHealthScore"), nullptr);
+}
+
+// GetWeightFor("SubHealthScore") 返回 wSubHealth
+TEST_F(TestSchedulerScoreManager, GetWeightForSubHealthScore)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init(SubHealthMode::WEIGHT);
+
+    ScoreWeights w = ScoreWeights::ForBorrow(SubHealthMode::WEIGHT);
+    EXPECT_DOUBLE_EQ(mgr.GetWeightFor("SubHealthScore", w), w.wSubHealth);
+    EXPECT_DOUBLE_EQ(w.wSubHealth, 0.10);
 }
 
 } // namespace ubse::mem::scheduler::ut

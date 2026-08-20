@@ -21,6 +21,7 @@
 #include "ubse_noncopyable.h"
 #include "scheduler_score/ubse_mem_scheduler_score.h"
 #include "scheduler_score/ubse_mem_scheduler_score_weight.h"
+#include "ubse_mem_scheduler_sub_health_mode.h"
 
 namespace ubse::mem::scheduler {
 
@@ -29,7 +30,9 @@ public:
     explicit SchedulerScoreManager(SchedulerNodeManager* node, SchedulerAccountManager* account);
     ~SchedulerScoreManager() = default;
 
-    UbseResult Init();
+    // mode 由 SchedulerImpl 一次性解析并传入，保证 filter/score 注册一致性。
+    //   WEIGHT → 注册 SubHealthScore；EXCLUDE/DISABLED → 不注册。
+    UbseResult Init(SubHealthMode mode);
     void RegisterScore(std::unique_ptr<SchedulerScore> score);
 
     UbseResult ScoreAndRank(const std::vector<NodeInfo>& nodes, const SchedulerRequest& request,

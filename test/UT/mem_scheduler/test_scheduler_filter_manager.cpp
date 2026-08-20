@@ -39,7 +39,7 @@ TEST_F(TestSchedulerFilterManager, InitRegistersAllFilters)
     SchedulerAccountManager accMgr;
     SchedulerFilterManager mgr(&nodeMgr, &accMgr);
 
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     EXPECT_NE(mgr.FindFilterByName("ConfigConsistencyFilter"), nullptr);
     EXPECT_NE(mgr.FindFilterByName("RoleConflictFilter"), nullptr);
@@ -73,7 +73,7 @@ TEST_F(TestSchedulerFilterManager, FilterNodesWithEmptyListPassthrough)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerFilterManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     std::vector<NodeInfo> nodes;
     SchedulerRequest req;
@@ -87,7 +87,7 @@ TEST_F(TestSchedulerFilterManager, FilterByNamesSkipsUnknownFilter)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerFilterManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     std::vector<NodeInfo> nodes;
     SchedulerRequest req;
@@ -102,7 +102,7 @@ TEST_F(TestSchedulerFilterManager, FilterNodesEmptyNameListKeepsNodes)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerFilterManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     NodeInfo node;
     node.nodeId = "1";
@@ -120,7 +120,7 @@ TEST_F(TestSchedulerFilterManager, FilterByNamesExecutesFiltersSequentially)
     SchedulerNodeManager nodeMgr;
     SchedulerAccountManager accMgr;
     SchedulerFilterManager mgr(&nodeMgr, &accMgr);
-    mgr.Init();
+    mgr.Init(SubHealthMode::DISABLED);
 
     NodeInfo n1;
     n1.nodeId = "1";
@@ -133,6 +133,33 @@ TEST_F(TestSchedulerFilterManager, FilterByNamesExecutesFiltersSequentially)
 
     auto result = mgr.FilterByNames(nodes, req.filterNames_, req);
     EXPECT_EQ(result, UBSE_OK);
+}
+
+// EXCLUDE 模式 → SubHealthFilter 被注册
+TEST_F(TestSchedulerFilterManager, InitExcludeModeRegistersSubHealthFilter)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerFilterManager mgr(&nodeMgr, &accMgr);
+
+    mgr.Init(SubHealthMode::EXCLUDE);
+
+    EXPECT_NE(mgr.FindFilterByName("SubHealthFilter"), nullptr);
+}
+
+// DISABLED / WEIGHT 模式 → SubHealthFilter 不注册
+TEST_F(TestSchedulerFilterManager, InitNonExcludeModeDoesNotRegisterSubHealthFilter)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerFilterManager mgr(&nodeMgr, &accMgr);
+
+    mgr.Init(SubHealthMode::DISABLED);
+    EXPECT_EQ(mgr.FindFilterByName("SubHealthFilter"), nullptr);
+
+    SchedulerFilterManager mgr2(&nodeMgr, &accMgr);
+    mgr2.Init(SubHealthMode::WEIGHT);
+    EXPECT_EQ(mgr2.FindFilterByName("SubHealthFilter"), nullptr);
 }
 
 } // namespace ubse::mem::scheduler::ut

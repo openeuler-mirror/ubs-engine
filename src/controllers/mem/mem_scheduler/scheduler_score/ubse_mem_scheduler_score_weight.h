@@ -15,6 +15,8 @@
 
 #include <cstdint>
 
+#include "ubse_mem_scheduler_sub_health_mode.h"
+
 namespace ubse::mem::scheduler {
 
 struct ScoreWeights {
@@ -23,10 +25,25 @@ struct ScoreWeights {
     double wBalance{0.53};
     double wReliability{0.13};
     double wDivideNuma{0.08};
+    double wSubHealth{0.0};
 
+    // 历史兼容：等价于 ForBorrow(SubHealthMode::DISABLED)
     static ScoreWeights ForBorrow()
     {
-        return ScoreWeights{};
+        return ForBorrow(SubHealthMode::DISABLED);
+    }
+
+    // 借用权重。亚健康权重仅在 WEIGHT 模式下启用（wSubHealth=0.10），
+    // 并等额扣减 wBalance（0.53-0.10=0.43）。DISABLED/EXCLUDE 模式下 wSubHealth=0.0，
+    // 与历史版本完全一致。归一化合计恒为 1.00。
+    static ScoreWeights ForBorrow(SubHealthMode mode)
+    {
+        ScoreWeights w{};
+        if (mode == SubHealthMode::WEIGHT) {
+            w.wBalance = 0.43;
+            w.wSubHealth = 0.10;
+        }
+        return w;
     }
 
     static ScoreWeights ForShare()

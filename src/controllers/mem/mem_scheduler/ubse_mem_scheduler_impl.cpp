@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "ubse_mem_scheduler_impl.h"
+#include "ubse_mem_scheduler_sub_health_mode.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::scheduler {
@@ -114,8 +115,10 @@ UbseResult SchedulerImpl::Init()
     if (initialized_) {
         return UBSE_OK;
     }
-    filterManager_->Init();
-    scoreManager_->Init();
+    // 一次性解析 subHealthMode，保证 filter/score 注册一致。
+    const SubHealthMode subHealthMode = ResolveSubHealthModeFromConfig();
+    filterManager_->Init(subHealthMode);
+    scoreManager_->Init(subHealthMode);
     nodeInfo_->InitPageSize();
     nodeInfo_->InitRadiusConfig();
     nodeInfo_->InitLenderBalance();
