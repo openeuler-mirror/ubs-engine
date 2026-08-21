@@ -241,6 +241,13 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
 }
 
+// 错峰启动：节点2先启动并独自成为主，随后节点1、3、4同时启动。
+// 验证已存在主节点时其余节点同时启动，集群最终收敛出唯一主（仍为节点2）+ 唯一备。
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ExistingMasterUniqueStandby)
+{
+    ubse::it::tests::election::RunFourNodeExistingMasterUniqueStandbyTest(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — Fault Log 校验
 // ====================================================================

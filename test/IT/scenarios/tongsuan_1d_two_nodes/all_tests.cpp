@@ -1073,6 +1073,14 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
     ubse::it::tests::election::RunTwoNodeElectionTest(Cluster());
 }
 
+// 选举测试：验证主节点向集群其他节点周期发送心跳。
+// 观测主节点日志 "[ELECTION] ProcTimer MASTER send pkt id=<id>"（DEBUG级别），
+// 等待3个心跳周期后应看到至少3次发送，且确有发往对端（备节点）的心跳。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, MasterPeriodicHeartbeat)
+{
+    ubse::it::tests::election::RunTwoNodeMasterPeriodicHeartbeatTest(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — 拓扑校验
 // ====================================================================
