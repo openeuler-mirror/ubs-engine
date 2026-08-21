@@ -232,4 +232,66 @@ TEST_F(TestPidFaultPipelineOrphan, ReconcileOrphan_NotExist_TreatedAsFreed)
     EXPECT_EQ(g_removedTaskIds[0], "vm_5");
 }
 
+// ==================== pending故障numa触发下轮重试 ====================
+
+/*
+ * 用例描述：全部故障numa均pending（smap纳管查询失败且占用非0）时，task_builder输出携带
+ *           pending标记的空计划，供pipeline出口返回非OK触发下轮重试
+ * 前置条件：nodeA故障numa16在nodeToPendingFaultNumaIds中
+ * 步骤：调用BuildTasks
+ * 预期：plans=1，hasPendingFaultNumas=true且无task/directReturn
+ */
+TEST_F(TestPidFaultPipelineOrphan, BuildTasks_AllPending_PlanCarriesPendingFlag)
+{
+    OverCommitFaultContext context;
+    context.affectedBorrowInNodeIds = {"nodeA"};
+    context.nodeToFaultNumaIds["nodeA"] = {16};
+    context.nodeToPendingFaultNumaIds["nodeA"].insert(16);
+
+    PidFaultTaskBuilder taskBuilder;
+    std::vector<BorrowInNodePlan> nodePlans;
+    MpResult ret = taskBuilder.BuildTasks(context, nodePlans);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(nodePlans.size(), 1u);
+    EXPECT_TRUE(nodePlans[0].hasPendingFaultNumas);
+    EXPECT_TRUE(nodePlans[0].tasks.empty());
+    EXPECT_TRUE(nodePlans[0].directReturns.empty());
+}
+
+// mock采集: 构造"全部故障numa pending"的现场（复现撤压残留占用+ubturbo挂的场景）
+static MpResult MockCollectAllPending(PidFaultCollector* self, const std::string& faultNodeId,
+                                      OverCommitFaultContext& context)
+{
+    (void)self;
+    context.faultNodeId = faultNodeId;
+    context.affectedBorrowInNodeIds = {"nodeA"};
+    context.nodeToFaultNumaIds["nodeA"] = {16};
+    context.nodeToPendingFaultNumaIds["nodeA"].insert(16);
+    context.nodeReachability["nodeA"].nodeId = "nodeA";
+    context.nodeReachability["nodeA"].ubseReachable = true;
+    context.nodeToPidMemInfos["nodeA"] = {};
+    return MEM_POOLING_OK;
+}
+
+/*
+ * 用例描述：纯pending轮次（撤压残留占用+ubturbo挂导致smap纳管查询失败）pipeline出口必须
+ *           返回采集类错误码触发外层下轮重试，而非返回OK断掉重试链路
+ * 前置条件：采集打桩为全pending现场，无持久化状态
+ * 步骤：调用ProcessBorrowOutNodeFaultByPid
+ * 预期：返回MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR（占用释放后下轮采集collectedKB=0将转直接归还）
+ */
+TEST_F(TestPidFaultPipelineOrphan, Pipeline_AllPending_ReturnCollectErrorForRetry)
+{
+    g_persistState = FaultProcessState{}; // 无持久化状态，对账无事可做
+
+    MOCKER_CPP(&PidFaultCollector::Collect, MpResult(PidFaultCollector::*)(const std::string&, OverCommitFaultContext&))
+        .stubs()
+        .will(invoke(MockCollectAllPending));
+
+    MpResult ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid("node1");
+
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
 } // namespace mempooling

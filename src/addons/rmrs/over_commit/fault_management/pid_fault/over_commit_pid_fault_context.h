@@ -152,6 +152,9 @@ struct BorrowInNodePlan {
     std::vector<DirectReturnTask> directReturns; // 直接归还的task
     BorrowNodeReachability reachability;         // 可达性
     BorrowUserInfo borrowUser;                   // 借用方用户信息（master代借时使用）
+    // 存在待恢复故障numa（smap纳管查询失败且占用非0）: pipeline据此返回非OK触发下轮重试，
+    // 否则pending语义的"等下轮"永远无人触发（占用释放后故障numa无人归还）
+    bool hasPendingFaultNumas = false;
 };
 
 // ==================== Phase 3 借用决策相关结构体 ====================

@@ -35,6 +35,10 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
 {
     LOG_INFO << "===== ProcessBorrowOutNodeFaultByPid START, faultNodeId=" << faultNodeId << " =====";
 
+    // 任一借入节点存在pending故障numa时本轮无法推进，出口必须返回非OK触发下轮重试
+    // （pending语义=等下轮，返回OK会让外层误判故障处理完成，占用释放后故障numa永远无人归还）
+    bool hasPendingFaultNumas = false;
+
     // ==================== Phase 1: 采集 ====================
     OverCommitFaultContext context;
     PidFaultCollector collector;
@@ -64,10 +68,34 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
     // 已持久化但本轮采集目标已消失（VM/容器退出）的task: 归还其新借用并清理状态;
     // 必须在nodePlans为空的提前return之前执行，否则孤儿永远无人清理（借用/状态泄漏）
     MpResult reconcileRet = ReconcileOrphanTasks(faultNodeId, context, nodePlans);
+    for (const auto& nodePlan : nodePlans) {
+        if (nodePlan.hasPendingFaultNumas) {
+            hasPendingFaultNumas = true;
+            LOG_INFO << "Node " << nodePlan.borrowInNodeId << " has pending fault numa(s), need retry next round.";
+        }
+    }
 
     if (nodePlans.empty()) {
         LOG_INFO << "No tasks to process.";
         return reconcileRet;
+    }
+
+    // 全部节点纯pending（无task无directReturn）: 本轮无事可做，归采集类错误触发下轮重试
+    if (hasPendingFaultNumas) {
+        bool hasWorkload = false;
+        for (const auto& nodePlan : nodePlans) {
+            if (!nodePlan.tasks.empty() || !nodePlan.directReturns.empty()) {
+                hasWorkload = true;
+                break;
+            }
+        }
+        if (!hasWorkload) {
+            MpResult retPending = MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
+            LOG_WARN << "All fault numas pending recovery, return ret=" << retPending << " to trigger retry.";
+            LOG_INFO << "===== ProcessBorrowOutNodeFaultByPid END, result=PENDING_RETRY, ret=" << retPending
+                     << " =====";
+            return retPending;
+        }
     }
 
     // ==================== Phase 3: 借用决策 ====================
@@ -96,6 +124,10 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
     // 主链路成功时透出对账失败（孤儿新借用未归还，状态保留下轮重试）; 主链路失败时以主链路错误码为准
     if (ret == MEM_POOLING_OK) {
         ret = reconcileRet;
+    }
+    // pending与可处理任务并存时: 可处理部分照常执行，出口仍需返回非OK触发下轮重试推进pending numa
+    if (ret == MEM_POOLING_OK && hasPendingFaultNumas) {
+        ret = MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
 
     LOG_INFO << "===== ProcessBorrowOutNodeFaultByPid END, result="
