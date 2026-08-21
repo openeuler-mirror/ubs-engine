@@ -18,7 +18,7 @@ repos:
         entry: clang-format
         language: system
         files: \.(h|hpp|c|cc|cpp|cxx)$
-        args: [-style=file, --dry-run]
+        args: [-style=file, --dry-run, --Werror]
       - id: clang-tidy
         name: Run clang-tidy check
         entry: clang-tidy

@@ -1,6 +1,13 @@
 name: ubs-engine_UT
 
 on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
   pull_request_comment:
     types: [created]
     comments: [ '^reut$' ]
