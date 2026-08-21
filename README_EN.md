@@ -1,8 +1,10 @@
 # UBS-Engine
 
-Software-defined computing, on-demand resource combination and allocation
+<p>
+    English | <a href="README.md">简体中文</a>
+</p>
 
-# ubs_engine
+Software-defined computing, on-demand resource combination and allocation
 
 ## 1. Introduction
 
@@ -88,23 +90,21 @@ It provides the UBSE daemon program and its corresponding SDK development librar
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">For details, see the product documentation.</p>
 
-## 
+## 6. Quick Start
 
-### Quick Start
+### 6.1. Preparations
 
-#### 1. Preparations
-
-#### 1.1 Environment Installation
+#### 6.1.1. Environment Installation
 
 Install the environment based on the hardware, OS, and software requirements for running UBSE.
 
-#### 1.2 Source Code Download
+#### 6.1.2. Source Code Download
 
 ```shell
 git clone https://atomgit.com/openeuler/ubs-engine.git
 ```
 
-#### 2. Project Building
+### 6.2. Project Building
 
 **Recommended**: Build a project on openEuler Linux (ARM64).
 
@@ -122,9 +122,9 @@ bash build.sh -T RelWithDebInfo
 bash build.sh -T MinSizeRel
 ```
 
-For details, see [Build Guide](./docs/build_install/Build_Guide.md).
+For details, see [Build Guide](./docs/build_install/构建指导.md).
 
-#### 3. Project Packaging
+### 6.3. Project Packaging
 
 ```shell
 # Build a project, package it into an RPM file, and output the file to the top-level output/ directory of the project.
@@ -132,9 +132,9 @@ For details, see [Build Guide](./docs/build_install/Build_Guide.md).
 bash build.sh package
 ```
 
-#### 4. Project Development
+### 6.4. Project Development
 
-#### 4.1 Common Issues
+#### 6.4.1. Common Issues
 
 1. Unable to understand build types or find build products
 
@@ -157,7 +157,7 @@ bash build.sh package
 
     ![image-20251013163754583](docs/images/image-20251013163754583.png)
 
-#### 4.2 Developer Testing
+#### 6.4.2. Developer Testing
 
 Developer testing includes IT and UT. The source code is stored in the **test** directory.
 
@@ -172,7 +172,7 @@ bash build.sh ut -- --gtest_filter="TestRackHttpClient.*"
 bash build.sh ut -- --gtest_filter="ClientSendSuccessfully"
 ```
 
-For details, see [Developer UT Guide](./docs/test/UT_Development_Guide.md).
+For details, see [Developer UT Guide](./docs/test/单元测试开发指南.md).
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;"><span style="font-size: 14pt;font-weight: bold"><b>Coverage Report</b></span></p>
 
@@ -200,8 +200,6 @@ bash build.sh ubse_http_ut -C
 bash build.sh ut -C -H
 ```
 
-### 
-
 Tips:
 
 ```shell
@@ -209,6 +207,10 @@ Tips:
 bash build.sh ut --skip-run-tests
 ```
 
-#### 5. License
+### 6.5. License
 
 This project uses the Mulan open source license. For details, see the [License](./LICENSE) directory.
+
+## 7. Illustrate
+
+This open-source project is not a Huawei product. Huawei offers only limited support.

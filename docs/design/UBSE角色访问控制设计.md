@@ -2,12 +2,12 @@
 
 ## 1. 目标
 
-在整个UB系统中，UBSE为系统提供两种能力：
+在整个UB系统中，UBSE为系统提供两种能力。
 
-1. 各种UB池化资源管理能力，如内存池化调度、DPU池化调度等
-2. 基于业务感知的性能/资源调优能力
+1. 各种UB池化资源管理能力，如内存池化调度、DPU池化调度等。
+2. 基于业务感知的性能/资源调优能力。
 
-基于安全的考虑，需要对单一外部用户进行权限最小化控制，在UBSE中引入“轻量化角色访问控制（RBAC）能力”
+基于安全的考虑，需要对单一外部用户进行权限最小化控制，在UBSE中引入“轻量化角色访问控制（RBAC）能力”。
 
 ## 2. 设计方案
 
@@ -19,18 +19,27 @@ A(用户/User)-->B(角色/Role)
 B(角色/Role)-->C(目标对象/Object)
 ```
 
-**用户/User：**表示调用UBSE的接口的客户端，因为UBSE暴露的UDS接口，由UBSE通过OS接口自动获取username或者uid（客户端是容器应用的情况下可能没有username）；单用户/User能且只能绑定一个角色/Role
+**用户/User**
 
-**角色/Role：**表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object
+表示调用UBSE的接口的客户端，因为UBSE暴露的UDS接口，由UBSE通过OS接口自动获取username或者uid（客户端是容器应用的情况下可能没有username）；单用户/User能且只能绑定一个角色/Role。
 
-**目标对象/Object：**表示能够被操作的资源对象，支持对该对象执行所有相关操作（简化系统复杂度，不定义基于对象的动作行为）；开发者在源码的 src/sdk/c/include/ubs_engine_object_def.h 头文件中对资源对象进行定义与维护；
-在安装开发包 ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm 后，该头文件会被部署到系统的 /usr/include/ubse/ 路径下。用户可直接查看上述安装后的头文件，以获取当前版本支持的完整资源对象列表及取值范围。
+**角色/Role**
+
+表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object。
+
+**目标对象/Object**
+
+表示能够被操作的资源对象，支持对该对象执行所有相关操作（简化系统复杂度，不定义基于对象的动作行为）。
+
+* 开发者在源码的`src/sdk/c/include/ubs_engine_object_def.h`头文件中对资源对象进行定义与维护。
+* 在安装开发包`ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm`后，该头文件会被部署到系统的 /usr/include/ubse/ 路径下。
+* 用户可直接查看上述安装后的头文件，以获取当前版本支持的完整资源对象列表及取值范围。
 
 ### 2.2 权限模型表达
 
-在UBSE中权限模型通过文件表达，并将记录权限模型的文件称为：**权限点文件**
+在UBSE中权限模型通过文件表达，并将记录权限模型的文件称为：**权限点文件**。
 
-权限点文件，遵从UBSE配置文件规范，采用linux ini配置格式
+权限点文件，遵从UBSE配置文件规范，采用linux ini配置格式。
 
 ```ini
 [auth.user]
@@ -42,10 +51,15 @@ user_a = role_a
 role_a = obj_a,obj_b,obj_c
 ```
 
-### 2.2 系统角色及职责
+### 2.3 系统角色及职责
 
-* **ubse开发者**：指的是UBSE服务端接口开发者，包括UBSE对外接口以及插件对外接口
-* **客户端开发者**：指的是接口调用方开发者，比如ubsmd服务
+**ubse开发者**
+
+UBSE服务端接口开发者，包括UBSE对外接口以及插件对外接口。
+
+**客户端开发者**
+
+接口调用方开发者，比如ubsmd服务。
 
 ```mermaid
 graph LR
@@ -67,9 +81,9 @@ H(系统管理员/部署工程师)--5.部署-->M(将客户端的权限点文件a
 
 ### 3.1 Object描述
 
-目标对象/Object描述规范: {Object}.{subObject}，举例：mem.fd
+目标对象/Object描述规范: {Object}.{subObject}，举例：mem.fd。
 
-UBSE基础能力支持的Object定义查看：ubs-engine-client-devel.aarch64.rpm中文件名为ubs_engine_object_def.h的文件；
+UBSE基础能力支持的Object定义查看：`ubs-engine-client-devel.aarch64.rpm`中文件名为`ubs_engine_object_def.h`的文件。
 
 ```c++
 #ifndef UBS_ENGINE_OBJECT_DEF_H
@@ -96,31 +110,27 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
 #endif // UBS_ENGINE_OBJECT_DEF_H
 ```
 
-UBSE中插件（如virtagent）提供的Object定义查看：ubs-engine-addon-virtagent-devel.aarch64.rpm中文件名为virtagent_object_def.h的文件
+UBSE中插件（如virtagent）提供的Object定义查看：`ubs-engine-addon-virtagent-devel.aarch64.rpm`中文件名为`virtagent_object_def.h`的文件。
 
 ### 3.2 内置权限点
 
-UBSE内置管理员用户：ubse（UBSE进程运行用户）、root
+UBSE内置管理员用户、角色及对象，具体定义及配置约束如下:
 
-UBSE内置管理员角色admin，用于支持管理员用户授权
+|实体类型|实体标识|说明与定义|管控规则与生效条件|
+|----|----|-----|---------|
+|内置管理员用户|ubse，root|ubse为UBSE进程运行用户；root为标准管理员用户。|不能被覆盖/引用：客户端定义的权限点文件中，不能包含内置用户ubse/root，一旦包含则该条配置不生效。|
+|内置管理员角色|admin|用于支持管理员用户授权。|不能被覆盖/引用：客户端定义的权限点文件中，不能包含管理员角色admin，一旦包含则该条配置不生效。|
+|内置all对象|all|表示所有对象。|不可引用：自定义角色不允许引用all对象，一旦配置则不生效。|
 
-UBSE内置all对象，表示所有对象
+> [!NOTE] 说明
+>
+> 管理员角色admin，具备all对象的操控权限。
 
-管理员角色admin，具备all对象的操控权限
+### 3.3 默认权限点文件ubse_auth_default.conf
 
-内置ubse/root用户、管理员角色admin，均不能被覆盖（客户端定义的权限点文件中，用户ubse/root、角色admin，则配置不生效）
+为了支持典型场景应用，定义默认权限点信息，简化客户端开发复杂度。
 
-客户端定义的权限点文件中，不能包含内置用户ubse/root，一旦包含则该条配置不生效
-
-客户端定义的权限点文件中，不能包含管理员角色admin，一旦包含则该条配置不生效
-
-客户端定义的权限点文件中，自定义角色不允许引用all对象，一旦配置则不生效
-
-### 3.2 默认权限点文件ubse_auth_default.conf
-
-为了支持典型场景应用，定义默认权限点信息，简化客户端开发复杂度
-
-默认权限点文件中使用独立section（auth.user.default、auth.role.default），与客户端自定义权限点文件的section隔离
+默认权限点文件中使用独立section（auth.user.default、auth.role.default），与客户端自定义权限点文件的section隔离。
 
 ```ini
 # Default authentication configuration file
@@ -139,11 +149,11 @@ default_op = topo
 default_k8s = mem.numa,topo
 ```
 
-默认权限点文件中的配置，可以被客户端自定义权限点文件的配置覆盖
+默认权限点文件中的配置，可以被客户端自定义权限点文件的配置覆盖。
 
-如果客户端自定义权限点文件，使用auth.user.default、auth.role.default定义权限，则最终结果可能是UBSE默认权限，也可能是客户端定义的权限，因为加载顺序无法保证
+* 如果客户端自定义权限点文件，使用auth.user.default、auth.role.default定义权限，则最终结果可能是UBSE默认权限，也可能是客户端定义的权限，因为加载顺序无法保证。
 
-如果客户端自定义权限点文件，使用auth.user、auth.role定义权限，则最终结果确定是客户端定义的权限；因为UBSE内部在合并两种section种的配置时，固定采用用户定义section覆盖default section。
+* 如果客户端自定义权限点文件，使用auth.user、auth.role定义权限，则最终结果确定是客户端定义的权限；因为UBSE内部在合并两种section中的配置时，固定采用用户定义section覆盖default section。
 
 ## 4. 客户端自定义权限文件
 
@@ -153,10 +163,10 @@ default_k8s = mem.numa,topo
 
 1. 命名：auth-{module}.conf
 2. 内容section：`[auth.user]`和`[auth.role]`
-3. user、role的定义：不要与其他自定义文件内容重复，重复会相互覆盖
-4. 不要尝试修改内置权限点的内容（配置不会生效）
+3. user、role的定义：不要与其他自定义文件内容重复，重复会相互覆盖。
+4. 不要尝试修改内置权限点的内容（配置不会生效）。
 
-### 4.2. 客户端自定义权限点文件示例
+### 4.2 客户端自定义权限点文件示例
 
 #### 4.2.1 ubsm模块配置文件（auth-ubsm.conf）
 
@@ -213,7 +223,7 @@ api server->>api server:形成完整的权限点信息
 sequenceDiagram
 客户端->>api server:调用接口
 Note right of 客户端: 传入opCode
-api server->>api server:获取客户端的运用用户
+api server->>api server:获取客户端的运行用户
 api server->>api server:解析报文，得到opCode
 api server->>api server:根据opcode获取对象信息和用户检查权限
 api server->>api server:检查用户是否具有目标对象的权限

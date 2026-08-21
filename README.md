@@ -1,8 +1,10 @@
 # UBS-Engine
 
-软件定义计算，资源按需组合与分配
+<p>
+    简体中文 | <a href="README_EN.md">English</a>
+</p>
 
-# ubs_engine
+软件定义计算，资源按需组合与分配
 
 ## 1.项目介绍 Introduction
 
@@ -88,23 +90,21 @@ UBSE 架构详细介绍请查看：[Architecture](./docs/design/architecture.md)
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">详见产品文档</p>
 
-## 
+## 6.快速入门
 
-### 快速入门
+### 6.1开发前准备工作
 
-#### 1.开发前准备工作
-
-#### 1.1 环境安装
+#### 6.1.1环境安装
 
 根据ubs_engine 运行的硬件要求、操作系统和软件要求进行环境安装。
 
-#### 1.2 源代码下载
+#### 6.1.2源代码下载
 
 ```shell
 git clone https://atomgit.com/openeuler/ubs-engine.git
 ```
 
-#### 2.构建项目
+### 6.2构建项目
 
 **推荐**：在 openEuler Linux (ARM64) 下执行项目构建
 
@@ -112,7 +112,7 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 
 > **示例运行环境提示**：`example/` 下的示例（如 fd/numa 借用）为真实内存池化业务场景，需运行中的 `ubse` 服务、UB 芯片互联硬件及多节点集群（详见 [example/c/README.md §5.1](./example/c/README.md)）。
 
-#### 3.打包项目
+### 6.3打包项目
 
 ```shell
 # 构建项目，并打包成 rpm 文件输出到项目顶层目录的 output/ 下。
@@ -120,9 +120,9 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 bash build.sh package
 ```
 
-#### 4.开发项目
+### 6.4开发项目
 
-#### 4.1 开发常见问题
+#### 6.4.1开发常见问题
 
 1. 搞不懂构建类型，找不准构建产物
 
@@ -145,7 +145,7 @@ bash build.sh package
 
     ![image-20251013163754583](docs/images/image-20251013163754583.png)
 
-#### 4.2 开发者测试
+#### 6.4.2开发者测试
 
 开发者测试包括 IT 和 UT，源码都位于 test 目录下。支持 5 个独立 UT 二进制：
 
@@ -175,7 +175,7 @@ bash build.sh ut -- --gtest_filter="TestRackHttpClient.*:TestRackHttpReq.*"
 bash build.sh ut -- --gtest_filter="TestUbseMemControllerAddrApi.CheckAddrResourceStateExist"
 ```
 
-详见 [开发者UT指导](./docs/test/单元测试开发指南.md) 。
+详见 [开发者UT指导](./docs/test/单元测试开发指南.md)。
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;"><span style="font-size: 14pt;font-weight: bold"><b>覆盖率报告</b></span></p>
 
@@ -203,6 +203,10 @@ bash build.sh ubse_http_ut -C
 bash build.sh ut -C -H
 ```
 
-#### 5 许可证
+### 6.5许可证
 
-本项目采用木兰开源许可，详见 [License](./LICENSE) 目录
+本项目采用木兰开源许可，详见 [License](./LICENSE) 目录。
+
+## 7.说明
+
+此开源项目非华为产品，仅提供有限支持。

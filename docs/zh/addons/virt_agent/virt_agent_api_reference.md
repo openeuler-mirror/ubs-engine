@@ -25,28 +25,28 @@ virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);
 |----------------|--------|-------------|
 | case_conf_info | OUT    | 场景及超分比例信息   |
 
-- 数据结构说明
+数据结构说明
 
-    ```c
-    typedef struct {
-        char cur_case[128];
-        char over_commitment_ratio[128];
-        char migrate_waterLine[128];
-        uint64_t index;
-        char host_id[48];
-    } case_conf_info_t;
-    ```
+```c
+typedef struct {
+    char cur_case[128];
+    char over_commitment_ratio[128];
+    char migrate_waterLine[128];
+    uint64_t index;
+    char host_id[48];
+} case_conf_info_t;
+```
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -75,7 +75,7 @@ int main(void)
     int32_t ret;
     case_conf_info_t case_conf_info;    
     ret = ubs_virt_agent_case_conf_get(&case_conf_info);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("get failed.\n");
         return -1;
     }
@@ -105,27 +105,27 @@ virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_i
 
 | name     | IN/OUT | description |
 | -------- |--------|-------------|
-| param |   IN  | 场景和超分比例信息。  |
+| param |   IN  | 场景和超分比例信息  |
 |case_conf_set_info| OUT | 设置结果|
 
-- 数据结构说明
+数据结构说明
 
-    ```c
-    typedef struct {
-        uint32_t ret;
-    } case_conf_set_info_t;
-    ```
+```c
+typedef struct {
+    uint32_t ret;
+} case_conf_set_info_t;
+```
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -155,7 +155,7 @@ int main(void)
     char param[128] = "{\"caseType\": \"overCommitment\",\"overCommitment\": 1.25}";
     case_conf_set_info_t case_conf_set_info;    
     ret = ubs_virt_agent_case_conf_set(&param, &case_conf_set_info);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("set failed.\n");
         return -1;
     }
@@ -192,7 +192,7 @@ int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowReque
 | borrowIds        | OUT    | 借用ID列表      |
 | idsSize          | OUT    | 借用ID列表大小    |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -219,8 +219,9 @@ typedef struct {
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -287,26 +288,27 @@ int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRe
 |-----------------|--------|-------------|
 | memMigrateRequest      | IN     | 内存冷热页交换请求体     |
 
-- 数据结构说明
+数据结构说明
 
-    ```c
-    typedef struct {
-        pid_t pid;
-        int ratio;
-    } container_param_t;
-    typedef struct {
-        borrow_param_t borrowParam;
-        uint64_t borrowSizes[64];
-        size_t borrowSizesSize;
-        watermark_t waterMark;
-    } mem_borrow_request_t;
-    ```
+```c
+typedef struct {
+    pid_t pid;
+    int ratio;
+} container_param_t;
+typedef struct {
+    borrow_param_t borrowParam;
+    uint64_t borrowSizes[64];
+    size_t borrowSizesSize;
+    watermark_t waterMark;
+} mem_borrow_request_t;
+```
 
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -364,7 +366,7 @@ int32_t ubs_virt_agent_waterline_mem_return(return_request_t *returnRequest);
 
 **描述 DESCRIPTION**
 
-内存归还执行
+内存归还执行。
 
 **参数 Parameters**
 
@@ -372,7 +374,7 @@ int32_t ubs_virt_agent_waterline_mem_return(return_request_t *returnRequest);
 |-----------------|--------|-------------|
 | returnRequest      | IN     | 内存归还请求体     |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -387,8 +389,9 @@ typedef struct {
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -448,7 +451,7 @@ int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint
 
 **描述 DESCRIPTION**
 
-查询容器Pid本地和远端内存
+查询容器Pid本地和远端内存。
 
 **参数 Parameters**
 
@@ -458,7 +461,7 @@ int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint
 | pidInfos | OUT    | pid对应的内存信息列表 |
 | InfoSize | OUT    | pid对应的内存信息列表大小 |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -478,8 +481,9 @@ typedef struct {
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -505,7 +509,7 @@ int main(void)
         .pids = {123},
         .pids_size = 1
     };
-    pid_mem_info *pidInfos = null;
+    pid_mem_info *pidInfos = NULL;
     uint32_t InfoSize;
     ret = ubs_container_info_query(&param, &pidInfos, &InfoSize);
     if (ret != 0) {
@@ -532,7 +536,7 @@ int32_t ubs_container_inject_waterLine(watermark_t* param);
 
 **描述 DESCRIPTION**
 
-注入节点水线
+注入节点水线。
 
 **参数 Parameters**
 
@@ -543,8 +547,9 @@ int32_t ubs_container_inject_waterLine(watermark_t* param);
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -593,7 +598,7 @@ int32_t ubs_container_get_container_pids(container_id_list *containerIdList, con
                                          uint32_t *InfoSize);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -609,7 +614,7 @@ typedef struct {
 
 **描述 DESCRIPTION**
 
-指定容器查询容器内Pid
+指定容器查询容器内Pid。
 
 **参数 Parameters**
 
@@ -622,8 +627,9 @@ typedef struct {
 **返回值 RETURN VALUE**
 
 int类型：
-0表示成功。
-非0表示失败。
+
+* 0表示成功。
+* 非0表示失败。
 
 **约束 CONSTRAINTS**
 
@@ -686,7 +692,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
 | src_param       | IN     | 内存借用信息      |
 | borrow_strategy | OUT    | 内存借用决策信息    |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 constexpr uint32_t MAX_BORROW_ID_COUNT = 2000;
@@ -722,14 +728,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -764,7 +770,7 @@ int main(void)
     };
     borrow_strategy_c borrow_strategy;
     ret = ubs_virt_agent_mem_borrow_strategy(&src_param, &borrow_strategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_borrow_strategy failed.\n");
         return -1;
     }
@@ -795,9 +801,9 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
 | name           | IN/OUT | description                                     |
 |----------------|--------|-------------------------------------------------|
 | borrow_setting | IN     | 内存借用策略信息，是否异步执行开关。                              |
-| result         | OUT    | 借用ID列表，借入的远端NUMA ID列表，借用ID列表大小，借入的远端NUMA ID列表大小 |
+| result         | OUT    | 借用ID列表，借入的远端NUMA ID列表，借用ID列表大小，借入的远端NUMA ID列表大小。 |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -815,14 +821,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -863,7 +869,7 @@ int main(void)
     };
     mem_borrow_result_c result;
     ret = ubs_virt_agent_mem_borrow_execute(&borrow_setting, &result);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_borrow_execute failed.\n");
         return -1;
     }
@@ -895,9 +901,9 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrc
 | name      | IN/OUT | description |
 |-----------|--------|-------------|
 | src_param | IN     | 内存迁移信息。     |
-| strategy  | OUT    | 内存迁移决策信息    |
+| strategy  | OUT    | 内存迁移决策信息。    |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -924,14 +930,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -966,7 +972,7 @@ int main(void)
     };
     MemMigrateStrategy strategy;
     ret = ubs_virt_agent_mem_migrate_strategy(&srcParam, &strategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_migrate_strategy failed.\n");
         return -1;
     }
@@ -998,7 +1004,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
 |----------------|--------|-------------------------------------------------|
 | src_param | IN     | 内存迁移决策信息。                              |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {    
@@ -1013,14 +1019,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1056,7 +1062,7 @@ int main(void)
             .waitingTime = 1000
     };
     ret = ubs_virt_agent_mem_migrate_execute(&srcParam);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_migrate_execute failed.\n");
         return -1;
     }
@@ -1086,20 +1092,20 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
 
 | name           | IN/OUT | description                                     |
 |----------------|--------|-------------------------------------------------|
-| isAsync | IN     | 异步执行开关。true：表示接口内部为异步执行内存归还。false：表示接口内部为同步执行内存归还。 |
-| task_id         | OUT    | 后台任务id |
-|task_id_len | OUT| 后台任务id长度|
+| isAsync | IN     | 异步执行开关。<ul><li>true：表示接口内部为异步执行内存归还。</li><li>false：表示接口内部为同步执行内存归还。</li></ul> |
+| task_id         | OUT    | 后台任务id。 |
+|task_id_len | OUT| 后台任务id长度。|
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1130,7 +1136,7 @@ int main(void)
     char *task_id;
     uint32_t task_id_len;
     ret = ubs_virt_agent_mem_return(isAsync, &task_id, &task_id_len);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_return failed.\n");
         return -1;
     }
@@ -1162,7 +1168,7 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);
 |----------|--------|------------------------------|
 | srcParam | IN     | 回滚的入参，包括节点id、节点上的borrowId列表。 |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -1174,14 +1180,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1214,7 +1220,7 @@ int main(void)
             .borrow_id_size = 1
     };
     ret = ubs_virt_agent_mem_rollback(&srcParam);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_rollback failed.\n");
         return -1;
     }
@@ -1236,7 +1242,7 @@ virt_agent库 (libubs-virt-agent.so)
 virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c
 struct KeyValuePair {
@@ -1262,14 +1268,14 @@ struct NodeAntiDictionary {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1305,7 +1311,7 @@ int main(void)
             .entry_count = 3
     };
     ret = ubs_virt_agent_mem_fragmentation_node_anti_affinity(&dict);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_node_anti_affinity failed.\n");
         return -1;
     }
@@ -1327,7 +1333,7 @@ virt_agent库 (libubs-virt-agent.so)
 virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c
 using async_task_status_c = enum {
@@ -1352,14 +1358,14 @@ using async_task_status_c = enum {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1388,9 +1394,9 @@ int main(void)
     int32_t ret;
     char task_id[128] = "abc123";
     uint32_t task_id_len = 6;
-    async_task_info_c *result
+    async_task_info_c *result;
     ret = ubs_virt_agent_sync_task_query(task_id, task_id_len, &result);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_sync_task_query failed.\n");
         return -1;
     }
@@ -1412,7 +1418,7 @@ virt_agent库 (libubs-virt-agent.so)
 virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c++
 typedef struct {
@@ -1449,7 +1455,7 @@ typedef struct {
 
 **描述 DESCRIPTION**
 
-查询集群内所有节点的内存信息
+查询集群内所有节点的内存信息。
 
 **参数 Parameters**
 
@@ -1459,14 +1465,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1515,7 +1521,7 @@ virt_agent库 (libubs-virt-agent.so)
 virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async, mem_borrow_result_s *result);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c++
 typedef struct {
@@ -1546,26 +1552,26 @@ typedef struct {
 
 **描述 DESCRIPTION**
 
-大规格虚机场景, 按节点借用内存
+大规格虚机场景，按节点借用内存。
 
 **参数 Parameters**
 
 | name     | IN/OUT | description    |
 |----------|--------|----------------|
 | param    | IN     | 借用任务入参         |
-| is_async | IN     | 是否异步执行借用任务标识符。 |
-| result   | OUT    | 借用结果信息。        |
+| is_async | IN     | 是否异步执行借用任务标识符 |
+| result   | OUT    | 借用结果信息        |
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1627,7 +1633,7 @@ virt_agent库 (libubs-virt-agent.so)
 virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable);
 ```
 
-- 数据结构说明
+数据结构说明
 
 ```c++
 typedef struct {
@@ -1650,25 +1656,25 @@ typedef struct {
 
 **描述 DESCRIPTION**
 
-大规格虚机场景, 通过配额实现使能冷热页流动
+大规格虚机场景，通过配额实现使能冷热页流动。
 
 **参数 Parameters**
 
 | name             | IN/OUT | description |
 |------------------|--------|-------------|
-| pid_t            | IN     | 虚拟机进程ID。    |
-| page_swap_enable | IN     | 内存换页使能参数。   |
+| pid_t            | IN     | 虚拟机进程ID    |
+| page_swap_enable | IN     | 内存换页使能参数   |
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1759,14 +1765,14 @@ int32_t update_page_flow_and_status(const char *opt, const char *uuid);
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1796,7 +1802,7 @@ int main(void)
     char opt[128] = "true";
     char uuid[128] = "xxxx";
     ret = update_page_flow_and_status(opt, uuid);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("update_page_flow_and_status failed.\n");
         return -1;
     }
@@ -1835,14 +1841,14 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1875,7 +1881,7 @@ int main(void)
     uint32_t destNumaId = 0;
     uint32_t migrateStrategy;
     ret = ubs_virt_agent_make_migrate_decision(vmMemoryMB, uuid, destHostName, destNumaId, &migrateStrategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_make_migrate_decision failed.\n");
         return -1;
     }
@@ -1909,14 +1915,14 @@ libvirt与virt_agent通信超时时间设置。
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -1945,7 +1951,7 @@ int main(void)
     int32_t ret;
     uint16_t timeout = 128;
     ret = RackStartIpcClientWithTimeout(timeout);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("RackStartIpcClientWithTimeout failed.\n");
         return -1;
     }
@@ -1978,7 +1984,7 @@ int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
 | request  | IN     | libvirt调用virt_agent传参（json）   |
 | response | OUT    | virt_agent给libvirt返回的参数（json） |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -1989,14 +1995,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -2027,7 +2033,7 @@ int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
 
 **描述 DESCRIPTION**
 
-libvirt与virt_agent异步调用接口
+libvirt与virt_agent异步调用接口。
 
 **参数 Parameters**
 
@@ -2036,7 +2042,7 @@ libvirt与virt_agent异步调用接口
 | request      | IN     | libvirt调用virt_agent传参（json）  |
 | callback            | OUT    | libvirt调用virt_agent回调函数的函数指针 |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
@@ -2048,14 +2054,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -2097,7 +2103,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
 | node_list | OUT    | NUMA信息列表    |
 |node_cnt| OUT| 列表大小        |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 VIRT_MAX_NODE_ID_LENGTH = 48
@@ -2126,14 +2132,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -2163,7 +2169,7 @@ int main(void)
     numa_info_t* node_list = null;
     uint32_t node_cnt;
     ret = ubs_virt_agent_mem_fragmentation_node_info(&node_list, &node_cnt);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_node_info failed.\n");
         return -1;
     }
@@ -2193,10 +2199,10 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_
 
 | name         | IN/OUT | description |
 |--------------|--------|-------------|
-| vm_info_list | OUT    | 虚拟机信息列表。    |
+| vm_info_list | OUT    | 虚拟机信息列表    |
 | vm_info_cnt  | OUT    | 列表大小        |
 
-- 数据结构说明
+数据结构说明
 
 ```c
 typedef struct {
@@ -2219,14 +2225,14 @@ typedef struct {
 
 **返回值 RETURN VALUE**
 
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`。
 
 **错误 ERRORS**
 
 | Error                        | Description |
 |------------------------------|-------------|
 | VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_INVALID_PARAM       | 参数非法       |
 | VA_ERROR_NULL_POINTER        | 空指针         |
 | VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
 | VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
@@ -2256,7 +2262,7 @@ int main(void)
     vm_domain_info_t* vm_info_list = null;
     uint32_t vm_info_cnt;
     ret = ubs_virt_agent_mem_fragmentation_vm_info(&vm_info_list, &vm_info_cnt);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_vm_info failed.\n");
         return -1;
     }

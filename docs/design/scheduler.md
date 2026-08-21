@@ -11,40 +11,24 @@
 
 综合内存借用合理性、可靠性，内存借用决策设计原则如下：
 
-**①原则1**：确保借出节点有可用的内存。
-解释：验证借出节点是否有足够的可用内存资源，以避免资源不足导致的借用失败或系统不稳定。
-
-**②原则2**：节点下线、故障节点不参与借用。
-解释：故障节点或已下线的节点不参与内存借用，以确保借用过程的稳定性和可靠性。
-
-**③原则3**：避免借用成环。
-解释：一个节点不能同时作为借入节点和借出节点，以避免形成借用环，导致资源死锁或循环借用问题。
+|原则|解释|
+|--|--|
+|确保借出节点有可用的内存|验证借出节点是否有足够的可用内存资源，以避免资源不足导致的借用失败或系统不稳定。|
+|节点下线、故障节点不参与借用|故障节点或已下线的节点不参与内存借用，以确保借用过程的稳定性和可靠性。|
+|避免借用成环|一个节点不能同时作为借入节点和借出节点，以避免形成借用环，导致资源死锁或循环借用问题。|
 
 ### 2.2 能力规格
 
-**①** 支持Fd、Numa、Addr和Share四种借用方式。
-解释：软件支持通过文件描述符（Fd）、NUMA架构（Numa）、确定性迁移（Addr）以及内存共享（Share）四种方式实现内存借用。
-
-**②** 借用决策仅在主节点执行。
-解释：借用决策的逻辑仅由主节点负责执行，以确保决策的一致性和效率。
-
-**③** 对外部请求进行严格参数校验。
-解释：对所有外部传入的借用请求进行参数校验，确保参数的合理性和合法性，避免无效或错误的借用操作。
-
-**④** Numa和Share支持指定同平面借用
-解释：在Numa和Share借用方式中，支持指定从同一平面的socket借出内存，以提高内存访问速度和效率。
-
-**⑤** 支持4K页,2M/1G大页内存借用
-解释：软件适配多种内存页类型，包括4K页、2M页和1G页，能够根据底层硬件特性执行对应的内存借用操作。
-
-**⑥** Share借用支持指定共享域共享内存
-解释：在Share借用方式中，支持指定共享域，使得同一共享域内的节点可以互相共享内存资源。
-
-**⑦** 支持配置组内借用策略
-解释：根据用户配置，软件仅允许同一组内的节点互相借用内存，不同组的节点之间不进行内存借用。
-
-**⑧** 支持配置指定节点专用于借出
-解释：根据用户配置，软件可以指定某些节点作为内存借出方，专注于为其他节点提供内存资源。
+|能力|解释|
+|--|--|
+| 支持Fd、Numa、Addr和Share四种借用方式。|软件支持通过文件描述符（Fd）、NUMA架构（Numa）、确定性迁移（Addr）以及内存共享（Share）四种方式实现内存借用。|
+|借用决策仅在主节点执行。|借用决策的逻辑仅由主节点负责执行，以确保决策的一致性和效率。|
+|对外部请求进行严格参数校验。|对所有外部传入的借用请求进行参数校验，确保参数的合理性和合法性，避免无效或错误的借用操作。|
+|Numa和Share支持指定同平面借用。|在Numa和Share借用方式中，支持指定从同一平面的socket借出内存，以提高内存访问速度和效率。|
+|支持4K页，2M/1G大页内存借用。|软件适配多种内存页类型，包括4K页、2M页和1G页，能够根据底层硬件特性执行对应的内存借用操作。|
+|Share借用支持指定共享域共享内存。|在Share借用方式中，支持指定共享域，使得同一共享域内的节点可以互相共享内存资源。|
+|支持配置组内借用策略。|根据用户配置，软件仅允许同一组内的节点互相借用内存，不同组的节点之间不进行内存借用。|
+|支持配置指定节点专用于借出。|根据用户配置，软件可以指定某些节点作为内存借出方，专注于为其他节点提供内存资源。|
 
 ## 3.内存借用模块分解
 
@@ -74,26 +58,26 @@ scheduler内部会对借用记录和统计信息进行缓存和更新，缓存�
 ![img_3.png](images/image-20251218114548044.png)
 根据标准借用流程图，内存借用决策的标准流程如下：
 
-1. 从controller模块接收内存借用请求 
-2. 通过validator模块进行严格的参数验证和过滤 
-3. 调用决策算法进行借用决策，根据时延、平衡性等代价指标选出最优借出numa 
-4. 更新account模块中的借入借出关系账本信息 
-5. 构造借用决策结果并返回给controller模块
+1. 从controller模块接收内存借用请求。
+2. 通过validator模块进行严格的参数验证和过滤。
+3. 调用决策算法进行借用决策，根据时延、平衡性等代价指标选出最优借出numa。
+4. 更新account模块中的借入借出关系账本信息。
+5. 构造借用决策结果并返回给controller模块。
 
 ### 3.2.3 外部自决策场景
 
 ![img_4.png](images/image-20251218114548045.png)
 根据外部自决策场景流程图，流程如下：
 
-1. 从controller模块接收内存借用请求
-2. 通过validator模块进行严格的参数验证和过滤
-3. 根据外部自决策构造导出导入对象
-4. 更新account模块中的借入借出关系账本信息
-5. 返回结果给controller模块
+1. 从controller模块接收内存借用请求。
+2. 通过validator模块进行严格的参数验证和过滤。
+3. 根据外部自决策构造导出导入对象。
+4. 更新account模块中的借入借出关系账本信息。
+5. 返回结果给controller模块。
 
-## 4 内部模块schdeuler模块说明
+## 4 内部模块scheduler模块说明
 
-scheduler模块作为对接controller和node模块，调度接口不对外，主要是内部模块间的交互使用。 封装了与controller模块和node模块的接口
+scheduler模块作为对接controller和node模块，调度接口不对外，主要是内部模块间的交互使用。封装了与controller模块和node模块的接口。
 
 ### 4.1 对外接口描述
 
@@ -120,7 +104,7 @@ scheduler模块作为对接controller和node模块，调度接口不对外，主
     
     /* *
      * @brief   fd借用export对象状态变化的处理函数
-     * @param exportObj      [IN]/[OUT] addr类型借用内存导出对象
+     * @param exportObj      [IN]/[OUT] fd类型借用内存导出对象
      * @return uint32_t    0：操作成功；非0：操作失败
      */
     uint32_t UbseMemFdExportObjStateChangeHandler(UbseMemFdBorrowExportObj &exportObj);
@@ -207,7 +191,7 @@ scheduler模块作为对接controller和node模块，调度接口不对外，主
     
     /* *
      * @brief   Numa内存借用处理函数
-     * @param req           [IN] fd借用请求参数
+     * @param req           [IN] Numa借用请求参数
      * @param algoResult    [IN]/[OUT] 借用决策结果
      * @param checkMaskCode [IN] 过滤参数
      * @return uint32_t     0：操作成功；非0：操作失败
@@ -284,7 +268,7 @@ struct UbseStatus {
 };
 ```
 
-#### 4.3.2 接口描述
+#### 4.3.3 接口描述
 
 ```angular2html
     /* *
@@ -441,7 +425,7 @@ std::map<AlgoAccountID, std::shared_ptr<BaseAlgoAccount>> algoAccountMap{};
     * @param name                [IN] 借用名称
     * @param state               [IN] 借用状态
     * @param algoResult          [IN] 借用决策结果
-    * @param state               [IN] 借用类型
+    * @param type                [IN] 借用类型
        */
     static void UpdateAlgoAccountState(const std::string &name, UbseMemState state, const UbseMemAlgoResult &algoResult, BorrowedType type);
     
@@ -449,7 +433,7 @@ std::map<AlgoAccountID, std::shared_ptr<BaseAlgoAccount>> algoAccountMap{};
     * @brief   根据借用结果创建账本
     * @param name                [IN] 借用名称
     * @param algoResult          [IN] 借用决策结果
-    * @param state               [IN] 借用类型
+    * @param type                [IN] 借用类型
     * @return std::shared_ptr<BaseAlgoAccount>     账本缓存
     */
     std::shared_ptr<BaseAlgoAccount> CreateAccountByAlgoResult(const std::string &name, const ubse::mem::obj::UbseMemAlgoResult &algoResult, BorrowedType type);
