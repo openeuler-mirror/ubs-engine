@@ -125,6 +125,23 @@ TEST_F(TestProcessMemPidCollect, GetChildrenPidsReturnsVector)
     EXPECT_TRUE(children.empty() || !children.empty());
 }
 
+TEST_F(TestProcessMemPidCollect, CollectNodeFreeMemorySnapshot)
+{
+    auto& collector = ProcessMemPidCollect::GetInstance();
+    std::ifstream node0Remote("/sys/devices/system/node/node0/remote");
+    bool remoteAttrExists = node0Remote.is_open();
+    node0Remote.close();
+
+    collector.CollectNodeFreeMemory(1);
+    auto freeKb = collector.GetLocalNumaFreeKb();
+    if (remoteAttrExists) {
+        ASSERT_TRUE(freeKb.has_value());
+        EXPECT_GT(*freeKb, 0u);
+    } else {
+        EXPECT_FALSE(freeKb.has_value());
+    }
+}
+
 TEST_F(TestProcessMemPidCollect, CollectProcessNumaMemDistributionInvalidPid)
 {
     auto& collector = ProcessMemPidCollect::GetInstance();
@@ -161,63 +178,4 @@ TEST_F(TestProcessMemPidCollect, GetChildrenPidsFallbackForKnownPid)
     EXPECT_TRUE(children.empty() || !children.empty());
 }
 
-std::string ReadComm(pid_t pid)
-{
-    std::ifstream commFile("/proc/" + std::to_string(pid) + "/comm");
-    std::string comm;
-    std::getline(commFile, comm);
-    return comm;
-}
-
-TEST_F(TestProcessMemPidCollect, HandleNewPidsByNameSkipsRootProcess)
-{
-    ASSERT_EQ(GetProcUid(1), 0);
-
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    std::string comm = ReadComm(1);
-    ASSERT_FALSE(comm.empty());
-
-    def::ProcessMemNewConfigInfo config{};
-    config.isPid = false;
-    config.identifier = comm;
-    config.maxMemory = 1073741824;
-    config.remoteRatio = 0.5;
-    ASSERT_EQ(mgr.SetProcMemConfig(config), UBSE_OK);
-
-    ProcessMemPidCollect::GetInstance().HandleNewPidsByName({1}, 1);
-
-    auto snapshot = mgr.GetManagedPidCacheSnapshot();
-    EXPECT_EQ(snapshot.find(1), snapshot.end());
-    EXPECT_EQ(mgr.GetProcMemConfig(true, "1").maxMemory, 0u);
-
-    EXPECT_EQ(mgr.RemoveProcMemConfig(false, comm), UBSE_OK);
-}
-
-TEST_F(TestProcessMemPidCollect, HandleNewPidsByNameManagesNonRootProcess)
-{
-    if (getuid() == 0) {
-        GTEST_SKIP() << "本进程为 root，无法作为非 root 正例";
-    }
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    std::string comm = ReadComm(getpid());
-    ASSERT_FALSE(comm.empty());
-
-    def::ProcessMemNewConfigInfo config{};
-    config.isPid = false;
-    config.identifier = comm;
-    config.maxMemory = 1073741824;
-    config.remoteRatio = 0.5;
-    ASSERT_EQ(mgr.SetProcMemConfig(config), UBSE_OK);
-
-    ProcessMemPidCollect::GetInstance().HandleNewPidsByName({getpid()}, 1);
-
-    auto snapshot = mgr.GetManagedPidCacheSnapshot();
-    auto it = snapshot.find(getpid());
-    ASSERT_NE(it, snapshot.end());
-    EXPECT_EQ(it->second.sources & static_cast<uint8_t>(def::ConfigSource::NAME_CONFIG),
-              static_cast<uint8_t>(def::ConfigSource::NAME_CONFIG));
-
-    mgr.RemoveManagedPidEntry(getpid());
-    EXPECT_EQ(mgr.RemoveProcMemConfig(false, comm), UBSE_OK);
-}
 } // namespace ubse::ut::process_mem

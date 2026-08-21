@@ -207,6 +207,11 @@ uint32_t SetProcMemConfig(const api::server::UbseIpcMessage& request, const api:
         }
         return SendPidSetResponse(0, "No running process matches name: " + newConfig.identifier, context.requestId);
     }
+    if (ret == UBSE_ERR_ACCESS_DENIED) {
+        return SendPidSetResponse(
+            0, "PID " + newConfig.identifier + " is a root process, rejected by filter_root_process=true",
+            context.requestId);
+    }
     if (ret == UBSE_ERR_INVALID_ARG) {
         return SendPidSetResponse(0, "Invalid process-mem config (size/ratio/name out of range)", context.requestId);
     }

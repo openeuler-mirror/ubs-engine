@@ -72,7 +72,8 @@ public:
 
     uint32_t ReconcileLedgerWithCache();
 
-    inline static std::function<std::optional<uint64_t>()> memAvailableReader;
+    inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
+    inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
 
 private:
     uint32_t OnDecisionTimer();
@@ -88,14 +89,16 @@ private:
 
     void CheckTimeouts(uint64_t roundNum);
 
-    uint64_t GetPendingBorrowTotal() const;
+    uint64_t GetPendingMigrateTotal() const;
+
+    uint64_t GetUbseBlockSizeBytes();
 
     std::string RecordPendingBorrow(pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
     void AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
     void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
-                             std::vector<std::pair<int, uint64_t>>& numaTargets);
+                             std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
 
     def::AtomicMigrateResult CommitBorrowAndMigrate(pid_t pid, const std::string& debtId,
                                                     const CreatedDebtInfo& created,
@@ -108,7 +111,9 @@ private:
 
     std::optional<uint64_t> GetNodeFreeBytes();
 
-    std::optional<uint64_t> ReadMemAvailableKb();
+    std::optional<uint64_t> ReadLocalNumaFreeKb();
+
+    std::optional<uint64_t> ReadRemoteNumaUsedKb() const;
 
     bool EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
 
@@ -169,7 +174,8 @@ private:
                        ubse::mem::controller::UbseMemBorrower& borrower);
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
                         CreatedDebtInfo& out);
-    int RmrsMigrateToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets);
+    int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
+                           const std::vector<std::pair<int, uint64_t>>& numaTargets);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
@@ -192,7 +198,7 @@ private:
     uint32_t DeleteOldReturnDebt(const std::string& debtId);
     std::vector<std::string> BuildReplacementCandidates(const std::string& oldLenderNodeId);
 
-    void UpdateOomFastWindow(uint64_t nodeFree);
+    void UpdateOomFastWindow(uint64_t roundNum, uint64_t nodeFree);
     void CollectActiveReturnDebts(const std::map<pid_t, def::ManagedPidEntry>& snapshot,
                                   std::vector<std::pair<pid_t, def::ReturnRequestItem>>& debts, uint64_t& totalRemote);
 
@@ -223,7 +229,6 @@ private:
     std::mutex oomMutex_{};
     std::condition_variable oomCv_{};
     bool oomRunning_{false};
-    bool oomFastPoll_{false};
     uint32_t oomFastWindowCount_{0};
     uint64_t oomFastWindowMin_{0};
     std::chrono::steady_clock::time_point lastEmergencyBroadcast_{};
