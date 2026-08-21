@@ -17,6 +17,13 @@
 
 #include <pthread.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <future>
+#include <string>
+#include <vector>
+
+#include <unistd.h>
 #include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_console_log.h"
@@ -391,5 +398,602 @@ void RunP1ShmAttachMultiNode01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "Deleting SHM on node1: " << shmName;
     ret = node1Client.MemShmDelete(shmName);
     EXPECT_IT_OK(ret);
+}
+
+// 双节点SHM 创建→节点1attach→borrow_detail查账(存在)→detach/delete→再查账(为空)
+void RunP1CliBorrowDetailLedger01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    const std::string shmName = "it_cli_shm_ledger";
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+
+    IT_LOG_INFO << "S1: 创建共享内存, name=" << shmName << ", region=" << region;
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, shmName, "128M", region));
+    EXPECT_EQ(createInfo.name, shmName);
+    EXPECT_EQ(createInfo.size, "128MB");
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "SHARE export-node should not be empty";
+    EXPECT_EQ(createInfo.region, region) << "region should match input";
+
+    IT_LOG_INFO << "S2: 节点1 attach(映射) 共享内存";
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, shmName));
+    EXPECT_EQ(attachInfo.name, shmName);
+    EXPECT_EQ(attachInfo.size, "128MB");
+    EXPECT_FALSE(attachInfo.memIds.empty()) << "attach should return mem-ids";
+    EXPECT_FALSE(attachInfo.importNode.empty()) << "attach should return import-node";
+    EXPECT_FALSE(attachInfo.exportNode.empty()) << "attach should return export-node";
+
+    IT_LOG_INFO << "S3: borrow_detail 查询账本, 应存在该 share 记录";
+    {
+        std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+        EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails, "share", shmName));
+        bool found = false;
+        for (const auto& detail : borrowDetails) {
+            if (detail.name == shmName) {
+                found = true;
+                EXPECT_EQ(detail.type, "share");
+                EXPECT_NE(detail.lendSize.find("128"), std::string::npos) << "lend_size should contain 128";
+                break;
+            }
+        }
+        EXPECT_TRUE(found) << "borrow_detail 应包含 " << shmName;
+    }
+
+    IT_LOG_INFO << "S4: detach 并 delete 共享内存";
+    EXPECT_IT_OK(cliInvoker.DetachMemory(shmName));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(shmName, "share"));
+
+    IT_LOG_INFO << "S5: 再次查询账本, 应无该 share 记录";
+    {
+        std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfter;
+        EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfter, "share", shmName));
+        EXPECT_EQ(borrowDetailsAfter.size(), 0) << "detach/delete 后账本应无该共享内存记录";
+    }
+
+    IT_LOG_INFO << "P1-CliBorrowDetail-Ledger-01 passed";
+}
+
+// 双节点SHM 节点1/节点2各自创建(region覆盖双节点)→borrow_detail查账(2条share记录)→节点2删除→再查账(仅剩节点1记录)
+void RunP1CliBorrowDetailMultiNode01(ubse::it::infra::ItCluster& cluster)
+{
+    const std::string node1Name = "it_cli_shm_mn_1";
+    const std::string node2Name = "it_cli_shm_mn_2";
+    const std::string region = "1,2";
+    auto& cli1 = cluster.GetCliInvoker("1");
+    auto& cli2 = cluster.GetCliInvoker("2");
+
+    IT_LOG_INFO << "S1: 节点1创建共享内存 name=" << node1Name << ", region=" << region;
+    ubse::it::infra::ItMemCreateInfo createInfo1;
+    EXPECT_IT_OK(cli1.CreateMemoryShare(createInfo1, node1Name, "128M", region));
+    EXPECT_EQ(createInfo1.name, node1Name);
+    EXPECT_EQ(createInfo1.size, "128MB");
+    EXPECT_FALSE(createInfo1.exportNode.empty()) << "节点1创建SHM export-node不应为空";
+    EXPECT_EQ(createInfo1.region, region) << "节点1创建SHM region应一致";
+
+    IT_LOG_INFO << "S2: 节点2创建共享内存 name=" << node2Name << ", region=" << region;
+    ubse::it::infra::ItMemCreateInfo createInfo2;
+    EXPECT_IT_OK(cli2.CreateMemoryShare(createInfo2, node2Name, "128M", region));
+    EXPECT_EQ(createInfo2.name, node2Name);
+    EXPECT_EQ(createInfo2.size, "128MB");
+    EXPECT_FALSE(createInfo2.exportNode.empty()) << "节点2创建SHM export-node不应为空";
+    EXPECT_EQ(createInfo2.region, region) << "节点2创建SHM region应一致";
+
+    IT_LOG_INFO << "S3: 节点1 CLI borrow_detail 查询账本, 应含两条share记录";
+    {
+        std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+        EXPECT_IT_OK(cli1.DisplayMemoryBorrowDetail(borrowDetails, "share"));
+        bool found1 = false;
+        bool found2 = false;
+        for (const auto& detail : borrowDetails) {
+            if (detail.type != "share") {
+                continue;
+            }
+            if (detail.name == node1Name) {
+                found1 = true;
+            } else if (detail.name == node2Name) {
+                found2 = true;
+            }
+        }
+        EXPECT_TRUE(found1) << "borrow_detail 应包含 " << node1Name;
+        EXPECT_TRUE(found2) << "borrow_detail 应包含 " << node2Name;
+    }
+
+    IT_LOG_INFO << "S4: 节点2删除其共享内存 name=" << node2Name;
+    EXPECT_IT_OK(cli2.DeleteMemory(node2Name, "share"));
+
+    IT_LOG_INFO << "S5: 节点1 CLI borrow_detail 再次查询账本, 应仅剩节点1的记录";
+    {
+        std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfter;
+        EXPECT_IT_OK(cli1.DisplayMemoryBorrowDetail(borrowDetailsAfter, "share"));
+        bool found1 = false;
+        bool found2 = false;
+        for (const auto& detail : borrowDetailsAfter) {
+            if (detail.type != "share") {
+                continue;
+            }
+            if (detail.name == node1Name) {
+                found1 = true;
+            } else if (detail.name == node2Name) {
+                found2 = true;
+            }
+        }
+        EXPECT_TRUE(found1) << "节点2删除后 borrow_detail 应仍包含 " << node1Name;
+        EXPECT_FALSE(found2) << "节点2删除后 borrow_detail 不应包含 " << node2Name;
+    }
+
+    IT_LOG_INFO << "S6: 清理节点1的共享内存 name=" << node1Name;
+    EXPECT_IT_OK(cli1.DeleteMemory(node1Name, "share"));
+
+    IT_LOG_INFO << "P1-CliBorrowDetail-MultiNode-01 passed";
+}
+
+// P1-ShmCreate-Concurrent-01: 双节点，8并发创建共享内存，全部创建成功
+void RunP1ShmCreateConcurrent01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    constexpr uint32_t kCreateCnt = 8;                           // 并发创建数
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+    const char* names[kCreateCnt] = {"it_p1_shm_conc_01", "it_p1_shm_conc_02", "it_p1_shm_conc_03",
+                                     "it_p1_shm_conc_04", "it_p1_shm_conc_05", "it_p1_shm_conc_06",
+                                     "it_p1_shm_conc_07", "it_p1_shm_conc_08"};
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 8并发创建共享内存：8个线程，每个线程创建不同name的SHM，region覆盖节点1/2
+    IT_LOG_INFO << "S1: Concurrently creating " << kCreateCnt << " SHMs";
+    int32_t rets[kCreateCnt] = {0};
+    std::vector<std::future<int32_t>> futures;
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        futures.emplace_back(std::async(std::launch::async, [&, i]() -> int32_t {
+            return sdk.MemShmCreate(names[i], shmSize128M, usrInfo, 0, &region, nullptr);
+        }));
+    }
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        rets[i] = futures[i].get();
+        EXPECT_IT_OK(rets[i]) << "Concurrent create failed, name=" << names[i];
+    }
+
+    // S2. 等待8个共享内存全部创建就绪
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        IT_LOG_INFO << "S2: Wait SHM ready: name=" << names[i];
+        int32_t ret = WaitForShmReady(sdk, names[i]);
+        EXPECT_IT_OK(ret) << "WaitForShmReady failed for " << names[i];
+    }
+
+    // S3. 逐一查询，校验 name/mem_size/mem_stage
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        ubs_mem_shm_desc_t* desc = nullptr;
+        int32_t ret = sdk.MemShmGet(names[i], &desc);
+        EXPECT_IT_OK(ret) << "MemShmGet failed for " << names[i];
+        if (desc != nullptr) {
+            EXPECT_STREQ(desc->name, names[i]);
+            EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size mismatch, name=" << names[i];
+            EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+                << "unexpected mem_stage, name=" << names[i];
+            free(desc);
+        }
+    }
+
+    // S4. 清理：逐一删除8个共享内存
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        IT_LOG_INFO << "S4: Delete SHM: name=" << names[i];
+        EXPECT_IT_OK(sdk.MemShmDelete(names[i])) << "MemShmDelete failed for " << names[i];
+    }
+
+    IT_LOG_INFO << "P1-ShmCreate-Concurrent-01 done";
+}
+
+// P1-ShmCreate-Concurrent-MultiNode-01: 四节点，4节点各自并发创建共享内存，全部创建成功
+void RunP1ShmCreateConcurrentMultiNode01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr uint32_t kNodeCnt = 4;                             // 节点数
+    constexpr uint32_t kCreateCnt = 4;                           // 并发创建数
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+    const char* names[kCreateCnt] = {"it_p1_shm_conc4m_01", "it_p1_shm_conc4m_02", "it_p1_shm_conc4m_03",
+                                     "it_p1_shm_conc4m_04"};
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    // 预先获取4个节点的SDK客户端引用，避免在并发线程内查询
+    ubse::it::infra::ItSdkClient* sdks[kNodeCnt] = {nullptr};
+    for (uint32_t i = 0; i < kNodeCnt; ++i) {
+        sdks[i] = &cluster.GetSdkClient(std::to_string(i + 1));
+    }
+
+    // region 覆盖全部4节点
+    ubs_mem_nodes_t region{};
+    region.node_cnt = kNodeCnt;
+    for (uint32_t i = 0; i < kNodeCnt; ++i) {
+        region.slot_ids[i] = cluster.GetNode(std::to_string(i + 1)).GetSpec().slotId;
+    }
+
+    // S1. 4个节点各自并发创建共享内存：4个线程，每线程用不同节点的SDK创建不同name的SHM，region覆盖全部4节点
+    IT_LOG_INFO << "S1: Concurrently creating " << kCreateCnt << " SHMs from 4 nodes";
+    int32_t rets[kCreateCnt] = {0};
+    std::vector<std::future<int32_t>> futures;
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        futures.emplace_back(std::async(std::launch::async, [&, i]() -> int32_t {
+            return sdks[i]->MemShmCreate(names[i], shmSize128M, usrInfo, 0, &region, nullptr);
+        }));
+    }
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        rets[i] = futures[i].get();
+        EXPECT_IT_OK(rets[i]) << "Concurrent create failed, node=" << (i + 1) << ", name=" << names[i];
+    }
+
+    // S2. 等待4个共享内存全部创建就绪
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        IT_LOG_INFO << "S2: Wait SHM ready: name=" << names[i];
+        int32_t ret = WaitForShmReady(*sdks[i], names[i]);
+        EXPECT_IT_OK(ret) << "WaitForShmReady failed for " << names[i];
+    }
+
+    // S3. 逐一查询，校验 name/mem_size/mem_stage
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        ubs_mem_shm_desc_t* desc = nullptr;
+        int32_t ret = sdks[i]->MemShmGet(names[i], &desc);
+        EXPECT_IT_OK(ret) << "MemShmGet failed for " << names[i];
+        if (desc != nullptr) {
+            EXPECT_STREQ(desc->name, names[i]);
+            EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size mismatch, name=" << names[i];
+            EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+                << "unexpected mem_stage, name=" << names[i];
+            free(desc);
+        }
+    }
+
+    // S4. 清理：逐一删除4个共享内存
+    for (uint32_t i = 0; i < kCreateCnt; ++i) {
+        IT_LOG_INFO << "S4: Delete SHM: name=" << names[i];
+        EXPECT_IT_OK(sdks[i]->MemShmDelete(names[i])) << "MemShmDelete failed for " << names[i];
+    }
+
+    IT_LOG_INFO << "P1-ShmCreate-Concurrent-MultiNode-01 done";
+}
+
+// P1-ShmCreate-WithProviders-MultiNode-01: 四节点，指定2个provider创建共享内存，校验export_node在provider集合内
+void RunP1ShmCreateWithProvidersMultiNode01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr const char* shmName = "it_p1_shm_create_providers";
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    auto& node1Client = cluster.GetSdkClient("1");
+
+    // region 覆盖全部4节点
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 4;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+    region.slot_ids[2] = cluster.GetNode("3").GetSpec().slotId;
+    region.slot_ids[3] = cluster.GetNode("4").GetSpec().slotId;
+
+    // 指定2个provider：节点2、节点3
+    ubs_mem_nodes_t provider{};
+    provider.node_cnt = 2;
+    provider.slot_ids[0] = cluster.GetNode("2").GetSpec().slotId;
+    provider.slot_ids[1] = cluster.GetNode("3").GetSpec().slotId;
+
+    // S1. 节点1创建SHM，指定2个provider
+    IT_LOG_INFO << "S1: Creating SHM with 2 providers: name=" << shmName << ", size=" << shmSize128M
+                << ", provider_slot0=" << provider.slot_ids[0] << ", provider_slot1=" << provider.slot_ids[1];
+    int32_t ret = node1Client.MemShmCreate(shmName, shmSize128M, usrInfo, 0, &region, &provider);
+    ASSERT_IT_OK(ret);
+
+    // S2. 等待创建就绪
+    IT_LOG_INFO << "S2: Wait SHM ready: name=" << shmName;
+    ret = WaitForShmReady(node1Client, shmName);
+    EXPECT_IT_OK(ret);
+
+    // S3. 查询并校验导出节点在provider集合内
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = node1Client.MemShmGet(shmName, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_STREQ(desc->name, shmName);
+        EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+            << "unexpected mem_stage: " << desc->mem_stage;
+        EXPECT_GT(desc->export_node.slot_id, 0u) << "export_node.slot_id should be > 0";
+        auto inProvider = std::any_of(provider.slot_ids, provider.slot_ids + provider.node_cnt,
+                                      [&](uint32_t id) { return id == desc->export_node.slot_id; });
+        EXPECT_TRUE(inProvider) << "export_node.slot_id=" << desc->export_node.slot_id
+                                << " should be in provider nodes";
+        free(desc);
+    }
+
+    // S4. 清理
+    IT_LOG_INFO << "S4: Delete SHM: name=" << shmName;
+    EXPECT_IT_OK(node1Client.MemShmDelete(shmName));
+
+    IT_LOG_INFO << "P1-ShmCreate-WithProviders-MultiNode-01 done";
+}
+
+// P1-ShmRecreate-AfterDelete-01: 双节点，节点1创建SHM→删除→节点2创建同名SHM成功（验证删除释放同名）
+void RunP1ShmRecreateAfterDelete01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr const char* shmName = "it_p1_shm_recreate";
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    auto& node1Client = cluster.GetSdkClient("1");
+    auto& node2Client = cluster.GetSdkClient("2");
+
+    // region 覆盖节点1/2
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 节点1创建共享内存，region覆盖节点1/2
+    IT_LOG_INFO << "S1: Node1 creating SHM: name=" << shmName << ", size=" << shmSize128M;
+    int32_t ret = node1Client.MemShmCreate(shmName, shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    // S2. 等待节点1创建就绪
+    IT_LOG_INFO << "S2: Wait SHM ready: name=" << shmName;
+    ret = WaitForShmReady(node1Client, shmName);
+    EXPECT_IT_OK(ret);
+
+    // S3. 节点2删除共享内存
+    IT_LOG_INFO << "S3: Node1 deleting SHM: name=" << shmName;
+    ret = node2Client.MemShmDelete(shmName);
+    EXPECT_IT_OK(ret) << "delete after create should succeed";
+
+    // S4. 验证已不存在（删除后同名已释放）
+    {
+        ubs_mem_shm_desc_t* desc = nullptr;
+        ret = node1Client.MemShmGet(shmName, &desc);
+        EXPECT_NE(ret, UBS_SUCCESS) << "SHM should not exist after delete";
+        if (desc != nullptr) {
+            free(desc);
+        }
+    }
+
+    // S5. 节点2创建同名共享内存，region覆盖节点1/2
+    IT_LOG_INFO << "S5: Node2 recreating same-name SHM: name=" << shmName << ", size=" << shmSize128M;
+    ret = node2Client.MemShmCreate(shmName, shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret) << "node2 should recreate same-name SHM after delete";
+
+    // S6. 等待节点2创建就绪
+    IT_LOG_INFO << "S6: Wait SHM ready: name=" << shmName;
+    ret = WaitForShmReady(node2Client, shmName);
+    EXPECT_IT_OK(ret);
+
+    // S7. 节点2查询并校验出参
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = node2Client.MemShmGet(shmName, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_STREQ(desc->name, shmName);
+        EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+            << "unexpected mem_stage: " << desc->mem_stage;
+        free(desc);
+    }
+
+    // S8. 清理：删除重建的共享内存
+    IT_LOG_INFO << "S8: Cleanup: delete SHM: name=" << shmName;
+    EXPECT_IT_OK(node2Client.MemShmDelete(shmName));
+
+    IT_LOG_INFO << "P1-ShmRecreate-AfterDelete-01 done";
+}
+
+// 四节点SHM detach后内存账本consumer归空校验：
+// 节点1创建(name=detach001, region={1,2,3,4}) → 节点1/2 attach → 查询账本consumer包含1/2
+// → 节点1/2 detach → 查询账本consumer为空 → 删除
+void RunP1ShmDetachMultiNode01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr const char* shmName = "detach001";
+    constexpr uint64_t shmSize = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+
+    auto& node1Client = cluster.GetSdkClient("1");
+
+    // S1. 节点1创建共享内存，name=detach001，region覆盖四节点
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 4;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+    region.slot_ids[2] = cluster.GetNode("3").GetSpec().slotId;
+    region.slot_ids[3] = cluster.GetNode("4").GetSpec().slotId;
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    IT_LOG_INFO << "S1: Creating SHM on node1: name=" << shmName << ", size=" << shmSize;
+    int32_t ret = node1Client.MemShmCreate(shmName, shmSize, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    // 等待SHM创建就绪
+    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            ubs_mem_shm_desc_t* shmDesc = nullptr;
+            int32_t getRet = node1Client.MemShmGet(shmName, &shmDesc);
+            if (getRet != UBS_SUCCESS || shmDesc == nullptr) {
+                return false;
+            }
+            bool ready = (shmDesc->mem_stage == UBSE_EXIST);
+            free(shmDesc);
+            return ready;
+        },
+        15000, 200);
+    EXPECT_IT_OK(waitRet);
+
+    // S2. 节点1、2均调用ubse_mem_shm_attach，传入name=detach001
+    std::vector<std::string> attachNodes = {"1", "2"};
+    for (const auto& nodeId : attachNodes) {
+        auto& client = cluster.GetSdkClient(nodeId);
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        IT_LOG_INFO << "S2: Attaching SHM on node " << nodeId;
+        ret = client.MemShmAttach(shmName, nullptr, 0, &shmDesc);
+        ASSERT_IT_OK(ret);
+        ASSERT_NE(shmDesc, nullptr);
+        IT_LOG_INFO << "Node " << nodeId << " attach result: import_desc_cnt=" << shmDesc->import_desc_cnt;
+        if (shmDesc != nullptr) {
+            free(shmDesc);
+        }
+    }
+
+    // S3. 查看内存账本：MemShmGet返回的import_desc_cnt应包含节点1、2的导入信息
+    {
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        ret = node1Client.MemShmGet(shmName, &shmDesc);
+        EXPECT_IT_OK(ret);
+        if (shmDesc != nullptr) {
+            IT_LOG_INFO << "S3: Node1 Get after attach: import_desc_cnt=" << shmDesc->import_desc_cnt;
+            // 账本consumer应包含节点1、2
+            EXPECT_EQ(shmDesc->import_desc_cnt, 2u) << "import_desc_cnt should be 2 (node1 and node2 attached)";
+            const uint32_t slot1 = cluster.GetNode("1").GetSpec().slotId;
+            const uint32_t slot2 = cluster.GetNode("2").GetSpec().slotId;
+            bool hasNode1 = false;
+            bool hasNode2 = false;
+            for (uint32_t i = 0; i < shmDesc->import_desc_cnt; ++i) {
+                if (shmDesc->import_desc[i].import_node.slot_id == slot1) {
+                    hasNode1 = true;
+                }
+                if (shmDesc->import_desc[i].import_node.slot_id == slot2) {
+                    hasNode2 = true;
+                }
+            }
+            EXPECT_TRUE(hasNode1) << "ledger consumer should contain node1";
+            EXPECT_TRUE(hasNode2) << "ledger consumer should contain node2";
+            free(shmDesc);
+        }
+    }
+
+    // S4. 节点1、2均调用ubse_mem_shm_detach，传入name=detach001
+    for (const auto& nodeId : attachNodes) {
+        auto& client = cluster.GetSdkClient(nodeId);
+        IT_LOG_INFO << "S4: Detaching SHM on node " << nodeId;
+        ret = client.MemShmDetach(shmName);
+        EXPECT_IT_OK(ret);
+    }
+
+    // S5. 查看内存账本信息：detach后查询，账本consumer为空
+    {
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        ret = node1Client.MemShmGet(shmName, &shmDesc);
+        EXPECT_IT_OK(ret) << "S5: MemShmGet after detach should succeed";
+        if (shmDesc != nullptr) {
+            IT_LOG_INFO << "S5: Node1 Get after detach: import_desc_cnt=" << shmDesc->import_desc_cnt;
+            EXPECT_EQ(shmDesc->import_desc_cnt, 0u) << "ledger consumer should be empty after detach";
+            free(shmDesc);
+        }
+    }
+
+    // 清理：节点1删除共享内存
+    IT_LOG_INFO << "Cleaning up: deleting SHM " << shmName;
+    EXPECT_IT_OK(node1Client.MemShmDelete(shmName));
+
+    IT_LOG_INFO << "P1-ShmDetach-MultiNode-01 done";
+}
+
+// P1-ShmDetachReattach-MultiNode-01: 双节点SHM 节点1创建→节点1attach→节点1detach→节点2attach，全部成功
+void RunP1ShmDetachReattachMultiNode01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr const char* shmName = "reattach001";
+    constexpr uint64_t shmSize = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+
+    auto& node1Client = cluster.GetSdkClient("1");
+
+    // S1. 节点1创建共享内存，name=reattach001，region覆盖双节点
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    IT_LOG_INFO << "S1: Creating SHM on node1: name=" << shmName << ", size=" << shmSize;
+    int32_t ret = node1Client.MemShmCreate(shmName, shmSize, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    // 等待SHM创建就绪
+    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            ubs_mem_shm_desc_t* shmDesc = nullptr;
+            int32_t getRet = node1Client.MemShmGet(shmName, &shmDesc);
+            if (getRet != UBS_SUCCESS || shmDesc == nullptr) {
+                return false;
+            }
+            bool ready = (shmDesc->mem_stage == UBSE_EXIST);
+            free(shmDesc);
+            return ready;
+        },
+        15000, 200);
+    EXPECT_IT_OK(waitRet);
+
+    // S2. 节点1调用ubse_mem_shm_attach映射
+    {
+        auto& client = cluster.GetSdkClient("1");
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        IT_LOG_INFO << "S2: Attaching SHM on node1: name=" << shmName;
+        ret = client.MemShmAttach(shmName, nullptr, 0, &shmDesc);
+        ASSERT_IT_OK(ret);
+        ASSERT_NE(shmDesc, nullptr);
+        IT_LOG_INFO << "Node1 attach result: import_desc_cnt=" << shmDesc->import_desc_cnt;
+        if (shmDesc != nullptr) {
+            free(shmDesc);
+        }
+    }
+
+    // S3. 节点1调用ubse_mem_shm_detach解除映射
+    IT_LOG_INFO << "S3: Detaching SHM on node1: name=" << shmName;
+    ret = node1Client.MemShmDetach(shmName);
+    EXPECT_IT_OK(ret);
+
+    // S4. 节点2调用ubse_mem_shm_attach映射
+    {
+        auto& client = cluster.GetSdkClient("2");
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        IT_LOG_INFO << "S4: Attaching SHM on node2: name=" << shmName;
+        ret = client.MemShmAttach(shmName, nullptr, 0, &shmDesc);
+        ASSERT_IT_OK(ret);
+        ASSERT_NE(shmDesc, nullptr);
+        IT_LOG_INFO << "Node2 attach result: import_desc_cnt=" << shmDesc->import_desc_cnt;
+        if (shmDesc != nullptr) {
+            free(shmDesc);
+        }
+    }
+
+    // S5. 查看内存账本：detach后再attach，账本仅含节点2
+    {
+        ubs_mem_shm_desc_t* shmDesc = nullptr;
+        ret = node1Client.MemShmGet(shmName, &shmDesc);
+        EXPECT_IT_OK(ret);
+        if (shmDesc != nullptr) {
+            IT_LOG_INFO << "S5: Node1 Get after reattach: import_desc_cnt=" << shmDesc->import_desc_cnt;
+            EXPECT_EQ(shmDesc->import_desc_cnt, 1u) << "ledger consumer should only contain node2";
+            const uint32_t slot2 = cluster.GetNode("2").GetSpec().slotId;
+            const uint32_t slot1 = cluster.GetNode("1").GetSpec().slotId;
+            bool hasNode1 = false;
+            bool hasNode2 = false;
+            for (uint32_t i = 0; i < shmDesc->import_desc_cnt; ++i) {
+                if (shmDesc->import_desc[i].import_node.slot_id == slot1) {
+                    hasNode1 = true;
+                }
+                if (shmDesc->import_desc[i].import_node.slot_id == slot2) {
+                    hasNode2 = true;
+                }
+            }
+            EXPECT_FALSE(hasNode1) << "ledger consumer should not contain node1 after detach";
+            EXPECT_TRUE(hasNode2) << "ledger consumer should contain node2";
+            free(shmDesc);
+        }
+    }
+
+    // S6. 清理：节点2解除映射，节点1删除共享内存
+    IT_LOG_INFO << "S6: Cleaning up: node2 detach then node1 delete SHM " << shmName;
+    EXPECT_IT_OK(cluster.GetSdkClient("2").MemShmDetach(shmName));
+    EXPECT_IT_OK(node1Client.MemShmDelete(shmName));
+
+    IT_LOG_INFO << "P1-ShmDetachReattach-MultiNode-01 done";
 }
 } // namespace ubse::it::tests::mem_borrow

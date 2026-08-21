@@ -171,6 +171,7 @@ void RunP0ShmCreateInvalidVal02(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateUsrInfoOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_affinity ====================
 void RunP0ShmCreateAffinityOk01(ubse::it::infra::ItCluster& cluster);
@@ -179,6 +180,8 @@ void RunP0ShmCreateAffinityInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityDup01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateAffinityAttach-Ok-01: 双节点，亲和创建+指定provider={2}创建128MB共享内存+节点1映射成功
+void RunP0ShmCreateAffinityAttachOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_lender ====================
 void RunP0ShmCreateLenderOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
@@ -187,11 +190,27 @@ void RunP0ShmCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-SocketPort-Ok-01: 指定借出节点socket_id+port_id创建共享内存
+void RunP0ShmCreateLenderSocketPortOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-NumaPort-Ok-01: 指定借出节点numa_id+port_id创建共享内存
+void RunP0ShmCreateLenderNumaPortOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-SocketNuma-Ok-01: 指定借出节点socket_id+numa_id创建共享内存
+void RunP0ShmCreateLenderSocketNumaOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-UsrInfo-Ok-01: 以空值(全0)/空串/"TESTTESTTEST"三种usr_info创建SHM，shm_get校验usr_info回显一致
+void RunP0ShmCreateLenderUsrInfoOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-AllNodes-Ok-01: 四节点依次指定节点1/2/3/4作为借出节点创建4个共享内存，校验mem_size与export_node
+void RunP0ShmCreateLenderAllNodesOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_attach ====================
 void RunP0ShmAttachOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster);
+
+// P0-ShmAttach-BoundMax-01: name=47字节边界，节点1/2均attach校验出参，shm_get校验整体账本
+void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster);
+
+// P0-ShmCreateAttach-Ok-01: 双节点创建1024M共享内存，节点1映射成功
+void RunP0ShmCreateAttachOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_get ====================
 void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster);

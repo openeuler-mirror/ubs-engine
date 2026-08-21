@@ -129,6 +129,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderOk01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"1", "2", "3", "4"});
 }
 
+// P0-ShmCreateLender-AllNodes-Ok-01: 依次指定节点1/2/3/4作为借出节点创建共享内存，校验mem_size与export_node
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderAllNodesOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderAllNodesOk01(Cluster());
+}
+
 // ====================================================================
 // P0 测试 — CLI 接口正确性
 // ====================================================================
@@ -187,6 +193,24 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1NumaCreateMultiNodeOk01)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
 {
     ubse::it::tests::mem_borrow::RunP1ShmAttachMultiNode01(Cluster());
+}
+
+// P1-ShmDetach-MultiNode-01: 四节点SHM detach后内存账本consumer归空校验
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmDetachMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmDetachMultiNode01(Cluster());
+}
+
+// P1-ShmCreate-Concurrent-MultiNode-01: 四节点，4节点各自并发创建共享内存，全部创建成功
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmCreateConcurrentMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmCreateConcurrentMultiNode01(Cluster());
+}
+
+// P1-ShmCreate-WithProviders-MultiNode-01: 四节点，指定2个provider创建共享内存，校验export_node在provider集合内
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmCreateWithProvidersMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmCreateWithProvidersMultiNode01(Cluster());
 }
 
 // ====================================================================
