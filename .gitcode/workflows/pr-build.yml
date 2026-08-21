@@ -1,6 +1,13 @@
 name: ubs-engine_MR
 
 on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
   pull_request_comment:
     types: [created]
     comments: [ '^recompile$' ]
@@ -30,7 +37,7 @@ stages:
         name: CodeCheck_pre_commit
         runs-on: [ euler-latest, x64, medium ]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
         steps:
           - name: checkout
             uses: checkout
@@ -41,28 +48,31 @@ stages:
           - name: Install System pre-commit
             run: | 
                 set -eux
+                clang-format --version
                 PYTHON3_BIN=$(dirname "$(which python3)")
                 ln -sf "$(which python3)" "$PYTHON3_BIN/python"
                 echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
                 python --version
-                pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+                python -m pip install --upgrade pip --timeout 120 --ignore-installed
+                pip3 config set global.index-url https://mirrors.huaweicloud.com/repository/pypi/simple
                 cd ${ATOMGIT_WORKSPACE}
-                pip3 install pre-commit==4.5.0 pre-commit-hooks --root-user-action=ignore && pre-commit install --install-hooks
+                pip3 install pre-commit==4.3.0 pre-commit-hooks && pre-commit install --install-hooks
           - name: RPM Build ubs-comm
             run: | 
                 set -eux
+                dnf install -y 'dnf-command(builddep)'
                 mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
                 cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
                 cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
-                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
+                dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
                 rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
-                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
-                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
-          - name: install gitleaks
-            run: |
-              cd ${ATOMGIT_WORKSPACE}
-              cp -rf /opt/buildtools/gitleaks ./
-              cd -
+                dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
+                dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+          - name: install gitleaks 
+            run: | 
+                cd ${ATOMGIT_WORKSPACE} 
+                cp -rf /opt/buildtools/gitleaks ./ 
+                cd -
           - name: pre-commit
             uses: openlibing-pre-commit-action
 
