@@ -33,6 +33,7 @@
 #include "over_commit_pid_fault_context.h"
 #include "over_commit_pid_fault_error_util.h"
 #include "over_commit_storage.h"
+#include "process_mem_pid_manager_def.h"
 #include "rmrs_serialize.h"
 
 namespace mempooling::over_commit {
@@ -645,6 +646,56 @@ static TaskPhase RemoveSingleTaskFaultNumaManaged(const MigrationTask& task)
     return TaskPhase::REMOVED;
 }
 
+// 解析debt的usrInfo归属借入方本地numa: 前4字节=PROCESS_MEM pluginId时为裸机process_mem协议
+// （取srcNuma字段），否则为容器/虚机正常借用协议（前2字节int16本地numaId）
+static int16_t ParseDebtLocalNuma(const UbseNumaMemoryDebtInfo& debt)
+{
+    uint32_t pluginId = 0;
+    if (memcpy_s(&pluginId, sizeof(pluginId), debt.usrInfo, sizeof(pluginId)) != EOK) {
+        return -1;
+    }
+    if (pluginId == static_cast<uint32_t>(process_mem::def::UsrInfoPluginType::PROCESS_MEM)) {
+        process_mem::def::ProcessMemUsrInfo usrInfo{};
+        if (memcpy_s(&usrInfo, sizeof(usrInfo), debt.usrInfo, sizeof(usrInfo)) != EOK) {
+            return -1;
+        }
+        return static_cast<int16_t>(usrInfo.srcNuma);
+    }
+    int16_t localNuma = -1;
+    if (memcpy_s(&localNuma, sizeof(localNuma), debt.usrInfo, sizeof(localNuma)) != EOK) {
+        return -1;
+    }
+    return localNuma;
+}
+
+// 从本地账本按归属本地numa聚合呈现numa的累计有效借用量（KB）及各桶borrowId集合：
+// smap远端numa预算登记为覆盖语义，而同一物理port的借用静态映射到同一呈现号，新故障借用
+// 可能并入同号存量呈现numa；只登记本次借用量会覆盖缩水存量借用预算，使存量占用倒挂、
+// 迁移容量校验失败（-92）。不复用FilterValidDebtInfos（其pluginId校验面向裸机process_mem
+// 协议，会滤掉容器/虚机借用debt）；仅收本节点为借入方的debt（远端numa号是借入方本地概念，
+// 防跨节点同号误聚合）；故障借用debt的呈现numa号不同，天然不被聚合进来
+static bool AggregateDebtSizeForPresentNuma(int64_t presentNumaId, std::map<int16_t, uint64_t>& sizeKBByLocalNuma,
+                                            std::map<int16_t, std::unordered_set<std::string>>& idsByLocalNuma)
+{
+    sizeKBByLocalNuma.clear();
+    idsByLocalNuma.clear();
+    std::vector<UbseNumaMemoryDebtInfo> allDebtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
+        return false;
+    }
+    std::string curNodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+    for (const auto& debt : allDebtInfos) {
+        if (debt.remoteNumaId != presentNumaId || debt.borrowNodeId != curNodeId ||
+            debt.state == UbseMemStage::UBSE_NOT_EXIST || debt.state == UbseMemStage::UBSE_DELETING) {
+            continue;
+        }
+        int16_t localNuma = ParseDebtLocalNuma(debt);
+        sizeKBByLocalNuma[localNuma] += debt.size >> KB2MB;
+        idsByLocalNuma[localNuma].insert(debt.name);
+    }
+    return true;
+}
+
 // 同目标numa任务组: 组级预占/锁/一次smap远端numa信息设置 + task级并行迁移，返回taskId→到达的phase
 static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newRemoteNumaId,
                                                                    const std::vector<const MigrationTask*>& groupTasks)
@@ -663,8 +714,7 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
     FaultNumaLock::Instance().AcquireShared(newRemoteNumaId);
     lockGuard.sharedNumaIds.push_back(newRemoteNumaId);
 
-    // 设置smap远端numa借用信息（借用量随task由master下发，按newBorrowId去重聚合，
-    // 本节点不再查账本；同一借用的多个task共享同一borrowId，只计一次）；
+    // 收集本组task携带的借用量（按newBorrowId去重聚合，同一借用的多个task共享同一borrowId，只计一次）；
     // 同时记录每笔借用的归属本地numa（容器多本地取首个，与master侧借用组/usrInfo归属口径一致）
     std::unordered_map<std::string, std::pair<int16_t, uint64_t>> borrowInfoById;
     for (const auto* task : groupTasks) {
@@ -701,23 +751,45 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
         }
     }
 
-    // 按归属本地numa分桶设置smap借用信息: smap按(srcNid,destNid)累加记录，-1通配与具体numa各记一笔，
-    // 同一远端numa借用量叠加后归还migrate back无法核减通配记录导致迁不回，故必须传真实本地numa
-    // （数据就在该本地numa上，与正常借用迁移NormMigrate的srcNumaId口径一致）；
-    // 同组多笔借用归属不同本地numa时拆多笔分别设置
+    // 登记量取账本中该呈现numa的累计有效借用量: smap预算登记为覆盖语义，新借用并入同号存量
+    // 呈现numa时只登记本次借用量会覆盖缩水存量预算（存量占用倒挂→迁移-92）；本轮borrowId
+    // 未入账本则保留本次桶内量（防重算）；账本查询失败降级为仅登记本次借用量（存量行为）
     std::map<int16_t, uint64_t> borrowSizeByLocalNuma;
     for (const auto& [borrowId, info] : borrowInfoById) {
         borrowSizeByLocalNuma[info.first] += info.second;
     }
+    std::map<int16_t, uint64_t> ledgerSizeByLocalNuma;
+    std::map<int16_t, std::unordered_set<std::string>> ledgerIdsByLocalNuma;
+    if (AggregateDebtSizeForPresentNuma(newRemoteNumaId, ledgerSizeByLocalNuma, ledgerIdsByLocalNuma)) {
+        for (auto& [localNuma, ledgerSizeKB] : ledgerSizeByLocalNuma) {
+            for (const auto& [borrowId, info] : borrowInfoById) {
+                if (info.first == localNuma && ledgerIdsByLocalNuma[localNuma].count(borrowId) > 0) {
+                    ledgerSizeKB -= std::min(ledgerSizeKB, info.second); // 本轮已入账本部分防重算
+                }
+            }
+            borrowSizeByLocalNuma[localNuma] += ledgerSizeKB;
+        }
+    } else {
+        LOG_WARN << "Aggregate debt size for present numa " << newRemoteNumaId
+                 << " failed, register smap with this-round borrow size only.";
+    }
+    uint64_t registerTotalKB = 0;
+    for (const auto& [localNuma, sizeKB] : borrowSizeByLocalNuma) {
+        registerTotalKB += sizeKB;
+    }
     LOG_DEBUG << "MigrateTaskGroup: destNuma=" << newRemoteNumaId << " totalBorrowedKB=" << totalBorrowedKB << " (from "
-              << borrowInfoById.size() << " borrows, " << borrowSizeByLocalNuma.size()
-              << " local numas), set smap remote numa info.";
+              << borrowInfoById.size() << " borrows), registerSizeKB=" << registerTotalKB
+              << ", set smap remote numa info.";
+    // 必须传真实本地numa: -1通配记录归还migrate back时无法核减导致迁不回
+    // （数据就在该本地numa上，与正常借用迁移NormMigrate的srcNumaId口径一致）
     for (const auto& [localNuma, sizeKB] : borrowSizeByLocalNuma) {
         MemBorrowInfoWithSrc info{
             .srcNumaId = static_cast<uint64_t>(localNuma), .presentNumaId = newRemoteNumaId, .borrowSize = sizeKB};
         if (MpSmapHelper::SetSmapRemoteNumaInfo(localNuma, {info}) != MEM_POOLING_OK) {
+            // 预算登记失败迁移必-92，不空跑: 整组保持BORROWED下轮RESUME
             LOG_ERROR << "SetSmapRemoteNumaInfo failed for localNuma=" << localNuma << ", numa " << newRemoteNumaId
-                      << ".";
+                      << ", group skipped.";
+            return taskPhaseResults;
         }
     }
 
