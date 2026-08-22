@@ -76,9 +76,11 @@ void RunP0FdCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_permission ====================
+void RunP0FdPermChangeOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_get ====================
+void RunP0FdGetOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetOverLen01(ubse::it::infra::ItCluster& cluster);

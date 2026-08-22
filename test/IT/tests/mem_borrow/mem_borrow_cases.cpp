@@ -1003,6 +1003,38 @@ void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== ubs_mem_fd_permission P0 测试 ====================
 
+// P0-FdPerm-Change-Ok-01: fd权限用例，创建后权限变更
+void RunP0FdPermChangeOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_fd_perm_change";
+    ubs_mem_fd_desc_t fdDesc{};
+
+    // 创建FD
+    IT_LOG_INFO << "Creating FD for permission change test: name=" << name;
+    int32_t ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    ASSERT_IT_OK(ret);
+
+    // 初始权限设置
+    ubs_mem_fd_owner_t owner{};
+    owner.uid = 1000;
+    owner.gid = 1000;
+    owner.pid = 0;
+    mode_t newMode = 0644;
+    IT_LOG_INFO << "Setting initial permission: uid=" << owner.uid << ", gid=" << owner.gid << ", mode=0" << std::oct
+                << newMode;
+    ASSERT_IT_OK(ubs_mem_fd_permission(name, &owner, newMode));
+
+    // 验证权限变更
+    ubs_mem_fd_desc_t getDesc{};
+    ASSERT_IT_OK(sdk.MemFdGet(name, &getDesc));
+
+    // 清理
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
+    IT_LOG_INFO << "P0-FdPerm-Change-Ok-01 done";
+}
+
 // P0-FdPerm-NotExist-01: name不存在 (单节点)
 void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster)
 {
@@ -1019,6 +1051,42 @@ void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster)
 }
 
 // ==================== ubs_mem_fd_get P0 测试 ====================
+
+// P0-FdGet-Ok-01: 查询存在的FD并校验字段
+void RunP0FdGetOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_fd_get_ok";
+    ubs_mem_fd_desc_t fdDesc{};
+
+    // 创建FD
+    IT_LOG_INFO << "Creating FD for get test: name=" << name;
+    int32_t ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    ASSERT_IT_OK(ret);
+
+    // 查询FD
+    ubs_mem_fd_desc_t getDesc{};
+    IT_LOG_INFO << "Getting existing FD: name=" << name;
+    ret = sdk.MemFdGet(name, &getDesc);
+    ASSERT_IT_OK(ret);
+
+    // 字段校验
+    EXPECT_STREQ(getDesc.name, name) << "name should match";
+    EXPECT_TRUE(getDesc.mem_stage == UBSE_CREATING || getDesc.mem_stage == UBSE_EXIST) << "mem_stage should be valid";
+    EXPECT_EQ(getDesc.mem_size, fdSize) << "mem_size should equal created size";
+    uint32_t expectedMemidCnt = static_cast<uint32_t>((getDesc.mem_size + getDesc.unit_size - 1) / getDesc.unit_size);
+    EXPECT_EQ(getDesc.memid_cnt, expectedMemidCnt) << "memid_cnt should be correct";
+    EXPECT_GT(getDesc.unit_size, static_cast<size_t>(0)) << "unit_size should be positive";
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+    EXPECT_EQ(getDesc.import_node.slot_id, localSlotId) << "import_node should be local node";
+    EXPECT_GT(getDesc.export_node.slot_id, 0u) << "export_node slot_id should be positive";
+    EXPECT_NE(getDesc.export_node.slot_id, getDesc.import_node.slot_id) << "export and import nodes should differ";
+
+    // 清理
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
+    IT_LOG_INFO << "P0-FdGet-Ok-01 done";
+}
 
 // P0-FdGet-NotExist-01: 查询不存在 (双节点)
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster)

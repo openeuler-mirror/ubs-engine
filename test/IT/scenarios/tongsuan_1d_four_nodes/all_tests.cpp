@@ -183,6 +183,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FdBorrowMultiNodeOk01)
     ubse::it::tests::mem_borrow::RunP1FdBorrowMultiNodeOk01(Cluster());
 }
 
+// P1-FdBorrow-Cycle-01(四节点): 四节点并发借用成环借用失败用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FdBorrowCycle01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowCycle01(Cluster());
+}
+
 // P1-NumaCreate-MultiNode-Ok-01(四节点): 多节点 NUMA 创建用例
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1NumaCreateMultiNodeOk01)
 {
