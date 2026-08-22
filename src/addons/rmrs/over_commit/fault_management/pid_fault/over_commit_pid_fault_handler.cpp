@@ -739,18 +739,6 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
         return taskPhaseResults;
     }
 
-    // 虚机场景将借来的内存分成2M大页（smap按大页迁移虚机页，容器场景不分大页，对齐存量链路）；
-    // 幂等分配: 上轮RESUME已分过则跳过，不重复增加nr_hugepages；失败整组保持BORROWED下轮RESUME
-    if (MpConfiguration::GetInstance().GetSceneType() == MpSceneType::VIRTUAL_SCENE &&
-        MpConfiguration::GetInstance().GetPageType() == PageType::PAGE_2M) {
-        uint64_t borrowSizeBytes = totalBorrowedKB * 1024;
-        if (MpSmapHelper::GetInstance().IdempotentAllocateHugePages(newRemoteNumaId, borrowSizeBytes) !=
-            MEM_POOLING_OK) {
-            LOG_ERROR << "IdempotentAllocateHugePages failed for numa " << newRemoteNumaId << ", group skipped.";
-            return taskPhaseResults;
-        }
-    }
-
     // 登记量取账本中该呈现numa的累计有效借用量: smap预算登记为覆盖语义，新借用并入同号存量
     // 呈现numa时只登记本次借用量会覆盖缩水存量预算（存量占用倒挂→迁移-92）；本轮borrowId
     // 未入账本则保留本次桶内量（防重算）；账本查询失败降级为仅登记本次借用量（存量行为）
@@ -758,8 +746,8 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
     for (const auto& [borrowId, info] : borrowInfoById) {
         borrowSizeByLocalNuma[info.first] += info.second;
     }
-    std::map<int16_t, uint64_t> ledgerSizeByLocalNuma;
     std::map<int16_t, std::unordered_set<std::string>> ledgerIdsByLocalNuma;
+    std::map<int16_t, uint64_t> ledgerSizeByLocalNuma;
     if (AggregateDebtSizeForPresentNuma(newRemoteNumaId, ledgerSizeByLocalNuma, ledgerIdsByLocalNuma)) {
         for (auto& [localNuma, ledgerSizeKB] : ledgerSizeByLocalNuma) {
             for (const auto& [borrowId, info] : borrowInfoById) {
@@ -777,6 +765,21 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
     for (const auto& [localNuma, sizeKB] : borrowSizeByLocalNuma) {
         registerTotalKB += sizeKB;
     }
+
+    // 虚机场景将借来的内存分成2M大页（smap按大页迁移虚机页，容器场景不分大页，对齐存量链路）；
+    // 口径取累计借用量（与smap预算登记一致）: 并入同号存量numa时存量大页只覆盖存量借用量，
+    // 按本次借用量分大页会被达标判据误跳过，导致合并后大页不足、迁移数据无处落；
+    // 幂等达标判据保证多轮RESUME不重复增加nr_hugepages；失败整组保持BORROWED下轮RESUME
+    if (MpConfiguration::GetInstance().GetSceneType() == MpSceneType::VIRTUAL_SCENE &&
+        MpConfiguration::GetInstance().GetPageType() == PageType::PAGE_2M) {
+        uint64_t borrowSizeBytes = registerTotalKB * 1024;
+        if (MpSmapHelper::GetInstance().IdempotentAllocateHugePages(newRemoteNumaId, borrowSizeBytes) !=
+            MEM_POOLING_OK) {
+            LOG_ERROR << "IdempotentAllocateHugePages failed for numa " << newRemoteNumaId << ", group skipped.";
+            return taskPhaseResults;
+        }
+    }
+
     LOG_DEBUG << "MigrateTaskGroup: destNuma=" << newRemoteNumaId << " totalBorrowedKB=" << totalBorrowedKB << " (from "
               << borrowInfoById.size() << " borrows), registerSizeKB=" << registerTotalKB
               << ", set smap remote numa info.";

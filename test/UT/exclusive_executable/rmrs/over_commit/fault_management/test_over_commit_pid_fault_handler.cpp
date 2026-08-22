@@ -875,6 +875,29 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterAggregatesLedgerDe
 }
 
 /*
+ * 用例描述：虚机场景新借用并入同号存量呈现numa（账本有存量借用）
+ * 预期：分大页口径=累计借用量（存量+本次），防按本次借用量分大页被存量已分大页
+ * 达标判据误跳过，导致合并后大页不足迁移数据无处落
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_HugePagesUseCumulativeLedgerSize)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {BuildVmProtocolDebt("bid-old", 2, 9, 2048)};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-huge-ledger", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gHugeAllocCalls.size(), 1U);
+    EXPECT_EQ(gHugeAllocCalls[0].first, 9);
+    EXPECT_EQ(gHugeAllocCalls[0].second, 3072ULL * 1024); // 存量2048 + 本次1024 = 3072KB
+}
+
+/*
  * 用例描述：本轮borrowId已入账本（借用刚完成即查账本）
  * 预期：不重复计入，登记量=账本累计量
  */
