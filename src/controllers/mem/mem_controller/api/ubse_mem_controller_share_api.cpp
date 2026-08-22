@@ -226,6 +226,13 @@ static uint32_t PrepareAttachPreconditions(const UbseMemShareAttachReq &req,
         ExistImportObjHandler(req, importObj, resp, req.name, req.importNodeId);
         return UBSE_ERR_EXISTED;
     }
+    if (WaitInitLedgerSuccess(req.importNodeId) != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::BORROW_IMPORT_IN_MAINTENANCE, req.name, MemType::SHM, req.size, "",
+                            req.importNodeId, req.requestNodeId});
+        BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "importNode is not working.",
+                                          UBSE_ENGINE_ERR_IMPORT_LEDGERING, MemOperationType::SHARED_ATTACH);
+        return UBSE_ENGINE_ERR_IMPORT_LEDGERING;
+    }
     return UBSE_OK;
 }
 
@@ -360,7 +367,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     }
     auto waitResult = WaitInitLedgerSuccess(req.unImportNodeId);
     if (waitResult != UBSE_OK) {
-        return ShareDetachFailed(req, resp, "importNode is not ok", waitResult, MemFault::RETURN_IMPORT_IN_MAINTENANCE);
+        return ShareDetachFailed(req, resp, "importNode is not working.", UBSE_ENGINE_ERR_IMPORT_LEDGERING, MemFault::RETURN_IMPORT_IN_MAINTENANCE);
     }
     UbseMemShareBorrowImportObj importObj{};
     if (auto ret = PrepareDetachPreconditions(req, realRequestNodeId, resp, importObj); ret != UBSE_OK) {
@@ -1633,6 +1640,10 @@ uint32_t UbseMemShareGlobalDetach(const UbseMemShareDetachReq &req, UbseMemOpera
         return ShareDetachFailed(req, resp, "Detach auth failed, nodeId not in global domain.", UBSE_ERR_AUTH_FAILED,
                                  MemFault::SHARED_DETACH_AUTH_FAILED);
     }
+    auto waitResult = WaitInitLedgerSuccess(req.unImportNodeId);
+    if (waitResult != UBSE_OK) {
+        return ShareDetachFailed(req, resp, "importNode is not working.", UBSE_ENGINE_ERR_IMPORT_LEDGERING, MemFault::RETURN_IMPORT_IN_MAINTENANCE);
+    }    
     UbseMemShareBorrowImportObj importObj;
     GlobalMasterStore store;
     UbseResult getRet = store.LoadImport(req.unImportNodeId, req.name, importObj);

@@ -19,6 +19,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_election.h"
 #include "ubse_election_module.h"
 #include "ubse_mem_controller_api_common.h"
+#include "ubse_mem_controller_helper.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node.h"
 #include "ubse_topo_util.h"
@@ -1049,6 +1050,90 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetach_NoImportObj_Error)
     UbseMemOperationResp resp;
     auto ret = UbseMemShareDetach(req, resp, NODE_ONE);
     EXPECT_NE(UBSE_OK, ret);
+}
+
+// 模拟BuildOperationRespWhenFail：将错误码写入resp并返回非0，用于验证失败路径的错误码
+static uint32_t BuildOperationRespWhenFailMock(UbseMemOperationResp& resp, const std::string& name,
+                                               const std::string& requestNodeId, std::string errMsg,
+                                               uint32_t errorCode, MemOperationType type)
+{
+    resp.errorCode = errorCode;
+    resp.errMsg = errMsg;
+    return errorCode;
+}
+
+// 在全局账本摘要中构造可用的导出项，供UbseMemShareAttachClos加载
+void PutGlobalExportSummaryItem()
+{
+    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
+    UbseGlobalLedgerSummaryItem item{};
+    item.name = SHM_NAME;
+    item.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{};
+    numaInfo.nodeId = NODE_TWO;
+    item.exportNumaInfos.push_back(numaInfo);
+    item.memids.push_back(1);
+    item.nodelist = {NODE_ONE, NODE_TWO};
+    item.userInfo = UbseUdsInfo{.uid = 0, .gid = 0, .pid = 0};
+    UbseGlobalLedgerSummaryStore::GetInstance().PutNodeExportItem(NODE_TWO, item);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareAttachClos_WaitInitLedgerFailed)
+{
+    PutGlobalExportSummaryItem();
+    MOCKER(&BuildOperationRespWhenFail).stubs().will(invoke(BuildOperationRespWhenFailMock));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS));
+
+    UbseMemShareAttachReq req = ConstructAttachReq();
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareAttachClos(req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, resp.errorCode);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareAttach_WaitInitLedgerFailed)
+{
+    UbseMemShareBorrowExportObj exportObj{};
+    ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
+    MOCKER(&BuildOperationRespWhenFail).stubs().will(invoke(BuildOperationRespWhenFailMock));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS));
+
+    UbseMemShareAttachReq req = ConstructAttachReq();
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareAttach(req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, resp.errorCode);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetach_WaitInitLedgerFailed)
+{
+    MOCKER(&BuildOperationRespWhenFail).stubs().will(invoke(BuildOperationRespWhenFailMock));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS));
+
+    UbseMemShareDetachReq req;
+    req.name = SHM_NAME;
+    req.unImportNodeId = NODE_ONE;
+    req.requestNodeId = NODE_ONE;
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareDetach(req, resp, NODE_ONE);
+    EXPECT_NE(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, resp.errorCode);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareGlobalDetach_WaitInitLedgerFailed)
+{
+    MOCKER(&BuildOperationRespWhenFail).stubs().will(invoke(BuildOperationRespWhenFailMock));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS));
+    MOCKER_CPP(UbseCheckDetachNodeIdInManageDomain).stubs().will(returnValue(true));
+
+    UbseMemShareDetachReq req;
+    req.name = SHM_NAME;
+    req.unImportNodeId = NODE_ONE;
+    req.requestNodeId = NODE_ONE;
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareGlobalDetach(req, resp, NODE_ONE);
+    EXPECT_NE(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, resp.errorCode);
 }
 
 TEST_F(TestUbseMemControllerShareApi, ConstructShareImportObj_FieldsCorrect)
