@@ -152,6 +152,9 @@ struct BorrowInNodePlan {
     std::vector<DirectReturnTask> directReturns; // 直接归还的task
     BorrowNodeReachability reachability;         // 可达性
     BorrowUserInfo borrowUser;                   // 借用方用户信息（master代借时使用）
+    // 存在待恢复故障numa（smap纳管查询失败且占用非0）: pipeline据此返回非OK触发下轮重试，
+    // 否则pending语义的"等下轮"永远无人触发（占用释放后故障numa无人归还）
+    bool hasPendingFaultNumas = false;
 };
 
 // ==================== Phase 3 借用决策相关结构体 ====================
@@ -174,6 +177,8 @@ struct FaultExecutePlan {
     std::string planId;
     std::string borrowInNodeId;
     PlanType planType = PlanType::EXECUTE;
+    // 决策阶段BFD缩量后仍无借出numa可容纳（集群无新可借容量），执行器据此归LACK_REMOTE_MEM错误
+    bool capacityShortage = false;
 
     // 迁移任务组: NEW任务phase=NONE待master借用; RESUME任务phase>=BORROWED已带newBorrowId
     std::vector<MigrationTask> tasks;

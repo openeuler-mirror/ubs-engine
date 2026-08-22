@@ -13,11 +13,11 @@
 #ifndef MEMPOOLING_OVER_COMMIT_PID_FAULT_EXECUTOR_H
 #define MEMPOOLING_OVER_COMMIT_PID_FAULT_EXECUTOR_H
 
-#include <set>
 #include <string>
 #include <vector>
 #include "mp_error.h"
 #include "over_commit_pid_fault_context.h"
+#include "over_commit_pid_fault_error_util.h"
 
 namespace mempooling {
 
@@ -36,16 +36,17 @@ public:
      * @brief 执行所有执行计划（master串行借用 → 按借入节点并行下发）
      * @param faultNodeId 故障节点ID
      * @param plans 执行计划列表（借用结果会写回NEW task）
-     * @return MEM_POOLING_OK 全部成功; 否则按排障优先级聚合本轮出现的
-     *         MEM_POOLING_FAULT_* 错误码返回（见over_commit_pid_fault_error_util.h）
+     * @return MEM_POOLING_OK 全部成功; 否则每个失败点记录带上下文的错误明细
+     *         （全量入带关键字[OvercommitFaultErr]的日志），并透传时间上最早的一条
+     *         MEM_POOLING_FAULT_* 错误码（见over_commit_pid_fault_error_util.h）
      */
     MpResult ExecuteAll(const std::string& faultNodeId, std::vector<FaultExecutePlan>& plans);
 
 private:
     // Phase A: master串行借用（以借用组为单元按demandKB降序），成功后写回本组task并持久化BORROWED，
-    // 借用失败码记入failCodes供出口聚合
+    // 借用失败码记入errRecords供出口透传最早一条
     void SerialBorrowOnMaster(const std::string& faultNodeId, std::vector<FaultExecutePlan>& plans,
-                              std::set<MpResult>& failCodes);
+                              std::vector<FaultErrorRecord>& errRecords);
 
     // 单组借用: 优先BFD预分配的候选借出节点，失败回退全候选重试一次；
     // 失败时透传借用层错误码（内存不足/借用执行异常）或资源采集错误；
@@ -56,9 +57,9 @@ private:
     // Phase B: 任务组单次RPC下发到借入节点
     NodeExecuteResult DispatchNodePlan(const std::string& faultNodeId, const FaultExecutePlan& plan);
 
-    // 响应处理: per-task持久化（COMPLETED清除，BORROWED/MIGRATED保存），per-task失败码记入failCodes
+    // 响应处理: per-task持久化（COMPLETED清除，BORROWED/MIGRATED保存），per-task失败码记入errRecords
     void ProcessNodeResult(const std::string& faultNodeId, const FaultExecutePlan& plan,
-                           const NodeExecuteResult& result, std::set<MpResult>& failCodes);
+                           const NodeExecuteResult& result, std::vector<FaultErrorRecord>& errRecords);
 };
 
 } // namespace mempooling

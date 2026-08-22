@@ -13,7 +13,6 @@
 #include "over_commit_pid_fault_executor.h"
 #include <algorithm>
 #include <future>
-#include <set>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -126,7 +125,7 @@ MpResult PidFaultExecutor::BorrowForGroup(const FaultExecutePlan& plan, const Pl
 }
 
 void PidFaultExecutor::SerialBorrowOnMaster(const std::string& faultNodeId, std::vector<FaultExecutePlan>& plans,
-                                            std::set<MpResult>& failCodes)
+                                            std::vector<FaultErrorRecord>& errRecords)
 {
     // 以借用组为单元按需求降序串行借用（与决策层BFD分配次序一致，大需求优先拿大块）；
     // 同节点跨socket约束的task分属不同组，各自独立借一笔，互不影响
@@ -166,8 +165,10 @@ void PidFaultExecutor::SerialBorrowOnMaster(const std::string& faultNodeId, std:
         uint64_t borrowedKB = 0;
         MpResult borrowRet = BorrowForGroup(plan, group, newBorrowId, newRemoteNumaId, borrowedKB);
         if (borrowRet != MEM_POOLING_OK) {
-            // 借用失败: 仅剔除本组NEW task等下轮重试，其他组/RESUME/直接归还照常下发；失败码记入集合供出口聚合
-            (void)failCodes.insert(borrowRet);
+            // 借用失败: 仅剔除本组NEW task等下轮重试，其他组/RESUME/直接归还照常下发；失败明细记入errRecords
+            errRecords.push_back({borrowRet, "node=" + plan.borrowInNodeId + " plan=" + plan.planId +
+                                                 " group(socket=" + std::to_string(group.constraintSocketId) +
+                                                 ") borrow failed, reason=" + std::to_string(borrowRet)});
             plan.tasks.erase(std::remove_if(plan.tasks.begin(), plan.tasks.end(),
                                             [&groupIdSet](const MigrationTask& t) {
                                                 return t.phase == TaskPhase::NONE && groupIdSet.count(t.taskId) > 0;
@@ -204,7 +205,8 @@ void PidFaultExecutor::SerialBorrowOnMaster(const std::string& faultNodeId, std:
             if (PidFaultStateStore::Instance().SaveTaskState(faultNodeId, persistState) != MEM_POOLING_OK) {
                 // 持久化失败: 数据一致性问题（借用已成功但状态未落盘），归为归还内存类错误码
                 LOG_ERROR << "SaveTaskState failed for task " << task.taskId << ".";
-                (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+                errRecords.push_back({MEM_POOLING_FAULT_RETURN_MEM_ERROR,
+                                      "task=" + task.taskId + " save BORROWED state failed after borrow"});
             }
         }
     }
@@ -261,7 +263,7 @@ NodeExecuteResult PidFaultExecutor::DispatchNodePlan(const std::string& faultNod
 }
 
 void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const FaultExecutePlan& plan,
-                                         const NodeExecuteResult& result, std::set<MpResult>& failCodes)
+                                         const NodeExecuteResult& result, std::vector<FaultErrorRecord>& errRecords)
 {
     // taskId → task索引（响应只带taskId，需回查下发时的task完整信息才能持久化）
     std::unordered_map<std::string, const MigrationTask*> taskMap;
@@ -280,9 +282,11 @@ void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const F
         }
         const MigrationTask& task = *it->second;
 
-        // per-task失败码记入集合（迁移失败/归还失败等，由借入节点侧按步骤回填），供出口聚合
+        // per-task失败码记录明细（迁移失败/归还失败等，由借入节点侧按步骤回填），供出口透传最早一条
         if (taskResult.retCode != MEM_POOLING_OK) {
-            (void)failCodes.insert(taskResult.retCode);
+            errRecords.push_back(
+                {taskResult.retCode, "node=" + plan.borrowInNodeId + " task=" + taskResult.taskId +
+                                         " execute failed, retCode=" + std::to_string(taskResult.retCode)});
         }
 
         if (taskResult.completedPhase == TaskPhase::COMPLETED) {
@@ -291,7 +295,8 @@ void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const F
             } else {
                 // 持久化删除失败: 状态残留下轮会作为RESUME重新加载，幂等链路可收敛，但需告警
                 LOG_ERROR << "RemoveCompletedTask failed for task " << task.taskId << ", state may linger.";
-                (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+                errRecords.push_back({MEM_POOLING_FAULT_RETURN_MEM_ERROR,
+                                      "task=" + taskResult.taskId + " remove completed state failed"});
             }
             continue;
         }
@@ -316,7 +321,10 @@ void PidFaultExecutor::ProcessNodeResult(const std::string& faultNodeId, const F
             if (PidFaultStateStore::Instance().SaveTaskState(faultNodeId, persistState) != MEM_POOLING_OK) {
                 // 持久化失败: 数据一致性问题，归为归还内存类错误码
                 LOG_ERROR << "SaveTaskState failed for task " << task.taskId << ".";
-                (void)failCodes.insert(MEM_POOLING_FAULT_RETURN_MEM_ERROR);
+                errRecords.push_back({MEM_POOLING_FAULT_RETURN_MEM_ERROR,
+                                      "task=" + task.taskId + " save phase=" +
+                                          std::to_string(static_cast<uint32_t>(taskResult.completedPhase)) +
+                                          " state failed"});
             }
             LOG_DEBUG << "Task " << task.taskId
                       << " persisted at phase=" << static_cast<uint32_t>(taskResult.completedPhase)
@@ -334,11 +342,26 @@ MpResult PidFaultExecutor::ExecuteAll(const std::string& faultNodeId, std::vecto
 {
     LOG_INFO << "ExecuteAll start, plans=" << plans.size() << ".";
 
-    // 本轮失败码集合: 各阶段失败原因都记入，出口按排障优先级聚合为一个码上报
-    std::set<MpResult> failCodes;
+    // 本轮错误记录（按时序）: 各阶段失败点都记入带上下文明细，出口全量入日志并透传最早一条
+    std::vector<FaultErrorRecord> errRecords;
+
+    // DEFER计划（决策阶段判定节点不可达）时序上早于借用/执行，先记录，归IPC错误触发上层下轮重试
+    for (const auto& plan : plans) {
+        if (plan.planType == PlanType::DEFER) {
+            LOG_DEBUG << "Plan " << plan.planId << " was DEFER, mark overall result as partial fail.";
+            errRecords.push_back({MEM_POOLING_FAULT_IPC_ERROR, "node=" + plan.borrowInNodeId + " plan=" + plan.planId +
+                                                                   " DEFER, borrow-in node unreachable"});
+        }
+        if (plan.capacityShortage) {
+            // 决策阶段判定集群无新可借容量（BFD缩量后仍无numa可容纳），归借用内存不足错误
+            errRecords.push_back(
+                {MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR,
+                 "node=" + plan.borrowInNodeId + " plan=" + plan.planId + " capacity shortage, no lendable numa fits"});
+        }
+    }
 
     // Phase A: master串行借用（避免多借入节点并行借用导致碎片化）
-    SerialBorrowOnMaster(faultNodeId, plans, failCodes);
+    SerialBorrowOnMaster(faultNodeId, plans, errRecords);
 
     // Phase B: 过滤可下发计划（DEFER/空计划跳过）
     std::vector<const FaultExecutePlan*> dispatchablePlans;
@@ -356,12 +379,13 @@ MpResult PidFaultExecutor::ExecuteAll(const std::string& faultNodeId, std::vecto
     }
 
     if (dispatchablePlans.empty()) {
-        // 无可下发计划: 借用失败码已记入failCodes；若仅剩DEFER（节点不可达）则归为IPC错误
-        if (failCodes.empty()) {
-            (void)failCodes.insert(MEM_POOLING_FAULT_IPC_ERROR);
+        // 无可下发计划: 借用失败/DEFER明细已记入errRecords；全DEFER时上方已记IPC错误，
+        // 其他异常场景（如计划被剔空）无错误记录时兜底归IPC错误
+        if (errRecords.empty()) {
+            errRecords.push_back({MEM_POOLING_FAULT_IPC_ERROR, "no dispatchable plans after borrow"});
         }
-        LOG_ERROR << "No dispatchable plans, failCodes=" << JoinFaultErrorCodes(failCodes) << ".";
-        return AggregateFaultErrorCodes(failCodes);
+        LOG_ERROR << "No dispatchable plans. " << JoinFaultErrorRecords(errRecords);
+        return EarliestFaultErrorCode(errRecords);
     }
 
     // 按借入节点并行下发（每节点单次RPC）
@@ -376,33 +400,29 @@ MpResult PidFaultExecutor::ExecuteAll(const std::string& faultNodeId, std::vecto
     int failCount = 0;
     for (size_t i = 0; i < futures.size(); ++i) {
         NodeExecuteResult result = futures[i].get();
-        ProcessNodeResult(faultNodeId, *dispatchablePlans[i], result, failCodes);
+        ProcessNodeResult(faultNodeId, *dispatchablePlans[i], result, errRecords);
         if (result.success) {
             successCount++;
         } else {
             failCount++;
-            // 节点级失败码（RPC失败=IPC错误；否则为对端聚合码）；非故障码的异常统一归为借用执行异常
+            // 节点级失败码（RPC失败=IPC错误；否则为对端透传码）；非故障码的异常统一归为借用执行异常
             MpResult nodeCode = result.errorCode;
-            if (GetFaultErrorCodePriority(nodeCode) == 0) {
+            if (!IsDefinedFaultErrorCode(nodeCode)) {
                 nodeCode = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
             }
-            (void)failCodes.insert(nodeCode);
+            errRecords.push_back(
+                {nodeCode, "node=" + result.borrowInNodeId + " execution failed, code=" + std::to_string(nodeCode)});
             LOG_WARN << "Node " << result.borrowInNodeId << " execution failed, code=" << nodeCode << ".";
         }
     }
 
-    // 有DEFER计划（不可达节点）视为未收敛，记IPC错误码触发上层下轮重试
-    for (const auto& plan : plans) {
-        if (plan.planType == PlanType::DEFER) {
-            LOG_DEBUG << "Plan " << plan.planId << " was DEFER, mark overall result as partial fail.";
-            (void)failCodes.insert(MEM_POOLING_FAULT_IPC_ERROR);
-        }
+    MpResult earliest = EarliestFaultErrorCode(errRecords);
+    LOG_INFO << "ExecuteAll end, success=" << successCount << ", fail=" << failCount;
+    if (!errRecords.empty()) {
+        // 全量错误明细带关键字一行输出，透传码为时序最早一条
+        LOG_WARN << JoinFaultErrorRecords(errRecords) << ", passthrough earliest code=" << earliest << ".";
     }
-
-    MpResult aggregated = AggregateFaultErrorCodes(failCodes);
-    LOG_INFO << "ExecuteAll end, success=" << successCount << ", fail=" << failCount
-             << ", failCodes=" << JoinFaultErrorCodes(failCodes) << ", aggregated=" << aggregated << ".";
-    return aggregated;
+    return earliest;
 }
 
 } // namespace mempooling

@@ -793,6 +793,244 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_NoLocalNumaFallsBackToWild
     EXPECT_EQ(gSetSmapCalls[0].first, -1);
 }
 
+// ==================== MigrateTaskGroup: smap预算登记聚合账本存量借用量 ====================
+
+using GetDebtInfosWithRetryFunc = MpResult (*)(std::vector<UbseNumaMemoryDebtInfo>&);
+static std::vector<UbseNumaMemoryDebtInfo> gHandlerMockDebtInfos;
+static MpResult gHandlerGetDebtRet = MEM_POOLING_OK;
+MpResult MockHandlerGetDebtInfos(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    debtInfos = gHandlerMockDebtInfos;
+    return gHandlerGetDebtRet;
+}
+
+MpResult MockSetSmapRemoteNumaInfoFail(const int16_t& srcNumaId, const std::vector<MemBorrowInfoWithSrc>& infos)
+{
+    gSetSmapCalls.emplace_back(srcNumaId, infos);
+    return MEM_POOLING_ERROR;
+}
+
+// 构造容器/虚机借用协议debt（usrInfo前2字节=int16本地numaId，非process_mem协议）
+UbseNumaMemoryDebtInfo BuildVmProtocolDebt(const std::string& name, int16_t localNuma, int64_t remoteNuma,
+                                           uint64_t sizeKB)
+{
+    UbseNumaMemoryDebtInfo debt{};
+    debt.name = name;
+    debt.borrowNodeId = "mock_node_id";
+    debt.remoteNumaId = remoteNuma;
+    debt.size = sizeKB * 1024;
+    debt.state = UbseMemStage::UBSE_EXIST;
+    (void)memcpy_s(debt.usrInfo, sizeof(localNuma), &localNuma, sizeof(localNuma));
+    return debt;
+}
+
+void MockMigrateGroupWithLedger()
+{
+    MockMigrateGroupDeps();
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfosWithRetry, GetDebtInfosWithRetryFunc)
+        .stubs()
+        .will(invoke(MockHandlerGetDebtInfos));
+}
+
+void PrepareMigrateGroupBase()
+{
+    gCapturedMigrateMsgs.clear();
+    gMockManagedByNuma.clear();
+    gEnableCallSeq.clear();
+    gHugeAllocCalls.clear();
+    gSetSmapCalls.clear();
+    gHugeAllocRet = MEM_POOLING_OK;
+    gRemoveCalls.clear();
+    gRemoveRet = MEM_POOLING_OK;
+    smap::ProcessPayload p100{};
+    p100.pid = 100;
+    p100.migrateMode = static_cast<uint8_t>(MIG_RATIO_MODE);
+    p100.ratio = 30;
+    gMockManagedByNuma[5] = {{100, p100}};
+}
+
+/*
+ * 用例描述：新借用并入同号存量呈现numa（存量借用不在本轮borrowId中）
+ * 预期：登记量=账本存量+本次借用量（防覆盖缩水存量预算导致迁移-92），srcNumaId为归属本地numa
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterAggregatesLedgerDebt)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {BuildVmProtocolDebt("bid-old", 2, 9, 2048)};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-1", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gSetSmapCalls.size(), 1U);
+    EXPECT_EQ(gSetSmapCalls[0].first, 2);
+    ASSERT_EQ(gSetSmapCalls[0].second.size(), 1U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].srcNumaId, 2U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].presentNumaId, 9U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 3072U); // 存量2048 + 本次1024
+}
+
+/*
+ * 用例描述：虚机场景新借用并入同号存量呈现numa（账本有存量借用）
+ * 预期：分大页口径=累计借用量（存量+本次），防按本次借用量分大页被存量已分大页
+ * 达标判据误跳过，导致合并后大页不足迁移数据无处落
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_HugePagesUseCumulativeLedgerSize)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {BuildVmProtocolDebt("bid-old", 2, 9, 2048)};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-huge-ledger", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gHugeAllocCalls.size(), 1U);
+    EXPECT_EQ(gHugeAllocCalls[0].first, 9);
+    EXPECT_EQ(gHugeAllocCalls[0].second, 3072ULL * 1024); // 存量2048 + 本次1024 = 3072KB
+}
+
+/*
+ * 用例描述：本轮borrowId已入账本（借用刚完成即查账本）
+ * 预期：不重复计入，登记量=账本累计量
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterThisRoundInLedger_NoDoubleCount)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {BuildVmProtocolDebt("bid-new", 2, 9, 1024)};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-2", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gSetSmapCalls.size(), 1U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 1024U); // 不叠加为2048
+}
+
+/*
+ * 用例描述：裸机process_mem协议debt（usrInfo前4字节=pluginId，srcNuma字段存本地numa）
+ * 预期：按协议解析srcNuma归属分桶，与本次借用桶各自登记
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterParsesProcessMemProtocolDebt)
+{
+    PrepareMigrateGroupBase();
+    UbseNumaMemoryDebtInfo debt{};
+    debt.name = "bid-baremetal";
+    debt.borrowNodeId = "mock_node_id";
+    debt.remoteNumaId = 9;
+    debt.size = 2048 * 1024;
+    debt.state = UbseMemStage::UBSE_EXIST;
+    process_mem::def::ProcessMemUsrInfo usr{}; // pluginId默认PROCESS_MEM
+    usr.srcNuma = 3;
+    (void)memcpy_s(debt.usrInfo, sizeof(usr), &usr, sizeof(usr));
+    gHandlerMockDebtInfos = {debt};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-3", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gSetSmapCalls.size(), 2U); // 本地numa升序: 2本次桶、3存量桶
+    EXPECT_EQ(gSetSmapCalls[0].first, 2);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 1024U);
+    EXPECT_EQ(gSetSmapCalls[1].first, 3);
+    EXPECT_EQ(gSetSmapCalls[1].second[0].borrowSize, 2048U);
+}
+
+/*
+ * 用例描述：账本中无效debt（删除中/其他呈现numa/其他节点借入）不参与聚合
+ * 预期：登记量仅本次借用量
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterFiltersInvalidDebt)
+{
+    PrepareMigrateGroupBase();
+    auto deletingDebt = BuildVmProtocolDebt("bid-deleting", 2, 9, 4096);
+    deletingDebt.state = UbseMemStage::UBSE_DELETING;
+    auto otherNumaDebt = BuildVmProtocolDebt("bid-other-numa", 2, 10, 4096);
+    auto otherNodeDebt = BuildVmProtocolDebt("bid-other-node", 2, 9, 8192);
+    otherNodeDebt.borrowNodeId = "other_node";
+    gHandlerMockDebtInfos = {deletingDebt, otherNumaDebt, otherNodeDebt};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-4", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gSetSmapCalls.size(), 1U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 1024U);
+}
+
+/*
+ * 用例描述：账本查询失败
+ * 预期：降级仅登记本次借用量（存量行为），迁移仍下发
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterLedgerQueryFail_FallbackThisRound)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {};
+    gHandlerGetDebtRet = MEM_POOLING_ERROR;
+    MockMigrateGroupWithLedger();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-5", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    ASSERT_EQ(taskPhases.size(), 1U);
+    ASSERT_EQ(gSetSmapCalls.size(), 1U);
+    EXPECT_EQ(gSetSmapCalls[0].second[0].borrowSize, 1024U);
+    ASSERT_EQ(gCapturedMigrateMsgs.size(), 1U);
+}
+
+/*
+ * 用例描述：smap预算登记失败（登记失败迁移必-92）
+ * 预期：整组跳过不下发迁移，task保持BORROWED下轮RESUME
+ */
+TEST_F(TestPidFaultErrorCodeHandler, MigrateTaskGroup_RegisterSmapFail_GroupSkipped)
+{
+    PrepareMigrateGroupBase();
+    gHandlerMockDebtInfos = {};
+    gHandlerGetDebtRet = MEM_POOLING_OK;
+    MOCKER_CPP(&MpConfiguration::GetSceneType, GetSceneTypeFunc).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(&MpConfiguration::GetPageType, GetPageTypeFunc).stubs().will(invoke(MockGetPageType2M));
+    MOCKER_CPP(&MpSmapHelper::IdempotentAllocateHugePages, IdempotentAllocateHugePagesFunc)
+        .stubs()
+        .will(invoke(MockIdempotentAllocateHugePages));
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc)
+        .stubs()
+        .will(invoke(MockSetSmapRemoteNumaInfoFail));
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfosWithRetry, GetDebtInfosWithRetryFunc)
+        .stubs()
+        .will(invoke(MockHandlerGetDebtInfos));
+    MockMigrateSmapDeps();
+
+    MigrationTask task = BuildMigratableTask("task-ledger-6", 1024);
+    task.localNumaIds = {2};
+    std::vector<const MigrationTask*> group = {&task};
+    auto taskPhases = MigrateTaskGroup(9, group);
+
+    EXPECT_TRUE(taskPhases.empty());
+    ASSERT_EQ(gSetSmapCalls.size(), 1U);
+    EXPECT_TRUE(gCapturedMigrateMsgs.empty()); // 不空跑迁移
+}
+
 /*
  * 用例描述：同组task迁移成功但纳管移除失败
  * 预期：该task停MIGRATED进结果集（下轮只做remove），组内不阻断其他task推进

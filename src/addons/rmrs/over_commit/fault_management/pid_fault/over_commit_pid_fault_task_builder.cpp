@@ -58,14 +58,15 @@ MpResult PidFaultTaskBuilder::BuildTasks(const OverCommitFaultContext& context, 
             LOG_WARN << "BuildTasksForNode failed for " << borrowInNodeId << ", skip.";
             continue;
         }
-        // 即使没有task也可能有directReturn
-        if (!plan.tasks.empty() || !plan.directReturns.empty()) {
+        // 即使没有task也可能有directReturn; 纯pending节点也要进计划（携带标记供pipeline出口触发下轮重试）
+        if (!plan.tasks.empty() || !plan.directReturns.empty() || plan.hasPendingFaultNumas) {
             LOG_DEBUG << "Node " << borrowInNodeId << " plan accepted: tasks=" << plan.tasks.size()
-                      << ", directReturns=" << plan.directReturns.size() << ".";
+                      << ", directReturns=" << plan.directReturns.size()
+                      << ", pendingFaultNumas=" << plan.hasPendingFaultNumas << ".";
             plans.push_back(std::move(plan));
         } else {
-            // 既无迁移任务也无直接归还：该节点本轮无事可做，不生成计划
-            LOG_DEBUG << "Node " << borrowInNodeId << " plan empty (no task/directReturn), skip.";
+            // 既无迁移任务也无直接归还也无pending：该节点本轮无事可做，不生成计划
+            LOG_DEBUG << "Node " << borrowInNodeId << " plan empty (no task/directReturn/pending), skip.";
         }
     }
 
@@ -112,6 +113,10 @@ MpResult PidFaultTaskBuilder::BuildTasksForNode(const OverCommitFaultContext& co
     auto pendingIt = context.nodeToPendingFaultNumaIds.find(borrowInNodeId);
     if (pendingIt != context.nodeToPendingFaultNumaIds.end()) {
         pendingNumaSet = pendingIt->second;
+    }
+    if (!pendingNumaSet.empty()) {
+        // 标记pending供pipeline出口返回非OK触发下轮重试（pending语义=等下轮，返回OK会断掉重试链路）
+        plan.hasPendingFaultNumas = true;
     }
     std::vector<uint16_t> effectiveFaultNumaIds;
     for (uint16_t numaId : faultNumaIds) {

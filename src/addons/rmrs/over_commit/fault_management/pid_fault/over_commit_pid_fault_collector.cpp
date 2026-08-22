@@ -21,6 +21,7 @@
 #include "mem_borrow_executor.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
+#include "over_commit_pid_fault_error_util.h"
 #include "over_commit_pid_fault_state_store.h"
 #include "over_commit_storage.h"
 #include "rmrs_serialize.h"
@@ -58,9 +59,10 @@ MpResult PidFaultCollector::Collect(const std::string& faultNodeId, OverCommitFa
 
     // 1c. RPC查询PID内存分布（同时作为可达性探测）
     ret = QueryPidMemDistribution(faultNodeId, context);
-    if (ret == MEM_POOLING_FAULT_IPC_ERROR) {
-        // 全部节点RPC失败: 通信面异常，本轮无法推进，上报IPC错误等上层下轮重试
-        LOG_ERROR << "QueryPidMemDistribution failed on all nodes, IPC error.";
+    if (ret != MEM_POOLING_OK && context.nodeToPidMemInfos.empty()) {
+        // 全部节点失败且无可用采集数据: 本轮无法推进，透传错误码
+        // （通信面全断=IPC错误；RPC通但对端采集失败如libvirt停=对端采集错误码）
+        LOG_ERROR << "QueryPidMemDistribution failed on all nodes, ret=" << ret << ".";
         return ret;
     }
     if (ret != MEM_POOLING_OK) {
@@ -211,6 +213,8 @@ MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNode
 {
     MpResult overallRet = MEM_POOLING_OK;
     size_t successCount = 0;
+    // 逐节点错误记录（按查询时序）: 全节点失败时明细全量入日志，透传最早一条的错误码
+    std::vector<FaultErrorRecord> errRecords;
 
     for (const auto& borrowInNodeId : context.affectedBorrowInNodeIds) {
         // 构造RPC请求（携带场景类型 + per-node故障numa列表），由借入节点自行采集PID内存分布
@@ -255,6 +259,17 @@ MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNode
         if (rpcRet != MEM_POOLING_OK || response.retCode != MEM_POOLING_OK) {
             LOG_WARN << "PID query to node " << borrowInNodeId << " failed, rpcRet=" << rpcRet
                      << ", respRet=" << response.retCode << ".";
+            if (rpcRet == MEM_POOLING_OK) {
+                // RPC通信正常但对端采集失败（如libvirt停）: 透传对端业务错误码，非通信面问题
+                errRecords.push_back(
+                    {response.retCode, "node=" + borrowInNodeId +
+                                           " peer pid collect failed, respRet=" + std::to_string(response.retCode)});
+            } else {
+                // RPC发送失败: 通信面异常，归为IPC错误
+                errRecords.push_back(
+                    {MEM_POOLING_FAULT_IPC_ERROR,
+                     "node=" + borrowInNodeId + " pid query rpc failed, rpcRet=" + std::to_string(rpcRet)});
+            }
             overallRet = MEM_POOLING_ERROR;
             continue;
         }
@@ -274,8 +289,10 @@ MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNode
     }
 
     if (successCount == 0 && !context.affectedBorrowInNodeIds.empty()) {
-        // 全部节点失败（区别于部分失败降级）: 通信面异常，升级为IPC错误
-        overallRet = MEM_POOLING_FAULT_IPC_ERROR;
+        // 全部节点失败（区别于部分失败降级）: 明细全量入日志，透传最早一条的错误码
+        // （对端采集失败透传对端码；纯RPC失败归IPC错误；两者混合按时间序取先发生者）
+        LOG_ERROR << JoinFaultErrorRecords(errRecords);
+        overallRet = EarliestFaultErrorCode(errRecords);
     }
     return overallRet;
 }
