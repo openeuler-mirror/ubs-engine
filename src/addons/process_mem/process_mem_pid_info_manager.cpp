@@ -338,8 +338,8 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
 
     // 持久层删除失败时保持缓存与磁盘一致, 不擦除缓存
     std::set<pid_t> returnPids;
-    uint32_t deleteRet = isPid ? RemovePidConfigSideEffects(identifier, returnPids)
-                               : RemoveNameConfigSideEffects(identifier, returnPids);
+    uint32_t deleteRet = isPid ? RemovePidConfigSideEffects(identifier, returnPids) :
+                                 RemoveNameConfigSideEffects(identifier, returnPids);
     if (deleteRet != UBSE_OK) {
         UBSE_LOG_ERROR << "RemoveProcMemConfig: persistent delete failed for " << (isPid ? "pid=" : "name=")
                        << identifier << ", keep cache entry, ret=" << ubse::log::FormatRetCode(deleteRet);

@@ -24,6 +24,8 @@
 #include "process_mem_pid_manager_def.h"
 
 namespace process_mem::pid::bridge {
+// smap 进程配置查询接口 inLen 上限为 300, 查询时固定传入该大小
+constexpr int kSmapQueryInLen = 300;
 using MigrateOut = std::function<int(const std::vector<mempooling::smap::MigrateOutPayload>&, int)>;
 using Remove = std::function<int(const uint16_t, const std::vector<pid_t>&, int)>;
 using NoMigrateBack = std::function<uint32_t(const std::string&)>;

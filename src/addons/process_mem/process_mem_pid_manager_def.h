@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -137,6 +138,8 @@ struct BorrowState {
     uint64_t currentRemote{0};
     std::vector<BorrowSlot> slots;
     std::unordered_map<int, uint64_t> remoteNumaMigrated;
+    // r2r 替换完成的旧债务名: 账本删除可能被陈旧副本复活, 用于阻止重复迁远端/重复绑定
+    std::set<std::string> r2rReplacedDebts;
 };
 
 struct BorrowCandidate {

@@ -239,7 +239,6 @@ void QuerySmapProcessConfigs(std::unordered_map<pid_t, std::unordered_map<int, u
         failedNumas = std::nullopt;
         return;
     }
-    constexpr int kCapacity = 512;
     std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debts;
     if (QueryDebtWithRetry([&debts]() {
             return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts);
@@ -253,9 +252,14 @@ void QuerySmapProcessConfigs(std::unordered_map<pid_t, std::unordered_map<int, u
         remoteNumas.insert(static_cast<int>(debt.remoteNumaId));
     }
     for (int nid : remoteNumas) {
-        std::vector<mempooling::smap::ProcessPayload> payloads(static_cast<size_t>(kCapacity));
+        if (nid < 0) {
+            // 未绑定远端 numa 的债务(创建中/归还中)无 smap 可查, 跳过避免无效查询
+            continue;
+        }
+        std::vector<mempooling::smap::ProcessPayload> payloads(static_cast<size_t>(pid::bridge::kSmapQueryInLen));
         int realLen = 0;
-        auto ret = pid::bridge::ProcessMemPidBridge::rmrsProcessConfigQuery(nid, payloads.data(), kCapacity, &realLen);
+        auto ret = pid::bridge::ProcessMemPidBridge::rmrsProcessConfigQuery(nid, payloads.data(),
+                                                                            pid::bridge::kSmapQueryInLen, &realLen);
         if (ret != 0) {
             ++queryFail;
             if (!failedNumas.has_value()) {
@@ -774,10 +778,9 @@ std::string ProcessMemPidDecision::RecordPendingBorrow(pid_t pid, uint64_t amoun
     return slot.debtId;
 }
 
-def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(pid_t pid, const std::string& debtId,
-                                                                       const CreatedDebtInfo& created,
-                                                                       const std::map<int, uint64_t>& increments,
-                                                                       std::vector<std::pair<int, uint64_t>>& numaTargets)
+def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
+    pid_t pid, const std::string& debtId, const CreatedDebtInfo& created, const std::map<int, uint64_t>& increments,
+    std::vector<std::pair<int, uint64_t>>& numaTargets)
 {
     // 与同 pid 的被动归还/再平衡/对账迁出串行, 防止全量 migrateOut payload 互相覆盖
     std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
@@ -1203,18 +1206,24 @@ bool ProcessMemPidDecision::ResolveReturnDebtOrFree(const def::ReturnRequestItem
     // no_exist 按成功处理(幂等); usrInfo 无 pid 时统一归还接口收尾(rmrsFree 负责数据搬迁)
     auto resRet = ResolveLocalDebt(item.name, resolved);
     if (resRet != UBSE_OK || resolved.pid <= 0) {
-        uint32_t backRet = (resRet == UBSE_ERR_NOT_EXIST) ? pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name)
-                                                          : ReturnDebtUnified(0, item, scene);
+        uint32_t backRet = (resRet == UBSE_ERR_NOT_EXIST) ? pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name) :
+                                                            ReturnDebtUnified(0, item, scene);
         if (IsReturnDone(backRet)) {
             ProcessMemPidInfoManager::GetInstance().ResetSlotByDebtName(item.name);
+            ResetReturnRetryCount(item.name);
             UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
                           << " debt gone or pid unresolved, direct return ok ret=" << backRet;
             return false;
         }
+        if (scene == ReturnScene::PASSIVE) {
+            UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
+                           << " direct return failed ret=" << backRet << ", wait for lender rebroadcast";
+            return false;
+        }
         UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
                        << " direct return failed ret=" << backRet << ", retry later";
-        uint32_t retryCount = 0;
-        RetryReturnEnqueue(retryCount, [this, item, scene]() { return EnqueueReturnDebt(0, item, scene); });
+        RetryReturnEnqueue(NextReturnRetryCount(item.name),
+                           [this, item, scene]() { return EnqueueReturnDebt(0, item, scene); });
         return false;
     }
     return true;
@@ -1233,6 +1242,7 @@ void ProcessMemPidDecision::RunReturnDebt(pid_t pid, def::ReturnRequestItem item
 
     uint32_t ret = DoReturnDebtOnce(pid, item, scene, resolved);
     if (ret == UBSE_OK) {
+        ResetReturnRetryCount(item.name);
         return;
     }
 
@@ -1243,14 +1253,21 @@ void ProcessMemPidDecision::RunReturnDebt(pid_t pid, def::ReturnRequestItem item
                       << " debt_id=" << item.name << " debt gone, direct ubse return ret=" << delRet;
         ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name,
                                                                                  def::ReturnStatus::NONE);
+        ResetReturnRetryCount(item.name);
         return;
     }
 
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name, def::ReturnStatus::NONE);
+    if (scene == ReturnScene::PASSIVE) {
+        // lender 每 5s 决策轮重播被动归还请求, 失败不自旋重试, 等下一轮广播
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                       << " debt_id=" << item.name << " failed (ret=" << ret << "), wait for lender rebroadcast";
+        return;
+    }
     UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
                    << " debt_id=" << item.name << " failed (ret=" << ret << "), retry later";
-    uint32_t retryCount = 0;
-    RetryReturnEnqueue(retryCount, [this, originPid, item, scene]() { return EnqueueReturnDebt(originPid, item, scene); });
+    RetryReturnEnqueue(NextReturnRetryCount(item.name),
+                       [this, originPid, item, scene]() { return EnqueueReturnDebt(originPid, item, scene); });
 }
 
 uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
@@ -1383,12 +1400,13 @@ void ProcessMemPidDecision::RunPidReturn(pid_t pid, ReturnScene scene, const std
     std::vector<def::BorrowSlot> failedSlots;
     uint32_t ret = DoPidReturnOnce(pid, scene, slots, failedSlots);
     if (IsReturnDone(ret) || failedSlots.empty()) {
+        ResetReturnRetryCount("pid:" + std::to_string(pid));
         return;
     }
-    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                   << " failed " << failedSlots.size() << " debts, retry later";
-    uint32_t retryCount = 0;
-    RetryReturnEnqueue(retryCount, [this, pid, scene, failedSlots]() { return EnqueuePidReturn(pid, scene, failedSlots); });
+    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid << " failed "
+                   << failedSlots.size() << " debts, retry later";
+    RetryReturnEnqueue(NextReturnRetryCount("pid:" + std::to_string(pid)),
+                       [this, pid, scene, failedSlots]() { return EnqueuePidReturn(pid, scene, failedSlots); });
 }
 
 uint32_t ProcessMemPidDecision::HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots)
@@ -1428,6 +1446,12 @@ void ProcessMemPidDecision::RecoverBorrowFromObmm()
         pid_t pid = static_cast<pid_t>(usrInfo.pid);
         if (IsDebtAlreadyTracked(snapshot, debt.name)) {
             ++skipped;
+            continue;
+        }
+        auto pidIt = snapshot.find(pid);
+        if (pidIt != snapshot.end() && pidIt->second.borrow.r2rReplacedDebts.count(debt.name) > 0) {
+            ++orphaned;
+            EnqueueOrphanReturn(debt.name);
             continue;
         }
         if (IsBorrowBindable(pid, usrInfo, snapshot)) {
@@ -1486,6 +1510,7 @@ void ProcessMemPidDecision::RunOrphanReturn(const std::string& debtName)
 {
     auto ret = pid::bridge::ProcessMemPidBridge::MemoryReturn(debtName);
     if (IsReturnDone(ret)) {
+        ResetReturnRetryCount(debtName);
         UBSE_LOG_INFO << "[process_mem] recover borrow: debt=" << debtName << " orphaned, force returned (ret=" << ret
                       << ")";
         return;
@@ -1493,13 +1518,11 @@ void ProcessMemPidDecision::RunOrphanReturn(const std::string& debtName)
 
     UBSE_LOG_DEBUG << "[process_mem] recover borrow: debt=" << debtName << " orphaned, force return failed (ret=" << ret
                    << "), retry later";
-    uint32_t retryCount = 0;
-    RetryReturnEnqueue(retryCount, [this, debtName]() { return EnqueueOrphanReturn(debtName); });
+    RetryReturnEnqueue(NextReturnRetryCount(debtName), [this, debtName]() { return EnqueueOrphanReturn(debtName); });
 }
 
-void ProcessMemPidDecision::RetryReturnEnqueue(uint32_t& retryCount, const std::function<bool()>& enqueue)
+void ProcessMemPidDecision::RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue)
 {
-    ++retryCount;
     if (retryCount > kMaxReturnRetry) {
         UBSE_LOG_WARN << "[process_mem] return retry exhausted (retries=" << retryCount << "), give up";
         return;
@@ -1508,6 +1531,18 @@ void ProcessMemPidDecision::RetryReturnEnqueue(uint32_t& retryCount, const std::
     while (!enqueue() && !stopping_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(returnRetryIntervalMs_));
     }
+}
+
+uint32_t ProcessMemPidDecision::NextReturnRetryCount(const std::string& key)
+{
+    std::lock_guard<std::mutex> lock(returnRetryCountsMutex_);
+    return ++returnRetryCounts_[key];
+}
+
+void ProcessMemPidDecision::ResetReturnRetryCount(const std::string& key)
+{
+    std::lock_guard<std::mutex> lock(returnRetryCountsMutex_);
+    returnRetryCounts_.erase(key);
 }
 
 uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
@@ -1561,31 +1596,46 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
         [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
             slotCount = newBorrow.slots.size();
             std::unordered_map<int, uint64_t> remainingByNuma;
-            for (auto& slot : newBorrow.slots) {
-                if (failedNumas.count(slot.remoteNumaId) > 0) {
+            for (const auto& [nid, kb] : numaMap) {
+                if (kb > 0 && failedNumas.count(nid) == 0) {
+                    remainingByNuma[nid] = kb * kBytesPerKb;
+                }
+            }
+            // 按容量降序填充, 与 RearrangePidMigrated 的整理规则一致, 避免 5s 回填与 200ms 重排互相改分布
+            std::vector<size_t> order;
+            order.reserve(newBorrow.slots.size());
+            for (size_t i = 0; i < newBorrow.slots.size(); ++i) {
+                order.push_back(i);
+            }
+            std::sort(order.begin(), order.end(), [&newBorrow](size_t a, size_t b) {
+                return newBorrow.slots[a].capacity > newBorrow.slots[b].capacity;
+            });
+            for (size_t idx : order) {
+                auto& slot = newBorrow.slots[idx];
+                if (slot.returnStatus == def::ReturnStatus::RETURNING || failedNumas.count(slot.remoteNumaId) > 0) {
                     continue;
                 }
-                auto it = numaMap.find(slot.remoteNumaId);
-                if (it == numaMap.end() || it->second == 0) {
-                    slot.migratedBytes = 0;
+                auto remIt = remainingByNuma.find(slot.remoteNumaId);
+                if (remIt == remainingByNuma.end()) {
+                    // smap 查询失败/不完整时无条目不可靠: 保持原 claim, 由后续周期 smap 恢复后修正
+                    continue;
+                }
+                if (remIt->second >= slot.capacity) {
+                    slot.migratedBytes = slot.capacity;
+                    remIt->second -= slot.capacity;
                 } else {
-                    auto remIt = remainingByNuma.find(slot.remoteNumaId);
-                    if (remIt == remainingByNuma.end()) {
-                        remIt = remainingByNuma.emplace(slot.remoteNumaId, it->second * kBytesPerKb).first;
-                    }
-                    if (remIt->second >= slot.capacity) {
-                        slot.migratedBytes = slot.capacity;
-                        remIt->second -= slot.capacity;
-                    } else {
-                        slot.migratedBytes = remIt->second;
-                        remIt->second = 0;
-                    }
+                    slot.migratedBytes = remIt->second;
+                    remIt->second = 0;
                 }
                 ++filled;
                 filledBytes += slot.migratedBytes;
             }
+            // 只统计 COMPLETED 槽: BORROWING 为在途预期量(由 canMigrate 的 pending 扣减), 计入会与
+            // CommitBorrowAndMigrate 的 currentRemote += delta 重复计数
             for (const auto& slot : newBorrow.slots) {
-                total += slot.migratedBytes;
+                if (slot.status == def::BorrowSlotStatus::COMPLETED) {
+                    total += slot.migratedBytes;
+                }
             }
             newBorrow.currentRemote = total;
             newStatus = def::ProcessStatus::BORROWED;
@@ -1781,8 +1831,27 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
         }
         std::vector<std::pair<int, uint64_t>> numaTargets;
         BuildMigrateTargets(it->second.borrow, {}, numaTargets, pid, "");
-        int ret = RmrsMigrateToNumas(pid, "", numaTargets);
-        UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued targets=" << numaTargets.size()
+        size_t skippedTargets = 0;
+        std::vector<std::pair<int, uint64_t>> migrateTargets;
+        migrateTargets.reserve(numaTargets.size());
+        for (const auto& target : numaTargets) {
+            if (failedNumas->count(target.first) > 0) {
+                ++skippedTargets;
+                continue;
+            }
+            migrateTargets.push_back(target);
+        }
+        if (migrateTargets.empty()) {
+            UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid
+                          << " all targets on query-failed numas, skip migrate reissue";
+            continue;
+        }
+        int ret = RmrsMigrateToNumas(pid, "", migrateTargets);
+        if (skippedTargets > 0) {
+            UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid << " skipped=" << skippedTargets
+                          << " targets on query-failed numas";
+        }
+        UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued targets=" << migrateTargets.size()
                       << " ret=" << ret;
     }
     UBSE_LOG_INFO << "[process_mem] reconcile: applied affected=" << affectedPids.size()
@@ -2023,6 +2092,15 @@ uint32_t ProcessMemPidDecision::ReturnDebtRemoteToRemote(const def::ReturnReques
         std::lock_guard<std::mutex> lock(pendingOldDebtDeletesMutex_);
         migrationDone = pendingOldDebtDeletes_.count(item.name) > 0;
     }
+    if (!migrationDone) {
+        auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+        auto pidIt = snapshot.find(resolved.pid);
+        if (pidIt != snapshot.end() && pidIt->second.borrow.r2rReplacedDebts.count(item.name) > 0) {
+            migrationDone = true;
+            UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
+                          << " remote_to_remote: already replaced, direct delete only";
+        }
+    }
     ReplacementDebt replacement;
     if (!migrationDone) {
         ReplacementDebtCtx ctx;
@@ -2128,6 +2206,7 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidBorrowStateAtomic(
         pid,
         [&](def::BorrowState& borrow, def::ProcessStatus&) {
+            borrow.r2rReplacedDebts.insert(item.name);
             auto slotIt = std::find_if(borrow.slots.begin(), borrow.slots.end(),
                                        [&item](const def::BorrowSlot& s) { return s.debtId == item.name; });
             if (slotIt != borrow.slots.end()) {
@@ -2261,6 +2340,8 @@ void ProcessMemPidDecision::OomRearrangeMigrated()
         size_t emptySlots = 0;
         size_t numaGroups = 0;
         uint64_t spareBytes = 0;
+        // 与同 pid 的借用提交/归还/再平衡串行: 重打包读写 migratedBytes, 不能与迁移下发交错
+        std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
         infoMgr.UpdateManagedPidBorrowStateAtomic(
             pid,
             [&](def::BorrowState& borrow, def::ProcessStatus&) {

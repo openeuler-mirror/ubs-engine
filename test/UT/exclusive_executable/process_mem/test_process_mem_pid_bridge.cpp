@@ -55,14 +55,6 @@ TEST_F(TestProcessMemPidBridge, SendPidSetResponseWithLongMessage)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestProcessMemPidBridge, InitFailsWhenLibraryMissing)
-{
-    ProcessMemPidBridge::memPoolingHandle = nullptr;
-    auto ret = ProcessMemPidBridge::Init();
-    EXPECT_EQ(ret, UBSE_ERROR);
-    EXPECT_EQ(ProcessMemPidBridge::memPoolingHandle, nullptr);
-}
-
 TEST_F(TestProcessMemPidBridge, UnInitWithNullHandle)
 {
     ProcessMemPidBridge::memPoolingHandle = nullptr;

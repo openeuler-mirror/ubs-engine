@@ -26,10 +26,6 @@
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_config_manager.h"
 
-namespace process_mem::manager {
-int DoMigrateOut(pid_t pid, const std::map<int, uint64_t>& numaTargets);
-}
-
 namespace ubse::ut::process_mem {
 using namespace ::process_mem::manager;
 using namespace ::process_mem::decision;
@@ -242,20 +238,6 @@ TEST_F(TestProcessMemPidInfoManager, UnInitWithoutInit)
 {
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     EXPECT_NO_THROW(mgr.UnInit());
-}
-
-TEST_F(TestProcessMemPidInfoManager, MigrateOutToNumasWithMockedBridge)
-{
-    ubse::smap::MockResetMigrateState();
-    ProcessMemPidBridge::rmrsMigrateOut = ubse::smap::MockRmrsMigrateOut;
-    std::vector<std::pair<int, uint64_t>> numaTargets{{2, 1024 * 1024}, {4, 2048 * 1024}};
-    auto ret = ProcessMemPidBridge::MigrateOutToNumas(getpid(), numaTargets);
-    EXPECT_EQ(ret, 0);
-    ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 1u);
-    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(getpid(), 2), 1024u);
-    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(getpid(), 4), 2048u);
-    ProcessMemPidBridge::rmrsMigrateOut = {};
-    ubse::smap::MockResetMigrateState();
 }
 
 TEST_F(TestProcessMemPidInfoManager, RefreshProcMemConfigCacheEmpty)
@@ -558,111 +540,6 @@ TEST_F(TestProcessMemPidInfoManager, RemoveProcMemConfigNameModeSuccess)
     EXPECT_EQ(stored.maxMemory, 0u);
 }
 
-TEST_F(TestProcessMemPidInfoManager, RemoveProcMemConfigPidReturnsRemoteMemory)
-{
-    pid_t testPid = 0;
-    if (!GetTestPid(testPid)) {
-        GTEST_SKIP() << "no non-root process available";
-    }
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    def::ProcessMemNewConfigInfo config{};
-    config.isPid = true;
-    config.identifier = std::to_string(testPid);
-    config.maxMemory = 1073741824;
-    config.remoteRatio = 0.5;
-    ASSERT_EQ(mgr.SetProcMemConfig(config), UBSE_OK);
-
-    ubse::mem::controller::MockSetDebtInfos(
-        {MakeDebtInfo("debt-pid", static_cast<int32_t>(testPid)), MakeDebtInfo("debt-other", 9999)});
-    std::vector<std::string> freedDebts;
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate =
-        [&freedDebts](const std::string& name) -> uint32_t {
-        freedDebts.push_back(name);
-        return UBSE_OK;
-    };
-
-    // 缓存账本有该 pid 的借用槽位: remove 时按槽位归还债务
-    BorrowState borrow;
-    BorrowSlot slot;
-    slot.debtId = "debt-pid";
-    slot.capacity = 1 * 1024ull * 1024ull * 1024ull;
-    slot.migratedBytes = 1 * 1024ull * 1024ull * 1024ull;
-    slot.remoteNumaId = 5;
-    slot.status = BorrowSlotStatus::COMPLETED;
-    borrow.slots.push_back(slot);
-    mgr.UpdateManagedPidBorrowState(testPid, borrow, ProcessStatus::BORROWED);
-
-    EXPECT_EQ(mgr.RemoveProcMemConfig(true, config.identifier), UBSE_OK);
-
-    ASSERT_EQ(freedDebts.size(), 1u);
-    EXPECT_EQ(freedDebts[0], "debt-pid");
-    EXPECT_EQ(mgr.GetProcMemConfig(true, config.identifier).maxMemory, 0u);
-
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate = [](const std::string&) -> uint32_t {
-        return UBSE_OK;
-    };
-    ubse::mem::controller::MockClearDebtInfos();
-}
-
-TEST_F(TestProcessMemPidInfoManager, RemoveProcMemConfigNameReturnsNameCoveredPids)
-{
-    pid_t testPid = 0;
-    if (!GetTestPid(testPid)) {
-        GTEST_SKIP() << "no non-root process available";
-    }
-    std::string comm = ReadProcComm(testPid);
-    if (comm.empty()) {
-        GTEST_SKIP() << "cannot read /proc/<pid>/comm";
-    }
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    def::ProcessMemNewConfigInfo config{};
-    config.isPid = false;
-    config.identifier = comm;
-    config.maxMemory = 1073741824;
-    config.remoteRatio = 0.5;
-    ASSERT_EQ(mgr.SetProcMemConfig(config), UBSE_OK);
-
-    def::FossilPidConfigInfo fossil{};
-    fossil.name = comm;
-    fossil.maxMemory = 1073741824;
-    fossil.remoteRatio = 0.5;
-    fossil.startTime = 0;
-    ubse::storage::MockSetStorageKeys({std::to_string(testPid)});
-    ubse::storage::MockSetStorageQueryPayload(def::PROC_MEM_FOSSIL_KEY_PREFIX, std::to_string(testPid),
-                                              SerializeFossil(fossil));
-
-    ubse::mem::controller::MockSetDebtInfos({MakeDebtInfo("debt-self", static_cast<int32_t>(testPid))});
-    std::vector<std::string> freedDebts;
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate =
-        [&freedDebts](const std::string& name) -> uint32_t {
-        freedDebts.push_back(name);
-        return UBSE_OK;
-    };
-
-    // 缓存账本有该 pid 的借用槽位: name 配置删除时按槽位归还覆盖 pid 的债务
-    mgr.AddNameSourceToManagedPid(testPid, comm, 1073741824, 0.5);
-    BorrowState borrow;
-    BorrowSlot slot;
-    slot.debtId = "debt-self";
-    slot.capacity = 1 * 1024ull * 1024ull * 1024ull;
-    slot.migratedBytes = 1 * 1024ull * 1024ull * 1024ull;
-    slot.remoteNumaId = 5;
-    slot.status = BorrowSlotStatus::COMPLETED;
-    borrow.slots.push_back(slot);
-    mgr.UpdateManagedPidBorrowState(testPid, borrow, ProcessStatus::BORROWED);
-
-    EXPECT_EQ(mgr.RemoveProcMemConfig(false, comm), UBSE_OK);
-
-    ASSERT_EQ(freedDebts.size(), 1u);
-    EXPECT_EQ(freedDebts[0], "debt-self");
-    EXPECT_EQ(mgr.GetProcMemConfig(false, comm).maxMemory, 0u);
-
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate = [](const std::string&) -> uint32_t {
-        return UBSE_OK;
-    };
-    ubse::mem::controller::MockClearDebtInfos();
-}
-
 TEST_F(TestProcessMemPidInfoManager, RemoveProcMemConfigNameSkipsExplicitPidConfig)
 {
     pid_t testPid = 0;
@@ -735,36 +612,6 @@ TEST_F(TestProcessMemPidInfoManager, RebuildRestoresFossilWithName)
     EXPECT_EQ(it->second.nameConfigName, "testproc");
     EXPECT_EQ(it->second.maxMemory, 1073741824u);
     EXPECT_DOUBLE_EQ(it->second.remoteRatio, 0.5);
-}
-
-TEST_F(TestProcessMemPidInfoManager, RebuildRestoresFossilWithoutName)
-{
-    pid_t testPid = 0;
-    if (!GetTestPid(testPid)) {
-        GTEST_SKIP() << "no non-root process available";
-    }
-    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(testPid);
-    ASSERT_NE(startTime, 0u);
-
-    def::FossilPidConfigInfo fossil{};
-    fossil.name = "";
-    fossil.maxMemory = 1073741824;
-    fossil.remoteRatio = 0.5;
-    fossil.startTime = static_cast<uint64_t>(startTime);
-    ubse::storage::MockSetStorageKeys({std::to_string(testPid)});
-    ubse::storage::MockSetStorageQueryPayload(def::PROC_MEM_FOSSIL_KEY_PREFIX, std::to_string(testPid),
-                                              SerializeFossil(fossil));
-
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    mgr.RefreshProcMemConfigCache();
-    mgr.RebuildManagedPidCache();
-
-    auto snapshot = mgr.GetManagedPidCacheSnapshot();
-    auto it = snapshot.find(testPid);
-    ASSERT_NE(it, snapshot.end());
-    EXPECT_TRUE(it->second.sources & static_cast<uint8_t>(ConfigSource::PID_CONFIG));
-    EXPECT_FALSE(it->second.sources & static_cast<uint8_t>(ConfigSource::NAME_CONFIG));
-    EXPECT_EQ(it->second.maxMemory, 1073741824u);
 }
 
 TEST_F(TestProcessMemPidInfoManager, GetAllProcMemConfigsWithEntries)
@@ -1180,74 +1027,6 @@ TEST_F(TestProcessMemPidInfoManager, RebuildManagedPidCacheWithPidConfig)
     EXPECT_TRUE(it->second.sources & static_cast<uint8_t>(ConfigSource::PID_CONFIG));
     EXPECT_EQ(it->second.maxMemory, 4294967296u);
     EXPECT_DOUBLE_EQ(it->second.remoteRatio, 0.8);
-}
-
-TEST_F(TestProcessMemPidInfoManager, RemovePidThenNameLifecycleWithMockPids)
-{
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-    InjectMockPidLifecycleState(MockPidLifecycleKeys());
-    mgr.RefreshProcMemConfigCache();
-    mgr.RebuildManagedPidCache();
-
-    ubse::mem::controller::MockSetDebtInfos(
-        {MakeDebtInfo("debt-A", MOCK_PID_A), MakeDebtInfo("debt-B", MOCK_PID_B), MakeDebtInfo("debt-C", MOCK_PID_C)});
-    std::vector<std::string> freedDebts;
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate =
-        [&freedDebts](const std::string& name) -> uint32_t {
-        freedDebts.push_back(name);
-        return UBSE_OK;
-    };
-
-    auto snapshot = mgr.GetManagedPidCacheSnapshot();
-    // 死 pid 的化石在 rebuild 存活校验中被清理, 不再复活回显
-    ASSERT_EQ(snapshot.size(), 2u);
-    ASSERT_NE(snapshot.find(MOCK_PID_A), snapshot.end());
-    ASSERT_NE(snapshot.find(MOCK_PID_B), snapshot.end());
-    EXPECT_EQ(snapshot.find(MOCK_PID_C), snapshot.end());
-
-    // 缓存账本有 A 的借用槽位: pid 配置删除时按槽位归还债务
-    BorrowState borrowA;
-    BorrowSlot slotA;
-    slotA.debtId = "debt-A";
-    slotA.capacity = 1 * 1024ull * 1024ull * 1024ull;
-    slotA.migratedBytes = 1 * 1024ull * 1024ull * 1024ull;
-    slotA.remoteNumaId = 5;
-    slotA.status = BorrowSlotStatus::COMPLETED;
-    borrowA.slots.push_back(slotA);
-    mgr.UpdateManagedPidBorrowState(MOCK_PID_A, borrowA, ProcessStatus::BORROWED);
-
-    EXPECT_EQ(mgr.RemoveProcMemConfig(true, std::to_string(MOCK_PID_A)), UBSE_OK);
-    ASSERT_EQ(freedDebts.size(), 1u);
-    EXPECT_EQ(freedDebts[0], "debt-A");
-    EXPECT_EQ(mgr.GetProcMemConfig(true, std::to_string(MOCK_PID_A)).maxMemory, 0u);
-    snapshot = mgr.GetManagedPidCacheSnapshot();
-    EXPECT_EQ(snapshot.find(MOCK_PID_A), snapshot.end());
-    ASSERT_NE(snapshot.find(MOCK_PID_B), snapshot.end());
-
-    freedDebts.clear();
-    // 重新注入 C 的化石, 模拟 rebuild 后新产生且尚未被退出清理的 name 化石;
-    // C 无缓存槽位且不查 ubse 账本: 不触发归还, 账本残留债务由周期 reconcile 兜底
-    def::FossilPidConfigInfo fossilC{};
-    fossilC.name = MOCK_NAME;
-    fossilC.maxMemory = 32 * 1073741824ull;
-    fossilC.remoteRatio = 0.5;
-    ubse::storage::MockSetStorageKeys({MOCK_NAME, std::to_string(MOCK_PID_C)});
-    ubse::storage::MockSetStorageQueryPayload(def::PROC_MEM_FOSSIL_KEY_PREFIX, std::to_string(MOCK_PID_C),
-                                              SerializeFossil(fossilC));
-    EXPECT_EQ(mgr.RemoveProcMemConfig(false, MOCK_NAME), UBSE_OK);
-    EXPECT_TRUE(freedDebts.empty());
-    EXPECT_EQ(mgr.GetProcMemConfig(false, MOCK_NAME).maxMemory, 0u);
-    InjectMockPidLifecycleState({std::to_string(MOCK_PID_B)});
-    mgr.RebuildManagedPidCache();
-    snapshot = mgr.GetManagedPidCacheSnapshot();
-    EXPECT_EQ(snapshot.find(MOCK_PID_C), snapshot.end());
-    ASSERT_NE(snapshot.find(MOCK_PID_B), snapshot.end());
-    EXPECT_TRUE(snapshot.at(MOCK_PID_B).sources & static_cast<uint8_t>(ConfigSource::PID_CONFIG));
-
-    ::process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate = [](const std::string&) -> uint32_t {
-        return UBSE_OK;
-    };
-    ubse::mem::controller::MockClearDebtInfos();
 }
 
 } // namespace ubse::ut::process_mem

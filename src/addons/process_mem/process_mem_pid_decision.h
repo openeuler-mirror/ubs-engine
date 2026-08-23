@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "ubse_thread_pool.h"
@@ -170,7 +171,11 @@ private:
 
     void RunOrphanReturn(const std::string& debtName);
 
-    void RetryReturnEnqueue(uint32_t& retryCount, const std::function<bool()>& enqueue);
+    void RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue);
+
+    uint32_t NextReturnRetryCount(const std::string& key);
+
+    void ResetReturnRetryCount(const std::string& key);
 
     uint32_t RecoverSmapProcessConfig();
 
@@ -235,6 +240,10 @@ private:
     uint64_t emergencyThresholdBytes_{0};
     uint32_t observeCycles_{6};
     uint64_t returnRetryIntervalMs_{1000};
+
+    // 按债务/pid 持久计数的归还重试次数: 跨 RunReturnDebt 重入生效, 成功时清零
+    std::unordered_map<std::string, uint32_t> returnRetryCounts_{};
+    std::mutex returnRetryCountsMutex_{};
 
     ubse::task_executor::UbseTaskExecutorPtr borrowExecutor_{};
     ubse::task_executor::UbseTaskExecutorPtr returnExecutor_{};
