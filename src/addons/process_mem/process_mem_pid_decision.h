@@ -45,6 +45,18 @@ struct CreatedDebtInfo {
     uint64_t capacity{0};
 };
 
+struct ReplacementDebt {
+    std::string debtId{};
+    int remoteNuma{-1};
+};
+
+struct ResolvedReturnDebt {
+    pid_t pid{0};
+    int srcNuma{-1};
+    std::string lentNodeId{};
+    int remoteNumaId{-1};
+};
+
 struct ReplacementDebtCtx {
     int srcNuma{-1};
     int oldRemoteNuma{-1};
@@ -64,16 +76,21 @@ public:
 
     uint32_t HandleReturnRequest(const std::vector<def::ReturnRequestItem>& items);
 
-    bool EnqueuePidReturn(pid_t pid, ReturnScene scene);
+    bool EnqueuePidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
-    uint32_t HandlePidExited(pid_t pid);
+    uint32_t HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots);
 
     uint32_t OomPollOnce();
 
     uint32_t ReconcileLedgerWithCache();
 
+    // 周期恢复入口: 补录 ubse 有而账本无的债务 + smap 实测回填 migratedBytes (幂等)
+    void RecoverBorrowFromObmm();
+
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
+    inline static std::function<uint32_t(pid_t, std::unordered_map<uint32_t, size_t>&)> numaMapsReader;
+    inline static std::function<std::optional<bool>(uint32_t)> remoteNumaAttrReader;
 
 private:
     uint32_t OnDecisionTimer();
@@ -119,17 +136,18 @@ private:
 
     void RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene);
 
-    void RunPidReturn(pid_t pid, ReturnScene scene);
+    void RunPidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
-    uint32_t DoPidReturnOnce(pid_t pid, ReturnScene scene);
+    uint32_t DoPidReturnOnce(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots,
+                             std::vector<def::BorrowSlot>& failedSlots);
 
-    pid_t ResolveDebtPid(const std::string& name);
+    uint32_t DoPidReturnByUbseQuery(pid_t pid, ReturnScene scene);
 
-    std::mutex& GetPidMutex(pid_t pid);
+    bool ResolveReturnDebtOrFree(const def::ReturnRequestItem& item, ReturnScene scene, ResolvedReturnDebt& resolved);
 
     void BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency);
 
-    uint32_t ReturnOneDebt(const def::ReturnRequestItem& item, uint64_t& nodeFree);
+    uint32_t ReturnOneDebt(const def::ReturnRequestItem& item, uint64_t& nodeFree, const ResolvedReturnDebt& resolved);
 
     uint32_t ReturnDebtToLocal(pid_t pid, const def::ReturnRequestItem& item, uint64_t& nodeFree, ReturnScene scene);
 
@@ -137,8 +155,8 @@ private:
 
     uint32_t ReturnDebtByUbse(pid_t pid, const def::ReturnRequestItem& item);
 
-    uint32_t ReturnDebtRemoteToRemote(const def::ReturnRequestItem& item, const std::string& oldLenderNodeId,
-                                      int oldRemoteNuma, pid_t pid, int srcNuma, uint64_t migrateBytes);
+    uint32_t ReturnDebtRemoteToRemote(const def::ReturnRequestItem& item, const ResolvedReturnDebt& resolved,
+                                      uint64_t migrateBytes);
 
     void OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree);
 
@@ -147,8 +165,6 @@ private:
     void OomRearrangeMigrated();
 
     void OomLoop();
-
-    void RecoverBorrowFromObmm();
 
     bool EnqueueOrphanReturn(const std::string& debtName);
 
@@ -178,7 +194,8 @@ private:
                            const std::vector<std::pair<int, uint64_t>>& numaTargets);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
-    uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
+    uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
+                              const ResolvedReturnDebt& resolved);
     bool ReturnOnePidDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt, uint32_t& freedCount,
                           uint64_t& freedBytes, uint32_t& failCount);
 
@@ -194,7 +211,15 @@ private:
                                    std::string& newDebtId, int& newRemoteNuma);
     int MigrateDebtRemoteToRemote(pid_t pid, int oldRemoteNuma, int newRemoteNuma, uint64_t sizeBytes);
     uint32_t MigrateDebtToReplacement(const def::ReturnRequestItem& item, pid_t pid, const ReplacementDebtCtx& ctx,
-                                      std::string& newDebtId, int& newRemoteNuma, uint64_t migrateBytes);
+                                      ReplacementDebt& out, uint64_t migrateBytes);
+    uint32_t RollbackReplacementDebt(pid_t pid, const ReplacementDebtCtx& ctx, const std::string& newDebtId,
+                                     int migrateRet, uint64_t migrateBytes);
+    std::vector<std::pair<int, uint64_t>> BuildRestoreTargets(pid_t pid);
+    uint64_t ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item);
+    bool ReadNumaMapsDiffs(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets, uint64_t& totalDiff,
+                           uint64_t& maxDiff) const;
+    bool WaitMigrateBackConverged(pid_t pid, const def::ReturnRequestItem& item,
+                                  const std::vector<std::pair<int, uint64_t>>& numaTargets);
     uint32_t DeleteOldReturnDebt(const std::string& debtId);
     std::vector<std::string> BuildReplacementCandidates(const std::string& oldLenderNodeId);
 
@@ -213,9 +238,6 @@ private:
 
     ubse::task_executor::UbseTaskExecutorPtr borrowExecutor_{};
     ubse::task_executor::UbseTaskExecutorPtr returnExecutor_{};
-
-    static constexpr uint32_t kPidMutexNum = 64;
-    std::array<std::mutex, kPidMutexNum> pidMutexes_{};
 
     // remote-to-remote 归还中旧 debt 删除失败的 debt 名；重试时跳过 create+migrate 只重删旧 debt
     std::set<std::string> pendingOldDebtDeletes_{};

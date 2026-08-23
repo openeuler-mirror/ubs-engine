@@ -56,6 +56,38 @@ uint32_t ProcessMemPidBridge::MemoryReturn(const std::string& name)
     return UBSE_OK;
 }
 
+int ProcessMemPidBridge::MigrateOutToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargetsBytes,
+                                           const std::string& logCtx)
+{
+    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
+    mempooling::smap::MigrateOutPayload payload{};
+    constexpr size_t kMaxInner = static_cast<size_t>(mempooling::smap::REMOTE_NUMA_NUM);
+    size_t innerCount = std::min(numaTargetsBytes.size(), kMaxInner);
+    if (numaTargetsBytes.size() > kMaxInner) {
+        UBSE_LOG_WARN << "[process_mem] migrate_out pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
+                      << " numa_targets=" << numaTargetsBytes.size() << " exceed inner capacity " << kMaxInner
+                      << ", truncated";
+    }
+    for (size_t i = 0; i < innerCount; ++i) {
+        mempooling::smap::MigrateOutPayloadInner inner{};
+        inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
+        inner.memSize = numaTargetsBytes[i].second / 1024; // smap 期望 KB, 输入为字节
+        inner.destNid = numaTargetsBytes[i].first;
+        payload.inner[i] = inner;
+        UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
+                      << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
+                      << " src_bytes=" << numaTargetsBytes[i].second;
+    }
+    payload.count = static_cast<int>(innerCount);
+    payload.pid = pid;
+    payloads.push_back(payload);
+    if (!rmrsMigrateOut) {
+        UBSE_LOG_ERROR << "[process_mem] migrate_out pid=" << pid << " rmrsMigrateOut not loaded, skip migrate";
+        return -1;
+    }
+    return rmrsMigrateOut(payloads, 0);
+}
+
 namespace {
 ubse::com::UbseComEndpoint GetProcessMemReturnEndpoint(uint16_t opCode, const std::string& nodeId)
 {
@@ -374,10 +406,12 @@ uint32_t DisplayProcMemDetail(const api::server::UbseIpcMessage& request,
 }
 
 namespace {
+// 与 libvirt/libxalarm 一致: 按 soname 加载, 走动态链接器搜索路径(LD_LIBRARY_PATH/ld.so.cache)
 bool LoadMemPoolingLibrary()
 {
-    void* handle = dlopen(MEMPOOLING_PATH, RTLD_LAZY);
+    void* handle = dlopen("libmempooling.so", RTLD_LAZY);
     if (!handle) {
+        UBSE_LOG_ERROR << "dlopen libmempooling.so failed: " << dlerror();
         return false;
     }
     ProcessMemPidBridge::memPoolingHandle = handle;
@@ -451,9 +485,8 @@ uint32_t ProcessMemPidBridge::Init()
     }
 
     if (!LoadMemPoolingLibrary()) {
-        UBSE_LOG_WARN << "Failed to load libmempooling.so, memory borrowing/migration will be unavailable";
-        process_mem::manager::ProcessMemPidInfoManager::GetInstance().RefreshProcMemConfigCache();
-        return UBSE_OK;
+        UBSE_LOG_ERROR << "Failed to load libmempooling.so, process_mem init aborted";
+        return UBSE_ERROR;
     }
 
     std::vector<__u32> dacReadSearchCap = {CAP_DAC_READ_SEARCH};

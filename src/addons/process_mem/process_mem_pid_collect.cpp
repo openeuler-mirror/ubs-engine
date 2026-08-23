@@ -39,20 +39,6 @@ const size_t DEFAULT_PAGE_SIZE = 4096;
 namespace {
 constexpr uint32_t kMaxNumaNum = 256;
 
-// 远端借用会以新 NUMA 形式出现在本节点, /sys/.../node<N>/remote 属性标识(1=远端)
-std::optional<bool> ReadNumaRemoteAttr(uint32_t numaId)
-{
-    std::ifstream file("/sys/devices/system/node/node" + std::to_string(numaId) + "/remote");
-    if (!file.is_open()) {
-        return std::nullopt;
-    }
-    uint64_t attr = 0;
-    if (!(file >> attr)) {
-        return std::nullopt;
-    }
-    return attr == 1;
-}
-
 std::optional<uint64_t> ReadNumaMemKbField(uint32_t numaId, const std::string& field)
 {
     std::ifstream file("/sys/devices/system/node/node" + std::to_string(numaId) + "/meminfo");
@@ -98,6 +84,20 @@ std::optional<uint64_t> ReadNumaMemUsedKb(uint32_t numaId)
     return *totalKb - *freeKb;
 }
 } // namespace
+
+// 远端借用会以新 NUMA 形式出现在本节点, /sys/.../node<N>/remote 属性标识(1=远端)
+std::optional<bool> ReadNumaRemoteAttr(uint32_t numaId)
+{
+    std::ifstream file("/sys/devices/system/node/node" + std::to_string(numaId) + "/remote");
+    if (!file.is_open()) {
+        return std::nullopt;
+    }
+    uint64_t attr = 0;
+    if (!(file >> attr)) {
+        return std::nullopt;
+    }
+    return attr == 1;
+}
 
 std::vector<pid_t> GetChildrenPidsFallback(pid_t parentPid)
 {
@@ -265,13 +265,12 @@ void HandleExitedPidEntry(ProcessMemPidInfoManager& infoMgr, pid_t pid, const de
     bool hasPidSource = (entry.sources & static_cast<uint8_t>(def::ConfigSource::PID_CONFIG)) != 0;
     bool hasNameSource = (entry.sources & static_cast<uint8_t>(def::ConfigSource::NAME_CONFIG)) != 0;
     std::string comm = entry.nameConfigName.empty() ? ReadProcStatComm(pid) : entry.nameConfigName;
-
+    (void)ProcessMemPidConfigManager::DeleteFossilConfig(pid);
     if (hasPidSource && hasNameSource) {
         infoMgr.RemoveProcMemConfig(true, std::to_string(pid));
-        infoMgr.RemovePidSourceFromManagedPid(pid);
+        infoMgr.RemoveManagedPidEntry(pid);
         UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " pid=" << pid << " comm=" << comm
-                       << " exit, removed pid-config from cache and storage"
-                       << " (kept name-config source)";
+                       << " exit, removed pid-config/fossil and entry (pid dead, nothing kept)";
     } else if (hasPidSource) {
         infoMgr.RemoveProcMemConfig(true, std::to_string(pid));
         infoMgr.RemoveManagedPidEntry(pid);
@@ -280,7 +279,7 @@ void HandleExitedPidEntry(ProcessMemPidInfoManager& infoMgr, pid_t pid, const de
     } else if (hasNameSource) {
         infoMgr.RemoveManagedPidEntry(pid);
         UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " pid=" << pid << " comm=" << comm
-                       << " exit, removed from cache (sources=name-config)";
+                       << " exit, removed from cache and fossil storage (sources=name-config)";
     } else if (entry.isChild) {
         infoMgr.RemoveManagedPidEntry(pid);
         UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " pid=" << pid << " comm=" << comm
@@ -451,8 +450,10 @@ void ProcessMemPidCollect::HandleExitedPids(const std::set<pid_t>& exitedPids, u
     }
 
     for (const auto& [pid, entry] : toProcess) {
-        decision::ProcessMemPidDecision::GetInstance().HandlePidExited(pid);
+        // 先捕获账本槽位数据, 删缓存后由后台异步线程按账本全量归还
+        std::vector<def::BorrowSlot> slots = entry.borrow.slots;
         HandleExitedPidEntry(infoMgr, pid, entry, roundNum);
+        decision::ProcessMemPidDecision::GetInstance().HandlePidExited(pid, std::move(slots));
     }
 }
 
@@ -621,6 +622,10 @@ void ProcessMemPidCollect::DoCollectRound(uint64_t roundNum)
     UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " step=callback entries=" << callbackEntries;
 
     decision::ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache();
+
+    // 故障恢复兜底: 补录 ubse 有而账本无的债务(rmrs 故障处理借的新债, usrInfo 全量复制),
+    // 并随后以 smap 实测回填 migratedBytes; 幂等, 每周期收敛
+    decision::ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
 
     lastPidSet_ = std::move(curPids);
 

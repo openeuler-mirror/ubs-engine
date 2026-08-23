@@ -88,16 +88,21 @@ static constexpr uint64_t kBytesPerGiB = kBytesPerKiB * kBytesPerKiB * kBytesPer
 
 static std::string FormatMaxMemoryHuman(uint64_t bytes)
 {
-    if (bytes >= kBytesPerGiB && bytes % kBytesPerGiB == 0) {
+    // 统一以 G 为单位回显: 整除显示整数 G, 否则显示小数 G (去尾零)
+    if (bytes % kBytesPerGiB == 0) {
         return std::to_string(bytes / kBytesPerGiB) + "G";
     }
-    if (bytes >= kBytesPerMiB && bytes % kBytesPerMiB == 0) {
-        return std::to_string(bytes / kBytesPerMiB) + "M";
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(5) << (static_cast<double>(bytes) / static_cast<double>(kBytesPerGiB));
+    std::string value = oss.str();
+    size_t end = value.find_last_not_of('0');
+    if (end != std::string::npos) {
+        value.erase(end + 1);
     }
-    if (bytes >= kBytesPerKiB && bytes % kBytesPerKiB == 0) {
-        return std::to_string(bytes / kBytesPerKiB) + "K";
+    if (!value.empty() && value.back() == '.') {
+        value.pop_back();
     }
-    return std::to_string(bytes);
+    return value + "G";
 }
 
 static std::string FormatRatioHuman(double ratio)

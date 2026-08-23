@@ -106,6 +106,7 @@ enum class AtomicMigrateResult : uint8_t
     kOk,
     kFail,
     kVanish,
+    kFaultNoMigrate,
 };
 
 enum class ReturnStatus : uint8_t

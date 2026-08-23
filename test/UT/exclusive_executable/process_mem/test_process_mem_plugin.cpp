@@ -20,10 +20,10 @@ void TestProcessMemPlugin::SetUp() {}
 
 void TestProcessMemPlugin::TearDown() {}
 
-TEST_F(TestProcessMemPlugin, UbsePluginInitToleratesMissingLibrary)
+TEST_F(TestProcessMemPlugin, UbsePluginInitFailsWhenLibraryMissing)
 {
     uint32_t ret = UbsePluginInit(123);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 TEST_F(TestProcessMemPlugin, UbsePluginDeInit)

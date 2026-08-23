@@ -1,9 +1,11 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
 #include "process_mem_pid_bridge.h"
 
 namespace ubse::mem::controller {
@@ -44,6 +46,8 @@ const std::vector<MockRpcSendRecord>& MockGetRpcSendRecords();
 namespace ubse::nodeController {
 void MockSetCurrentNodeId(const std::string& nodeId);
 void MockResetCurrentNodeId();
+void MockSetAllNodes(const std::unordered_map<std::string, UbseNodeInfo>& nodes);
+void MockResetAllNodes();
 } // namespace ubse::nodeController
 
 namespace ubse::task_executor {

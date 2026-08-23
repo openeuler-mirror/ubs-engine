@@ -14,10 +14,21 @@
 
 namespace ubse::nodeController {
 
+static std::unordered_map<std::string, UbseNodeInfo> g_mockAllNodes;
+
 std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
 {
-    std::unordered_map<std::string, UbseNodeInfo> maps{};
-    return maps;
+    return g_mockAllNodes;
+}
+
+void MockSetAllNodes(const std::unordered_map<std::string, UbseNodeInfo>& nodes)
+{
+    g_mockAllNodes = nodes;
+}
+
+void MockResetAllNodes()
+{
+    g_mockAllNodes.clear();
 }
 
 uint32_t UbseNodeController::GetMemGroupNodeList(UbseMemGroupNodeList& groupList)
