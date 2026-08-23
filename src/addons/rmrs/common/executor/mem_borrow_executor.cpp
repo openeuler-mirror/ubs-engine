@@ -415,8 +415,11 @@ void DeletePersistenceSmapEnable(const int16_t& numaId)
 }
 
 static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector<MigrateBackMsg>& msgs,
-                                            const EnableNodeMsg& enableMsg)
+                                            const EnableNodeMsg& enableMsg, std::vector<uint64_t>& taskIds)
 {
+    if (SmapMigrateBackTaskIds::Instance().Query(name, taskIds) == MEM_POOLING_OK && !taskIds.empty()) {
+        return MEM_POOLING_OK;
+    }
     for (auto& msg : msgs) {
         if (msg.count <= 0) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -424,15 +427,18 @@ static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector
             return MEM_POOLING_ERROR;
         }
         PersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
-        if (MpSmapHelper::SmapMigrateBackSync(msg) != MEM_POOLING_OK) {
+        if (SmapMigrateBackProcess(msg) != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
             if (SmapEnableNumaProcess(enableMsg) == MEM_POOLING_OK) {
                 DeletePersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
             }
-
             return MEM_POOLING_ERROR;
         }
+        taskIds.push_back(msg.taskID);
+    }
+    if (!taskIds.empty()) {
+        SmapMigrateBackTaskIds::Instance().Update(name, taskIds);
     }
     return MEM_POOLING_OK;
 }
@@ -455,9 +461,20 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         return MEM_POOLING_ERROR;
     }
 
-    if (DispatchMigrateBackIfNeeded(name, migrateBackMsgs, enableMsg) != MEM_POOLING_OK) {
+    std::vector<uint64_t> taskIds;
+    if (DispatchMigrateBackIfNeeded(name, migrateBackMsgs, enableMsg, taskIds) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
+    for (const auto& taskId : taskIds) {
+        auto ret = MpSmapHelper::GetLocalSmapBackResult(taskId);
+        if (ret != MEM_POOLING_OK) {
+            (ret != MEM_POOLING_MIGRATE_TIMEOUT) && SmapMigrateBackTaskIds::Instance().Remove(name);
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] GetLocalSmapBackResult failed, taskId=" << taskId << ".";
+            return MEM_POOLING_ERROR;
+        }
+    }
+    SmapMigrateBackTaskIds::Instance().Remove(name);
 
     auto ret = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
     if (ret != MEM_POOLING_OK) {
@@ -695,8 +712,7 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
     return MEM_POOLING_OK;
 }
 
-MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
-                                                        bool isFault)
+MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name, bool smapBack, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] MemBorrowExecutor starts to free memory, borrowI_id=" << name << ".";
@@ -934,7 +950,7 @@ MpResult MemBorrowExecutor::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebt
 MpResult MemBorrowExecutor::GetDebtInfoByNameWithRetry(const std::string& name,
                                                        std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
-    constexpr int maxRetryTimes = 30;
+    constexpr int maxRetryTimes = 5;
     constexpr int sleepSeconds = 1;
     int curRetryTimes = 0;
 

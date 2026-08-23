@@ -1197,7 +1197,7 @@ MpResult FinalizePidProcessing(const PidBorrowContext& ctx,
                 LOG_DEBUG << "[FaultManager][Simplified] Skip already freed oldBorrowId=" << oldBorrowId << ".";
                 continue;
             }
-            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
+            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(oldBorrowId, false, true);
             if (ret != UBSE_ERR_NOT_EXIST && ret != MEM_POOLING_OK) {
                 LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
                 finalRet = MEM_POOLING_ERROR;

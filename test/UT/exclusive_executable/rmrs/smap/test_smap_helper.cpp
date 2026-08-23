@@ -1522,7 +1522,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsO
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskWaiting));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
 
-    EXPECT_EQ(result, MEM_POOLING_ERROR);
+    EXPECT_EQ(result, MEM_POOLING_MIGRATE_TIMEOUT);
 }
 
 // Test case for when SmapGetBackResult returns MEM_POOLING_ERROR
