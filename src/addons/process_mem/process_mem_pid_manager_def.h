@@ -146,6 +146,7 @@ struct BorrowCandidate {
     pid_t pid{0};
     bool isChild{false};
     bool hasActiveBorrow{false};
+    bool overCap{false};
     std::chrono::steady_clock::time_point lastMigrateTime{};
     uint64_t actual{0};
     uint64_t maxMemory{0};
