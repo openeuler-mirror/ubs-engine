@@ -140,10 +140,11 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
     return UBSE_OK;
 }
 
-void FindShareBorrowObjByName(const std::string &name, std::vector<UbseMemShareBorrowExportObj> &exportObjs,
+void FindShareBorrowObjByName(IShareStore &store, const std::string &name,
+                              std::vector<UbseMemShareBorrowExportObj> &exportObjs,
                               std::vector<UbseMemShareBorrowImportObj> &importObjs)
 {
-    auto [exportObjTmp, importObjTmps] = GetMaxRefCountExportObj(name);
+    auto [exportObjTmp, importObjTmps] = GetMaxRefCountExportObj(store, name);
     if (exportObjTmp) {
         UBSE_LOG_INFO << "obj_state=" << static_cast<uint32_t>(exportObjTmp->status.state);
         if (exportObjTmp->status.state == UBSE_MEM_EXPORT_SUCCESS) {
@@ -151,9 +152,9 @@ void FindShareBorrowObjByName(const std::string &name, std::vector<UbseMemShareB
         }
     }
     for (const auto &importObjTmp : importObjTmps) {
-        UBSE_LOG_INFO << "obj_state=" << static_cast<uint32_t>(importObjTmp->status.state);
-        if (importObjTmp->status.state != UBSE_MEM_IMPORT_DESTROYED) {
-            importObjs.push_back(*importObjTmp);
+        UBSE_LOG_INFO << "obj_state=" << static_cast<uint32_t>(importObjTmp.status.state);
+        if (importObjTmp.status.state != UBSE_MEM_IMPORT_DESTROYED) {
+            importObjs.push_back(importObjTmp);
         }
     }
     if (!exportObjs.empty() || !importObjs.empty()) {
@@ -268,7 +269,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     UbseNodeControllerLockMgr::WriteLock(ClusterHandlerKey);
     std::vector<UbseMemShareBorrowExportObj> exportObjs{};
     std::vector<UbseMemShareBorrowImportObj> importObjs{};
-    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    FindShareBorrowObjByName(store, req.name, exportObjs, importObjs);
     UbseMemShareBorrowImportObj importObj{};
     if (auto ret = PrepareAttachPreconditions(req, exportObjs, importObjs, importObj, resp); ret != UBSE_OK) {
         UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
@@ -308,11 +309,12 @@ static uint32_t ShareDetachRollback(UbseMemShareBorrowImportObj &importObj, cons
 }
 
 static uint32_t PrepareDetachPreconditions(const UbseMemShareDetachReq &req, const std::string &realRequestNodeId,
-                                           UbseMemOperationResp &resp, UbseMemShareBorrowImportObj &importObj)
+                                           IShareStore &store, UbseMemOperationResp &resp,
+                                           UbseMemShareBorrowImportObj &importObj)
 {
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
-    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    FindShareBorrowObjByName(store, req.name, exportObjs, importObjs);
     if (!ExistImportObj(req.name, req.unImportNodeId, importObjs, importObj)) {
         ShareDetachFailed(req, resp, "Detach is not allowed, no import obj.", UBSE_ERR_SHM_NO_ATTACH,
                           MemFault::SHARED_FAULT_DETACH_INTERNAL);
@@ -362,8 +364,9 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     if (waitResult != UBSE_OK) {
         return ShareDetachFailed(req, resp, "importNode is not ok", waitResult, MemFault::RETURN_IMPORT_IN_MAINTENANCE);
     }
+    CascadeMasterStore store;
     UbseMemShareBorrowImportObj importObj{};
-    if (auto ret = PrepareDetachPreconditions(req, realRequestNodeId, resp, importObj); ret != UBSE_OK) {
+    if (auto ret = PrepareDetachPreconditions(req, realRequestNodeId, store, resp, importObj); ret != UBSE_OK) {
         return ret;
     }
     importObj.req.requestId = req.requestId;
@@ -1025,11 +1028,12 @@ static uint32_t ValidateReqPermission(const UbseMemReturnReq &req, const std::st
 }
 
 static uint32_t PrepareReturnPreconditions(const UbseMemReturnReq &req, const std::string &realRequestNodeId,
-                                           UbseMemShareBorrowExportObj &exportObj, UbseMemOperationResp &resp)
+                                           IShareStore &store, UbseMemShareBorrowExportObj &exportObj,
+                                           UbseMemOperationResp &resp)
 {
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
-    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    FindShareBorrowObjByName(store, req.name, exportObjs, importObjs);
     if (exportObjs.empty() || exportObjs[0].algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "resource not found, name=" << req.name << ", size of exportObjs = " << exportObjs.size();
         BorrowFailedAdvice({MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
@@ -1038,7 +1042,6 @@ static uint32_t PrepareReturnPreconditions(const UbseMemReturnReq &req, const st
     }
     std::string enode = exportObjs[0].algoResult.exportNumaInfos.begin()->nodeId;
     exportObj = exportObjs[0];
-    CascadeMasterStore store;
     if (auto ret = ValidateReturnNoActiveImports(store, req, resp); ret != UBSE_OK) {
         return ret;
     }
@@ -1074,7 +1077,7 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &r
     }
     UbseMemShareBorrowExportObj exportObj;
     CascadeMasterStore store;
-    if (auto ret = PrepareReturnPreconditions(req, realRequestNodeId, exportObj, resp); ret != UBSE_OK) {
+    if (auto ret = PrepareReturnPreconditions(req, realRequestNodeId, store, exportObj, resp); ret != UBSE_OK) {
         return ret;
     }
     PrepareReturnExport(req, store, exportObj);
@@ -1576,8 +1579,9 @@ uint32_t UbseMemShareCascadeDetach(const UbseMemShareDetachReq &req, UbseMemOper
                                  MemFault::SHARED_FAULT_DETACH_INTERNAL);
     }
 
+    CascadeMasterStore store;
     UbseMemShareBorrowImportObj importObj{};
-    if (auto ret = PrepareDetachPreconditions(req, realRequestNodeId, resp, importObj); ret != UBSE_OK) {
+    if (auto ret = PrepareDetachPreconditions(req, realRequestNodeId, store, resp, importObj); ret != UBSE_OK) {
         return ret;
     }
 

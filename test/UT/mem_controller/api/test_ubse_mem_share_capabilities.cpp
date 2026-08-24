@@ -32,8 +32,10 @@ public:
     UbseResult LoadExport(const std::string &name, UbseMemShareBorrowExportObj &out) override { return UBSE_OK; }
     UbseResult LoadImport(const std::string &importNodeId, const std::string &name,
                           UbseMemShareBorrowImportObj &out) override { return UBSE_OK; }
+    UbseResult LoadAllExports(const std::string &name,
+                              std::vector<UbseMemShareBorrowExportObj> &out) override { out.clear(); return UBSE_OK; }
     UbseResult LoadAllImports(const std::string &name,
-                              std::vector<UbseMemShareBorrowImportObj> &out) override { return UBSE_OK; }
+                              std::vector<UbseMemShareBorrowImportObj> &out) override { out.clear(); return UBSE_OK; }
 
     void ForEachExport(ExportVisitor visitor) override {}
     void ForEachImport(ImportVisitor visitor) override {}

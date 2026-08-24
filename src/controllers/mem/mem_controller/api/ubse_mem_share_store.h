@@ -44,6 +44,8 @@ public:
     virtual UbseResult LoadExport(const std::string &name, UbseMemShareBorrowExportObj &out) = 0;
     virtual UbseResult LoadImport(const std::string &importNodeId, const std::string &name,
                                   UbseMemShareBorrowImportObj &out) = 0;
+    virtual UbseResult LoadAllExports(const std::string &name,
+                                       std::vector<UbseMemShareBorrowExportObj> &out) = 0;
     virtual UbseResult LoadAllImports(const std::string &name,
                                        std::vector<UbseMemShareBorrowImportObj> &out) = 0;
 
@@ -82,6 +84,8 @@ public:
     UbseResult LoadExport(const std::string &name, UbseMemShareBorrowExportObj &out) override;
     UbseResult LoadImport(const std::string &importNodeId, const std::string &name,
                           UbseMemShareBorrowImportObj &out) override;
+    UbseResult LoadAllExports(const std::string &name,
+                               std::vector<UbseMemShareBorrowExportObj> &out) override;
     UbseResult LoadAllImports(const std::string &name,
                                std::vector<UbseMemShareBorrowImportObj> &out) override;
 
@@ -112,6 +116,8 @@ public:
     UbseResult LoadExport(const std::string &name, UbseMemShareBorrowExportObj &out) override;
     UbseResult LoadImport(const std::string &importNodeId, const std::string &name,
                           UbseMemShareBorrowImportObj &out) override;
+    UbseResult LoadAllExports(const std::string &name,
+                               std::vector<UbseMemShareBorrowExportObj> &out) override;
     UbseResult LoadAllImports(const std::string &name,
                                std::vector<UbseMemShareBorrowImportObj> &out) override;
 
