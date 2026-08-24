@@ -1,6 +1,8 @@
 set(MODULE_NAME ssu_plugin)
 
 file(GLOB TEST_SOURCES "*.cpp" "*.h")
+file(GLOB TEST_MESSAGE_SOURCES "message/*.cpp" "message/*.h")
+list(APPEND TEST_SOURCES ${TEST_MESSAGE_SOURCES})
 
 list(FILTER TEST_SOURCES EXCLUDE REGEX "stub_mti_out_of_band.cpp")
 
