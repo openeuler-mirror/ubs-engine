@@ -774,6 +774,7 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanNotExistStopsRetry)
 
 TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanReleasedOnStartTimeMismatch)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2);
     auto startTime = ProcessMemPidConfigManager::GetExactStartTime(pid);
@@ -822,6 +823,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigUnavailable)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigReportsDirtyStates)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2, MakeBorrow(1, "debt-x"));
     AddManagedPid(2001, 10, 0.5, 2);
@@ -869,6 +871,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigQueryAllFail)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2, MakeBorrow(1, "debt-x"));
     ubse::mem::controller::MockSetImportDebtInfos(
@@ -900,6 +903,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot s5;
@@ -945,6 +949,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot s1;
@@ -988,6 +993,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExceeded)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot slot;

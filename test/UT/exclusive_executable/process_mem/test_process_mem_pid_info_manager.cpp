@@ -775,6 +775,7 @@ TEST_F(TestProcessMemPidInfoManager, GetProcMemConfigNotExist)
 
 TEST_F(TestProcessMemPidInfoManager, AddNameSourceToManagedPidNewEntry)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "myname", 1024000, 0.5);
@@ -817,6 +818,7 @@ TEST_F(TestProcessMemPidInfoManager, AddNameSourceToManagedPidKeepsPidValues)
 
 TEST_F(TestProcessMemPidInfoManager, AddChildSourceToManagedPidNewEntry)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t childPid = getpid();
     pid_t parentPid = 1;
@@ -833,6 +835,7 @@ TEST_F(TestProcessMemPidInfoManager, AddChildSourceToManagedPidNewEntry)
 
 TEST_F(TestProcessMemPidInfoManager, AddChildSourceToManagedPidExistingFollowsParent)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t childPid = getpid();
     mgr.AddChildSourceToManagedPid(childPid, 1, 1024000, 0.5);
@@ -873,6 +876,7 @@ TEST_F(TestProcessMemPidInfoManager, RemovePidSourceFromManagedPidNoSourcesErase
 
 TEST_F(TestProcessMemPidInfoManager, RemovePidSourceFromManagedPidRecalcFromNameConfig)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     def::ProcessMemNewConfigInfo config{};
     config.isPid = false;
@@ -896,6 +900,7 @@ TEST_F(TestProcessMemPidInfoManager, RemovePidSourceFromManagedPidRecalcFromName
 
 TEST_F(TestProcessMemPidInfoManager, UpdateManagedPidVmRssBatch)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "vmrss", 1024000, 0.5);
@@ -912,6 +917,7 @@ TEST_F(TestProcessMemPidInfoManager, UpdateManagedPidVmRssBatch)
 
 TEST_F(TestProcessMemPidInfoManager, UpdateManagedPidBorrowStateAndStatus)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "borrow", 1024000, 0.5);
@@ -933,6 +939,7 @@ TEST_F(TestProcessMemPidInfoManager, UpdateManagedPidBorrowStateAndStatus)
 
 TEST_F(TestProcessMemPidInfoManager, UpdateManagedPidLastMigrateTime)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "migrate", 1024000, 0.5);
@@ -953,6 +960,7 @@ TEST_F(TestProcessMemPidInfoManager, GetManagedPidCacheSnapshotEmpty)
 
 TEST_F(TestProcessMemPidInfoManager, VmRssCheckCallBackUpdatesVmRss)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "callback", 1024000, 0.0);
@@ -977,6 +985,7 @@ TEST_F(TestProcessMemPidInfoManager, RebalanceRemoteCheckNoRemote)
 
 TEST_F(TestProcessMemPidInfoManager, RebalanceRemoteCheckUnderMigratedNoAction)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "migrate_out", 1024000, 0.5);
@@ -1000,6 +1009,7 @@ TEST_F(TestProcessMemPidInfoManager, RebalanceRemoteCheckUnderMigratedNoAction)
 
 TEST_F(TestProcessMemPidInfoManager, RebalanceRemoteCheckZeroRatioSkips)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     pid_t pid = getpid();
     mgr.AddNameSourceToManagedPid(pid, "zero_ratio", 1024000, 0.0);
@@ -1110,6 +1120,7 @@ TEST_F(TestProcessMemPidInfoManager, RebalanceRemoteCheckAlignsLedgerToPage)
 
 TEST_F(TestProcessMemPidInfoManager, RebuildManagedPidCacheWithNameConfig)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
     std::string comm = ReadSelfComm();
     ASSERT_FALSE(comm.empty());
