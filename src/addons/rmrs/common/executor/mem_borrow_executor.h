@@ -40,8 +40,7 @@ public:
                        std::string& borrowId, int16_t& presentNumaId, bool isBorrowIdPersistence = true);
     MpResult MemFree(const std::string& name);
 
-    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
-                                         bool isFault = false);
+    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool smapBack, bool isFault = false);
 
     MpResult MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault = false);
 

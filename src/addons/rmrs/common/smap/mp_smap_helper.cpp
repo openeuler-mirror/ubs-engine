@@ -1293,7 +1293,7 @@ MpResult MpSmapHelper::GetLocalSmapBackResult(uint64_t taskId)
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetLocalSmapBackResult succeed.";
 
-    return MEM_POOLING_ERROR;
+    return MEM_POOLING_MIGRATE_TIMEOUT;
 }
 
 MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList)

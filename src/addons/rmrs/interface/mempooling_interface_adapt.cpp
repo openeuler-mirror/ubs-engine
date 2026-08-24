@@ -703,7 +703,7 @@ uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& 
             << "[MemFree][MemFreeBase] Concurrency is not supported, the current function cannot be entered.";
         return MEM_POOLING_ERROR;
     }
-    ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(borrowId, false, true, false);
+    ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(borrowId, true, false);
     mgr.ExitMemReturnFunc();
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1160,7 +1160,8 @@ int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& m
         const auto& p = msg.payload[i];
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "RemoteNumaMigrate payload[" << i << "], pid=" << p.pid << ", srcNid=" << p.srcNid
-            << ", destNid=" << p.destNid << ", ratio=" << p.ratio << ".";
+            << ", destNid=" << p.destNid << ", ratio=" << p.ratio << ", " << p.memSize << " KB"
+            << ", MigrateMode=" << p.migrateMode << ".";
     }
 
     SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = SmapModule::GetSmapMigratePidRemoteNumaFunc();
