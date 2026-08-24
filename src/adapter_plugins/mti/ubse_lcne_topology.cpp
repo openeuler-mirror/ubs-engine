@@ -121,6 +121,7 @@ void UbseLcneTopology::IdentifyTopoChange(
     std::unordered_map<UbseDevName, std::unordered_set<UbseDevName, UbseDevNameHash>, UbseDevNameHash> peerDevMapOld,
     std::string& eventMessage)
 {
+    std::shared_lock<std::shared_mutex> lock(mtx);
     // 端口Down
     for (auto& peerInfo : peerDevMapOld) {
         auto devNameOld = peerInfo.first;
