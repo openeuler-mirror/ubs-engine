@@ -578,6 +578,9 @@ uint64_t ProcessMemPidDecision::GetUbseBlockSizeBytes()
     return blockSizeMb * BYTES_PER_MB;
 }
 
+// 候选排序: 最近 kCandidateStaleIntervalSec 秒内未成功迁移的进程优先(迁移负载摊开)
+constexpr int64_t kCandidateStaleIntervalSec = 60;
+
 CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
                                     std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes)
 {
@@ -606,6 +609,7 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
     candidate.pid = pid;
     candidate.isChild = entry.isChild;
     candidate.hasActiveBorrow = hasActiveBorrow;
+    candidate.overCap = entry.vmRss > static_cast<uint64_t>(entry.maxMemory * entry.remoteRatio);
     candidate.lastMigrateTime = entry.lastMigrateTime;
     candidate.actual = entry.vmRss;
     candidate.maxMemory = entry.maxMemory;
@@ -618,10 +622,19 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
 
 void ProcessMemPidDecision::LogBorrowCandidates(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates)
 {
+    auto now = std::chrono::steady_clock::now();
+    size_t idx = 0;
     for (const auto& c : candidates) {
-        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " candidate pid=" << c.pid
-                       << " actual_gb=" << BytesToGbDouble(c.actual) << " max_gb=" << BytesToGbDouble(c.maxMemory)
-                       << " ratio=" << c.remoteRatio << " cur_remote_gb=" << BytesToGbDouble(c.currentRemote)
+        bool stale = (c.lastMigrateTime.time_since_epoch().count() == 0) ||
+                     (now - c.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
+        int64_t lastMigrateSec =
+            stale ? -1 : std::chrono::duration_cast<std::chrono::seconds>(now - c.lastMigrateTime).count();
+        // idx 即排序后优先级: 越靠前越先被选中借用
+        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " candidate idx=" << idx++ << " pid=" << c.pid
+                       << " child=" << c.isChild << " active_borrow=" << c.hasActiveBorrow << " stale=" << stale
+                       << " last_migrate_s=" << lastMigrateSec << " actual_gb=" << BytesToGbDouble(c.actual)
+                       << " max_gb=" << BytesToGbDouble(c.maxMemory) << " ratio=" << c.remoteRatio
+                       << " over_cap=" << c.overCap << " cur_remote_gb=" << BytesToGbDouble(c.currentRemote)
                        << " can_migrate_gb=" << BytesToGbDouble(c.canMigrate);
     }
 }
@@ -641,9 +654,8 @@ std::vector<def::BorrowCandidate> ProcessMemPidDecision::BuildCandidates(uint64_
         }
     }
 
-    constexpr int64_t staleIntervalSec = 60;
     auto now = std::chrono::steady_clock::now();
-    std::sort(candidates.begin(), candidates.end(), [now, staleIntervalSec](const auto& a, const auto& b) {
+    std::sort(candidates.begin(), candidates.end(), [now](const auto& a, const auto& b) {
         if (a.isChild != b.isChild) {
             return !a.isChild;
         }
@@ -651,16 +663,14 @@ std::vector<def::BorrowCandidate> ProcessMemPidDecision::BuildCandidates(uint64_
             return !a.hasActiveBorrow;
         }
         auto aStale = (a.lastMigrateTime.time_since_epoch().count() == 0) ||
-                      (now - a.lastMigrateTime) > std::chrono::seconds(staleIntervalSec);
+                      (now - a.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
         auto bStale = (b.lastMigrateTime.time_since_epoch().count() == 0) ||
-                      (now - b.lastMigrateTime) > std::chrono::seconds(staleIntervalSec);
+                      (now - b.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
         if (aStale != bStale) {
             return aStale;
         }
-        bool aOverCap = a.actual > static_cast<uint64_t>(a.maxMemory * a.remoteRatio);
-        bool bOverCap = b.actual > static_cast<uint64_t>(b.maxMemory * b.remoteRatio);
-        if (aOverCap != bOverCap) {
-            return aOverCap;
+        if (a.overCap != b.overCap) {
+            return a.overCap;
         }
         return a.actual > b.actual;
     });
