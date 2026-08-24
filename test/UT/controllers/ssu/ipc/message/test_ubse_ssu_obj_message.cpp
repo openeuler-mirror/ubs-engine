@@ -651,7 +651,7 @@ TEST_F(TestUbseSsuObjMessage, IsValidAllocStrategy_AllBranches)
 {
     EXPECT_TRUE(IsValidAllocStrategy(static_cast<uint8_t>(UbseSsuAllocStrategy::STRIPED)));
     EXPECT_TRUE(IsValidAllocStrategy(static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR)));
-    EXPECT_FALSE(IsValidAllocStrategy(2));
+    EXPECT_FALSE(IsValidAllocStrategy(3));
     EXPECT_FALSE(IsValidAllocStrategy(255));
 }
 
