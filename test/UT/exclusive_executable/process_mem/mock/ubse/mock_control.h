@@ -51,6 +51,25 @@ void MockSetExecutorAsync(bool async);
 void MockWaitExecutorIdle();
 } // namespace ubse::task_executor
 
+namespace ubse::config {
+void MockSetFilterRootProcess(bool enabled);
+// RAII 守卫：在用例体内关闭 filter_root_process，使以 root 运行时 getpid() 也能被纳入受管缓存，
+// 作用域结束时恢复默认值（true），避免影响其它依赖 root 过滤行为的用例。
+class ScopedRootFilterDisabled {
+public:
+    ScopedRootFilterDisabled()
+    {
+        MockSetFilterRootProcess(false);
+    }
+    ~ScopedRootFilterDisabled()
+    {
+        MockSetFilterRootProcess(true);
+    }
+    ScopedRootFilterDisabled(const ScopedRootFilterDisabled&) = delete;
+    ScopedRootFilterDisabled& operator=(const ScopedRootFilterDisabled&) = delete;
+};
+} // namespace ubse::config
+
 namespace ubse::storage {
 void MockSetStoragePutError(uint32_t err);
 void MockSetStorageQueryError(uint32_t err);
