@@ -83,8 +83,6 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     } else {
         heartBeatTime_ = heartBeatTime;
     }
-    ubEnable_ = IsUrma();
-    if (GetRootIpList().empty()) { rootEnable_ = false; }
 
     ret = LoadConfig();
     if (ret != UBSE_OK) {
@@ -138,7 +136,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
         return;
     }
     if (!isHierarchicalElection_) {
-        if (ubEnable_) {
+        if (IsUrma()) {
             // 单层urma
             auto topoLinkedNodes = GetTopoLinkedNodes();
             for (const auto &node : ubseNodeInfos) {
@@ -151,7 +149,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
                     nodeIpMap_.emplace(tempNode.ip, node.nodeId);
                 }
             }
-        } else if (!ubEnable_ && currentAllNodes_.empty()) {
+        } else if (!IsUrma() && currentAllNodes_.empty()) {
             // 单层tcp
             std::vector<std::string> ipList{};
             for (const auto &nodeInfo : ubseNodeInfos) {
@@ -181,6 +179,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
 
 UbseResult UbseElectionNodeMgr::LoadConfig()
 {
+    rootEnable_ = !(GetRootIpList().empty());
     UbseNodeStaticInfo nodeStaticInfo = GetCurrentNode();
     if (nodeStaticInfo.nodeId.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] GetCurrentNode failed.";
@@ -189,7 +188,7 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
 
     currentNode_.id = nodeStaticInfo.nodeId;
     currentNode_.port = TCP_LISTEN_PORT;
-    currentNode_.ip = ubEnable_ ? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
+    currentNode_.ip = IsUrma()? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
 
     ParseAllNodesVector();
 
