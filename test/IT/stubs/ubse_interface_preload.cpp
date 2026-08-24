@@ -26,6 +26,9 @@
  *   /var/run/ubse access -> redirect to this IT node runtime directory
  *   /etc/ubse access -> redirect to this IT node config directory
  *     (opendir, lstat, stat, fopen, realpath, access)
+ *   /var/lib/ubse/cert and /var/lib/ubse/lcne_cert -> redirect to this IT
+ *     node's cert dirs (UBSE_IT_CERT_DIR / UBSE_IT_LCNE_CERT_DIR), so
+ *     non-privileged runs see per-node certificates without bind-mounts
  *   /sys/devices/system/node/* -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
  *   /sys/devices/system/cpu/*  -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
  *   /sys/kernel/obmm_mempool/* -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
@@ -42,6 +45,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <pwd.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +63,10 @@ constexpr const char* UBSE_DEFAULT_RUNTIME_DIR = "/var/run/ubse";
 constexpr const char* UBSE_IT_UDS_SOCKET_PATH_ENV = "UBSE_IT_UDS_SOCKET_PATH";
 constexpr const char* UBSE_IT_AUTH_USER = "ubse";
 constexpr const char* UBSE_OBMM_DEV_PREFIX = "/dev/obmm_shmdev";
+constexpr const char* UBSE_DEFAULT_CERT_DIR = "/var/lib/ubse/cert";
+constexpr const char* UBSE_DEFAULT_LCNE_CERT_DIR = "/var/lib/ubse/lcne_cert";
+constexpr const char* UBSE_IT_CERT_DIR_ENV = "UBSE_IT_CERT_DIR";
+constexpr const char* UBSE_IT_LCNE_CERT_DIR_ENV = "UBSE_IT_LCNE_CERT_DIR";
 
 bool IsObmmDevicePath(const char* path)
 {
@@ -279,6 +287,39 @@ std::string RedirectUbseConfPath(const char* path)
     return original;
 }
 
+// Cert paths are hardcoded in the daemon (/var/lib/ubse/cert for com-engine
+// TLS, /var/lib/ubse/lcne_cert for http/vsock). In privileged runs the
+// launcher bind-mounts per-node cert dirs; in non-privileged runs this
+// redirection maps them onto the per-node workDir copies instead.
+std::string RedirectUbseCertPath(const char* path)
+{
+    if (path == nullptr) {
+        return "";
+    }
+    std::string original(path);
+
+    const char* certDir = getenv(UBSE_IT_CERT_DIR_ENV);
+    if (certDir != nullptr && certDir[0] != '\0') {
+        if (original == UBSE_DEFAULT_CERT_DIR) {
+            return certDir;
+        }
+        if (original.rfind(std::string(UBSE_DEFAULT_CERT_DIR) + "/", 0) == 0) {
+            return certDir + original.substr(strlen(UBSE_DEFAULT_CERT_DIR));
+        }
+    }
+
+    const char* lcneCertDir = getenv(UBSE_IT_LCNE_CERT_DIR_ENV);
+    if (lcneCertDir != nullptr && lcneCertDir[0] != '\0') {
+        if (original == UBSE_DEFAULT_LCNE_CERT_DIR) {
+            return lcneCertDir;
+        }
+        if (original.rfind(std::string(UBSE_DEFAULT_LCNE_CERT_DIR) + "/", 0) == 0) {
+            return lcneCertDir + original.substr(strlen(UBSE_DEFAULT_LCNE_CERT_DIR));
+        }
+    }
+    return original;
+}
+
 // Sysfs paths read by UbseNodeControllerCollector via std::ifstream.
 // When UBSE_IT_SYSFS_DIR is set, redirect these paths so the collector
 // reads from the IT-generated virtual sysfs tree instead of the real
@@ -333,6 +374,8 @@ static DIR* (*real_opendir)(const char*) = nullptr;
 static int (*real_lstat)(const char*, struct stat*) = nullptr;
 static FILE* (*real_fopen64)(const char*, const char*) = nullptr;
 static int (*real_stat)(const char*, struct stat*) = nullptr;
+static int (*real_open)(const char*, int, ...) = nullptr;
+static int (*real_openat)(int, const char*, int, ...) = nullptr;
 
 static void init_real_conf_funcs()
 {
@@ -347,6 +390,12 @@ static void init_real_conf_funcs()
     }
     if (real_stat == nullptr) {
         real_stat = reinterpret_cast<int (*)(const char*, struct stat*)>(dlsym(RTLD_NEXT, "stat"));
+    }
+    if (real_open == nullptr) {
+        real_open = reinterpret_cast<int (*)(const char*, int, ...)>(dlsym(RTLD_NEXT, "open"));
+    }
+    if (real_openat == nullptr) {
+        real_openat = reinterpret_cast<int (*)(int, const char*, int, ...)>(dlsym(RTLD_NEXT, "openat"));
     }
 }
 
@@ -382,6 +431,7 @@ extern "C" int lstat(const char* path, struct stat* buf)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseCertPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_lstat(redirected.c_str(), buf);
 }
@@ -395,11 +445,57 @@ extern "C" FILE* fopen64(const char* path, const char* mode)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseCertPath(redirected.c_str());
     return real_fopen64(redirected.c_str(), mode);
 }
 
 // fopen and fopen64 are aliased on 64-bit glibc; intercept both to be safe.
 extern "C" FILE* fopen(const char* path, const char* mode) __attribute__((alias("fopen64")));
+
+// open/openat with cert-path redirection. Needed by "ubsectl import cert",
+// which creates the destination files (/var/lib/ubse/cert/server.pem etc.)
+// via open(O_CREAT): the preload redirect maps them onto this node's
+// workDir/cert so the CLI writes per-node certs without mount namespaces.
+// Only cert paths are redirected; all other paths pass through unchanged.
+extern "C" int open(const char* pathname, int flags, ...)
+{
+    mode_t mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = static_cast<mode_t>(va_arg(ap, int));
+        va_end(ap);
+    }
+    init_real_conf_funcs();
+    if (real_open == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+    std::string redirected = RedirectUbseCertPath(pathname);
+    return real_open(redirected.c_str(), flags, mode);
+}
+
+extern "C" int open64(const char* pathname, int flags, ...) __attribute__((alias("open")));
+
+extern "C" int openat(int dirfd, const char* pathname, int flags, ...)
+{
+    mode_t mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = static_cast<mode_t>(va_arg(ap, int));
+        va_end(ap);
+    }
+    init_real_conf_funcs();
+    if (real_openat == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+    std::string redirected = RedirectUbseCertPath(pathname);
+    return real_openat(dirfd, redirected.c_str(), flags, mode);
+}
+
+extern "C" int openat64(int dirfd, const char* pathname, int flags, ...) __attribute__((alias("openat")));
 
 extern "C" int stat(const char* path, struct stat* buf)
 {
@@ -421,8 +517,33 @@ extern "C" int stat(const char* path, struct stat* buf)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseCertPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_stat(redirected.c_str(), buf);
+}
+
+// statx is what libstdc++'s std::filesystem::status/exists actually calls on
+// modern glibc, so "ubsectl import cert" (CheckCertPath) and any
+// std::filesystem-based cert checks bypass the stat() wrapper above.
+// Intercept it with the same redirect chain.
+static int (*real_statx)(int, const char*, int, unsigned int, struct statx*) = nullptr;
+
+extern "C" int statx(int dirfd, const char* pathname, int flags, unsigned int mask, struct statx* statxbuf)
+{
+    init_real_conf_funcs();
+    if (real_statx == nullptr) {
+        real_statx =
+            reinterpret_cast<int (*)(int, const char*, int, unsigned int, struct statx*)>(dlsym(RTLD_NEXT, "statx"));
+    }
+    if (real_statx == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+    std::string redirected = RedirectSysfsPath(pathname);
+    redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseCertPath(redirected.c_str());
+    redirected = RedirectUbseRuntimePath(redirected.c_str());
+    return real_statx(dirfd, redirected.c_str(), flags, mask, statxbuf);
 }
 
 // ============================================================
@@ -567,7 +688,8 @@ extern "C" int access(const char* pathname, int mode)
 
     std::string sysfsRedirected = RedirectSysfsPath(pathname);
     std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
-    std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
+    std::string certRedirected = RedirectUbseCertPath(confRedirected.c_str());
+    std::string finalRedirected = RedirectUbseRuntimePath(certRedirected.c_str());
     return real_access(finalRedirected.c_str(), mode);
 }
 

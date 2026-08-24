@@ -36,6 +36,12 @@ void SetupMountNamespace(const std::string& workDir)
     BindMount(workDir + "/log", "/var/log/ubse");
     BindMount(workDir + "/run/ubm/socket/ubm_nuds", "/run/ubm/socket/ubm_nuds");
     BindMount(workDir + "/plugin", "/usr/lib64/ubse_plugin");
+    // Per-node certificate isolation: the daemon reads hardcoded cert paths
+    // (/var/lib/ubse/cert for com-engine TLS, /var/lib/ubse/lcne_cert for
+    // http/vsock). Bind-mounting per-node cert dirs hides the host's certs
+    // so every IT node uses its own certificate set.
+    BindMount(workDir + "/cert", "/var/lib/ubse/cert");
+    BindMount(workDir + "/lcne_cert", "/var/lib/ubse/lcne_cert");
 }
 
 } // namespace

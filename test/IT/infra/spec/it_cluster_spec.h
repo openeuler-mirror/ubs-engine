@@ -47,6 +47,16 @@ struct ClusterSpec {
     bool mockPluginEnabled = true;
     uint32_t meshType = 1;
 
+    // Certificate resource directory (see ItClusterBuilder::WithCerts):
+    // contains shared CA files (cacert.pem/cakey.pem/ca.crl) and cert.sh.
+    // Every node runs the signing script against the cluster-wide shared CA
+    // database (baseWorkDir/cert_authority) at startup. Empty means no
+    // certificates are deployed.
+    std::string certResourceDir;
+    // Value written to [ubse.rpc] cert.use. Defaults to false for IT;
+    // WithCerts() flips it to true so deployed certs actually take effect.
+    bool certUse = false;
+
     // Per-node config overrides: nodeId -> section -> key -> value.
     // Applied on top of global overrides during config generation.
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides;

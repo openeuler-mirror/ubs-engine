@@ -192,6 +192,8 @@ NodeProcessConfig ItNode::BuildProcessConfig() const
     config.sceneType = ctx_.sceneType;
     config.meshType = ctx_.meshType;
     config.lcneUdsPath = lcneUdsPath_;
+    config.certResourceDir = ctx_.certResourceDir;
+    config.certAuthorityDir = ctx_.certAuthorityDir;
     return config;
 }
 

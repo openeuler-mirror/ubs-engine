@@ -30,3 +30,5 @@ __pycache__
 .omo
 .opencode/user.*
 code_review_report
+# cert.sh manual-run output (default OUTPUT_DIR=./certs)
+certs/

@@ -73,6 +73,10 @@ protected:
      */
     static void CleanupWorkDir(const std::string& workDir)
     {
+        if (std::getenv("UBSE_IT_KEEP_WORKDIR") != nullptr) {
+            IT_LOG_INFO << "UBSE_IT_KEEP_WORKDIR set, keep work directory " << workDir;
+            return;
+        }
         if (!workDir.empty()) {
             std::error_code ec;
             std::filesystem::remove_all(workDir, ec);

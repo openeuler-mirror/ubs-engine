@@ -14,6 +14,7 @@
 
 #include <utility>
 
+#include "ubse_it_dir.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
@@ -119,6 +120,19 @@ ItClusterBuilder& ItClusterBuilder::NoElection()
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::WithCerts(const std::string& resourceDir)
+{
+    certResourceDir_ = resourceDir.empty() ? std::string(IT_DIRECTORY) + "/resource" : resourceDir;
+    certUse_ = true;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::NoCertUse()
+{
+    certUse_ = false;
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::WithNodeConfig(const std::string& nodeId, const std::string& section,
                                                    const std::string& key, const std::string& value)
 {
@@ -154,6 +168,8 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.meshType = meshType_;
     spec.nodeConfigOverrides = nodeConfigOverrides_;
     spec.globalConfigOverrides = globalConfigOverrides_;
+    spec.certResourceDir = certResourceDir_;
+    spec.certUse = certUse_;
     spec.Normalize();
     return spec;
 }

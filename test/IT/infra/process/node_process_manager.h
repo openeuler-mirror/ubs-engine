@@ -66,6 +66,12 @@ private:
     UbseResult StopProcess(int signal);
     void StopAuxiliaryServices();
     std::vector<std::string> BuildChildEnvironment() const;
+    bool InitSharedCaDir() const;
+    void CopyCertResources(const std::string& certToolDir) const;
+    bool GenerateServerCert(const std::string& certToolDir) const;
+    bool ImportCertsViaUbsectl(const std::string& certToolDir) const;
+    void InstallCertFiles(const std::string& certToolDir) const;
+    bool DeployCerts() const;
 
     std::string binaryPath_;
     std::string launcherPath_;
@@ -80,6 +86,8 @@ private:
     std::string sceneType_;
     uint32_t meshType_ = 1;
     std::string lcneUdsPath_;
+    std::string certResourceDir_;
+    std::string certAuthorityDir_;
     mutable pid_t childPid_;
     std::string udsSocketPath_;
     std::string xalarmFifoPath_;
