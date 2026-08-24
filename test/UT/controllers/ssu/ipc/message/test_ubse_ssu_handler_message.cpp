@@ -351,7 +351,7 @@ TEST_F(TestUbseSsuHandlerMessage, SsuAllocSpaceUnpack_InvalidStrategy_ReturnsErr
     ASSERT_TRUE(packer.UbsePackUint64(4096));
     ASSERT_TRUE(packer.UbsePackUint32(1));
     ASSERT_TRUE(packer.UbsePackUint32(static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_4K)));
-    ASSERT_TRUE(packer.UbsePackUint8(2)); // 非法 strategy
+    ASSERT_TRUE(packer.UbsePackUint8(3)); // 非法 strategy
     ASSERT_TRUE(packer.UbsePackString("t", MAX_TENANT_LEN));
     UbseIpcMessage req{buf, sizeof(buf)};
 
