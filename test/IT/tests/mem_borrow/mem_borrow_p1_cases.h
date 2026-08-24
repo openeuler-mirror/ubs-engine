@@ -20,6 +20,12 @@ namespace ubse::it::tests::mem_borrow {
 // CLI内存操作测试（长选项）：使用长选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
 void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster);
 
+// P1-CliSdkMemOk-01: 测试CLI创建后调用SDK接口正常
+void RunP1CliSdkMemOK01(ubse::it::infra::ItCluster& cluster);
+
+// P1-SdkCliMemOk-01: 测试SDK创建后调用CLI接口正常
+void RunP1SdkCliMemOK01(ubse::it::infra::ItCluster& cluster);
+
 // P1-FdBorrow-MultiNode-Ok-01(四节点): 多节点 FD 借用用例
 void RunP1FdBorrowMultiNodeOk01(ubse::it::infra::ItCluster& cluster);
 
@@ -28,6 +34,12 @@ void RunP1FdBorrowMultiTimeOk01(ubse::it::infra::ItCluster& cluster);
 
 // P1-FdCreate-DiffNode-Ok-01: fd创建用例，不同节点创建同名FD
 void RunP1FdCreateDiffNodeOk01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdCreate-MultiThread-Ok-01: 单节点多并发FD创建
+void RunP1FdCreateMultiThreadOk01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdBorrow-Cycle-01(四节点): 四节点并发借用成环借用失败
+void RunP1FdBorrowCycle01(ubse::it::infra::ItCluster& cluster);
 
 // P1-FdGet-DiffNode-Ok-01: fd获取用例，不同节点获取同名FD
 void RunP1FdGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster);

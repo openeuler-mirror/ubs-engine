@@ -503,6 +503,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateCandidateDup01)
 
 // ==================== Mem FD permission P0 测试 ====================
 
+// P0-FdPerm-Change-Ok-01: 权限变更成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermChangeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdPermChangeOk01(Cluster());
+}
+
 // P0-FdPerm-NotExist-01: name不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermNotExist01)
 {
@@ -510,6 +516,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermNotExist01)
 }
 
 // ==================== Mem FD get P0 测试 ====================
+
+// // P0-FdGet-Ok-01: 查询存在的FD并校验字段
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdGetOk01(Cluster());
+}
 
 // P0-FdGet-NotExist-01: 查询不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetNotExist01)
@@ -963,6 +975,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
     ubse::it::tests::mem_borrow::RunP1CliCreateNumaParamVariant01(Cluster());
 }
 
+// P1-CliSdkMemOk-01: 测试CLI创建后调用SDK接口正常
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliSdkMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliSdkMemOK01(Cluster());
+}
+
 // ==================== sdk Mem P1 测试 ====================
 
 // P1-FdCreate-DiffNode-Ok-01: fd创建用例，不同节点创建同名FD
@@ -981,6 +999,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdGetDiffNodeOk01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdBorrowMultiTimeOk01)
 {
     ubse::it::tests::mem_borrow::RunP1FdBorrowMultiTimeOk01(Cluster());
+}
+
+// P1-FdCreate-MultiThread-Ok-01: 单节点多并发FD创建
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateMultiThreadOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateMultiThreadOk01(Cluster());
 }
 
 // P1-NumaCreate-MultiTime-Ok-01: numa 创建用例，多轮创建后归还
@@ -1011,6 +1035,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmCreateConcurrent01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmRecreateAfterDelete01)
 {
     ubse::it::tests::mem_borrow::RunP1ShmRecreateAfterDelete01(Cluster());
+}
+
+// P1-SdkCliMemOk-01: 测试SDK创建后调用CLI接口正常
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1SdkCliMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1SdkCliMemOK01(Cluster());
 }
 
 // ====================================================================

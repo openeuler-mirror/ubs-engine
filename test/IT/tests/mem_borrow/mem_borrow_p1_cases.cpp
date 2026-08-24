@@ -109,6 +109,132 @@ void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
 }
 
+// P1-CliSdkMemOk-01: 测试CLI创建后调用SDK接口正常
+void RunP1CliSdkMemOK01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto& sdk = cluster.GetSdkClient("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 使用CLI创建FD内存
+    ubse::it::infra::ItMemCreateInfo fdCreateInfo;
+    const std::string fdName = "it_cli_sdk_fd_test";
+    ASSERT_IT_OK(cliInvoker.CreateMemoryFd(fdCreateInfo, fdName, "128M"));
+    EXPECT_EQ(fdCreateInfo.name, fdName);
+    EXPECT_EQ(fdCreateInfo.size, "128MB");
+
+    // SDK查询FD内存
+    ubs_mem_fd_desc_t fdDesc{};
+    EXPECT_IT_OK(sdk.MemFdGet(fdName.c_str(), &fdDesc));
+    EXPECT_STREQ(fdDesc.name, fdName.c_str());
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST);
+
+    // 使用CLI创建NUMA内存
+    ubse::it::infra::ItMemCreateInfo numaCreateInfo;
+    const std::string numaName = "it_cli_sdk_numa_test";
+    ASSERT_IT_OK(cliInvoker.CreateMemoryNuma(numaCreateInfo, numaName, "128M"))
+        << "create numa " << numaName << " failed";
+    EXPECT_EQ(numaCreateInfo.name, numaName);
+    EXPECT_EQ(numaCreateInfo.size, "128MB");
+
+    // SDK查询NUMA内存
+    ubs_mem_numa_desc_t numaDesc{};
+    EXPECT_IT_OK(sdk.MemNumaGet(numaName.c_str(), &numaDesc)) << "get numa " << numaName << " failed";
+    EXPECT_STREQ(numaDesc.name, numaName.c_str());
+    EXPECT_TRUE(numaDesc.mem_stage == UBSE_CREATING || numaDesc.mem_stage == UBSE_EXIST);
+
+    // 使用CLI创建SHARE内存
+    ubse::it::infra::ItMemCreateInfo shareCreateInfo;
+    const std::string shareName = "it_cli_sdk_share_test";
+    ASSERT_IT_OK(cliInvoker.CreateMemoryShare(shareCreateInfo, shareName, "128M", "1,2"))
+        << "create share " << shareName << " failed";
+    EXPECT_EQ(shareCreateInfo.name, shareName);
+    EXPECT_EQ(shareCreateInfo.size, "128MB");
+
+    // SDK查询SHARE内存
+    ubs_mem_shm_desc_t* shareDesc = nullptr;
+    EXPECT_IT_OK(sdk.MemShmGet(shareName.c_str(), &shareDesc)) << "get share " << shareName << " failed";
+    ASSERT_NE(shareDesc, nullptr);
+    EXPECT_STREQ(shareDesc->name, shareName.c_str());
+    EXPECT_EQ(shareDesc->mem_size, 128ULL * 1024 * 1024); // 128MB
+    free(shareDesc);
+
+    // 清理资源
+    ASSERT_IT_OK(sdk.MemFdDelete(fdName.c_str())) << "delete fd " << fdName << " failed";
+    ASSERT_IT_OK(sdk.MemNumaDelete(numaName.c_str())) << "delete numa " << numaName << " failed";
+    ASSERT_IT_OK(sdk.MemShmDelete(shareName.c_str())) << "delete share " << shareName << " failed";
+}
+
+// P1-SdkCliMemOk-01: 测试SDK创建后调用CLI接口正常
+void RunP1SdkCliMemOK01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 使用SDK创建FD内存
+    const std::string fdName = "it_sdk_cli_fd_test";
+    ubs_mem_fd_desc_t fdDesc{};
+    ASSERT_IT_OK(sdk.MemFdCreate(fdName.c_str(), 128ULL * 1024 * 1024, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+        << "create fd " << fdName << " failed";
+    EXPECT_STREQ(fdDesc.name, fdName.c_str());
+
+    // CLI查询FD内存
+    std::vector<ubse::it::infra::ItMemBorrowDetail> fdBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(fdBorrowDetails, "fd", fdName));
+    EXPECT_EQ(fdBorrowDetails.size(), 1);
+    EXPECT_EQ(fdBorrowDetails[0].name, fdName);
+
+    // 使用SDK创建NUMA内存
+    const std::string numaName = "it_sdk_cli_numa_test";
+    ubs_mem_numa_desc_t numaDesc{};
+    ASSERT_IT_OK(sdk.MemNumaCreate(numaName.c_str(), 128ULL * 1024 * 1024, MEM_DISTANCE_L0, &numaDesc))
+        << "create numa " << numaName << " failed";
+    EXPECT_STREQ(numaDesc.name, numaName.c_str());
+
+    // CLI查询NUMA内存
+    std::vector<ubse::it::infra::ItMemBorrowDetail> numaBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(numaBorrowDetails, "numa", numaName));
+    EXPECT_EQ(numaBorrowDetails.size(), 1);
+    EXPECT_EQ(numaBorrowDetails[0].name, numaName);
+
+    // 使用SDK创建SHARE内存
+    const std::string shareName = "it_sdk_cli_share_test";
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = 1;
+    region.slot_ids[1] = 2;
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+    ASSERT_IT_OK(sdk.MemShmCreate(shareName.c_str(), 128ULL * 1024 * 1024, usrInfo, 0, &region, nullptr))
+        << "create share " << shareName << " failed";
+
+    // 等待SHARE内存创建完成
+    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            ubs_mem_shm_desc_t* shmDesc = nullptr;
+            int32_t getRet = sdk.MemShmGet(shareName.c_str(), &shmDesc);
+            if (getRet != UBS_SUCCESS || shmDesc == nullptr) {
+                return false;
+            }
+            bool ready = (shmDesc->mem_stage == UBSE_EXIST);
+            free(shmDesc);
+            return ready;
+        },
+        15000, 200);
+    EXPECT_IT_OK(waitRet);
+
+    // CLI查询SHARE内存
+    std::vector<ubse::it::infra::ItMemBorrowDetail> shareBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(shareBorrowDetails, "share", shareName));
+    EXPECT_EQ(shareBorrowDetails.size(), 1);
+    EXPECT_EQ(shareBorrowDetails[0].name, shareName);
+
+    // 清理资源
+    ASSERT_IT_OK(cliInvoker.DeleteMemory(fdName, "fd")) << "delete fd " << fdName << " failed";
+    ASSERT_IT_OK(cliInvoker.DeleteMemory(numaName, "numa")) << "delete numa " << numaName << " failed";
+    ASSERT_IT_OK(cliInvoker.DeleteMemory(shareName, "share")) << "delete share " << shareName << " failed";
+}
+
 // P1-FdBorrow-MultiNode-Ok-01(四节点): 多节点 FD 借用用例
 void RunP1FdBorrowMultiNodeOk01(ubse::it::infra::ItCluster& cluster)
 {
@@ -184,6 +310,100 @@ void RunP1FdCreateDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     // 清理
     ASSERT_IT_OK(sdk2.MemFdDelete(name)) << "node 2 delete " << name << " failed";
     IT_LOG_INFO << "P1-FdCreate-DiffNode-Ok-01 passed";
+}
+
+// P1-FdCreate-MultiThread-Ok-01: 单节点多并发FD创建用例
+void RunP1FdCreateMultiThreadOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const int threadCount = 2; // 2个线程并发创建
+    std::vector<std::thread> threads;
+    threads.reserve(threadCount);
+
+    for (int i = 0; i < threadCount; ++i) {
+        std::string name = "it_p1_fd_create_multi_thread_ok_01_" + std::to_string(i);
+        threads.emplace_back([&sdk, name]() {
+            ubs_mem_fd_desc_t fdDesc{};
+            ASSERT_IT_OK(sdk.MemFdCreate(name.c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc))
+                << "create " << name << " failed";
+        });
+    }
+
+    // 等待所有线程完成
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // 清理所有创建的FD
+    for (int i = 0; i < threadCount; ++i) {
+        std::string name = "it_p1_fd_create_multi_thread_ok_01_" + std::to_string(i);
+        ASSERT_IT_OK(sdk.MemFdDelete(name.c_str())) << "delete " << name << " failed";
+    }
+    IT_LOG_INFO << "P1-FdCreate-MultiThread-Ok-01 passed";
+}
+
+// P1-FdBorrow-Cycle-01(四节点): 四节点并发借用成环借用失败用例
+void RunP1FdBorrowCycle01(ubse::it::infra::ItCluster& cluster)
+{
+    // 准备四个节点的SDK客户端
+    auto& sdk1 = cluster.GetSdkClient("1");
+    auto& sdk2 = cluster.GetSdkClient("2");
+    auto& sdk3 = cluster.GetSdkClient("3");
+    auto& sdk4 = cluster.GetSdkClient("4");
+
+    // 定义四个FD名称，形成环型依赖: 1→2→3→4→1
+    const char* name1 = "it_p1_fd_cycle_01_1";
+    const char* name2 = "it_p1_fd_cycle_01_2";
+    const char* name3 = "it_p1_fd_cycle_01_3";
+    const char* name4 = "it_p1_fd_cycle_01_4";
+
+    // 并发创建FD，模拟成环借用场景
+    std::vector<int32_t> threadResults(4, UBS_SUCCESS);
+    std::thread t1([&]() {
+        ubs_mem_fd_desc_t fdDesc{};
+        // 节点1尝试创建name1，期望从节点2借用
+        threadResults[0] = sdk1.MemFdCreate(name1, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    });
+
+    std::thread t2([&]() {
+        ubs_mem_fd_desc_t fdDesc{};
+        // 节点2尝试创建name2，期望从节点3借用
+        threadResults[1] = sdk2.MemFdCreate(name2, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    });
+
+    std::thread t3([&]() {
+        ubs_mem_fd_desc_t fdDesc{};
+        // 节点3尝试创建name3，期望从节点4借用
+        threadResults[2] = sdk3.MemFdCreate(name3, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    });
+
+    std::thread t4([&]() {
+        ubs_mem_fd_desc_t fdDesc{};
+        // 节点4尝试创建name4，期望从节点1借用，形成闭环
+        threadResults[3] = sdk4.MemFdCreate(name4, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    });
+
+    // 等待所有线程完成
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+
+    // 验证是否存在借用失败的情况（成环借用应导致至少部分请求失败）
+    bool hasFailure = false;
+    for (int32_t res : threadResults) {
+        if (res != UBS_SUCCESS) {
+            hasFailure = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(hasFailure) << "borrow cycle scenario should have at least one request failed";
+
+    // 验证所有FD均未创建成功（清理操作，防止残留影响）
+    sdk1.MemFdDelete(name1);
+    sdk2.MemFdDelete(name2);
+    sdk3.MemFdDelete(name3);
+    sdk4.MemFdDelete(name4);
 }
 
 // P1-FdGet-DiffNode-Ok-01: fd获取用例，不同节点获取同名FD
