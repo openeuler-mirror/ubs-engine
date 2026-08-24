@@ -13,6 +13,7 @@
 #include "test_ubse_ssu_service_imp_fixture.h"
 #include <cstring>
 #include "ubse_ssu_adapter_impl.h"
+#include "ubse_ssu_utils.h"
 
 namespace ubse::ssu::service::ut {
 
@@ -493,7 +494,7 @@ UbseSsuNameSpaceInfo UbseSsuServiceImpTestBase::MakeNameSpaceInfo(const UbseSsuD
     info.tgtEid = ns.subSystem.eid;
     info.tgtNqn = ns.subSystem.subNqn;
     info.namespaceId = ns.namespaceId;
-    info.nsUuid = ns.uuid;
+    info.nsUuid = StrToUuid(ns.uuid);
     info.nsDevPath = ns.nsDevPath;
     info.nsSize = nsSize;
     info.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
