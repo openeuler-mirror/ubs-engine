@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cstdint>
+#include <sys/socket.h>
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -166,9 +167,25 @@ void UbseRasObserver::Stop()
     InvalidateSysSentryConfig();
     UnregisterConfigRetryTimer();
     ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME);
+
+    // 仅断开底层 fd 唤醒阻塞在 xalarmGetEventFunc 的工作线程，不释放 alarm_register，
+    // 避免工作线程持有的快照成为悬垂指针；结构体由工作线程退出时统一释放。
+    {
+        std::lock_guard<std::mutex> lock(registerMtx_);
+        if (registerInfo_ != nullptr && registerInfo_->register_fd >= 0) {
+            // register_fd 为 socket 时 shutdown 可立即唤醒阻塞中的 recv，且 fd 号延迟到
+            // 工作线程最终 UnRegisterXalarm 时才释放，避免 close 后 fd 号被其他线程复用；
+            // 非 socket（如 FIFO）时 shutdown 失败，退化为 close 并标记 -1，
+            // 防止工作线程最终注销时对已释放的 fd 号二次 close。
+            if (shutdown(registerInfo_->register_fd, SHUT_RDWR) != 0) {
+                close(registerInfo_->register_fd);
+                registerInfo_->register_fd = -1; // 标记已断开，防止工作线程重用
+            }
+        }
+    }
+
     if (worker && worker->joinable()) {
-        worker->detach();
-        // 确保释放线程资源
+        worker->join();
         worker.reset();
     }
 }
@@ -189,9 +206,12 @@ void LogValidFaultMsg(const std::string& invalidStr)
 
 void UbseRasObserver::SentryEventListen()
 {
-    struct alarm_register* registerInfo = nullptr;
-    RegisterSentryEvent(&registerInfo);
-    if (registerInfo == nullptr) {
+    {
+        // 首次注册同样纳入 registerMtx_ 保护，避免快速停止场景下与 Stop 并发读写 registerInfo_
+        std::lock_guard<std::mutex> lock(registerMtx_);
+        RegisterSentryEvent(&registerInfo_);
+    }
+    if (registerInfo_ == nullptr) {
         UBSE_LOG_WARN << "xalarm is not registered, ret: register info is null. ";
         return;
     }
@@ -202,19 +222,34 @@ void UbseRasObserver::SentryEventListen()
             UBSE_LOG_ERROR << "New alarm msg failed. ";
             continue;
         }
+        // 阻塞性等待，有故障事件返回。取快照后释放锁，避免长时间持锁阻塞 Stop 断开。
+        struct alarm_register* snapshot = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(registerMtx_);
+            snapshot = registerInfo_;
+        }
+        if (snapshot == nullptr || stopThread) {
+            // 注册句柄已失效（重注册失败），或通过 while 判断后 Stop 恰好已断开 fd，
+            // 直接退出循环，避免带着无效 fd 进入长时间阻塞等待
+            SafeDelete(msg);
+            break;
+        }
         // 阻塞性等待，有故障事件返回
-        auto ret = xalarmGetEventFunc(msg, registerInfo);
+        auto ret = xalarmGetEventFunc(msg, snapshot);
         if (ret < 0) {
             UBSE_LOG_WARN << "Failed to get msg. ErrorCode=" << ret;
             const bool disconnected = ret == -ENOTCONN || ret == -EBADF;
             if (disconnected) {
                 InvalidateSysSentryConfig();
             }
-            RegisterSentryEvent(&registerInfo);
+            if (!stopThread) {   // 停止中不再重注册，避免与 Stop 竞争 registerInfo_
+                std::lock_guard<std::mutex> lock(registerMtx_);
+                RegisterSentryEvent(&registerInfo_);
+            }
             if (disconnected) {
                 UBSE_LOG_INFO << "Re-config sentry";
                 UbseConfigSysSentryWithRetry();
-                ubse::ras::UbseRasHandler::GetInstance().ClearAllMsgId(); // 内核重插，清除msgId
+                ubse::ras::UbseRasHandler::GetInstance().ClearAllMsgId();
             }
             SafeDelete(msg);
             continue;
@@ -235,7 +270,10 @@ void UbseRasObserver::SentryEventListen()
         SafeDelete(msg);
         TraceContext::Clear();
     }
-    UnRegisterXalarm(&registerInfo);
+    {
+        std::lock_guard<std::mutex> lock(registerMtx_);
+        UnRegisterXalarm(&registerInfo_);
+    }
 }
 
 void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
