@@ -67,6 +67,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_ssu
         ubse_vip
         ubse_vsock_client
+        ubse_ssu_sdk
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
@@ -93,6 +94,8 @@ include_directories(
         ${SRC_DIR}/controllers/npu/vm_state_monitor
         ${SRC_DIR}/ras
         ${SRC_DIR}/adapter_plugins/urma_uvs
+        ${SRC_DIR}/sdk/c
+
 )
 
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
