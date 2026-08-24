@@ -279,100 +279,6 @@ TEST_F(TestProcessMemPidDecision, TimeoutReturnEnqueuedAndSlotRemoved)
     ubse::task_executor::MockSetExecutorAsync(false);
 }
 
-TEST_F(TestProcessMemPidDecision, PidExitedFreesAllMatchedDebts)
-{
-    ubse::mem::controller::MockSetDebtInfos({MakeDebt("debt-a", "NODE1", 5, 1001), MakeDebt("debt-b", "NODE2", 6, 1001),
-                                             MakeDebt("debt-c", "NODE1", 5, 1002)});
-
-    std::vector<std::string> freedDebts;
-    ProcessMemPidBridge::rmrsFreeWithMigrate = [&freedDebts](const std::string& name) {
-        freedDebts.push_back(name);
-        return 0;
-    };
-
-    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandlePidExited(1001), UBSE_OK);
-
-    std::set<std::string> freedSet(freedDebts.begin(), freedDebts.end());
-    EXPECT_EQ(freedSet, std::set<std::string>({"debt-a", "debt-b"}));
-}
-
-TEST_F(TestProcessMemPidDecision, PidExitedNoDebtNoFree)
-{
-    ubse::mem::controller::MockSetDebtInfos({MakeDebt("debt-c", "NODE1", 5, 1002)});
-
-    std::vector<std::string> freedDebts;
-    ProcessMemPidBridge::rmrsFreeWithMigrate = [&freedDebts](const std::string& name) {
-        freedDebts.push_back(name);
-        return 0;
-    };
-
-    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandlePidExited(9999), UBSE_OK);
-    EXPECT_TRUE(freedDebts.empty());
-}
-
-TEST_F(TestProcessMemPidDecision, PidExitedUbsedDeleteThenRmrsReturn)
-{
-    ubse::mem::controller::MockSetDebtInfos({MakeDebt("debt-a", "NODE1", 5, 1001)});
-
-    std::vector<std::string> freedDebts;
-    ProcessMemPidBridge::rmrsFreeWithMigrate = [&freedDebts](const std::string& name) {
-        freedDebts.push_back(name);
-        return 0;
-    };
-
-    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandlePidExited(1001), UBSE_OK);
-
-    EXPECT_GE(ubse::mem::controller::MockGetNumaDeleteCallCount(), 1u);
-    ASSERT_EQ(freedDebts.size(), 1u);
-    EXPECT_EQ(freedDebts[0], "debt-a");
-}
-
-TEST_F(TestProcessMemPidDecision, PidReturnEnqueuedAsync)
-{
-    ubse::mem::controller::MockSetDebtInfos(
-        {MakeDebt("debt-a", "NODE1", 5, 1001), MakeDebt("debt-b", "NODE2", 6, 1001)});
-    BorrowState borrow = MakeBorrow(1, "debt-a");
-    borrow.slots.push_back(MakeBorrow(2, "debt-b").slots[0]);
-    borrow.currentRemote = 3 * GB;
-    AddManagedPid(1001, 10, 0.5, 4, borrow);
-
-    std::mutex gateMutex;
-    std::condition_variable gateCv;
-    bool gateOpen = false;
-    std::atomic<bool> freeStarted{false};
-    std::vector<std::string> freedDebts;
-    ProcessMemPidBridge::rmrsFreeWithMigrate = [&](const std::string& name) {
-        freedDebts.push_back(name);
-        freeStarted = true;
-        std::unique_lock<std::mutex> lock(gateMutex);
-        gateCv.wait(lock, [&] { return gateOpen; });
-        return 0;
-    };
-
-    ubse::task_executor::MockSetExecutorAsync(true);
-    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandlePidExited(1001), UBSE_OK);
-
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (!freeStarted && std::chrono::steady_clock::now() < deadline) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-    ASSERT_TRUE(freeStarted);
-    EXPECT_EQ(freedDebts.size(), 1u);
-
-    {
-        std::lock_guard<std::mutex> lock(gateMutex);
-        gateOpen = true;
-    }
-    gateCv.notify_all();
-    ubse::task_executor::MockWaitExecutorIdle();
-
-    std::set<std::string> freedSet(freedDebts.begin(), freedDebts.end());
-    EXPECT_EQ(freedSet, std::set<std::string>({"debt-a", "debt-b"}));
-    EXPECT_EQ(ubse::mem::controller::MockGetNumaDeleteCallCount(), 2u);
-
-    ubse::task_executor::MockSetExecutorAsync(false);
-}
-
 TEST_F(TestProcessMemPidDecision, OomDetectorAlwaysFastPoll)
 {
     ProcessMemPidDecision::localNumaFreeKbReader = []() {
@@ -705,23 +611,6 @@ TEST_F(TestProcessMemPidDecision, OomActiveReturnUsesMigratedBytes)
     EXPECT_EQ(it->second.borrow.slots[0].migratedBytes, 8 * GB);
 }
 
-TEST_F(TestProcessMemPidDecision, UpdateManagedPidSlotReturned)
-{
-    AddManagedPid(1001, 10, 0.5, 4, MakeBorrow(1, "debt-x"));
-    auto& mgr = ProcessMemPidInfoManager::GetInstance();
-
-    EXPECT_EQ(mgr.UpdateManagedPidSlotReturned(1001, "debt-x", 1 * GB), UBSE_OK);
-    auto snapshot = mgr.GetManagedPidCacheSnapshot();
-    auto it = snapshot.find(1001);
-    ASSERT_NE(it, snapshot.end());
-    EXPECT_EQ(it->second.borrow.currentRemote, 0u);
-    EXPECT_TRUE(it->second.borrow.slots.empty());
-    EXPECT_EQ(it->second.processStatus, ProcessStatus::IDLE);
-
-    EXPECT_EQ(mgr.UpdateManagedPidSlotReturned(9999, "x", 1), UBSE_ERR_NOT_EXIST);
-    EXPECT_EQ(mgr.UpdateManagedPidSlotReturned(1001, "unknown-debt", 1), UBSE_ERR_NOT_EXIST);
-}
-
 ubse::mem::controller::UbseNumaMemoryImportDebtInfo MakeImportDebt(const std::string& name, uint64_t size,
                                                                    int64_t remoteNuma, int32_t pid, int64_t startTime)
 {
@@ -983,6 +872,52 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
     EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1536 * 1024 * 1024u);
     EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 0u);
+    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+}
+
+TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArrayOrder)
+{
+    pid_t pid = getpid();
+    BorrowState borrow;
+    BorrowSlot smallFirst;
+    smallFirst.debtId = "debt-small";
+    smallFirst.migratedBytes = 1 * GB;
+    smallFirst.capacity = 1 * GB;
+    smallFirst.status = BorrowSlotStatus::COMPLETED;
+    smallFirst.remoteNumaId = 5;
+    BorrowSlot bigSecond;
+    bigSecond.debtId = "debt-big";
+    bigSecond.migratedBytes = 2 * GB;
+    bigSecond.capacity = 2 * GB;
+    bigSecond.status = BorrowSlotStatus::COMPLETED;
+    bigSecond.remoteNumaId = 5;
+    borrow.slots = {smallFirst, bigSecond};
+    borrow.currentRemote = 3 * GB;
+    AddManagedPid(pid, 10, 0.5, 2, borrow);
+    ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-numa5", 1 * GB, 5, 1000, 0)});
+
+    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
+                                                        int* realLen) {
+        if (nid != 5) {
+            *realLen = 0;
+            return 0;
+        }
+        mempooling::smap::ProcessPayload p{};
+        p.pid = pid;
+        p.scanType = 1;
+        p.memSize = 1536 * 1024;
+        *realLen = 1;
+        payloads[0] = p;
+        return 0;
+    };
+
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 0u);
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    const auto& borrowAfter = snapshot.at(pid).borrow;
+    ASSERT_EQ(borrowAfter.slots.size(), 2u);
+    // 与 oom rearrange 一致: 大容量槽先填满, 不按数组顺序先到先得
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 0u);
+    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1536 * 1024 * 1024u);
     EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
 }
 

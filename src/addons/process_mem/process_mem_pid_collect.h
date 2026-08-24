@@ -118,6 +118,8 @@ std::vector<PidNameEntry> FindPidsByName(const std::string& procName);
 
 int32_t GetProcUid(pid_t pid);
 
+std::optional<bool> ReadNumaRemoteAttr(uint32_t numaId);
+
 } // namespace process_mem::collect
 
 #endif

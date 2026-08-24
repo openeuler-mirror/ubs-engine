@@ -13,6 +13,7 @@
 #define PROCESS_MEM_PID_INFO_MANAGER_H
 #include <functional>
 #include <map>
+#include <set>
 #include <shared_mutex>
 #include <vector>
 
@@ -61,9 +62,10 @@ public:
     void UpdateManagedPidLastMigrateTime(pid_t pid);
 
     void UpdateManagedPidBorrowStateAtomic(pid_t pid,
-                                           const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate);
+                                           const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate,
+                                           const char* reason = nullptr);
 
-    uint32_t UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId, uint64_t amount);
+    uint32_t UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId);
     uint32_t UpdateManagedPidSlotReturnStatus(pid_t pid, const std::string& debtId, def::ReturnStatus status);
     void ResetSlotByDebtName(const std::string& debtId);
 
@@ -74,8 +76,8 @@ private:
 
     bool CleanupStalePidConfig(const def::ProcessMemNewConfigInfo& cfg);
     bool CleanupStaleFossil(pid_t pid, const def::FossilPidConfigInfo& fossil);
-    uint32_t RemovePidConfigSideEffects(const std::string& identifier);
-    uint32_t RemoveNameConfigSideEffects(const std::string& identifier);
+    uint32_t RemovePidConfigSideEffects(const std::string& identifier, std::set<pid_t>& returnPids);
+    uint32_t RemoveNameConfigSideEffects(const std::string& identifier, std::set<pid_t>& returnPids);
     void EraseConfigFromCache(bool isPid, const std::string& identifier);
     void RebuildMergePidConfigs(const std::vector<def::ProcessMemNewConfigInfo>& configSnapshot);
     void RebuildMergeNameConfigs(const std::vector<def::ProcessMemNewConfigInfo>& configSnapshot,

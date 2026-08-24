@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <mutex>
 #include <set>
 #include <sstream>
 
@@ -50,25 +51,6 @@ void ProcessMemPidInfoManager::UnInit()
 {
     process_mem::collect::ProcessMemPidCollect::GetInstance().UnRegisterVmRssCollectHandler("pidVmRssCallback");
     process_mem::collect::ProcessMemPidCollect::GetInstance().UnInit();
-}
-
-int DoMigrateOut(pid_t pid, const std::map<int, uint64_t>& numaTargets)
-{
-    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
-    for (const auto& [destNid, memSizeKb] : numaTargets) {
-        mempooling::smap::MigrateOutPayload payload{};
-        mempooling::smap::MigrateOutPayloadInner inner{};
-        payload.count = 1;
-        inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
-        inner.memSize = memSizeKb;
-        inner.destNid = destNid;
-        payload.pid = pid;
-        payload.inner[0] = inner;
-        payloads.push_back(payload);
-        UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << " dest_numa=" << destNid
-                      << " mem_size_kb=" << memSizeKb;
-    }
-    return process_mem::pid::bridge::ProcessMemPidBridge::rmrsMigrateOut(payloads, 0);
 }
 
 static std::string MakeProcMemKey(bool isPid, const std::string& identifier)
@@ -226,13 +208,13 @@ bool ProcessMemPidInfoManager::CleanupStaleFossil(pid_t pid, const def::FossilPi
 {
     if (IsRootPid(pid)) {
         (void)ProcessMemPidConfigManager::DeleteFossilConfig(pid);
-        UBSE_LOG_INFO << "[process_mem] init restore: fossil pid=" << pid << " root process, config removed";
+        UBSE_LOG_INFO << "[process_mem] fossil cleanup: pid=" << pid << " root process, fossil config removed";
         return true;
     }
     auto curStartTime = ProcessMemPidConfigManager::GetExactStartTime(pid);
     if (curStartTime == 0 || static_cast<uint64_t>(curStartTime) != fossil.startTime) {
         (void)ProcessMemPidConfigManager::DeleteFossilConfig(pid);
-        UBSE_LOG_INFO << "[process_mem] init restore: fossil pid=" << pid
+        UBSE_LOG_INFO << "[process_mem] fossil cleanup: pid=" << pid
                       << " abandoned (startTime mismatch: persisted=" << fossil.startTime << " actual=" << curStartTime
                       << "), config removed";
         return true;
@@ -355,20 +337,42 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
     }
 
     // 持久层删除失败时保持缓存与磁盘一致, 不擦除缓存
-    uint32_t deleteRet = isPid ? RemovePidConfigSideEffects(identifier) : RemoveNameConfigSideEffects(identifier);
+    std::set<pid_t> returnPids;
+    uint32_t deleteRet = isPid ? RemovePidConfigSideEffects(identifier, returnPids) :
+                                 RemoveNameConfigSideEffects(identifier, returnPids);
     if (deleteRet != UBSE_OK) {
         UBSE_LOG_ERROR << "RemoveProcMemConfig: persistent delete failed for " << (isPid ? "pid=" : "name=")
                        << identifier << ", keep cache entry, ret=" << ubse::log::FormatRetCode(deleteRet);
         return deleteRet;
     }
 
+    // 先捕获受影响 pid 的账本槽位数据, 删缓存后入队后台按账本全量归还
+    std::map<pid_t, std::vector<def::BorrowSlot>> returnLedgers;
+    auto snapshot = GetManagedPidCacheSnapshot();
+    for (pid_t pid : returnPids) {
+        auto it = snapshot.find(pid);
+        if (it != snapshot.end()) {
+            returnLedgers.emplace(pid, it->second.borrow.slots);
+        }
+    }
+
     EraseConfigFromCache(isPid, identifier);
 
     RebuildManagedPidCache();
+    for (pid_t pid : returnPids) {
+        std::vector<def::BorrowSlot> slots;
+        auto it = returnLedgers.find(pid);
+        if (it != returnLedgers.end()) {
+            slots = it->second;
+        }
+        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED,
+                                                                              std::move(slots));
+    }
     return UBSE_OK;
 }
 
-uint32_t ProcessMemPidInfoManager::RemovePidConfigSideEffects(const std::string& identifier)
+uint32_t ProcessMemPidInfoManager::RemovePidConfigSideEffects(const std::string& identifier,
+                                                              std::set<pid_t>& returnPids)
 {
     auto pidOpt = def::ParsePidFromIdentifier(identifier);
     uint32_t ret = ProcessMemPidConfigManager::DeleteProcMemConfig(true, identifier);
@@ -376,13 +380,13 @@ uint32_t ProcessMemPidInfoManager::RemovePidConfigSideEffects(const std::string&
         ret = ProcessMemPidConfigManager::DeleteFossilConfig(pidOpt.value());
     }
     if (pidOpt.has_value() && ret == UBSE_OK) {
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pidOpt.value(),
-                                                                              decision::ReturnScene::EXITED);
+        returnPids.insert(pidOpt.value());
     }
     return ret;
 }
 
-uint32_t ProcessMemPidInfoManager::RemoveNameConfigSideEffects(const std::string& identifier)
+uint32_t ProcessMemPidInfoManager::RemoveNameConfigSideEffects(const std::string& identifier,
+                                                               std::set<pid_t>& returnPids)
 {
     std::vector<std::pair<pid_t, def::FossilPidConfigInfo>> fossils;
     ProcessMemPidConfigManager::GetAllFossilConfigs(fossils);
@@ -404,7 +408,7 @@ uint32_t ProcessMemPidInfoManager::RemoveNameConfigSideEffects(const std::string
         if (HasExplicitPidConfig(pid)) {
             continue;
         }
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED);
+        returnPids.insert(pid);
     }
     return UBSE_OK;
 }
@@ -470,6 +474,8 @@ void ProcessMemPidInfoManager::RebuildManagedPidCache()
             entry.processStatus = it->second.processStatus;
             entry.vmRss = it->second.vmRss;
             entry.lastMigrateTime = it->second.lastMigrateTime;
+            entry.isChild = it->second.isChild;
+            entry.parentPid = it->second.parentPid;
         }
     }
     UBSE_LOG_INFO << "RebuildManagedPidCache: built " << managedPidCache_.size() << " entries";
@@ -533,14 +539,11 @@ void ProcessMemPidInfoManager::RebuildMergeFossils()
     std::vector<std::pair<pid_t, def::FossilPidConfigInfo>> fossils;
     ProcessMemPidConfigManager::GetAllFossilConfigs(fossils);
     for (const auto& [pid, fossil] : fossils) {
-        std::unique_lock<std::shared_mutex> cacheLock(managedPidCacheMutex_);
-        if (managedPidCache_.find(pid) != managedPidCache_.end()) {
+        if (CleanupStaleFossil(pid, fossil)) {
             continue;
         }
-        if (IsRootPid(pid)) {
-            cacheLock.unlock();
-            (void)ProcessMemPidConfigManager::DeleteFossilConfig(pid);
-            UBSE_LOG_INFO << "[process_mem] init restore: fossil pid=" << pid << " root process, fossil config removed";
+        std::unique_lock<std::shared_mutex> cacheLock(managedPidCacheMutex_);
+        if (managedPidCache_.find(pid) != managedPidCache_.end()) {
             continue;
         }
         def::ManagedPidEntry entry{};
@@ -677,6 +680,7 @@ void ProcessMemPidInfoManager::RemovePidSourceFromManagedPid(pid_t pid)
 void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidCollectInfoMap& collectInfo)
 {
     std::vector<pid_t> reusedPids;
+    std::map<pid_t, std::vector<def::BorrowSlot>> reusedLedgers;
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
         for (const auto& [pid, entry] : collectInfo.entries) {
@@ -701,6 +705,7 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
             reusedPids.push_back(pid);
             UBSE_LOG_WARN << "[process_mem] pid=" << pid << " reused (startTime " << it->second.startTime << " -> "
                           << curStart << "), reset stale borrow ledger for new process";
+            reusedLedgers[pid] = it->second.borrow.slots;
             it->second.borrow = def::BorrowState{};
             it->second.processStatus = def::ProcessStatus::IDLE;
             it->second.lastMigrateTime = {};
@@ -708,7 +713,8 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
         }
     }
     for (pid_t pid : reusedPids) {
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED);
+        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED,
+                                                                              std::move(reusedLedgers[pid]));
     }
 }
 
@@ -737,23 +743,75 @@ void ProcessMemPidInfoManager::UpdateManagedPidBorrowState(pid_t pid, const def:
     RebuildRemoteNumaMigrated(it->second.borrow);
 }
 
-void ProcessMemPidInfoManager::UpdateManagedPidBorrowStateAtomic(
-    pid_t pid, const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate)
+static double BytesToGbDouble(uint64_t bytes)
 {
-    std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
-    auto it = managedPidCache_.find(pid);
-    if (it == managedPidCache_.end()) {
-        return;
-    }
-    def::BorrowState updated = it->second.borrow;
-    def::ProcessStatus newStatus = it->second.processStatus;
-    mutate(updated, newStatus);
-    it->second.borrow = updated;
-    it->second.processStatus = newStatus;
-    RebuildRemoteNumaMigrated(it->second.borrow);
+    constexpr double kBytesPerGb = 1024.0 * 1024.0 * 1024.0;
+    return static_cast<double>(bytes) / kBytesPerGb;
 }
 
-uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId, uint64_t amount)
+// 账本槽位变化统一日志: migrate 变化频繁且只能靠日志观测, 每个 debtId 的
+// migratedBytes 变化(old→new)必须留痕, 便于按 debt_id 检索完整变化链
+static void LogBorrowSlotChanges(pid_t pid, const def::BorrowState& before, const def::BorrowState& after,
+                                 const char* reason)
+{
+    const char* reasonStr = (reason != nullptr) ? reason : "unknown";
+    std::map<std::string, const def::BorrowSlot*> oldByDebt;
+    for (const auto& s : before.slots) {
+        oldByDebt[s.debtId] = &s;
+    }
+    std::map<std::string, const def::BorrowSlot*> newByDebt;
+    for (const auto& s : after.slots) {
+        newByDebt[s.debtId] = &s;
+    }
+    for (const auto& [debtId, oldSlot] : oldByDebt) {
+        auto newIt = newByDebt.find(debtId);
+        if (newIt == newByDebt.end()) {
+            UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId << " reason=" << reasonStr
+                          << " event=remove old_gb=" << BytesToGbDouble(oldSlot->migratedBytes) << " new_gb=0";
+            continue;
+        }
+        const auto& newSlot = *newIt->second;
+        if (newSlot.migratedBytes == oldSlot->migratedBytes) {
+            continue;
+        }
+        UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId << " reason=" << reasonStr
+                      << " event=change old_gb=" << BytesToGbDouble(oldSlot->migratedBytes)
+                      << " new_gb=" << BytesToGbDouble(newSlot.migratedBytes);
+    }
+    for (const auto& [debtId, newSlot] : newByDebt) {
+        if (oldByDebt.count(debtId) > 0) {
+            continue;
+        }
+        UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId << " reason=" << reasonStr
+                      << " event=add old_gb=0 new_gb=" << BytesToGbDouble(newSlot->migratedBytes)
+                      << " numa=" << newSlot->remoteNumaId;
+    }
+}
+
+void ProcessMemPidInfoManager::UpdateManagedPidBorrowStateAtomic(
+    pid_t pid, const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate, const char* reason)
+{
+    def::BorrowState before;
+    def::BorrowState after;
+    {
+        std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
+        auto it = managedPidCache_.find(pid);
+        if (it == managedPidCache_.end()) {
+            return;
+        }
+        before = it->second.borrow;
+        def::BorrowState updated = it->second.borrow;
+        def::ProcessStatus newStatus = it->second.processStatus;
+        mutate(updated, newStatus);
+        it->second.borrow = updated;
+        it->second.processStatus = newStatus;
+        RebuildRemoteNumaMigrated(it->second.borrow);
+        after = it->second.borrow;
+    }
+    LogBorrowSlotChanges(pid, before, after, reason);
+}
+
+uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId)
 {
     std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
     auto it = managedPidCache_.find(pid);
@@ -768,8 +826,12 @@ uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const
         return UBSE_ERR_NOT_EXIST;
     }
 
-    borrow.currentRemote = (borrow.currentRemote >= amount) ? (borrow.currentRemote - amount) : 0;
+    // 按槽位实际迁移量扣减: 归还前 spare 整理可能已把小块并入其他槽, migratedBytes 小于债务容量
+    uint64_t returnedBytes = slotIt->migratedBytes;
+    borrow.currentRemote = (borrow.currentRemote >= returnedBytes) ? (borrow.currentRemote - returnedBytes) : 0;
     borrow.slots.erase(slotIt);
+    UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId
+                  << " reason=return_free event=remove old_gb=" << BytesToGbDouble(returnedBytes) << " new_gb=0";
 
     if (borrow.slots.empty()) {
         it->second.processStatus = def::ProcessStatus::IDLE;
@@ -852,14 +914,14 @@ void ProcessMemPidInfoManager::RebalanceRemoteCheck()
     }
 }
 
-uint64_t RebalanceSlotTargetKb(const def::BorrowSlot& slot, uint64_t overage)
+uint64_t RebalanceSlotTargetBytes(const def::BorrowSlot& slot, uint64_t overage)
 {
     if (slot.returnStatus == def::ReturnStatus::RETURNING || slot.remoteNumaId < 0) {
         return 0;
     }
     uint64_t newSize = (slot.migratedBytes > overage) ? (slot.migratedBytes - overage) : 0;
-    constexpr uint64_t pageSizeKb = 4;
-    return newSize / 1024 / pageSizeKb * pageSizeKb;
+    constexpr uint64_t pageSizeBytes = 4096;
+    return newSize / pageSizeBytes * pageSizeBytes;
 }
 
 uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t overage,
@@ -873,21 +935,21 @@ uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t over
             slot.remoteNumaId < 0) {
             continue;
         }
-        uint64_t targetKb = RebalanceSlotTargetKb(slot, rest);
-        uint64_t reduce = slot.migratedBytes - targetKb * 1024;
+        uint64_t targetBytes = RebalanceSlotTargetBytes(slot, rest);
+        uint64_t reduce = slot.migratedBytes - targetBytes;
         if (reduce > rest) {
             reduce = rest;
         }
         settled += reduce;
         rest -= reduce;
-        if (targetKb > 0) {
-            numaTargets[slot.remoteNumaId] += targetKb;
+        if (targetBytes > 0) {
+            numaTargets[slot.remoteNumaId] += targetBytes;
         }
     }
     for (const auto& slot : borrow.slots) {
         if (slot.status == def::BorrowSlotStatus::BORROWING && slot.capacity > 0 &&
             slot.returnStatus != def::ReturnStatus::RETURNING && slot.remoteNumaId >= 0) {
-            numaTargets[slot.remoteNumaId] += slot.capacity / 1024;
+            numaTargets[slot.remoteNumaId] += slot.capacity;
         }
     }
     return settled;
@@ -902,9 +964,9 @@ uint64_t RebalanceApplyTargets(def::BorrowState& borrow, uint64_t overage)
             slot.remoteNumaId < 0) {
             continue;
         }
-        uint64_t targetKb = RebalanceSlotTargetKb(slot, rest);
-        uint64_t reduce = slot.migratedBytes - targetKb * 1024;
-        slot.migratedBytes = targetKb * 1024;
+        uint64_t targetBytes = RebalanceSlotTargetBytes(slot, rest);
+        uint64_t reduce = slot.migratedBytes - targetBytes;
+        slot.migratedBytes = targetBytes;
         if (reduce > rest) {
             reduce = rest;
         }
@@ -920,22 +982,31 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
         return false;
     }
 
-    uint64_t expectedRemote = static_cast<uint64_t>(entry.vmRss * entry.remoteRatio);
-    if (entry.borrow.currentRemote <= expectedRemote) {
+    // 与同 pid 的借出/归还/对账迁出串行: 持锁重读账本, 保证下发目标与账本一致
+    std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+    auto snapshot = GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(pid);
+    if (it == snapshot.end()) {
         return false;
     }
-    uint64_t overage = (entry.borrow.currentRemote - expectedRemote) / 4096 * 4096;
+    const auto& borrow = it->second.borrow;
+    uint64_t expectedRemote = static_cast<uint64_t>(it->second.vmRss * it->second.remoteRatio);
+    if (borrow.currentRemote <= expectedRemote) {
+        return false;
+    }
+    uint64_t overage = (borrow.currentRemote - expectedRemote) / 4096 * 4096;
     if (overage == 0) {
         return false;
     }
 
     std::map<int, uint64_t> numaTargets;
-    uint64_t settled = RebalanceAggregateTargets(entry.borrow, overage, numaTargets);
+    uint64_t settled = RebalanceAggregateTargets(borrow, overage, numaTargets);
     if (numaTargets.empty() || settled == 0) {
         return false;
     }
 
-    int ret = DoMigrateOut(pid, numaTargets);
+    std::vector<std::pair<int, uint64_t>> targets(numaTargets.begin(), numaTargets.end());
+    int ret = process_mem::pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, targets);
     if (ret != 0) {
         UBSE_LOG_ERROR << "[process_mem] rebalance pid=" << pid << " failed ret=" << ret
                        << " expected_remote=" << expectedRemote;
@@ -943,14 +1014,17 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
     }
 
     uint64_t applied = 0;
-    UpdateManagedPidBorrowStateAtomic(pid, [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
-        applied = RebalanceApplyTargets(newBorrow, overage);
-        newBorrow.currentRemote = (newBorrow.currentRemote >= applied) ? (newBorrow.currentRemote - applied) : 0;
-    });
+    UpdateManagedPidBorrowStateAtomic(
+        pid,
+        [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
+            applied = RebalanceApplyTargets(newBorrow, overage);
+            newBorrow.currentRemote = (newBorrow.currentRemote >= applied) ? (newBorrow.currentRemote - applied) : 0;
+        },
+        "rebalance");
     if (applied == 0) {
         return false;
     }
-    UBSE_LOG_INFO << "[process_mem] rebalance pid=" << pid << " dir=back old_remote=" << entry.borrow.currentRemote
+    UBSE_LOG_INFO << "[process_mem] rebalance pid=" << pid << " dir=back old_remote=" << borrow.currentRemote
                   << " applied_bytes=" << applied;
     return true;
 }
