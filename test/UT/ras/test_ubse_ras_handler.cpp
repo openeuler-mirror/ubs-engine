@@ -1741,17 +1741,47 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultNullptrMapsToIpcError)
 TEST_F(TestUbseRasHandler, HandleBMCFaultNonRetryableCode)
 {
     auto& handler = UbseRasHandler::GetInstance();
-    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
     UbseRoleInfo curInfo("node_nonretry", ELECTION_ROLE_STANDBY, 1);
-    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(curInfo)).will(returnValue(UBSE_OK));
     MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
-    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
     // code=3 (LACK_LOCAL_MEM) is non-retryable, ack sent directly
     MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(3));
     MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     auto res = handler.HandleBMCFault("77777");
     ASSERT_EQ(res, UBSE_OK);
+    // 非可重试码分支应已停止计时线程并清理状态
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("node_nonretry"));
+    StopBmcFaultTimer("node_nonretry");
     ClearBmcFaultState("node_nonretry");
+}
+
+// 前序可重试计时线程运行中，同节点再收到非可重试码：应停掉旧计时线程并清理状态，避免过期 final ack
+TEST_F(TestUbseRasHandler, HandleBMCFaultNonRetryableAfterRetryableStopsOldTimer)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    UbseRoleInfo curInfo("node_mix", ELECTION_ROLE_STANDBY, 1);
+    UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
+    // 先模拟前序可重试故障：手动写入状态并启动计时线程（等价于 M1 可重试码处理后的残留状态）
+    ASSERT_TRUE(UpdateBmcFaultState("node_mix", "11111"));
+    SetBmcFaultLastError("node_mix", MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE);
+    StartBmcFaultTimer("node_mix", 60000u);
+    // 再收到非可重试码 LACK_LOCAL_MEM=3：应停旧计时线程并清理状态，仅透传 ack
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(curInfo)).will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("22222");
+    ASSERT_EQ(res, UBSE_OK);
+    // 状态应已被清理：模拟旧计时器到期不会发送过期 final ack
+    OnBmcFaultTimerExpired("node_mix");
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("node_mix"));
+    StopBmcFaultTimer("node_mix");
+    ClearBmcFaultState("node_mix");
 }
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultFinalAckSentSilent)

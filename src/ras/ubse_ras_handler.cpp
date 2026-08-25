@@ -151,11 +151,11 @@ static void SubmitClearExpiredHandlerResult()
     }
 }
 
-// RAS 侧硬编码的 BMC 故障码数值
-constexpr uint32_t MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE = 1;
-constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE = 3;
-constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE = 4;
-constexpr uint32_t MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE = 8;
+// RAS 侧硬编码的 BMC 故障码数值（不引入 mp_error.h，修改 RMRS 侧数值须同步此处）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE = 1;       // 节点通信失败（可重试）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE = 3;  // 本地内存不足（不可重试）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE = 4; // 借用内存不足（不可重试）
+constexpr uint32_t MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE = 8;     // 可重试码上界
 
 constexpr const char* REBOOT_TIMEOUT_SYSFS_PATH = "/sys/module/sentry_reporter/parameters/reboot_timeout_ms";
 constexpr uint32_t REBOOT_TIMEOUT_DEFAULT_MS = 30000;
@@ -731,8 +731,10 @@ UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
         return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
     }
 
-    // 不可重试码：直接透传 ack，让 sysSentry 自然超时停止劫持
+    // 不可重试码：停掉可能的旧可重试计时线程并清理状态，再透传 ack
     if (!IsBmcFaultRetryableCode(ret)) {
+        StopBmcFaultTimer(nodeId);
+        ClearBmcFaultState(nodeId);
         UBSE_LOG_INFO << "BMC fault non-retryable code=" << ret << ", nodeId=" << nodeId;
         auto ackStr = info + "_" + std::to_string(ret);
         return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
