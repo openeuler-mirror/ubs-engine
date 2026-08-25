@@ -119,7 +119,6 @@ private:
     UBSE_ID_TYPE standby_;
     bool isHierarchicalElection_ = false; // 是否分层选举
     bool rootEnable_ = true;
-    bool ubEnable_ = true;
     // 心跳时间
     uint32_t heartBeatTime_;
     // 备节点丢失心跳阈值
