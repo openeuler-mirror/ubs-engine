@@ -159,13 +159,18 @@ uint32_t ParseAllocSpaceBody(const rapidjson::Document &doc, UbseSsuAllocSpaceRe
         errMsg = "lbaFormat must be 512 or 4096";
         return UBSE_ERR_INVALID_ARG;
     }
-    if (UbseJsonUtil::GetUint8FromJsonPtr(doc, "strategy", strategy) != UBSE_OK) {
-        errMsg = "missing or invalid field: strategy";
-        return UBSE_ERR_INVALID_ARG;
-    }
-    if (strategy > static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR)) {
-        errMsg = "strategy must be 0 or 1";
-        return UBSE_ERR_INVALID_ARG;
+    if (doc.HasMember("strategy")) {
+        if (UbseJsonUtil::GetUint8FromJsonPtr(doc, "strategy", strategy) != UBSE_OK) {
+            errMsg = "invalid field: strategy";
+            return UBSE_ERR_INVALID_ARG;
+        }
+        if (strategy > static_cast<uint8_t>(UbseSsuAllocStrategy::NORMAL)) {
+            errMsg = "strategy must be 0, 1 or 2";
+            return UBSE_ERR_INVALID_ARG;
+        }
+    } else {
+        // 未指定策略时，默认使用 NORMAL
+        strategy = static_cast<uint8_t>(UbseSsuAllocStrategy::NORMAL);
     }
     allocReq.lbaFormat = static_cast<UbseSsuLBAFormat>(lbaFormat);
     allocReq.strategy = static_cast<UbseSsuAllocStrategy>(strategy);
