@@ -16,6 +16,7 @@
 
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 #include "lcne/ubse_topo_cna.h"
 #include "src/framework/http/ubse_http_module.h"
 
@@ -27,9 +28,17 @@ using namespace ubse::mti;
 constexpr int ZERO = 0;
 constexpr int ONE = 1;
 
+bool MockGetCurNodeId(const std::string& slotId, std::string& nodeId)
+{
+    nodeId = slotId;
+    return true;
+}
+
 void TestUbseTopoCna::SetUp()
 {
     Test::SetUp();
+    // 统一 mock 为 slotId 直通，消除硬件拓扑依赖。
+    MOCKER(ubse::adapter_plugins::mti::GetCurNodeId).stubs().will(invoke(MockGetCurNodeId));
 }
 
 void TestUbseTopoCna::TearDown()

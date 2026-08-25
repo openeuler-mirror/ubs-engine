@@ -34,6 +34,10 @@ void TestUbseEvent::TearDown()
  */
 TEST_F(TestUbseEvent, TestUbsePubEventNULLPTR)
 {
+    // 显式 mock 上下文边界为返回空模块，避免前面用例污染上下文导致非预期行为
+    MOCKER(&context::UbseContext::GetModule<UbseEventModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseEventModule>()));
     std::string eventId = "eventId";
     std::string eventMessage = "eventMessage";
     EXPECT_EQ(UbsePubEvent(eventId, eventMessage), UBSE_ERROR_NULLPTR);
@@ -85,6 +89,10 @@ TEST_F(TestUbseEvent, TestUbsePubEventFail)
  */
 TEST_F(TestUbseEvent, TestUbseSubEventNULLPTR)
 {
+    // 显式 mock 上下文边界为返回空模块，避免前面用例污染上下文导致非预期行为
+    MOCKER(&context::UbseContext::GetModule<UbseEventModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseEventModule>()));
     std::string eventId = "eventId";
     UbseEventPriority eventPriority = HIGH;
     EXPECT_EQ(UbseSubEvent(eventId, nullptr, eventPriority), UBSE_ERROR_NULLPTR);
@@ -135,6 +143,10 @@ TEST_F(TestUbseEvent, TestUbseSubEventFail)
  */
 TEST_F(TestUbseEvent, TestUbseCancelSubEventNULLPTR)
 {
+    // 显式 mock 上下文边界为返回空模块，避免前面用例污染上下文导致非预期行为
+    MOCKER(&context::UbseContext::GetModule<UbseEventModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseEventModule>()));
     std::string eventId = "eventId";
     EXPECT_EQ(UbseUnSubEvent(eventId, nullptr), UBSE_ERROR_NULLPTR);
 }

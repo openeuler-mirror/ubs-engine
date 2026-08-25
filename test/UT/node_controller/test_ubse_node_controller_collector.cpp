@@ -19,6 +19,7 @@
 
 #include "ubse_lcne_module.h"
 #include "ubse_mti_interface_default.h"
+#include "ubse_security_module.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_node_controller_collector.cpp"
@@ -36,6 +37,11 @@ void TestNodeControllerCollector::SetUp()
     } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
+    // 防御性编程：本套件用例需要在当前工作目录（可能为宿主属主目录）创建文件。
+    // 在 root/受限环境下进程可能不具备 CAP_DAC_OVERRIDE，导致权限不足用例失败，
+    // 此处显式恢复该能力，保证用例在任意环境下稳定运行。
+    std::vector<__u32> restoreCap = {CAP_DAC_OVERRIDE};
+    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(restoreCap, true);
 }
 
 void TestNodeControllerCollector::TearDown()
