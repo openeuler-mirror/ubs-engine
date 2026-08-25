@@ -22,11 +22,18 @@
 #include "it_string_util.h"
 #include "ubs_engine_topo.h"
 
+#include <unistd.h>
 #include <algorithm>
+#include <array>
+#include <climits>
+#include <cstdio>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <regex>
 #include <set>
+#include <sstream>
+#include <vector>
 
 namespace ubse::it::tests::topo {
 namespace util = ubse::it::infra::util;
@@ -115,6 +122,85 @@ bool HasValidIp(const ubs_topo_node_t& node)
             if (reinterpret_cast<const uint8_t*>(&ip.ipv6)[k] != 0) {
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+// 统计子串 text 中子串 sub 出现的次数
+size_t CountOccurrences(const std::string& text, const std::string& sub)
+{
+    size_t count = 0;
+    size_t pos = 0;
+    while ((pos = text.find(sub, pos)) != std::string::npos) {
+        ++count;
+        pos += sub.length();
+    }
+    return count;
+}
+
+// 定位 ubsectl 的 Bash 补全脚本: <build>/scripts/cli_commands.sh
+// 基于测试二进制 /proc/self/exe 推导构建目录（二进制位于 <build>/bin/ 下）
+std::string LocateCliCompletionScript()
+{
+    char exePath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (len <= 0) {
+        return "";
+    }
+    exePath[len] = '\0';
+    std::string exe(exePath); // <build>/bin/<binary>
+    size_t binSlash = exe.find_last_of('/');
+    if (binSlash == std::string::npos) {
+        return "";
+    }
+    std::string buildDir = exe.substr(0, binSlash); // <build>/bin
+    size_t buildSlash = buildDir.find_last_of('/');
+    if (buildSlash == std::string::npos) {
+        return "";
+    }
+    buildDir = buildDir.substr(0, buildSlash); // <build>
+    return buildDir + "/scripts/cli_commands.sh";
+}
+
+// 执行一段 bash 脚本并返回 stdout+stderr（不经过 ItCliInvoker，避免 CLI 超时/env 前缀干扰）
+std::string RunBashScript(const std::string& script)
+{
+    std::string cmd = "bash -c '" + script + "' 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (pipe == nullptr) {
+        IT_LOG_ERROR << "popen failed for bash script: " << cmd;
+        return "";
+    }
+    std::ostringstream oss;
+    std::array<char, 4096> buffer{};
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        oss << buffer.data();
+    }
+    pclose(pipe);
+    return oss.str();
+}
+
+// 从输出中提取 "TAG=" 到行尾的内容
+std::string ExtractTagValue(const std::string& output, const std::string& tag)
+{
+    size_t pos = output.find(tag + "=");
+    if (pos == std::string::npos) {
+        return "";
+    }
+    pos += tag.size() + 1;
+    size_t eol = output.find('\n', pos);
+    return output.substr(pos, eol == std::string::npos ? std::string::npos : eol - pos);
+}
+
+// 判断空格分隔的候选词文本是否包含指定单词
+bool ContainsWord(const std::string& text, const std::string& word)
+{
+    std::istringstream iss(text);
+    std::string token;
+    while (iss >> token) {
+        if (token == word) {
+            return true;
         }
     }
     return false;
@@ -630,5 +716,119 @@ void RunP1CliTopoCpuLinkOneNodeOnline01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(cluster.GetCliInvoker("1").QueryTopoCpu(topoLinks));
     EXPECT_EQ(topoLinks.size(), 2);
     EXPECT_FALSE(topoLinks[0].linkId == "-" || topoLinks[1].linkId == "-") << "1-2 link should be up";
+}
+
+// P0-CliHelpInfo-Ok-01: ubsectl -h / --help 输出全量已注册指令和参数信息，且 -h 与 --help 内容一致
+void RunP0CliHelpInfoOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cli = cluster.GetCliInvoker("1");
+
+    // 1. ubsectl -h：指令下发成功，输出全量已注册指令和参数信息
+    std::string shortHelp = cli.ExecCli("-h");
+    EXPECT_FALSE(shortHelp.empty()) << "ubsectl -h should produce output";
+    EXPECT_EQ(shortHelp.find("ERROR:"), std::string::npos) << "ubsectl -h should not return error";
+
+    // 帮助信息应包含已注册命令的 Usage 描述（全量指令）
+    EXPECT_NE(shortHelp.find("Usage: ubsectl"), std::string::npos)
+        << "help should contain 'Usage: ubsectl' for registered commands";
+    EXPECT_GT(CountOccurrences(shortHelp, "Usage: ubsectl"), 1) << "help should list all registered commands";
+
+    // 参数信息：每个命令应包含 OPTIONS 及选项描述
+    EXPECT_NE(shortHelp.find("OPTIONS:"), std::string::npos) << "help should list options for registered commands";
+    EXPECT_NE(shortHelp.find("--"), std::string::npos) << "help should show long option descriptions";
+
+    // 2. ubsectl --help：指令下发成功，内容与 -h 完全一致
+    std::string longHelp = cli.ExecCli("--help");
+    EXPECT_FALSE(longHelp.empty()) << "ubsectl --help should produce output";
+    EXPECT_EQ(longHelp.find("ERROR:"), std::string::npos) << "ubsectl --help should not return error";
+    EXPECT_EQ(shortHelp, longHelp) << "ubsectl -h and --help should print identical help content";
+
+    IT_LOG_INFO << "P0-CliHelpInfo-Ok-01 passed";
+}
+
+// P0-CliCompletion-Ok-01: ubsectl 命令自动补齐功能（Bash Tab 补全候选）
+// 验证步骤：
+//   1. ubsec + Tab                       -> 补全为 ubsectl（bash 命令名补全）
+//   2. ubsectl dis + Tab                 -> ubsectl display
+//   3. ubsectl display m + Tab           -> ubsectl display memory
+//      ubsectl display t + Tab           -> ubsectl display topo
+//   4. ubsectl display memory --t + Tab  -> ubsectl display memory --type
+//   5. ubsectl display memory --n + Tab  -> ubsectl display memory --name
+//   6. ubsectl display memory --b + Tab  -> ubsectl display memory --borrow-type
+void RunP0CliCompletionOk01(ubse::it::infra::ItCluster& cluster)
+{
+    (void)cluster; // 补全用例不依赖集群节点，仅验证 CLI 自动补齐功能
+    // 1. 定位补全脚本：<build>/scripts/cli_commands.sh
+    std::string scriptPath = LocateCliCompletionScript();
+    ASSERT_FALSE(scriptPath.empty()) << "failed to locate cli_commands.sh via /proc/self/exe";
+
+    // 由补全脚本路径推导 ubsectl 所在目录 <build>/bin，供步骤1的命令名补全使用
+    const std::string suffix = "/scripts/cli_commands.sh";
+    std::string binDir;
+    if (scriptPath.size() >= suffix.size() &&
+        scriptPath.compare(scriptPath.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        binDir = scriptPath.substr(0, scriptPath.size() - suffix.size()) + "/bin";
+    }
+    ASSERT_FALSE(binDir.empty()) << "failed to derive <build>/bin from completion script path";
+
+    // 2. 在 bash 中 source 补全脚本，模拟 Tab 补全（设置 COMP_WORDS/COMP_CWORD 后调用补全函数），收集候选词
+    std::string script =
+        "source \"" + scriptPath +
+        "\"\n"
+        "export PATH=\"" +
+        binDir +
+        ":$PATH\"\n"
+        "echo \"REGISTER=$(complete -p ubsectl)\"\n"
+        // 步骤1：ubsec + Tab，bash 命令名补全应得到 ubsectl
+        // 注意：脚本由 RunBashScript 以 bash -c '<script>' 执行，脚本内禁止出现单引号，
+        //       故用 xargs 将候选命令拼接为单行（不能用 tr '\n' ' '）。
+        //       bin 目录含 ubse_it_daemon/ubse_it_node_launcher 等，前缀必须用 ubsec 才能唯一补全为 ubsectl
+        "echo \"S1_CMD=$(compgen -c ubsec | xargs)\"\n"
+        // 步骤2：ubsectl dis + Tab，object 部分字符补齐为完整 object
+        "COMP_WORDS=(ubsectl dis); COMP_CWORD=1; _ubse_commond_completion; echo \"S2_DIS=${COMPREPLY[*]}\"\n"
+        // 步骤3：ubsectl display m + Tab / display t + Tab，action 部分字符补齐为完整 action
+        "COMP_WORDS=(ubsectl display m); COMP_CWORD=2; _ubse_commond_completion; echo \"S3_M=${COMPREPLY[*]}\"\n"
+        "COMP_WORDS=(ubsectl display t); COMP_CWORD=2; _ubse_commond_completion; echo \"S3_T=${COMPREPLY[*]}\"\n"
+        // 步骤4：ubsectl display memory --t + Tab，长名参数补齐为 --type
+        "COMP_WORDS=(ubsectl display memory --t); COMP_CWORD=3; _ubse_commond_completion; echo "
+        "\"S4_T=${COMPREPLY[*]}\"\n"
+        // 步骤5：ubsectl display memory --n + Tab，长名参数补齐为 --name
+        "COMP_WORDS=(ubsectl display memory --n); COMP_CWORD=3; _ubse_commond_completion; echo "
+        "\"S5_N=${COMPREPLY[*]}\"\n"
+        // 步骤6：ubsectl display memory --b + Tab，长名参数补齐为 --borrow-type
+        "COMP_WORDS=(ubsectl display memory --b); COMP_CWORD=3; _ubse_commond_completion; echo "
+        "\"S6_B=${COMPREPLY[*]}\"\n";
+    std::string output = RunBashScript(script);
+    ASSERT_FALSE(output.empty()) << "bash completion script produced no output";
+
+    // 前置：补全函数已注册到 ubsectl（自动补齐已启用）
+    std::string registered = ExtractTagValue(output, "REGISTER");
+    EXPECT_NE(registered.find("_ubse_commond_completion"), std::string::npos)
+        << "complete -p ubsectl should register _ubse_commond_completion, got: " << registered;
+    EXPECT_NE(registered.find("ubsectl"), std::string::npos)
+        << "completion should be bound to ubsectl, got: " << registered;
+
+    // 步骤1：ubsec + Tab 应补全出 ubsectl
+    std::string s1Cmd = ExtractTagValue(output, "S1_CMD");
+    EXPECT_TRUE(ContainsWord(s1Cmd, "ubsectl")) << "step1: 'ubsec'+Tab should complete to 'ubsectl', got: " << s1Cmd;
+
+    // 步骤2：ubsectl dis + Tab 应补齐为 ubsectl display
+    EXPECT_EQ(ExtractTagValue(output, "S2_DIS"), "display") << "step2: prefix 'dis' should complete to 'display'";
+
+    // 步骤3：ubsectl display m + Tab 应补齐为 memory；display t + Tab 应补齐为 topo
+    EXPECT_EQ(ExtractTagValue(output, "S3_M"), "memory") << "step3: prefix 'm' should complete to 'memory'";
+    EXPECT_EQ(ExtractTagValue(output, "S3_T"), "topo") << "step3: prefix 't' should complete to 'topo'";
+
+    // 步骤4：ubsectl display memory --t + Tab 应补齐为 --type
+    EXPECT_EQ(ExtractTagValue(output, "S4_T"), "--type") << "step4: prefix '--t' should complete to '--type'";
+
+    // 步骤5：ubsectl display memory --n + Tab 应补齐为 --name
+    EXPECT_EQ(ExtractTagValue(output, "S5_N"), "--name") << "step5: prefix '--n' should complete to '--name'";
+
+    // 步骤6：ubsectl display memory --b + Tab 应补齐为 --borrow-type
+    EXPECT_EQ(ExtractTagValue(output, "S6_B"), "--borrow-type")
+        << "step6: prefix '--b' should complete to '--borrow-type'";
+
+    IT_LOG_INFO << "P0-CliCompletion-Ok-01 passed";
 }
 } // namespace ubse::it::tests::topo

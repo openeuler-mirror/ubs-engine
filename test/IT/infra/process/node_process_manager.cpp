@@ -127,6 +127,11 @@ UbseResult NodeProcessManager::Start()
         return UBSE_ERROR_DEF(9);
     }
 
+    // 清理上次进程残留的 UDS socket 文件（例如节点被 SIGKILL 后遗留）。
+    // 若不清除，WaitForStartup 会将残留文件误判为本次进程已就绪，
+    // 导致 API server 尚未监听时 CLI 连接即失败（IPC error 20）。
+    unlink(udsSocketPath_.c_str());
+
     std::vector<std::string> environment = BuildChildEnvironment();
     std::vector<char*> envp;
     envp.reserve(environment.size() + 1);

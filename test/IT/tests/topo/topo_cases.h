@@ -68,6 +68,12 @@ void RunP0CliTopoCpuLinkChange01(ubse::it::infra::ItCluster& cluster);
 
 // P1-CliTopoCpu-LinkOneNodeOnline-01: 链路一端节点在线, 另一侧节点离线
 void RunP1CliTopoCpuLinkOneNodeOnline01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliHelpInfo-Ok-01: ubsectl -h / --help 输出全量已注册指令和参数信息, 且内容一致
+void RunP0CliHelpInfoOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliCompletion-Ok-01: ubsectl 命令自动补齐功能 (Bash Tab 补全候选)
+void RunP0CliCompletionOk01(ubse::it::infra::ItCluster& cluster);
 } // namespace ubse::it::tests::topo
 
 #endif // IT_TOPO_CASES_H

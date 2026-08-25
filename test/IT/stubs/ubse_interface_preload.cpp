@@ -68,6 +68,17 @@ bool IsObmmDevicePath(const char* path)
     return strncmp(path, UBSE_OBMM_DEV_PREFIX, strlen(UBSE_OBMM_DEV_PREFIX)) == 0;
 }
 
+bool IsObmmModulePath(const char* path)
+{
+    if (path == nullptr) {
+        return false;
+    }
+    // 生产机中 /sys/module/obmm 是 obmm 内核模块的加载目录，collector 通过
+    // stat() 判断该目录是否存在来决定 obmmState。IT 环境无该内核模块，这里
+    // 模拟目录存在，使在线节点的 check memory 健康状态可判定为 ok。
+    return strcmp(path, "/sys/module/obmm") == 0;
+}
+
 bool CsvContainsIp(const char* csv, in_addr_t ip)
 {
     if (csv == nullptr || csv[0] == '\0') {
@@ -446,6 +457,17 @@ extern "C" FILE* popen(const char* command, const char* mode)
         }
     }
 
+    // sysSentry IT 模拟：生产机上由 sentryctl 查询/配置 sysSentry 服务，
+    // IT 环境无该命令。这里拦截以保证节点健康状态可判定为 ok：
+    //   - "sentryctl status ..." => 输出 RUNNING，使 isSentryMsgMonitorRunning=true
+    //   - "sentryctl set ..."    => 返回成功（exit 0），使 sysSentry 配置成功
+    if (command != nullptr && strstr(command, "sentryctl") != nullptr) {
+        if (strstr(command, "status") != nullptr) {
+            return real_popen_func("echo status: RUNNING", "r");
+        }
+        return real_popen_func("echo ok", "r");
+    }
+
     return real_popen_func(command, mode);
 }
 
@@ -505,6 +527,17 @@ extern "C" int lstat(const char* path, struct stat* buf)
         return 0;
     }
 
+    // 模拟 obmm 内核模块加载目录存在，使 obmmState 判定为 INSERTED
+    if (IsObmmModulePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFDIR | 0755;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
     init_real_conf_funcs();
     if (real_lstat == nullptr) {
         errno = ENOSYS;
@@ -538,6 +571,17 @@ extern "C" int stat(const char* path, struct stat* buf)
         if (buf != nullptr) {
             memset(buf, 0, sizeof(struct stat));
             buf->st_mode = S_IFCHR | 0660;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
+    // 模拟 obmm 内核模块加载目录存在，使 obmmState 判定为 INSERTED
+    if (IsObmmModulePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFDIR | 0755;
             buf->st_uid = getuid();
             buf->st_gid = getgid();
         }
