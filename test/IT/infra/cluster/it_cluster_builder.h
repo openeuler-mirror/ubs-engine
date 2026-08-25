@@ -62,6 +62,39 @@ public:
     ItClusterBuilder& NoMockPlugin();
     ItClusterBuilder& NoElection();
 
+    /**
+     * @brief Deploy per-node certificates and enable TLS (cert.use=true).
+     *
+     * The resource directory must contain the shared CA seed and a signing
+     * script:
+     *   <resourceDir>/
+     *     ├─ cacert.pem   CA certificate (deployed as trust.pem)
+     *     ├─ cakey.pem    CA private key (used to sign server certs)
+     *     ├─ ca.crl       CRL (optional, deployed if present)
+     *     └─ cert.sh      server-cert generation script
+     *
+     * Signing is centralized: the framework stages one shared CA authority
+     * under baseWorkDir/cert_authority (CA database index.txt/serial and the
+     * CA key stay there, never per node). At startup every node runs
+     *   cert.sh --server-only -o <nodeId> --ca <cert_authority> <cert_tool>/out
+     * against that shared database, so server-cert serial numbers are
+     * globally unique and every issued cert is recorded — the precondition
+     * for revocation tests (cert.sh --revoke).
+     *
+     * Generated files are imported via "ubsectl import cert" (production
+     * path; direct file placement as fallback) into workDir/cert and
+     * workDir/lcne_cert, which are bind-mounted onto the daemon's hardcoded
+     * cert paths (/var/lib/ubse/cert and /var/lib/ubse/lcne_cert).
+     *
+     * Defaults to the in-tree "test/IT/resource" directory.
+     *
+     * Use NoCertUse() afterwards to keep certs deployed but TLS disabled.
+     */
+    ItClusterBuilder& WithCerts(const std::string& resourceDir = "");
+
+    /** @brief Keep certificates deployed but set cert.use=false (default). */
+    ItClusterBuilder& NoCertUse();
+
     /** @brief Add a per-node key=value config override in a specific section (nodeId only). */
     ItClusterBuilder& WithNodeConfig(const std::string& nodeId, const std::string& section, const std::string& key,
                                      const std::string& value);
@@ -93,6 +126,8 @@ private:
     uint32_t meshType_ = 1;
     bool mockPluginEnabled_ = true;
     bool waitForElection_ = true;
+    std::string certResourceDir_;
+    bool certUse_ = false;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
     std::map<std::string, std::map<std::string, std::string>> globalConfigOverrides_;
 };

@@ -39,6 +39,12 @@ struct NodeProcessConfig {
     std::string sceneType;
     uint32_t meshType = 1;
     std::string lcneUdsPath;
+    // Certificate resource dir (CA files + cert.sh); empty means no cert deployment.
+    std::string certResourceDir;
+    // Cluster-wide shared CA signing dir (holds the CA database); empty when
+    // certs disabled. All nodes sign against this one database so server cert
+    // serials are globally unique (revocable).
+    std::string certAuthorityDir;
 };
 
 } // namespace ubse::it::infra

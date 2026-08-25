@@ -17,6 +17,7 @@
 IT_DEFINE_SCENARIO(Tongsuan1dFullMeshTwoNodesScenario, MakeBuilder()
                                                            .Tongsuan()
                                                            .TwoNode()
+                                                           .WithCerts()
                                                            .WithNodeConfig("1", "ubse.log", "log.level", "DEBUG")
                                                            .WithNodeConfig("2", "ubse.log", "log.level", "DEBUG")
                                                            .Start(cluster_))

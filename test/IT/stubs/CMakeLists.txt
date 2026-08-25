@@ -46,7 +46,6 @@ target_include_directories(ubse_capability_it_stub PRIVATE
 add_subdirectory(smbios)
 add_subdirectory(mti)
 add_subdirectory(node_controller)
-add_subdirectory(com_engine)
 add_subdirectory(npu)
 add_subdirectory(net_util)
 add_subdirectory(mock_plugin)

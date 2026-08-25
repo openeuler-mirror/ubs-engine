@@ -104,7 +104,6 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_smbios_mock
         ubse_mti_mock
         ubse_node_controller_it_mock
-        ubse_com_engine_it_mock
         ubse_capability_it_stub
         ubse_npu_controller_it_mock
         ubse_it_module_registrar

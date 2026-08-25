@@ -48,6 +48,11 @@ ItNode::ClusterContext ItCluster::BuildClusterContext() const
     ctx.clusterSlotIds = clusterSpec_.SlotIds();
     ctx.sceneType = clusterSpec_.sceneType;
     ctx.meshType = clusterSpec_.meshType;
+    ctx.certResourceDir = clusterSpec_.certResourceDir;
+    // Centralized signing: one shared CA database for the whole cluster.
+    ctx.certAuthorityDir = clusterSpec_.certResourceDir.empty()
+                               ? ""
+                               : clusterSpec_.baseWorkDir + "/cert_authority";
     return ctx;
 }
 
@@ -71,7 +76,7 @@ UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeou
     }
 
     UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
-                         .WithCertUse(false)
+                         .WithCertUse(clusterSpec_.certUse)
                          .WithMockPlugin(clusterSpec_.mockPluginEnabled)
                          .GenerateAllConfigs();
     if (ret != UBSE_OK) {

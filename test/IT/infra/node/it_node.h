@@ -63,6 +63,12 @@ public:
         std::vector<uint32_t> clusterSlotIds;
         std::string sceneType;
         uint32_t meshType = 1;
+        std::string certResourceDir;
+        // Cluster-wide shared signing directory (baseWorkDir/cert_authority).
+        // All nodes sign against the same CA database (index.txt/serial) so
+        // every server cert gets a globally unique serial number — the
+        // precondition for cert revocation tests. Empty when certs disabled.
+        std::string certAuthorityDir;
     };
 
     ItNode(NodeSpec spec, ClusterContext ctx);
