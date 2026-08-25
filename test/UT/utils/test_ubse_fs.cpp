@@ -15,6 +15,7 @@
 #include <filesystem>
 #include "ubse_error.h"
 #include "ubse_fs.h"
+#include "ubse_security_module.h"
 #include "ubse_ut_dir.h"
 
 namespace ubse::ut::utils {
@@ -25,6 +26,11 @@ constexpr size_t UBSE_DATA_MAX_SIZE = 500 * 1024;
 
 void TestUbseFs::SetUp()
 {
+    // 防御性编程：本套件用例需要在测试数据目录（可能为宿主属主目录）下建目录。
+    // 在 root/受限环境下进程可能不具备 CAP_DAC_OVERRIDE，导致权限不足用例失败，
+    // 此处显式恢复该能力后再创建目录，保证用例在任意环境下稳定运行。
+    std::vector<__u32> restoreCap = {CAP_DAC_OVERRIDE};
+    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(restoreCap, true);
     std::filesystem::create_directories(UBSE_TEST_DATA_PATH);
     Test::SetUp();
 }

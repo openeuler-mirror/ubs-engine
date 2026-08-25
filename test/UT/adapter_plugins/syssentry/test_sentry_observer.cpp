@@ -200,22 +200,20 @@ TEST_F(TestSentryObserver, UnRegisterXalarm)
 
 TEST_F(TestSentryObserver, GetFuncByDlsym_Success)
 {
-    void* dummyHandle = reinterpret_cast<void*>(0x1234);
-    void* dummyFunc = reinterpret_cast<void*>(0x5678);
-    MOCKER_CPP(dlsym).stubs().will(returnValue(dummyFunc));
-    MOCKER_CPP(dlerror).stubs().will(returnValue(static_cast<char*>(nullptr)));
-    auto ret = GetFuncByDlsym(dummyHandle, "test");
+    // 不 mock libc dlsym/dlerror（mockcpp hook libc 符号脆弱且存在自指风险），
+    // 使用真实句柄 + 真实符号验证成功分支。
+    void* realHandle = dlopen(nullptr, RTLD_LAZY);
+    ASSERT_NE(realHandle, nullptr);
+    auto ret = GetFuncByDlsym(realHandle, "malloc");
     EXPECT_NE(ret, nullptr);
 }
 
 TEST_F(TestSentryObserver, GetFuncByDlsym_DlerrorFail)
 {
-    void* dummyHandle = reinterpret_cast<void*>(0x1234);
-    void* dummyFunc = reinterpret_cast<void*>(0x5678);
-    char errMsg[] = "symbol not found";
-    MOCKER_CPP(dlsym).stubs().will(returnValue(dummyFunc));
-    MOCKER_CPP(dlerror).stubs().will(returnValue(static_cast<char*>(errMsg)));
-    auto ret = GetFuncByDlsym(dummyHandle, "test");
+    // 使用真实句柄 + 不存在的符号，dlsym 返回空且 dlerror 非空，验证失败分支。
+    void* realHandle = dlopen(nullptr, RTLD_LAZY);
+    ASSERT_NE(realHandle, nullptr);
+    auto ret = GetFuncByDlsym(realHandle, "ubse_symbol_not_exist_zzz");
     EXPECT_EQ(ret, nullptr);
 }
 

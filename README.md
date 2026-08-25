@@ -110,6 +110,8 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 
 详见 [构建指导](./docs/build_install/构建指导.md)。
 
+> **示例运行环境提示**：`example/` 下的示例（如 fd/numa 借用）为真实内存池化业务场景，需运行中的 `ubse` 服务、UB 芯片互联硬件及多节点集群（详见 [example/c/README.md §5.1](./example/c/README.md)）。
+
 #### 3.打包项目
 
 ```shell
