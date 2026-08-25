@@ -134,6 +134,7 @@ add_subdirectory(adapter_plugins/ssu)
 add_subdirectory(adapter_plugins/bandbridge)
 add_subdirectory(node_mgr)
 add_subdirectory(controllers)
+add_subdirectory(framework/vip)
 
 add_independent_exec_ut(${UT_BINARY})
 
