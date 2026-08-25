@@ -14,6 +14,7 @@
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
 #include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
+#include "tests/mem_borrow/mem_borrow_p1_cases.h"
 #include "tests/sei_degrade/sei_degrade_cases.h"
 #include "tests/topo/topo_cases.h"
 
@@ -1007,6 +1008,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateMultiThreadOk01)
     ubse::it::tests::mem_borrow::RunP1FdCreateMultiThreadOk01(Cluster());
 }
 
+// P1-FdCreate-Concurrent-AllNode-Fail-01: 双节点，节点1/2各8路并发创建FD(总计16并发)（入参：每节点8个不同name/4MB；出参：16个返回值，至少1个非UBS_SUCCESS；预期：双节点互为借出/借入并发竞争，至少一个节点借用失败，成功者全部归还）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateConcurrentAllNodeFail01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateConcurrentAllNodeFail01(Cluster());
+}
+
 // P1-NumaCreate-MultiTime-Ok-01: numa 创建用例，多轮创建后归还
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaCreateMultiTimeOk01)
 {
@@ -1025,6 +1032,13 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaGetDiffNodeOk01)
     ubse::it::tests::mem_borrow::RunP1NumaGetDiffNodeOk01(Cluster());
 }
 
+// P1-NumaBorrow-Node2DecisionFail-01: 双节点默认全互联场景，节点1借用NUMA成功(节点2借出)；
+// 节点2再借用NUMA，因已借出过(LentSize>0)触发RoleConflictFilter决策失败，返回UBS_ENGINE_ERR_ALLOCATE
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaBorrowNode2DecisionFail01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaBorrowNode2DecisionFail01(Cluster());
+}
+
 // P1-ShmCreate-Concurrent-01: 双节点，8并发创建共享内存，全部创建成功（入参：8个不同name/128MB/region={1,2}；出参：均UBS_SUCCESS且mem_stage就绪；预期：8个全部创建成功）
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmCreateConcurrent01)
 {
@@ -1035,6 +1049,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmCreateConcurrent01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmRecreateAfterDelete01)
 {
     ubse::it::tests::mem_borrow::RunP1ShmRecreateAfterDelete01(Cluster());
+}
+
+// P1-CliNumaRecreateAfterDeleteLink-01: 双节点，查询cpu链路→CLI指定链路创建NUMA→删除→同链路同名重建（入参：display topo -t cpu 获取link-id；create memory -t numa -n <name> -s 128M -l <link-id>；出参：创建/删除/重建均成功，回显name/size/numa-id/import-node完整，export-node为链路对端节点；预期：删除后账本无该记录，同链路同名可重建）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliNumaRecreateAfterDeleteLink01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliNumaRecreateAfterDeleteLink01(Cluster());
 }
 
 // P1-SdkCliMemOk-01: 测试SDK创建后调用CLI接口正常

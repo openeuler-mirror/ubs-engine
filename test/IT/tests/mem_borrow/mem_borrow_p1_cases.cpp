@@ -127,7 +127,7 @@ void RunP1CliSdkMemOK01(ubse::it::infra::ItCluster& cluster)
     ubs_mem_fd_desc_t fdDesc{};
     EXPECT_IT_OK(sdk.MemFdGet(fdName.c_str(), &fdDesc));
     EXPECT_STREQ(fdDesc.name, fdName.c_str());
-    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST);
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_EXIST);
 
     // 使用CLI创建NUMA内存
     ubse::it::infra::ItMemCreateInfo numaCreateInfo;
@@ -141,7 +141,7 @@ void RunP1CliSdkMemOK01(ubse::it::infra::ItCluster& cluster)
     ubs_mem_numa_desc_t numaDesc{};
     EXPECT_IT_OK(sdk.MemNumaGet(numaName.c_str(), &numaDesc)) << "get numa " << numaName << " failed";
     EXPECT_STREQ(numaDesc.name, numaName.c_str());
-    EXPECT_TRUE(numaDesc.mem_stage == UBSE_CREATING || numaDesc.mem_stage == UBSE_EXIST);
+    EXPECT_TRUE(numaDesc.mem_stage == UBSE_EXIST);
 
     // 使用CLI创建SHARE内存
     ubse::it::infra::ItMemCreateInfo shareCreateInfo;
@@ -418,7 +418,7 @@ void RunP1FdGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     ubs_mem_fd_desc_t fdDescGet{};
     ASSERT_IT_OK(sdk.MemFdGet(name, &fdDescGet)) << "node 1 get " << name << " failed";
     EXPECT_STREQ(fdDescGet.name, name);
-    EXPECT_TRUE(fdDescGet.mem_stage == UBSE_CREATING || fdDescGet.mem_stage == UBSE_EXIST);
+    EXPECT_TRUE(fdDescGet.mem_stage == UBSE_EXIST);
 
     auto& sdk2 = cluster.GetSdkClient("2");
     ubs_mem_fd_desc_t fdDesc2{};
@@ -520,7 +520,7 @@ void RunP1NumaGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     ubs_mem_numa_desc_t numaDescGet{};
     ASSERT_IT_OK(sdk.MemNumaGet(name, &numaDescGet)) << "node 1 get numa failed";
     EXPECT_STREQ(numaDescGet.name, name);
-    EXPECT_TRUE(numaDescGet.mem_stage == UBSE_CREATING || numaDescGet.mem_stage == UBSE_EXIST);
+    EXPECT_TRUE(numaDescGet.mem_stage == UBSE_EXIST);
 
     auto& sdk2 = cluster.GetSdkClient("2");
     ubs_mem_numa_desc_t numaDesc2{};
@@ -529,6 +529,303 @@ void RunP1NumaGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster)
     // 清理
     ASSERT_IT_OK(sdk.MemNumaDelete(name)) << "node 1 delete numa failed";
     IT_LOG_INFO << "P1-NumaGet-DiffNode-Ok-01 passed";
+}
+
+// P1-FdNumaBorrow-GroupProvider-Ok-01(双节点): group/provider配置为主机名，节点1借用FD/NUMA内存均成功
+void RunP1FdNumaBorrowGroupProviderOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* fdName = "it_p1_gp_fd_borrow_ok";
+    const char* numaName = "it_p1_gp_numa_borrow_ok";
+    const uint32_t node2SlotId = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 节点1借用FD内存（group/provider已配置为主机名，节点2同组且为provider，应被调度为借出节点）
+    IT_LOG_INFO << "S1: node 1 borrow FD memory, name=" << fdName;
+    ubs_mem_fd_desc_t fdDesc{};
+    int32_t ret = sdk.MemFdCreate(fdName, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow FD memory should succeed";
+
+    // S2. 等待FD就绪并校验借出节点为节点2
+    WaitForFdReady(sdk, fdName);
+    ubs_mem_fd_desc_t fdGet{};
+    ret = sdk.MemFdGet(fdName, &fdGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet.export_node.slot_id, node2SlotId) << "FD export_node should be node 2 (lender)";
+        EXPECT_NE(fdGet.import_node.slot_id, fdGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点1借用NUMA内存
+    IT_LOG_INFO << "S3: node 1 borrow NUMA memory, name=" << numaName;
+    ubs_mem_numa_desc_t numaDesc{};
+    ret = sdk.MemNumaCreate(numaName, numaSize, MEM_DISTANCE_L0, &numaDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow NUMA memory should succeed";
+
+    // S4. 校验NUMA借出节点为节点2
+    ubs_mem_numa_desc_t numaGet{};
+    ret = sdk.MemNumaGet(numaName, &numaGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(numaGet.mem_stage == UBSE_EXIST) << "NUMA mem_stage should be valid";
+        EXPECT_EQ(numaGet.export_node.slot_id, node2SlotId) << "NUMA export_node should be node 2 (lender)";
+        EXPECT_NE(numaGet.import_node.slot_id, numaGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S5. 清理：删除FD与NUMA内存
+    EXPECT_IT_OK(sdk.MemFdDelete(fdName)) << "delete FD should succeed";
+    EXPECT_IT_OK(sdk.MemNumaDelete(numaName)) << "delete NUMA should succeed";
+    IT_LOG_INFO << "P1-FdNumaBorrow-GroupProvider-Ok-01 passed";
+}
+
+// P1-FdNumaBorrow-GroupAll-Ok-01(双节点): group配置为集群所有节点(不配置provider)，节点1借用FD/NUMA内存均成功
+void RunP1FdNumaBorrowGroupAllOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* fdName = "it_p1_ga_fd_borrow_ok";
+    const char* numaName = "it_p1_ga_numa_borrow_ok";
+    const uint32_t node2SlotId = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 节点1借用FD内存（group已配置为集群所有节点，节点2同组，应被调度为借出节点）
+    IT_LOG_INFO << "S1: node 1 borrow FD memory, name=" << fdName;
+    ubs_mem_fd_desc_t fdDesc{};
+    int32_t ret = sdk.MemFdCreate(fdName, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow FD memory should succeed";
+
+    // S2. 等待FD就绪并校验借出节点为节点2
+    WaitForFdReady(sdk, fdName);
+    ubs_mem_fd_desc_t fdGet{};
+    ret = sdk.MemFdGet(fdName, &fdGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet.export_node.slot_id, node2SlotId) << "FD export_node should be node 2 (lender)";
+        EXPECT_NE(fdGet.import_node.slot_id, fdGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点1借用NUMA内存
+    IT_LOG_INFO << "S3: node 1 borrow NUMA memory, name=" << numaName;
+    ubs_mem_numa_desc_t numaDesc{};
+    ret = sdk.MemNumaCreate(numaName, numaSize, MEM_DISTANCE_L0, &numaDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow NUMA memory should succeed";
+
+    // S4. 校验NUMA借出节点为节点2
+    ubs_mem_numa_desc_t numaGet{};
+    ret = sdk.MemNumaGet(numaName, &numaGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(numaGet.mem_stage == UBSE_EXIST) << "NUMA mem_stage should be valid";
+        EXPECT_EQ(numaGet.export_node.slot_id, node2SlotId) << "NUMA export_node should be node 2 (lender)";
+        EXPECT_NE(numaGet.import_node.slot_id, numaGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S5. 清理：删除FD与NUMA内存
+    EXPECT_IT_OK(sdk.MemFdDelete(fdName)) << "delete FD should succeed";
+    EXPECT_IT_OK(sdk.MemNumaDelete(numaName)) << "delete NUMA should succeed";
+    IT_LOG_INFO << "P1-FdNumaBorrow-GroupAll-Ok-01 passed";
+}
+
+// P1-FdNumaBorrow-GroupProvider-FourNodes-01(四节点): 双组group/provider配置(provider=节点2)，
+// 节点1(与provider节点2同组)借用FD/NUMA成功且借出节点为节点2；
+// 节点3/节点4(与provider节点2不同组)创建FD/NUMA失败且返回错误码一致(UBS_ENGINE_ERR_ALLOCATE)。
+void RunP1FdNumaBorrowGroupProviderFourNodes01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk1 = cluster.GetSdkClient("1");
+    const char* fdName = "it_p1_gp4n_fd_ok";
+    const char* numaName = "it_p1_gp4n_numa_ok";
+    const char* fdName3 = "it_p1_gp4n_fd_n3";
+    const char* numaName3 = "it_p1_gp4n_numa_n3";
+    const char* fdName4 = "it_p1_gp4n_fd_n4";
+    const char* numaName4 = "it_p1_gp4n_numa_n4";
+    const uint32_t node2SlotId = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 节点1借用FD内存（节点1与provider节点2同组，节点2应被调度为借出节点）
+    IT_LOG_INFO << "S1: node 1 borrow FD memory, name=" << fdName;
+    ubs_mem_fd_desc_t fdDesc{};
+    int32_t ret = sdk1.MemFdCreate(fdName, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow FD memory should succeed";
+
+    // S2. 等待FD就绪并校验借出节点为节点2
+    WaitForFdReady(sdk1, fdName);
+    ubs_mem_fd_desc_t fdGet{};
+    ret = sdk1.MemFdGet(fdName, &fdGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet.export_node.slot_id, node2SlotId) << "FD export_node should be node 2 (provider in same group)";
+        EXPECT_NE(fdGet.import_node.slot_id, fdGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点1借用NUMA内存
+    IT_LOG_INFO << "S3: node 1 borrow NUMA memory, name=" << numaName;
+    ubs_mem_numa_desc_t numaDesc{};
+    ret = sdk1.MemNumaCreate(numaName, numaSize, MEM_DISTANCE_L0, &numaDesc);
+    ASSERT_IT_OK(ret) << "node 1 borrow NUMA memory should succeed";
+
+    // S4. 校验NUMA借出节点为节点2
+    ubs_mem_numa_desc_t numaGet{};
+    ret = sdk1.MemNumaGet(numaName, &numaGet);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(numaGet.mem_stage == UBSE_EXIST) << "NUMA mem_stage should be valid";
+        EXPECT_EQ(numaGet.export_node.slot_id, node2SlotId)
+            << "NUMA export_node should be node 2 (provider in same group)";
+        EXPECT_NE(numaGet.import_node.slot_id, numaGet.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S5. 节点3借用FD/NUMA内存：节点3与provider节点2不同组，无可借出节点，创建失败
+    IT_LOG_INFO << "S5: node 3 borrow FD/NUMA memory should fail";
+    auto& sdk3 = cluster.GetSdkClient("3");
+    ubs_mem_fd_desc_t fdDesc3{};
+    int32_t retFd3 = sdk3.MemFdCreate(fdName3, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc3);
+    ubs_mem_numa_desc_t numaDesc3{};
+    int32_t retNuma3 = sdk3.MemNumaCreate(numaName3, numaSize, MEM_DISTANCE_L0, &numaDesc3);
+    IT_LOG_INFO << "S5: node 3 FD ret=" << retFd3 << ", NUMA ret=" << retNuma3;
+    EXPECT_NE(retFd3, UBS_SUCCESS) << "node 3 FD borrow should fail";
+    EXPECT_NE(retNuma3, UBS_SUCCESS) << "node 3 NUMA borrow should fail";
+
+    // S6. 节点4借用FD/NUMA内存：与节点3同理创建失败，且错误码与节点3一致
+    IT_LOG_INFO << "S6: node 4 borrow FD/NUMA memory should fail with consistent error code";
+    auto& sdk4 = cluster.GetSdkClient("4");
+    ubs_mem_fd_desc_t fdDesc4{};
+    int32_t retFd4 = sdk4.MemFdCreate(fdName4, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc4);
+    ubs_mem_numa_desc_t numaDesc4{};
+    int32_t retNuma4 = sdk4.MemNumaCreate(numaName4, numaSize, MEM_DISTANCE_L0, &numaDesc4);
+    IT_LOG_INFO << "S6: node 4 FD ret=" << retFd4 << ", NUMA ret=" << retNuma4;
+    EXPECT_NE(retFd4, UBS_SUCCESS) << "node 4 FD borrow should fail";
+    EXPECT_NE(retNuma4, UBS_SUCCESS) << "node 4 NUMA borrow should fail";
+    // 节点3与节点4创建失败的错误码必须一致（预期均为算法分配失败 UBS_ENGINE_ERR_ALLOCATE）
+    EXPECT_EQ(retFd3, retFd4) << "node 3/4 FD borrow error code should be consistent";
+    EXPECT_EQ(retNuma3, retNuma4) << "node 3/4 NUMA borrow error code should be consistent";
+    EXPECT_EQ(retFd3, UBS_ENGINE_ERR_ALLOCATE) << "node 3 FD borrow error code should be UBS_ENGINE_ERR_ALLOCATE";
+    EXPECT_EQ(retNuma3, UBS_ENGINE_ERR_ALLOCATE) << "node 3 NUMA borrow error code should be UBS_ENGINE_ERR_ALLOCATE";
+
+    // S7. 清理：删除节点1的FD与NUMA内存
+    IT_LOG_INFO << "S7: cleanup FD/NUMA on node 1";
+    EXPECT_IT_OK(sdk1.MemFdDelete(fdName)) << "delete FD should succeed";
+    EXPECT_IT_OK(sdk1.MemNumaDelete(numaName)) << "delete NUMA should succeed";
+    IT_LOG_INFO << "P1-FdNumaBorrow-GroupProvider-FourNodes-01 passed";
+}
+
+// P1-FdNumaBorrow-SpecifiedLender-Provider-01(三节点): 三节点group/provider配置(provider=节点2)，
+// 节点1通过with_lender指定节点2创建FD/NUMA成功且借出节点为节点2，指定节点3(非provider)创建FD/NUMA失败
+void RunP1FdNumaBorrowSpecifiedLenderProvider01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk1 = cluster.GetSdkClient("1");
+    const char* fdName2 = "it_p1_slp_fd_n2";
+    const char* numaName2 = "it_p1_slp_numa_n2";
+    const char* fdName3 = "it_p1_slp_fd_n3";
+    const char* numaName3 = "it_p1_slp_numa_n3";
+    const uint32_t node2SlotId = cluster.GetNode("2").GetSpec().slotId;
+    const uint32_t node3SlotId = cluster.GetNode("3").GetSpec().slotId;
+
+    // S1. 节点1指定节点2作为借出节点创建FD内存（节点2同组且为provider，应调度成功）
+    IT_LOG_INFO << "S1: node 1 create FD with lender node2, name=" << fdName2;
+    ubs_mem_lender_t lenderFd2{
+        .lender_size = fdSize, .slot_id = node2SlotId, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+    ubs_mem_fd_desc_t fdDesc2{};
+    int32_t ret = sdk1.MemFdCreateWithLender(fdName2, nullptr, 0, &lenderFd2, 1, &fdDesc2);
+    ASSERT_IT_OK(ret) << "node 1 create FD with lender node2 should succeed";
+
+    // S2. 等待FD就绪并校验借出节点为节点2
+    IT_LOG_INFO << "S2: wait FD ready and verify export node";
+    WaitForFdReady(sdk1, fdName2);
+    ubs_mem_fd_desc_t fdGet2{};
+    ret = sdk1.MemFdGet(fdName2, &fdGet2);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet2.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet2.export_node.slot_id, node2SlotId) << "FD export_node should be node2 (provider)";
+        EXPECT_NE(fdGet2.import_node.slot_id, fdGet2.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点1指定节点2作为借出节点创建NUMA内存（应调度成功）
+    IT_LOG_INFO << "S3: node 1 create NUMA with lender node2, name=" << numaName2;
+    ubs_mem_lender_t lenderNuma2{
+        .lender_size = numaSize, .slot_id = node2SlotId, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+    ubs_mem_numa_desc_t numaDesc2{};
+    ret = sdk1.MemNumaCreateWithLender(numaName2, &lenderNuma2, 1, &numaDesc2);
+    ASSERT_IT_OK(ret) << "node 1 create NUMA with lender node2 should succeed";
+
+    // S4. 校验NUMA借出节点为节点2
+    IT_LOG_INFO << "S4: verify NUMA export node";
+    ubs_mem_numa_desc_t numaGet2{};
+    ret = sdk1.MemNumaGet(numaName2, &numaGet2);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(numaGet2.mem_stage == UBSE_EXIST) << "NUMA mem_stage should be valid";
+        EXPECT_EQ(numaGet2.export_node.slot_id, node2SlotId) << "NUMA export_node should be node2 (provider)";
+        EXPECT_NE(numaGet2.import_node.slot_id, numaGet2.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S5. 节点1指定节点3作为借出节点创建FD/NUMA内存（节点3同组但非provider，ProviderFilter剔除，创建失败）
+    IT_LOG_INFO << "S5: node 1 create FD/NUMA with lender node3 should fail";
+    ubs_mem_lender_t lender3{
+        .lender_size = fdSize, .slot_id = node3SlotId, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+    ubs_mem_fd_desc_t fdDesc3{};
+    int32_t retFd3 = sdk1.MemFdCreateWithLender(fdName3, nullptr, 0, &lender3, 1, &fdDesc3);
+    ubs_mem_numa_desc_t numaDesc3{};
+    int32_t retNuma3 = sdk1.MemNumaCreateWithLender(numaName3, &lender3, 1, &numaDesc3);
+    IT_LOG_INFO << "S5: FD ret=" << retFd3 << ", NUMA ret=" << retNuma3;
+    EXPECT_NE(retFd3, UBS_SUCCESS) << "node 1 create FD with lender node3 should fail";
+    EXPECT_NE(retNuma3, UBS_SUCCESS) << "node 1 create NUMA with lender node3 should fail";
+    EXPECT_EQ(retFd3, UBS_ENGINE_ERR_ALLOCATE) << "FD error code should be UBS_ENGINE_ERR_ALLOCATE";
+    EXPECT_EQ(retNuma3, UBS_ENGINE_ERR_ALLOCATE) << "NUMA error code should be UBS_ENGINE_ERR_ALLOCATE";
+
+    // S6. 清理：删除节点1成功的FD与NUMA内存
+    IT_LOG_INFO << "S6: cleanup FD/NUMA on node 1";
+    EXPECT_IT_OK(sdk1.MemFdDelete(fdName2)) << "delete FD should succeed";
+    EXPECT_IT_OK(sdk1.MemNumaDelete(numaName2)) << "delete NUMA should succeed";
+    IT_LOG_INFO << "P1-FdNumaBorrow-SpecifiedLender-Provider-01 passed";
+}
+
+// P1-NumaBorrow-Node2DecisionFail-01(双节点): 通算双节点默认全互联场景，
+// 节点1借用NUMA成功(节点2借出)；节点2再借用NUMA内存，因节点2已借出过(LentSize>0)
+// 触发RoleConflictFilter决策失败，返回UBS_ENGINE_ERR_ALLOCATE
+void RunP1NumaBorrowNode2DecisionFail01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk1 = cluster.GetSdkClient("1");
+    auto& sdk2 = cluster.GetSdkClient("2");
+    const char* numaName1 = "it_p1_numa_n1_ok";
+    const char* numaName2 = "it_p1_numa_n2_fail";
+    const uint32_t node2SlotId = cluster.GetNode("2").GetSpec().slotId;
+
+    // S1. 节点1借用NUMA内存（默认全互联场景，节点2被调度为借出节点，借用成功）
+    IT_LOG_INFO << "S1: node 1 borrow NUMA memory, name=" << numaName1;
+    ubs_mem_numa_desc_t numaDesc1{};
+    int32_t ret = sdk1.MemNumaCreate(numaName1, numaSize, MEM_DISTANCE_L0, &numaDesc1);
+    ASSERT_IT_OK(ret) << "node 1 borrow NUMA memory should succeed";
+
+    // S2. 等待节点1 NUMA内存就绪并校验借出节点为节点2
+    IT_LOG_INFO << "S2: wait node 1 NUMA ready and verify export node";
+    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            ubs_mem_numa_desc_t desc{};
+            int32_t getRet = sdk1.MemNumaGet(numaName1, &desc);
+            return (getRet == UBS_SUCCESS && desc.mem_stage == UBSE_EXIST);
+        },
+        15000, 200);
+    EXPECT_IT_OK(waitRet);
+    ubs_mem_numa_desc_t numaGet1{};
+    ret = sdk1.MemNumaGet(numaName1, &numaGet1);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(numaGet1.mem_stage == UBSE_EXIST) << "NUMA mem_stage should be valid";
+        EXPECT_EQ(numaGet1.export_node.slot_id, node2SlotId) << "NUMA export_node should be node 2 (provider)";
+        EXPECT_NE(numaGet1.import_node.slot_id, numaGet1.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点2借用NUMA内存：节点2已借出过(LentSize>0)，RoleConflictFilter判定决策失败
+    IT_LOG_INFO << "S3: node 2 borrow NUMA memory should fail with decision failed";
+    ubs_mem_numa_desc_t numaDesc2{};
+    ret = sdk2.MemNumaCreate(numaName2, numaSize, MEM_DISTANCE_L0, &numaDesc2);
+    IT_LOG_INFO << "S3: node 2 NUMA create ret=" << ret;
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_ALLOCATE) << "node 2 borrow should fail with UBS_ENGINE_ERR_ALLOCATE";
+
+    // S4. 清理：删除节点1借用成功的NUMA内存
+    IT_LOG_INFO << "S4: cleanup NUMA on node 1";
+    EXPECT_IT_OK(sdk1.MemNumaDelete(numaName1)) << "delete NUMA should succeed";
+    IT_LOG_INFO << "P1-NumaBorrow-Node2DecisionFail-01 passed";
 }
 
 // 四节点SHM attach后import_desc_cnt验证：节点1创建 → 节点2/3/4分别attach(每个返回import_desc_cnt=1) → detach → delete
@@ -754,6 +1051,76 @@ void RunP1CliBorrowDetailMultiNode01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P1-CliBorrowDetail-MultiNode-01 passed";
 }
 
+// 双节点 查询cpu链路(display topo -t cpu)→CLI指定链路创建NUMA→删除→同链路同名重建成功
+void RunP1CliNumaRecreateAfterDeleteLink01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+    const std::string numaName = "it_p1_numa_recreate_link";
+
+    // S1. 节点1 CLI 查询 cpu 链路，获取从节点1出发的可用链路 link-id
+    IT_LOG_INFO << "S1: Query cpu topo links via CLI (display topo -t cpu)";
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    EXPECT_IT_OK(cliInvoker.QueryTopoCpu(topoLinks));
+    EXPECT_GT(topoLinks.size(), 0) << "display topo -t cpu should return non-empty links";
+
+    std::string linkId;
+    std::string expectedExportNode;
+    for (const auto& link : topoLinks) {
+        if (ExtractNodeId(link.node) == "1" && !link.linkId.empty() && link.linkId != "-") {
+            linkId = link.linkId;
+            expectedExportNode = ExtractNodeId(link.peerNode);
+            break;
+        }
+    }
+    ASSERT_FALSE(linkId.empty()) << "Should find an available link from node 1";
+
+    // S2. 节点1 CLI 指定链路创建 NUMA 内存
+    IT_LOG_INFO << "S2: Create NUMA via CLI: name=" << numaName << ", size=128M, link-id=" << linkId;
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, numaName, "128M", linkId));
+    EXPECT_EQ(createInfo.name, numaName) << "create name should match input";
+    EXPECT_EQ(createInfo.size, "128MB") << "create size should be 128MB";
+    EXPECT_GE(std::stoi(createInfo.numaId), 0) << "numa-id should be >= 0";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_EQ(ExtractNodeId(createInfo.exportNode), expectedExportNode)
+        << "export-node should match peer node of specified link, expected: " << expectedExportNode;
+
+    // S3. 节点1 CLI 删除 NUMA 内存
+    IT_LOG_INFO << "S3: Delete NUMA via CLI: name=" << numaName;
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(numaName, "numa"));
+
+    // S4. 校验删除后账本无该名称记录
+    IT_LOG_INFO << "S4: Verify NUMA deleted, borrow_detail has no record: name=" << numaName;
+    {
+        std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+        EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails, "numa", numaName));
+        bool found = false;
+        for (const auto& detail : borrowDetails) {
+            if (detail.name == numaName) {
+                found = true;
+                break;
+            }
+        }
+        EXPECT_FALSE(found) << "borrow_detail 应无 " << numaName << " 记录";
+    }
+
+    // S5. 节点1 CLI 使用相同链路、相同名称再次创建 NUMA 内存
+    IT_LOG_INFO << "S5: Recreate same-name NUMA via CLI: name=" << numaName << ", link-id=" << linkId;
+    ubse::it::infra::ItMemCreateInfo recreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(recreateInfo, numaName, "128M", linkId));
+    EXPECT_EQ(recreateInfo.name, numaName) << "recreate name should match input";
+    EXPECT_EQ(recreateInfo.size, "128MB") << "recreate size should be 128MB";
+    EXPECT_GE(std::stoi(recreateInfo.numaId), 0) << "numa-id should be >= 0";
+    EXPECT_EQ(recreateInfo.importNode, "1") << "import-node should be current node (1)";
+
+    // S6. 清理：删除重建的 NUMA 内存
+    IT_LOG_INFO << "S6: Cleanup: delete NUMA: name=" << numaName;
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(numaName, "numa"));
+
+    IT_LOG_INFO << "P1-CliNumaRecreateAfterDeleteLink-01 done";
+}
+
 // P1-ShmCreate-Concurrent-01: 双节点，8并发创建共享内存，全部创建成功
 void RunP1ShmCreateConcurrent01(ubse::it::infra::ItCluster& cluster)
 {
@@ -799,8 +1166,7 @@ void RunP1ShmCreateConcurrent01(ubse::it::infra::ItCluster& cluster)
         if (desc != nullptr) {
             EXPECT_STREQ(desc->name, names[i]);
             EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size mismatch, name=" << names[i];
-            EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
-                << "unexpected mem_stage, name=" << names[i];
+            EXPECT_TRUE(desc->mem_stage == UBSE_EXIST) << "unexpected mem_stage, name=" << names[i];
             free(desc);
         }
     }
@@ -866,8 +1232,7 @@ void RunP1ShmCreateConcurrentMultiNode01(ubse::it::infra::ItCluster& cluster)
         if (desc != nullptr) {
             EXPECT_STREQ(desc->name, names[i]);
             EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size mismatch, name=" << names[i];
-            EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
-                << "unexpected mem_stage, name=" << names[i];
+            EXPECT_TRUE(desc->mem_stage == UBSE_EXIST) << "unexpected mem_stage, name=" << names[i];
             free(desc);
         }
     }
@@ -922,8 +1287,7 @@ void RunP1ShmCreateWithProvidersMultiNode01(ubse::it::infra::ItCluster& cluster)
     if (desc != nullptr) {
         EXPECT_STREQ(desc->name, shmName);
         EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
-        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
-            << "unexpected mem_stage: " << desc->mem_stage;
+        EXPECT_TRUE(desc->mem_stage == UBSE_EXIST) << "unexpected mem_stage: " << desc->mem_stage;
         EXPECT_GT(desc->export_node.slot_id, 0u) << "export_node.slot_id should be > 0";
         auto inProvider = std::any_of(provider.slot_ids, provider.slot_ids + provider.node_cnt,
                                       [&](uint32_t id) { return id == desc->export_node.slot_id; });
@@ -997,8 +1361,7 @@ void RunP1ShmRecreateAfterDelete01(ubse::it::infra::ItCluster& cluster)
     if (desc != nullptr) {
         EXPECT_STREQ(desc->name, shmName);
         EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
-        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
-            << "unexpected mem_stage: " << desc->mem_stage;
+        EXPECT_TRUE(desc->mem_stage == UBSE_EXIST) << "unexpected mem_stage: " << desc->mem_stage;
         free(desc);
     }
 
@@ -1215,5 +1578,63 @@ void RunP1ShmDetachReattachMultiNode01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(node1Client.MemShmDelete(shmName));
 
     IT_LOG_INFO << "P1-ShmDetachReattach-MultiNode-01 done";
+}
+
+// P1-FdCreate-Concurrent-AllNode-Fail-01(双节点): 节点1/2各自以并发度8并发创建FD(总计16并发)，
+// 双节点互为借出/借入并发竞争资源，至少一个节点的FD借用失败
+void RunP1FdCreateConcurrentAllNodeFail01(ubse::it::infra::ItCluster& cluster)
+{
+    constexpr uint32_t kNodeCnt = 2;                // 节点数
+    constexpr uint32_t kConcur = 8;                 // 每节点并发度
+    constexpr uint32_t kTotal = kNodeCnt * kConcur; // 总计并发请求数(16)
+
+    // 预取节点SDK客户端引用，避免在并发线程内查询
+    ubse::it::infra::ItSdkClient* sdks[kNodeCnt] = {nullptr};
+    for (uint32_t i = 0; i < kNodeCnt; ++i) {
+        sdks[i] = &cluster.GetSdkClient(std::to_string(i + 1));
+    }
+
+    // 预生成name，避免并发线程内拼接
+    std::vector<std::string> names(kTotal);
+    for (uint32_t i = 0; i < kTotal; ++i) {
+        names[i] = "it_p1_fd_conc_fail_" + std::to_string(i / kConcur + 1) + "_" + std::to_string(i % kConcur);
+    }
+
+    // S1. 节点1/2各8路并发创建FD：16个线程同时发起，每节点8个不同name的4MB FD
+    IT_LOG_INFO << "S1: Concurrently creating " << kTotal << " FDs from " << kNodeCnt << " nodes, concur=" << kConcur;
+    std::vector<int32_t> rets(kTotal, UBS_SUCCESS);
+    std::vector<std::future<int32_t>> futures;
+    futures.reserve(kTotal);
+    for (uint32_t i = 0; i < kTotal; ++i) {
+        futures.emplace_back(std::async(std::launch::async, [&, i]() -> int32_t {
+            ubs_mem_fd_desc_t fdDesc{};
+            return sdks[i / kConcur]->MemFdCreate(names[i].c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        }));
+    }
+    for (uint32_t i = 0; i < kTotal; ++i) {
+        rets[i] = futures[i].get();
+        IT_LOG_INFO << "Create result: node=" << (i / kConcur + 1) << ", name=" << names[i] << ", ret=" << rets[i];
+    }
+
+    // S2. 校验：至少有一个节点的FD借用失败（双节点并发互为借出/借入触发决策冲突）
+    bool hasFail = false;
+    for (uint32_t i = 0; i < kTotal; ++i) {
+        if (rets[i] != UBS_SUCCESS) {
+            hasFail = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(hasFail) << "at least one node's FD borrow should fail";
+
+    // S3. 清理：归还所有借用成功的FD内存，避免残留
+    for (uint32_t i = 0; i < kTotal; ++i) {
+        if (rets[i] != UBS_SUCCESS) {
+            continue;
+        }
+        IT_LOG_INFO << "S3: Delete FD: node=" << (i / kConcur + 1) << ", name=" << names[i];
+        EXPECT_IT_OK(sdks[i / kConcur]->MemFdDelete(names[i].c_str())) << "delete " << names[i] << " failed";
+    }
+
+    IT_LOG_INFO << "P1-FdCreate-Concurrent-AllNode-Fail-01 done";
 }
 } // namespace ubse::it::tests::mem_borrow

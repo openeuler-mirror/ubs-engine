@@ -19,6 +19,7 @@
  * in ubse_it_daemon.
  *
  * Current overrides:
+ *   gethostname          -> per-node UBSE_IT_HOSTNAME (it-node-<slotId>)
  *   getgrnam("ubm_nuds") -> return fake group (bypass group lookup)
  *   getpwuid/getpwuid_r  -> return fake "ubse" user for IT peer permission checks
  *   connect(2) to election TCP peers -> bind source to this IT node IP first
@@ -327,6 +328,42 @@ extern "C" unsigned int sleep(unsigned int seconds)
     (void)seconds;
     usleep(10000); // 10ms
     return 0;
+}
+
+// ============================================================
+// gethostname stub: 每节点通过 UBSE_IT_HOSTNAME 环境变量上报唯一主机名
+// (it-node-<slotId>)，未设置时回落真实主机名。用于满足
+// group/provider 配置要求的主机名唯一性。
+// ============================================================
+
+typedef int (*gethostname_func_t)(char*, size_t);
+static gethostname_func_t real_gethostname_func = nullptr;
+
+static void init_real_gethostname()
+{
+    if (real_gethostname_func == nullptr) {
+        real_gethostname_func = reinterpret_cast<gethostname_func_t>(dlsym(RTLD_NEXT, "gethostname"));
+    }
+}
+
+extern "C" int gethostname(char* name, size_t len)
+{
+    init_real_gethostname();
+    const char* itHostname = getenv("UBSE_IT_HOSTNAME");
+    if (itHostname != nullptr && itHostname[0] != '\0') {
+        size_t required = strlen(itHostname) + 1;
+        if (len < required) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        memcpy(name, itHostname, required);
+        return 0;
+    }
+    if (real_gethostname_func == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real_gethostname_func(name, len);
 }
 typedef int (*open_func_t)(const char*, int, mode_t);
 static open_func_t real_open_func = nullptr;

@@ -56,6 +56,24 @@ void RunP1NumaCreateDiffNodeOk01(ubse::it::infra::ItCluster& cluster);
 // P1-NumaGet-DiffNode-Ok-01: numa 获取用例，不同节点获取同名NUMA
 void RunP1NumaGetDiffNodeOk01(ubse::it::infra::ItCluster& cluster);
 
+// P1-FdNumaBorrow-GroupProvider-Ok-01(双节点): group/provider配置为主机名，节点1借用FD/NUMA内存均成功
+void RunP1FdNumaBorrowGroupProviderOk01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdNumaBorrow-GroupAll-Ok-01(双节点): group配置为集群所有节点(不配置provider)，节点1借用FD/NUMA内存均成功
+void RunP1FdNumaBorrowGroupAllOk01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdNumaBorrow-GroupProvider-FourNodes-01(四节点): 双组group/provider配置(provider=节点2)，
+// 节点1借用FD/NUMA成功且借出节点为节点2，节点3/节点4创建FD/NUMA失败且错误码一致
+void RunP1FdNumaBorrowGroupProviderFourNodes01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdNumaBorrow-SpecifiedLender-Provider-01(三节点): 三节点group/provider配置(provider=节点2)，
+// 节点1通过with_lender指定节点2创建FD/NUMA成功且借出节点为节点2，指定节点3(非provider)创建FD/NUMA失败
+void RunP1FdNumaBorrowSpecifiedLenderProvider01(ubse::it::infra::ItCluster& cluster);
+
+// P1-NumaBorrow-Node2DecisionFail-01(双节点): 通算双节点默认全互联场景，节点1借用NUMA成功(节点2借出)；
+// 节点2再借用NUMA内存，因节点2已借出过(LentSize>0)触发RoleConflictFilter决策失败，返回UBS_ENGINE_ERR_ALLOCATE
+void RunP1NumaBorrowNode2DecisionFail01(ubse::it::infra::ItCluster& cluster);
+
 // 四节点SHM attach后import_desc_cnt验证：节点1创建 → 节点2/3/4分别attach(每个返回import_desc_cnt=1) → detach → delete
 void RunP1ShmAttachMultiNode01(ubse::it::infra::ItCluster& cluster);
 
@@ -64,6 +82,9 @@ void RunP1CliBorrowDetailLedger01(ubse::it::infra::ItCluster& cluster);
 
 // 双节点SHM 节点1/节点2各自创建(region覆盖双节点)→borrow_detail查账(2条share记录)→节点2删除→再查账(仅剩节点1记录)
 void RunP1CliBorrowDetailMultiNode01(ubse::it::infra::ItCluster& cluster);
+
+// 双节点 查询cpu链路(display topo -t cpu)→CLI指定链路创建NUMA→删除→同链路同名重建成功
+void RunP1CliNumaRecreateAfterDeleteLink01(ubse::it::infra::ItCluster& cluster);
 
 // P1-ShmCreate-Concurrent-01: 双节点，8并发创建共享内存，全部创建成功
 void RunP1ShmCreateConcurrent01(ubse::it::infra::ItCluster& cluster);
@@ -79,6 +100,10 @@ void RunP1ShmDetachMultiNode01(ubse::it::infra::ItCluster& cluster);
 
 // P1-ShmDetachReattach-MultiNode-01: 双节点SHM 节点1创建→节点1attach→节点1detach→节点2attach，全部成功
 void RunP1ShmDetachReattachMultiNode01(ubse::it::infra::ItCluster& cluster);
+
+// P1-FdCreate-Concurrent-AllNode-Fail-01(双节点): 节点1/2各自以并发度8并发创建FD(总计16并发)，
+// 双节点互为借出/借入并发竞争资源，至少一个节点的FD借用失败
+void RunP1FdCreateConcurrentAllNodeFail01(ubse::it::infra::ItCluster& cluster);
 } // namespace ubse::it::tests::mem_borrow
 
 #endif // IT_MEM_BORROW_P1_CASES_H

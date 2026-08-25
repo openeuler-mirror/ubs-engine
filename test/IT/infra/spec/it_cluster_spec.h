@@ -29,6 +29,8 @@ struct NodeSpec {
     uint16_t port;
     uint32_t slotId = 1;
     std::string workDir;
+    // 每节点自定义主机名（覆盖默认 it-node-<slotId>），为空时回落默认值
+    std::string hostname;
 
     std::string RunDir() const;
     std::string LogDir() const;

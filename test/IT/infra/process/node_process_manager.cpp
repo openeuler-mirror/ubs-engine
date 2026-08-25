@@ -42,6 +42,7 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
       nodeIp_(std::move(config.nodeIp)),
       workDir_(std::move(config.workDir)),
       slotId_(config.slotId),
+      hostname_(std::move(config.hostname)),
       clusterNodeIds_(std::move(config.clusterNodeIds)),
       clusterIps_(std::move(config.clusterIps)),
       clusterSlotIds_(std::move(config.clusterSlotIds)),
@@ -78,6 +79,10 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     environment.emplace_back("UBSE_IT_LOCAL_IP=" + nodeIp_);
     environment.emplace_back("UBSE_IT_CONF_DIR=" + workDir_);
     environment.emplace_back("UBSE_IT_SLOT_ID=" + std::to_string(slotId_));
+    // 每节点注入唯一主机名，配合预加载库 gethostname 覆写，使各节点上报不同主机名
+    // 支持场景级自定义主机名（hostname_ 非空时优先使用，用于 group/provider 边界主机名验证）
+    const std::string itHostname = hostname_.empty() ? "it-node-" + std::to_string(slotId_) : hostname_;
+    environment.emplace_back("UBSE_IT_HOSTNAME=" + itHostname);
     environment.emplace_back("UBSE_IT_CLUSTER_NODES=" + clusterNodeIds_);
     environment.emplace_back("UBSE_IT_CLUSTER_IPS=" + clusterIps_);
     environment.emplace_back("UBSE_IT_UDS_SOCKET_PATH=" + udsSocketPath_);
