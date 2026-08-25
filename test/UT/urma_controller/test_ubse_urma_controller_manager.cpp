@@ -259,10 +259,10 @@ TEST_F(TestUbseUrmaControllerManager, ValidateLcneFeInfo)
 TEST_F(TestUbseUrmaControllerManager, CalculateFeTopoType)
 {
     auto& mgr = UbseUrmaControllerManager::GetInstance();
-    // ALL_PFE: 2 IOUs, 6 PFE each
+    // ALL_PFE: 2 IOUs, 3 PFE each
     std::vector<std::vector<UbseMtiFeInfo>> feInfos(2);
     for (size_t i = 0; i < 2; ++i) {
-        for (int j = 0; j < 6; ++j) {
+        for (int j = 0; j < 3; ++j) {
             UbseMtiFeInfo fe{.slotId = "0",
                              .ubpuId = std::to_string(j),
                              .iouId = std::to_string(i),
@@ -296,11 +296,11 @@ TEST_F(TestUbseUrmaControllerManager, CalculateFeTopoType)
     CalculateFeTopoType(feInfos);
     EXPECT_EQ(mgr.GetFeTopoType(), FeTopoType::PFE_VFE_HYBRID);
 
-    // INVALID: <6 FE per IOU
+    // INVALID: fewer than 3 PFE per IOU
     feInfos.clear();
     feInfos.resize(2);
     for (size_t i = 0; i < 2; ++i) {
-        for (int j = 0; j < 3; ++j) {
+        for (int j = 0; j < 2; ++j) {
             UbseMtiFeInfo fe{.slotId = "0",
                              .ubpuId = std::to_string(j),
                              .iouId = std::to_string(i),
@@ -315,7 +315,7 @@ TEST_F(TestUbseUrmaControllerManager, CalculateFeTopoType)
     // Mismatch between IOUs
     feInfos.clear();
     feInfos.resize(2);
-    for (int j = 0; j < 6; ++j) {
+    for (int j = 0; j < 3; ++j) {
         UbseMtiFeInfo fe{.slotId = "0",
                          .ubpuId = std::to_string(j),
                          .iouId = "0",
@@ -1074,18 +1074,11 @@ TEST_F(TestUbseUrmaControllerManager, FilterFeInfosForNonClos_EmptyHostUrmaInfos
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestUbseUrmaControllerManager, GenerateUrmaDevName_NonClos)
+TEST_F(TestUbseUrmaControllerManager, GenerateUrmaDevName)
 {
-    ClearNodeInfosForTest();
     UbseUrmaControllerManager::GetInstance().globalUrmaId = 0;
-    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
 
-    UbseMtiFeInfo fe0;
-    fe0.fetype = UbseMtiFeType::PHYSICAL_TYPE;
-    UbseMtiFeInfo fe1;
-    fe1.fetype = UbseMtiFeType::PHYSICAL_TYPE;
-
-    auto name = UbseUrmaControllerManager::GetInstance().GenerateUrmaDevName("0", fe0, fe1, 0);
+    auto name = UbseUrmaControllerManager::GetInstance().GenerateUrmaDevName();
     EXPECT_EQ(name, "bonding_dev_1");
     UbseUrmaControllerManager::GetInstance().globalUrmaId = 0;
 }
@@ -1615,6 +1608,41 @@ TEST_F(TestUbseUrmaControllerManager, SplitFeInfosForClos_EmptyFeInfos)
     std::vector<std::vector<UbseMtiFeInfo>> hostFeInfos;
     auto ret = urmaController::SplitFeInfosForClos("0", feInfos, containerFeInfos, hostFeInfos);
     EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerManager, SplitFeInfosForClos_ReservesThirtyThirdEidGroupForHost)
+{
+    UbseUrmaUvsAggrDev hostDev;
+    hostDev.feList.push_back(UbseUrmaUvsFe{.primaryEid = "comm-eid-0"});
+    hostDev.feList.push_back(UbseUrmaUvsFe{.primaryEid = "comm-eid-1"});
+    UbseUrmaUvsNodeInfo hostInfo;
+    hostInfo.nodeId = "0";
+    hostInfo.devList.push_back(std::move(hostDev));
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos{std::move(hostInfo)};
+    MOCKER_CPP(&UbseNodeController::GetPlanningHostBondingByNodeId)
+        .stubs()
+        .with(_, outBound(hostUrmaInfos))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeController::IsHostBondingRegistered).stubs().will(returnValue(false));
+
+    constexpr size_t eidGroupCount = 33;
+    UbseMtiFeInfo fe;
+    for (size_t idx = 0; idx < eidGroupCount; ++idx) {
+        fe.eidGroups.push_back(UbseMtiEidGroup{.primaryEid = "eid-" + std::to_string(idx)});
+    }
+    std::vector<std::vector<UbseMtiFeInfo>> feInfos(1);
+    feInfos[0].push_back(std::move(fe));
+    std::vector<std::vector<UbseMtiFeInfo>> containerFeInfos;
+    std::vector<std::vector<UbseMtiFeInfo>> hostFeInfos;
+
+    ASSERT_EQ(SplitFeInfosForClos("0", feInfos, containerFeInfos, hostFeInfos), UBSE_OK);
+    ASSERT_EQ(containerFeInfos.size(), 1U);
+    ASSERT_EQ(containerFeInfos[0].size(), 1U);
+    EXPECT_EQ(containerFeInfos[0][0].eidGroups.size(), 32U);
+    ASSERT_EQ(hostFeInfos.size(), 1U);
+    ASSERT_EQ(hostFeInfos[0].size(), 1U);
+    ASSERT_EQ(hostFeInfos[0][0].eidGroups.size(), 1U);
+    EXPECT_EQ(hostFeInfos[0][0].eidGroups[0].primaryEid, "eid-32");
 }
 
 TEST_F(TestUbseUrmaControllerManager, InferUrmaListDevInfo_EmptyList)

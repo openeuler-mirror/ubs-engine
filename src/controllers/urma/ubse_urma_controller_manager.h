@@ -332,18 +332,9 @@ private:
 
     /**
      * @brief 生成URMA设备名称
-     * @details 根据组网类型和FE拓扑类型决定命名规则：
-     *          - CLOS全PFE场景且当前bonding对位于第16组EID（下标15）且与主机bonding同FE时，
-     *            固定命名为 "bonding_dev_96"（兼容此前版本，避免容器重建）
-     *          - 其他情况则使用全局自增的urmaId生成 "bonding_dev_{urmaId}" 格式的名称
-     * @param nodeId 节点ID
-     * @param lcneFe0 第一个FE信息
-     * @param lcneFe1 第二个FE信息
-     * @param idx 当前bonding的EID组索引（从0开始）
      * @return std::string 生成的URMA设备名称，失败时返回空字符串
      */
-    std::string GenerateUrmaDevName(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
-                                    const UbseMtiFeInfo& lcneFe1, const size_t idx);
+    std::string GenerateUrmaDevName();
 
 private:
     utils::ReadWriteLock rwLock;                         // 读写锁，保护nodeInfos等共享数据的并发访问
