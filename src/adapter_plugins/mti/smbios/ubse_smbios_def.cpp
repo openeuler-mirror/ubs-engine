@@ -164,7 +164,7 @@ inline SmbiosOffset QWORD(uint8_t* buf)
 
 void SmbiosStructureType1::LogSmbiosStructTypeInfo()
 {
-    UBSE_LOG_WARN << "Smbios structure type 1 info not supported";
+    UBSE_LOG_INFO << "Smbios system information: manufacturer=" << manufacturer;
 }
 
 void SmbiosStructureType4::LogSmbiosStructTypeInfo()
@@ -204,7 +204,45 @@ void SmbiosHeader::FillHeaderFromBuf(uint8_t* buf)
 
 UbseResult SmbiosStructureType1::FillSmbiosStructFromBuf()
 {
-    return UBSE_ERR_NOT_SUPPORTED;
+    constexpr size_t MANUFACTURER_OFFSET = 0x04;
+    if (header.data == nullptr) {
+        UBSE_LOG_ERROR << "SMBIOS system information data is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (header.length <= MANUFACTURER_OFFSET) {
+        UBSE_LOG_ERROR << "SMBIOS system information is too short, length=" << static_cast<uint32_t>(header.length);
+        return UBSE_ERROR_INVAL;
+    }
+    /*
+     * SMBIOS Type 1由格式化区域和紧随其后的字符串表组成，Manufacturer字段与Manufacturer字符串位于不同区域。
+     * 以下示例假设header.length为0x1B：
+     *
+     * 1. 格式化区域：[header.data, header.data + header.length)
+     * +--------+------+------------------------------+
+     * | 偏移   | 值   | 含义                         |
+     * +--------+------+------------------------------+
+     * | 0x04   | 0x01 | Manufacturer引用字符串表第1项 |
+     * +--------+------+------------------------------+
+     *
+     * 2. 字符串表：从header.data + header.length开始
+     * +------+-------------------+--------------------+
+     * | 编号 | 字符串            | 含义               |
+     * +------+-------------------+--------------------+
+     * | 1    | "QEMU\0"          | 第1项，即厂商      |
+     * | 2    | "Standard PC\0"   | 第2项              |
+     * | 结束 | "\0"              | 结束字符串表       |
+     * +------+-------------------+--------------------+
+     *
+     * 映射关系：格式化区域Manufacturer值0x01 -> 字符串表编号1 -> "QEMU"。
+     */
+    const uint8_t manufacturerStringNumber = header.data[MANUFACTURER_OFFSET];
+    const auto ret = GetSmbiosString(manufacturerStringNumber, manufacturer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS system manufacturer, ret=" << ret;
+        return ret;
+    }
+    LogSmbiosStructTypeInfo();
+    return UBSE_OK;
 }
 
 UbseResult SmbiosStructure::GetSmbiosString(uint8_t stringNumber, std::string& value) const

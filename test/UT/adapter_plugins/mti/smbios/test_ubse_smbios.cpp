@@ -29,11 +29,6 @@ using namespace ubse::log;
 // ==================== Test helpers ====================
 
 // Expose protected members for unit testing
-class TestableSmbiosStructureType1 : public SmbiosStructureType1 {
-public:
-    using SmbiosStructureType1::FillSmbiosStructFromBuf;
-};
-
 class TestableSmbiosStructureType4 : public SmbiosStructureType4 {
 public:
     using SmbiosStructure::DecodeDmiTable;
@@ -135,6 +130,24 @@ static std::vector<uint8_t> MakeProcessorInfo(uint8_t versionStringNumber, const
     return buf;
 }
 
+// Build a type-1 (System Information) struct; manufacturer string number sits at offset 0x04
+static std::vector<uint8_t> MakeSystemInfo(uint8_t manufacturerStringNumber, const std::vector<std::string>& strings)
+{
+    constexpr uint8_t systemInfoLength = 0x1B;
+    constexpr size_t manufacturerOffset = 0x04;
+    std::vector<uint8_t> buf(systemInfoLength, 0);
+    buf[0] = static_cast<uint8_t>(UbseSmbiosType::TYPE_1);
+    buf[1] = systemInfoLength;
+    buf[2] = 0x01;
+    buf[manufacturerOffset] = manufacturerStringNumber;
+    for (const auto& value : strings) {
+        buf.insert(buf.end(), value.begin(), value.end());
+        buf.push_back('\0');
+    }
+    buf.push_back('\0');
+    return buf;
+}
+
 // Setup header on TestableSmbiosSuperPodBasicInfo for FillSmbiosStructFromBuf
 static void SetupSuperPodHeader(TestableSmbiosSuperPodBasicInfo& info, uint8_t* buf, size_t bufSize, uint8_t length)
 {
@@ -215,19 +228,131 @@ TEST_F(TestUbseSmbios, FillHeaderFromBuf_EndOfTableType)
 
 // ==================== SmbiosStructureType1 ====================
 
-TEST_F(TestUbseSmbios, Type1_FillSmbiosStructFromBuf_ReturnsNotSupported)
-{
-    EXPECT_EQ(TestableSmbiosStructureType1().FillSmbiosStructFromBuf(), UBSE_ERR_NOT_SUPPORTED);
-}
-
 TEST_F(TestUbseSmbios, Type1_LogAndDefaults)
 {
     SmbiosStructureType1 t;
     EXPECT_NO_THROW(t.LogSmbiosStructTypeInfo());
-    EXPECT_EQ(t.manufacturer.size(), 32u);
+    EXPECT_TRUE(t.manufacturer.empty());
     EXPECT_EQ(t.productName.size(), 64u);
     EXPECT_EQ(t.serialNumber.size(), 32u);
     EXPECT_EQ(SmbiosStructureType1::type, UbseSmbiosType::TYPE_1);
+}
+
+TEST_F(TestUbseSmbios, Type1_DecodeManufacturer)
+{
+    SmbiosStructureType1 info;
+    auto dmi = MakeSystemInfo(1, {"QEMU", "Standard PC"});
+
+    EXPECT_EQ(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_1), UBSE_OK);
+    EXPECT_EQ(info.manufacturer, "QEMU");
+}
+
+TEST_F(TestUbseSmbios, Type1_DecodeManufacturerSecondString)
+{
+    SmbiosStructureType1 info;
+    auto dmi = MakeSystemInfo(2, {"Prefix", "QEMU"});
+
+    EXPECT_EQ(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_1), UBSE_OK);
+    EXPECT_EQ(info.manufacturer, "QEMU");
+}
+
+TEST_F(TestUbseSmbios, Type1_RejectsEmptyManufacturerStringNumber)
+{
+    SmbiosStructureType1 info;
+    auto dmi = MakeSystemInfo(0, {"QEMU"});
+
+    EXPECT_NE(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_1), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, Type1_RejectsMissingManufacturerString)
+{
+    SmbiosStructureType1 info;
+    auto dmi = MakeSystemInfo(2, {"QEMU"});
+
+    EXPECT_NE(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_1), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, Type1_RejectsShortStructure)
+{
+    SmbiosStructureType1 info;
+    // header.length = 4 (header only), shorter than manufacturer offset 0x04
+    std::vector<uint8_t> dmi = {0x01, 0x04, 0x00, 0x00, 0x00, 0x00};
+
+    EXPECT_NE(info.DecodeDmiTable(dmi, FLAG_STOP_AT_EOT, UbseSmbiosType::TYPE_1), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_Success)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "QEMU";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_OK);
+    EXPECT_EQ(manufacturer, "QEMU");
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_FailsWhenInfoMissing)
+{
+    std::shared_ptr<SmbiosStructureType1> nullInfo;
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(nullInfo));
+
+    std::string manufacturer;
+    EXPECT_NE(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_FailsWhenManufacturerEmpty)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    std::string manufacturer;
+    EXPECT_NE(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_OK);
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_TrueWhenManufacturerIsQemu)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "QEMU";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_TrueWhenManufacturerCaseInsensitive)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "qemu";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_FalseWhenManufacturerIsHuawei)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "Huawei";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_FalseWhenInfoMissing)
+{
+    std::shared_ptr<SmbiosStructureType1> nullInfo;
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(nullInfo));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_FalseWhenManufacturerEmpty)
+{
+    auto sys = std::make_shared<SmbiosStructureType1>();
+    sys->manufacturer = "";
+    MOCKER_CPP(&impl::UbseSmbiosImpl::GetSmbiosTypeInfo<UbseSmbiosType::TYPE_1>).stubs().will(returnValue(sys));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().IsQemuVm());
 }
 
 // ==================== SmbiosStructureType4 ====================
@@ -396,12 +521,12 @@ TEST_F(TestUbseSmbios, DecodeDmiTable_StopAtEndOfTable)
     EXPECT_NE(info.DecodeDmiTable(buf, 0, UbseSmbiosType::SUPER_POD_BASIC_INFO_T), UBSE_OK);
 }
 
-TEST_F(TestUbseSmbios, DecodeDmiTable_Type1_ReturnsNotSupported)
+TEST_F(TestUbseSmbios, DecodeDmiTable_Type1_RejectsZeroManufacturerStringNumber)
 {
     SmbiosStructureType1 t;
     auto buf = MakeDmiBuf(6, {0x00, 0x00});
     buf[0] = 0x01; // change type to 1
-    EXPECT_EQ(t.DecodeDmiTable(buf, 0, UbseSmbiosType::TYPE_1), UBSE_ERR_NOT_SUPPORTED);
+    EXPECT_EQ(t.DecodeDmiTable(buf, 0, UbseSmbiosType::TYPE_1), UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseSmbios, DecodeDmiTable_StructureLengthExceedsBuffer)

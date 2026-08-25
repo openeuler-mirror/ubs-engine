@@ -116,7 +116,7 @@ public:
     void LogSmbiosStructTypeInfo() override;
 
 public:
-    std::array<char, TYPE_1_MAX_LEN> manufacturer;
+    std::string manufacturer;
     std::array<char, PRODUCT_NAME_MAX_LEN> productName;
     std::array<char, TYPE_1_MAX_LEN> version;
     std::array<char, TYPE_1_MAX_LEN> serialNumber;

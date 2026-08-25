@@ -14,6 +14,7 @@
 #define UBSE_SMBIOS_H
 
 #include <cstdint>
+#include <string>
 enum class UbseMeshType
 {
     FULL_MESH = 0x80,
@@ -42,6 +43,21 @@ public:
      * @brief 判断组网是否为CLOS类型
      */
     bool IsClosType();
+
+    /**
+     * @brief 获取系统制造商名称
+     * @param manufacturer 系统制造商（来自SMBIOS Type 1结构的Manufacturer字段，QEMU虚拟机上为"QEMU"）
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR 表示失败
+     */
+    uint32_t GetSystemManufacturer(std::string& manufacturer);
+
+    /**
+     * @brief 判断当前是否运行在QEMU虚拟机（仿真环境）
+     * @return true 表示系统制造商为QEMU（大小写不敏感）
+     * @return false 表示非QEMU或制造商信息获取失败
+     */
+    bool IsQemuVm();
 
     /**
      * @brief 判断CPU是否为支持EID共享的1650v100型号
