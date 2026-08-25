@@ -211,6 +211,18 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliNodeBadParam02)
     ubse::it::tests::topo::RunP0CliNodeBadParam02(Cluster());
 }
 
+// P0-CliHelpInfo-Ok-01: ubsectl -h / --help 输出全量已注册指令和参数信息, 且内容一致
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliHelpInfoOk01)
+{
+    ubse::it::tests::topo::RunP0CliHelpInfoOk01(Cluster());
+}
+
+// P0-CliCompletion-Ok-01: ubsectl 命令自动补齐功能
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCompletionOk01)
+{
+    ubse::it::tests::topo::RunP0CliCompletionOk01(Cluster());
+}
+
 // ==================== CLI Mem P0 ====================
 
 // P0-CliCreateShare-OverLen-01: CLI create share name超长

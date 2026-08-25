@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <future>
+#include <sstream>
 #include <thread>
 
 #include "ubse_common_def.h"
@@ -60,6 +61,35 @@ void CreateShmWithLenderAndVerify(ubse::it::infra::ItSdkClient& sdk, const char*
 
     EXPECT_IT_OK(sdk.MemShmDelete(name)) << "清理共享内存应成功";
 }
+
+// 从 check memory 表格输出中解析指定 slotId 节点的状态 (ok/nok)
+// 表格格式与 display node 一致，列间以空白分隔，行间以 "---" 分隔
+bool ParseMemCheckStatus(const std::string& output, const std::string& slotId, std::string& status)
+{
+    std::istringstream iss(output);
+    std::string line;
+    int separatorCount = 0;
+    while (std::getline(iss, line)) {
+        if (line.find("---") != std::string::npos) {
+            ++separatorCount;
+            continue;
+        }
+        // 表头及之前的内容跳过
+        if (separatorCount < 2) {
+            continue;
+        }
+        std::istringstream lineStream(line);
+        std::string node;
+        std::string st;
+        lineStream >> node >> st;
+        // 节点单元格格式为 hostname(slotId)，下线时显示 -(slotId)
+        if (node.find("(" + slotId + ")") != std::string::npos) {
+            status = st;
+            return true;
+        }
+    }
+    return false;
+}
 } // namespace
 
 // CLI查询节点内存状态测试
@@ -93,6 +123,54 @@ void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(output.find("Failed"), std::string::npos);
 
     IT_LOG_INFO << "CLI check memory test passed";
+}
+
+// 内存状态巡检（节点启停联动）：
+//   1) 双节点均启动时，check memory 中节点2状态应为 ok；
+//   2) 停止节点2后，等待节点1检测到节点2下线，节点2状态应变为 nok；
+//   3) 恢复节点2并等待选举收敛后，节点2状态应恢复为 ok。
+void RunMemCheckStatusChangeTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    const std::string slotId = "2";
+
+    // 1. 双节点均在线：等待节点2状态为 ok
+    //    （check memory 的 ok 依赖 sysSentry/obmm 状态，二者由后台定时器刷新，
+    //      故需轮询等待，避免首次查询时状态尚未刷新导致误判）
+    auto ret = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&cliInvoker, &slotId]() -> bool {
+            std::string cur = cliInvoker.ExecCli("check memory");
+            std::string s;
+            return ParseMemCheckStatus(cur, slotId, s) && s == "ok";
+        },
+        ubse::it::infra::ItWaitHelper::DEFAULT_ELECTION_TIMEOUT_MS);
+    ASSERT_IT_OK(ret) << "双节点均启动时，check memory 中节点2状态应为 ok";
+
+    // 2. 停止节点2：等待节点1检测到节点2下线，节点2状态应变为 nok
+    ASSERT_IT_OK(cluster.KillNode("2")) << "停止节点2应成功";
+
+    ret = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&cliInvoker, &slotId]() -> bool {
+            std::string cur = cliInvoker.ExecCli("check memory");
+            std::string s;
+            return ParseMemCheckStatus(cur, slotId, s) && s == "nok";
+        },
+        ubse::it::infra::ItWaitHelper::DEFAULT_ELECTION_TIMEOUT_MS);
+    ASSERT_IT_OK(ret) << "停止节点2后，check memory 中节点2状态应变为 nok";
+
+    // 3. 恢复节点2：重启并等待选举收敛，节点2状态应恢复为 ok
+    ASSERT_IT_OK(cluster.RestartNode("2", true, 30000)) << "恢复节点2应成功";
+
+    ret = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&cliInvoker, &slotId]() -> bool {
+            std::string cur = cliInvoker.ExecCli("check memory");
+            std::string s;
+            return ParseMemCheckStatus(cur, slotId, s) && s == "ok";
+        },
+        ubse::it::infra::ItWaitHelper::DEFAULT_ELECTION_TIMEOUT_MS);
+    ASSERT_IT_OK(ret) << "恢复节点2后，check memory 中节点2状态应恢复为 ok";
+
+    IT_LOG_INFO << "Mem check status change test passed";
 }
 
 // CLI节点借入汇总查询测试

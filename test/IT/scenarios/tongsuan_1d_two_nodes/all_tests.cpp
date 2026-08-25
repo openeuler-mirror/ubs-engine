@@ -848,6 +848,13 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemOk01)
     ubse::it::tests::mem_borrow::RunP0CliCheckMemOk01(Cluster());
 }
 
+// P0-CliCheckMem-StatusChange-01: 内存状态巡检（节点启停联动）
+// 双节点均启动时节点2状态ok；停止节点2后变nok；恢复节点2后恢复ok
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemStatusChange01)
+{
+    ubse::it::tests::mem_borrow::RunMemCheckStatusChangeTest(Cluster());
+}
+
 // P0-CliNodeBorrow-Ok-01: 查询节点借入汇总
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNodeBorrowOk01)
 {

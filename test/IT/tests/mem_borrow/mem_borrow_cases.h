@@ -24,6 +24,9 @@ namespace ubse::it::tests::mem_borrow {
 // CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
 void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster);
 
+// 内存状态巡检（节点启停联动）：双节点均启动时节点2状态ok；停止节点2后变nok；恢复后恢复ok
+void RunMemCheckStatusChangeTest(ubse::it::infra::ItCluster& cluster);
+
 // CLI节点借入汇总查询测试
 void RunP0CliNodeBorrowOk01(ubse::it::infra::ItCluster& cluster);
 
