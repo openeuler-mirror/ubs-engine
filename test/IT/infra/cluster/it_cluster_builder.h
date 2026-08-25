@@ -66,6 +66,14 @@ public:
                                      const std::string& value);
 
     /**
+     * @brief Override the reported hostname of a node (nodeId only).
+     *
+     * 覆盖默认主机名 it-node-<slotId>，使节点经预加载库 gethostname 覆写后
+     * 上报指定主机名（用于 group/provider 边界主机名长度验证）。
+     */
+    ItClusterBuilder& WithNodeHostname(const std::string& nodeId, const std::string& hostname);
+
+    /**
      * @brief Build and start the cluster.
      *
      * Election behavior is controlled by NoElection():
@@ -90,6 +98,7 @@ private:
     bool mockPluginEnabled_ = true;
     bool waitForElection_ = true;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
+    std::map<std::string, std::string> nodeHostnameOverrides_;
 };
 
 } // namespace ubse::it::infra

@@ -468,6 +468,139 @@ void RunP0CliMemConfigOk01(ubse::it::infra::ItCluster& cluster)
     }
 }
 
+// 通用校验：在master节点查询 display memory -t config，等待节点2信息上报后，
+// 校验节点1 isLender=true、节点2 isLender=expectedNode2Lender（与各场景配置一致）
+static void VerifyMemConfigIsLender(ubse::it::infra::ItCluster& cluster, const std::string& expectedNode2Lender)
+{
+    using ubse::it::infra::util::ExtractNodeId;
+    const std::string node1Id = "1";
+    const std::string node2Id = "2";
+
+    // S1: 确定master节点，查询内存配置，等待节点2信息上报
+    std::string masterNodeId;
+    ASSERT_IT_OK(cluster.GetMasterNodeId(masterNodeId));
+    IT_LOG_INFO << "S1: master node=" << masterNodeId << ", query display memory -t config";
+
+    auto& masterCli = cluster.GetCliInvoker(masterNodeId);
+    bool node2Appeared = false;
+    EXPECT_IT_OK(ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            std::vector<ubse::it::infra::ItMemConfigInfo> configs;
+            if (masterCli.DisplayMemoryConfig(configs) != UBS_SUCCESS) {
+                return false;
+            }
+            for (const auto& config : configs) {
+                if (ExtractNodeId(config.node) == node2Id) {
+                    node2Appeared = true;
+                    return true;
+                }
+            }
+            return false;
+        },
+        30000, 500));
+    ASSERT_TRUE(node2Appeared) << "node 2 should appear in config query";
+
+    // S2: 校验查询结果与设置一致
+    std::vector<ubse::it::infra::ItMemConfigInfo> configs;
+    EXPECT_IT_OK(masterCli.DisplayMemoryConfig(configs));
+    bool node1Checked = false;
+    bool node2Checked = false;
+    for (const auto& config : configs) {
+        std::string nodeId = ExtractNodeId(config.node);
+        if (nodeId == node1Id) {
+            node1Checked = true;
+            EXPECT_EQ(config.isLender, "true") << "node 1 isLender should be true";
+        } else if (nodeId == node2Id) {
+            node2Checked = true;
+            EXPECT_EQ(config.isLender, expectedNode2Lender) << "node 2 isLender should be " << expectedNode2Lender;
+        }
+    }
+    EXPECT_TRUE(node1Checked) << "node 1 should appear in config query";
+    EXPECT_TRUE(node2Checked) << "node 2 should appear in config query";
+}
+
+// CLI isLender配置查询测试（false场景）：节点2配置isLender=false，查询结果与配置一致
+void RunP0CliMemConfigLenderFalse01(ubse::it::infra::ItCluster& cluster)
+{
+    VerifyMemConfigIsLender(cluster, "false");
+    IT_LOG_INFO << "P0-Cli-MemConfig-LenderFalse-01 done";
+}
+
+// CLI isLender配置查询测试（true场景）：节点2配置isLender=true，查询结果与配置一致
+void RunP0CliMemConfigLenderTrue01(ubse::it::infra::ItCluster& cluster)
+{
+    VerifyMemConfigIsLender(cluster, "true");
+    IT_LOG_INFO << "P0-Cli-MemConfig-LenderTrue-01 done";
+}
+
+// P0-Cli-CreateNuma-OneLender-Link-01: 三节点单一借出节点场景，
+// 节点1/2 isLender=false，节点3 isLender=true；节点1指定到节点3的链路创建NUMA，
+// 通过 borrow_detail 校验借出节点（lend_node）为节点3
+void RunP0CliCreateNumaOneLenderLink01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+    const std::string lenderNodeId = "3";
+    constexpr const char* numaName = "it_p0_numa_one_lender";
+
+    // S1. 查询 display topo -t cpu，找到节点1到节点3的可用链路
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    EXPECT_IT_OK(cliInvoker.QueryTopoCpu(topoLinks));
+    EXPECT_GT(topoLinks.size(), 0) << "display topo -t cpu should return non-empty links";
+
+    std::string linkId;
+    for (const auto& link : topoLinks) {
+        if (ExtractNodeId(link.node) == "1" && ExtractNodeId(link.peerNode) == lenderNodeId && !link.linkId.empty() &&
+            link.linkId != "-") {
+            linkId = link.linkId;
+            break;
+        }
+    }
+    ASSERT_FALSE(linkId.empty()) << "Should find an available link from node 1 to node " << lenderNodeId;
+
+    // S2. 节点1指定链路创建 NUMA 内存（借出节点应为节点3）
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, numaName, "128M", linkId));
+    EXPECT_EQ(createInfo.name, numaName);
+    EXPECT_EQ(createInfo.size, "128MB");
+    EXPECT_EQ(ExtractNodeId(createInfo.importNode), "1") << "import-node should be current node (1)";
+    EXPECT_EQ(ExtractNodeId(createInfo.exportNode), lenderNodeId)
+        << "export-node should be node " << lenderNodeId << ", actual: " << createInfo.exportNode;
+
+    // S3. 查询 borrow_detail，校验借出节点（lend_node）为节点3
+    bool found = false;
+    EXPECT_IT_OK(ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() {
+            std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+            if (cliInvoker.DisplayMemoryBorrowDetail(borrowDetails) != UBS_SUCCESS) {
+                return false;
+            }
+            for (const auto& detail : borrowDetails) {
+                if (detail.name == numaName) {
+                    found = true;
+                    EXPECT_EQ(detail.type, "numa") << "borrow type should be numa";
+                    EXPECT_EQ(ExtractNodeId(detail.borrowNode), "1") << "borrow_node should be node 1";
+                    EXPECT_EQ(ExtractNodeId(detail.lendNode), lenderNodeId)
+                        << "lend_node should be node " << lenderNodeId << ", actual: " << detail.lendNode;
+                    return true;
+                }
+            }
+            return false;
+        },
+        15000, 200));
+    ASSERT_TRUE(found) << "borrow_detail should contain " << numaName;
+
+    // S4. 清理 NUMA 内存，并确认账本不再包含该记录
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(numaName, "numa"));
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete));
+    for (const auto& detail : borrowDetailsAfterDelete) {
+        EXPECT_NE(detail.name, numaName) << "NUMA record should be removed after delete";
+    }
+
+    IT_LOG_INFO << "P0-Cli-CreateNuma-OneLender-Link-01 done";
+}
+
 // ==================== FD 辅助函数（来自 mem_fd） ====================
 
 // ==================== ubs_mem_fd_create P0 测试 ====================
@@ -837,6 +970,64 @@ void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster)
     ret = sdk.MemFdDelete(name);
     ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreateLender-Dup-01 done";
+}
+
+// P0-FdCreateLender-BoundaryHostname-01: 四节点边界主机名场景，
+// 节点1指定节点3（provider）创建FD成功，节点2指定节点4（provider）创建FD成功
+void RunP0FdCreateLenderBoundaryHostname01(ubse::it::infra::ItCluster& cluster)
+{
+    const uint32_t node3SlotId = cluster.GetNode("3").GetSpec().slotId;
+    const uint32_t node4SlotId = cluster.GetNode("4").GetSpec().slotId;
+    const char* fdNameN3 = "it_p0_fd_bh_n3"; // 节点1→借出节点3
+    const char* fdNameN4 = "it_p0_fd_bh_n4"; // 节点2→借出节点4
+
+    // S1. 节点1指定节点3作为借出节点创建FD内存（节点3同组且为provider，应调度成功）
+    auto& sdk1 = cluster.GetSdkClient("1");
+    IT_LOG_INFO << "S1: node 1 create FD with lender node3, name=" << fdNameN3;
+    ubs_mem_lender_t lender3{
+        .lender_size = fdSize, .slot_id = node3SlotId, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+    ubs_mem_fd_desc_t fdDesc3{};
+    int32_t ret = sdk1.MemFdCreateWithLender(fdNameN3, nullptr, 0, &lender3, 1, &fdDesc3);
+    ASSERT_IT_OK(ret) << "node 1 create FD with lender node3 should succeed";
+
+    // S2. 等待FD就绪并校验借出节点为节点3
+    IT_LOG_INFO << "S2: wait FD ready and verify export node";
+    WaitForFdReady(sdk1, fdNameN3);
+    ubs_mem_fd_desc_t fdGet3{};
+    ret = sdk1.MemFdGet(fdNameN3, &fdGet3);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet3.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet3.export_node.slot_id, node3SlotId) << "FD export_node should be node3 (provider)";
+        EXPECT_NE(fdGet3.import_node.slot_id, fdGet3.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S3. 节点2指定节点4作为借出节点创建FD内存（节点4同组且为provider，应调度成功）
+    auto& sdk2 = cluster.GetSdkClient("2");
+    IT_LOG_INFO << "S3: node 2 create FD with lender node4, name=" << fdNameN4;
+    ubs_mem_lender_t lender4{
+        .lender_size = fdSize, .slot_id = node4SlotId, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+    ubs_mem_fd_desc_t fdDesc4{};
+    ret = sdk2.MemFdCreateWithLender(fdNameN4, nullptr, 0, &lender4, 1, &fdDesc4);
+    ASSERT_IT_OK(ret) << "node 2 create FD with lender node4 should succeed";
+
+    // S4. 等待FD就绪并校验借出节点为节点4
+    IT_LOG_INFO << "S4: wait FD ready and verify export node";
+    WaitForFdReady(sdk2, fdNameN4);
+    ubs_mem_fd_desc_t fdGet4{};
+    ret = sdk2.MemFdGet(fdNameN4, &fdGet4);
+    EXPECT_IT_OK(ret);
+    if (ret == UBS_SUCCESS) {
+        EXPECT_TRUE(fdGet4.mem_stage == UBSE_EXIST) << "FD mem_stage should be valid";
+        EXPECT_EQ(fdGet4.export_node.slot_id, node4SlotId) << "FD export_node should be node4 (provider)";
+        EXPECT_NE(fdGet4.import_node.slot_id, fdGet4.export_node.slot_id) << "import/export nodes should differ";
+    }
+
+    // S5. 清理：删除节点1、节点2创建的FD内存
+    IT_LOG_INFO << "S5: cleanup FD on node1 and node2";
+    EXPECT_IT_OK(sdk1.MemFdDelete(fdNameN3)) << "delete FD on node1 should succeed";
+    EXPECT_IT_OK(sdk2.MemFdDelete(fdNameN4)) << "delete FD on node2 should succeed";
+    IT_LOG_INFO << "P0-FdCreateLender-BoundaryHostname-01 passed";
 }
 
 // ==================== ubs_mem_fd_create_with_candidate P0 测试 ====================

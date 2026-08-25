@@ -150,7 +150,8 @@ ItNode::ItNode(NodeSpec spec, ClusterContext ctx)
       ctx_(std::move(ctx)),
       lcneUdsPath_(spec_.workDir + "/run/ubm/socket/ubm_nuds/restconf.sock"),
       udsSocketPath_(spec_.UdsSocketPath()),
-      cliInvoker_(ctx_.cliBinaryPath, udsSocketPath_)
+      cliInvoker_(ctx_.cliBinaryPath, udsSocketPath_,
+                  spec_.hostname.empty() ? "it-node-" + std::to_string(spec_.slotId) : spec_.hostname)
 {
 }
 
@@ -247,6 +248,7 @@ NodeProcessConfig ItNode::BuildProcessConfig() const
     config.sceneType = ctx_.sceneType;
     config.meshType = ctx_.meshType;
     config.lcneUdsPath = lcneUdsPath_;
+    config.hostname = spec_.hostname;
     return config;
 }
 

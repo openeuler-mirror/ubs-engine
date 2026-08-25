@@ -191,8 +191,16 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_two_nodes_election_candidate_false
     tongsuan_1d_two_nodes_ub_feature_fault
     tongsuan_1d_two_nodes_runtime_fault
+    tongsuan_1d_two_nodes_lender_false
+    tongsuan_1d_two_nodes_lender_true
+    tongsuan_1d_two_nodes_group_provider
+    tongsuan_1d_two_nodes_group_all
+    tongsuan_1d_three_nodes_one_lender
+    tongsuan_1d_three_nodes_provider
     tongsuan_1d_two_nodes_sei_disabled
     tongsuan_1d_four_nodes
+    tongsuan_1d_four_nodes_two_group
+    tongsuan_1d_four_nodes_boundary_hostname
     zhisuan_npu_single_node
 )
 

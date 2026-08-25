@@ -45,6 +45,18 @@ void RunP0CliNumaStatusOk01(ubse::it::infra::ItCluster& cluster);
 // CLI内存配置查询测试：查询内存配置信息，验证输出格式
 void RunP0CliMemConfigOk01(ubse::it::infra::ItCluster& cluster);
 
+// CLI isLender配置查询测试（false场景）：双节点，节点2配置isLender=false，
+// 在master节点查询 display memory -t config，校验节点2为false、节点1为true
+void RunP0CliMemConfigLenderFalse01(ubse::it::infra::ItCluster& cluster);
+
+// CLI isLender配置查询测试（true场景）：双节点，节点2配置isLender=true，
+// 在master节点查询 display memory -t config，校验节点2为true、节点1为true
+void RunP0CliMemConfigLenderTrue01(ubse::it::infra::ItCluster& cluster);
+
+// CLI指定链路创建NUMA测试（三节点单一借出节点）：节点1/2 isLender=false，节点3 isLender=true，
+// 节点1指定到节点3的链路创建NUMA，通过borrow_detail校验借出节点（lend_node）为节点3
+void RunP0CliCreateNumaOneLenderLink01(ubse::it::infra::ItCluster& cluster);
+
 // ==================== ubs_mem_fd_create ====================
 void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateOverLen01(ubse::it::infra::ItCluster& cluster);
@@ -65,6 +77,8 @@ void RunP0FdCreateLenderInvalidVal02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderNullPtr02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
+// 四节点边界主机名场景：节点1/2分别指定节点3/4（provider）创建FD内存成功
+void RunP0FdCreateLenderBoundaryHostname01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create_with_candidate ====================
 void RunP0FdCreateCandidateOk01(ubse::it::infra::ItCluster& cluster);
