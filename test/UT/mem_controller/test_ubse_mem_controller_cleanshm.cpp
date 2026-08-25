@@ -465,8 +465,9 @@ TEST_F(TestUbseMemControllerCleanShm, CollectImportObjsFromNode_InvalidMatch)
 
 TEST_F(TestUbseMemControllerCleanShm, GetMaxRefCountExportObj_NormalCase)
 {
-    auto result = GetMaxRefCountExportObj("res1");
-    EXPECT_TRUE(result.first == nullptr || result.first->req.name.empty());
+    CascadeMasterStore store;
+    auto result = GetMaxRefCountExportObj(store, "res1");
+    EXPECT_TRUE(!result.first.has_value() || result.first->req.name.empty());
     EXPECT_EQ(result.second.size(), 0);
 }
 
@@ -596,8 +597,9 @@ TEST_F(TestUbseMemControllerCleanShm, TestProcessCurrentCleanList_SingelObj)
 
 TEST_F(TestUbseMemControllerCleanShm, GetMaxRefCountExportObj_NoExportNoImport)
 {
-    auto result = GetMaxRefCountExportObj("res1");
-    EXPECT_TRUE(result.first == nullptr || result.first->req.name.empty());
+    CascadeMasterStore store;
+    auto result = GetMaxRefCountExportObj(store, "res1");
+    EXPECT_TRUE(!result.first.has_value() || result.first->req.name.empty());
     EXPECT_TRUE(result.second.empty());
 }
 } // namespace ubse::mem_controller::ut

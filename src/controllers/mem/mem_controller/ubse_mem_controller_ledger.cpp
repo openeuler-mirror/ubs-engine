@@ -2632,15 +2632,14 @@ std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
 }
 
 // 获取name下所有导入对象的子函数
-std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string& name)
+std::vector<UbseMemShareBorrowImportObj> GetAllImportObjsByName(IShareStore& store, const std::string& name)
 {
-    std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
-    for (const auto& [nodeId, nodeMap] : allNodeMaps) {
-        auto importObjPtr = nodeMap->Get(name);
-        if (importObjPtr && importObjPtr->status.state != UBSE_MEM_IMPORT_DESTROYED) {
-            allImportObjs.emplace_back(importObjPtr);
+    std::vector<UbseMemShareBorrowImportObj> allImportObjs;
+    std::vector<UbseMemShareBorrowImportObj> imports;
+    store.LoadAllImports(name, imports);
+    for (auto& importObj : imports) {
+        if (importObj.status.state != UBSE_MEM_IMPORT_DESTROYED) {
+            allImportObjs.emplace_back(std::move(importObj));
         }
     }
     UBSE_LOG_INFO << "Total import objects found for name=" << name << ": " << allImportObjs.size();
@@ -2648,26 +2647,21 @@ std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjs
 }
 
 // 收集指定 name 的导出对象，按 baseNodeId 分组
-std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
-    const std::string& name)
+std::unordered_map<std::string, UbseMemShareBorrowExportObj> CollectExportObjsByName(
+    IShareStore& store, const std::string& name)
 {
-    auto baseToExportObjs = std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>>();
+    auto baseToExportObjs = std::unordered_map<std::string, UbseMemShareBorrowExportObj>();
+    std::vector<UbseMemShareBorrowExportObj> exports;
+    store.LoadAllExports(name, exports);
 
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto allExportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps();
-
-    for (const auto& [nodeId, nodeMap] : allExportNodeMaps) {
-        auto exportObjPtr = nodeMap->Get(name);
-        if (!exportObjPtr) {
+    for (auto& exportObj : exports) {
+        if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING ||
+            exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
-        if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING ||
-            exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYED) {
-            continue;
-        }
-        if (!exportObjPtr->algoResult.exportNumaInfos.empty()) {
-            const std::string& baseNodeId = exportObjPtr->algoResult.exportNumaInfos[0].nodeId;
-            baseToExportObjs[baseNodeId] = exportObjPtr;
+        if (!exportObj.algoResult.exportNumaInfos.empty()) {
+            const std::string baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
+            baseToExportObjs[baseNodeId] = std::move(exportObj);
         }
     }
 
@@ -2675,33 +2669,27 @@ std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportOb
 }
 
 void CollectImportObjsAndRefCount(
-    const std::string& name, std::unordered_map<std::string, size_t>& refCountByBaseNode,
-    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>>& baseToImportObjs)
+    IShareStore& store, const std::string& name, std::unordered_map<std::string, size_t>& refCountByBaseNode,
+    std::unordered_map<std::string, std::vector<UbseMemShareBorrowImportObj>>& baseToImportObjs)
 {
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto allImportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
+    std::vector<UbseMemShareBorrowImportObj> imports;
+    store.LoadAllImports(name, imports);
 
-    for (const auto& [nodeId, nodeMap] : allImportNodeMaps) {
-        auto allResources = nodeMap->GetAll();
-        for (const auto& [resId, importObjPtr] : allResources) {
-            if (resId != name) {
-                continue;
-            }
-            if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYED) {
-                continue;
-            }
-            if (!importObjPtr->algoResult.exportNumaInfos.empty()) {
-                const std::string& baseNodeId = importObjPtr->algoResult.exportNumaInfos[0].nodeId;
-                refCountByBaseNode[baseNodeId]++;
-                baseToImportObjs[baseNodeId].emplace_back(importObjPtr);
-            }
+    for (auto& importObj : imports) {
+        if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+            continue;
+        }
+        if (!importObj.algoResult.exportNumaInfos.empty()) {
+            const std::string baseNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
+            refCountByBaseNode[baseNodeId]++;
+            baseToImportObjs[baseNodeId].emplace_back(std::move(importObj));
         }
     }
 }
 
 // 找出最大引用计数的 baseNodeId
 std::string FindMaxRefCountBaseNode(
-    const std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>>& baseToExportObjs,
+    const std::unordered_map<std::string, UbseMemShareBorrowExportObj>& baseToExportObjs,
     const std::unordered_map<std::string, size_t>& refCountByBaseNode)
 {
     std::string selectedBaseNodeId;
@@ -2718,20 +2706,20 @@ std::string FindMaxRefCountBaseNode(
     return selectedBaseNodeId;
 }
 
-UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name)
+UbseMemShareExportWithImports GetMaxRefCountExportObj(IShareStore& store, const std::string& name)
 {
     // 1. 收集该 name 相关的导出对象，按 baseNodeId 分组
-    auto baseToExportObjs = CollectExportObjsByName(name);
+    auto baseToExportObjs = CollectExportObjsByName(store, name);
     // 2. 如果没有找到对应的导出对象，返回该 name 的所有导入对象
     if (baseToExportObjs.empty()) {
         UBSE_LOG_INFO << "name=" << name << " no shared memory object found, returning all import objects";
-        return {nullptr, GetAllImportObjsByName(name)};
+        return {std::nullopt, GetAllImportObjsByName(store, name)};
     }
 
     // 3. 收集该 name 相关的导入对象，计算引用计数并按 baseNodeId 分组
     std::unordered_map<std::string, size_t> refCountByBaseNode;
-    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>> baseToImportObjs;
-    CollectImportObjsAndRefCount(name, refCountByBaseNode, baseToImportObjs);
+    std::unordered_map<std::string, std::vector<UbseMemShareBorrowImportObj>> baseToImportObjs;
+    CollectImportObjsAndRefCount(store, name, refCountByBaseNode, baseToImportObjs);
 
     // 4. 找出最大引用计数的 baseNodeId
     std::string selectedBaseNodeId = FindMaxRefCountBaseNode(baseToExportObjs, refCountByBaseNode);
@@ -2740,15 +2728,15 @@ UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name)
                   << (refCountByBaseNode.count(selectedBaseNodeId) ? refCountByBaseNode.at(selectedBaseNodeId) : 0);
 
     // 5. 构建返回结果
-    auto exportObjPtr = baseToExportObjs[selectedBaseNodeId];
-    auto importObjPtrs = std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>();
+    auto exportObj = std::move(baseToExportObjs[selectedBaseNodeId]);
+    auto importObjs = std::vector<UbseMemShareBorrowImportObj>();
     if (baseToImportObjs.count(selectedBaseNodeId)) {
-        importObjPtrs = std::move(baseToImportObjs[selectedBaseNodeId]);
+        importObjs = std::move(baseToImportObjs[selectedBaseNodeId]);
     }
 
-    UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjPtrs.size()
+    UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjs.size()
                   << " import objects.";
-    return {exportObjPtr, importObjPtrs};
+    return {std::move(exportObj), std::move(importObjs)};
 }
 
 struct PairHash {

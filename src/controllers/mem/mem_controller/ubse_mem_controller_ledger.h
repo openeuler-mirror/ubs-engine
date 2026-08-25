@@ -5,6 +5,8 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_LEDGER_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_LEDGER_H
 
+#include <optional>
+
 #include "ubse_common_def.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_ledger.h"
@@ -19,8 +21,8 @@ using namespace ubse::adapter_plugins::mmi;
 using ubse::mem::controller::IShareStore;
 using UbseMemShareBorrowExportObjMap =
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>>;
-using UbseMemShareExportWithImports = std::pair<std::shared_ptr<const UbseMemShareBorrowExportObj>,
-                                                std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>>;
+using UbseMemShareExportWithImports =
+    std::pair<std::optional<UbseMemShareBorrowExportObj>, std::vector<UbseMemShareBorrowImportObj>>;
 
 UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node);
 
@@ -204,16 +206,16 @@ std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj>& importMap, const std::string& name,
     const std::string& baseNodeId);
 
-std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string& name);
+std::vector<UbseMemShareBorrowImportObj> GetAllImportObjsByName(IShareStore& store, const std::string& name);
 
 // 收集指定 name 的导出对象，按 baseNodeId 分组
-std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
-    const std::string& name);
+std::unordered_map<std::string, UbseMemShareBorrowExportObj> CollectExportObjsByName(IShareStore& store,
+                                                                                      const std::string& name);
 
 UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type);
 
 // 获取最大引用计数的导出对象
-UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name);
+UbseMemShareExportWithImports GetMaxRefCountExportObj(IShareStore& store, const std::string& name);
 
 void MasterNotifyRemoteNumaStatus(const std::string& targetNodeId,
                                   const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap);

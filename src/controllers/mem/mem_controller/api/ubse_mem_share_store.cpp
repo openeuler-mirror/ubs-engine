@@ -104,6 +104,24 @@ UbseResult CascadeMasterStore::LoadImport(const std::string &importNodeId, const
     return UBSE_OK;
 }
 
+UbseResult CascadeMasterStore::LoadAllExports(const std::string &name,
+                                           std::vector<UbseMemShareBorrowExportObj> &out)
+{
+    out.clear();
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps();
+    for (const auto &[nodeId, nodeMap] : allNodeMaps) {
+        if (!nodeMap) {
+            continue;
+        }
+        auto ptr = nodeMap->Get(name);
+        if (ptr) {
+            out.push_back(*ptr);
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult CascadeMasterStore::LoadAllImports(const std::string &name,
                                            std::vector<UbseMemShareBorrowImportObj> &out)
 {
@@ -374,6 +392,19 @@ UbseResult GlobalMasterStore::LoadImport(const std::string &importNodeId, const 
     if (LoadExport(name, exportObj) == UBSE_OK) {
         out.exportObmmInfo = exportObj.status.exportObmmInfo;
     }
+    return UBSE_OK;
+}
+
+UbseResult GlobalMasterStore::LoadAllExports(const std::string &name,
+                                              std::vector<UbseMemShareBorrowExportObj> &out)
+{
+    out.clear();
+    ForEachExport([&out, &name](const std::string &nodeId, const std::string &itemName,
+                                const UbseMemShareBorrowExportObj &obj) {
+        if (itemName == name) {
+            out.push_back(obj);
+        }
+    });
     return UBSE_OK;
 }
 
