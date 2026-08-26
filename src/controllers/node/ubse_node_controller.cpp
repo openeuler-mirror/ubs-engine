@@ -14,14 +14,22 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <chrono>
+#include <csignal>
+#include <cstdlib>
 #include <exception>
 #include <fstream>
 #include <queue>
 #include <regex>
 #include <set>
+#include <thread>
+#include <vector>
 
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
@@ -45,6 +53,8 @@
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 #include "securec.h"
+
+extern char** environ;
 
 namespace ubse::nodeController {
 using namespace ubse::context;
@@ -70,7 +80,15 @@ const std::string SUB_HEALTH_CONF_SECTION = "ubse.memory";
 const std::string SUB_HEALTH_ENABLED_KEY = "subHealthPenaltyEnabled";
 const std::string SUB_HEALTH_REFRESH_INTERVAL_KEY = "subHealthRefreshInterval";
 constexpr uint32_t SUB_HEALTH_DEFAULT_REFRESH_INTERVAL = 60;
-const std::string SUB_HEALTH_DETECTION_FILE = "/var/log/ubse/detection.json";  
+
+const std::string SUB_HEALTH_HIKPTOOL_BIN = "/usr/bin/hikptool/build/hikptool";
+const std::string SUB_HEALTH_HIKPTOOL_LIB_DIR = "/usr/bin/hikptool/build/libhikptdev/src/rciep";
+const std::string SUB_HEALTH_WORK_DIR = "/var/log/ubse";
+const std::string SUB_HEALTH_DETECTION_FILE = "/var/log/ubse/detection.json";
+constexpr uint32_t SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS = 30;
+constexpr useconds_t SUB_HEALTH_HIKPTOOL_WAIT_INTERVAL_US = 100000;
+constexpr uint32_t SUB_HEALTH_HIKPTOOL_WAIT_COUNT =
+    (SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS + 1) * 1000000 / SUB_HEALTH_HIKPTOOL_WAIT_INTERVAL_US;
 
 struct SubHealthPortLocation {
     std::string nodeId;
@@ -89,6 +107,208 @@ bool IsSubHealthNodeAvailable(const UbseNodeInfo& nodeInfo)
 {
     return nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_UNKNOWN &&
            nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT;
+}
+
+uint32_t PrepareSubHealthWorkDir()
+{
+    if (mkdir(SUB_HEALTH_WORK_DIR.c_str(), 0755) != 0 && errno != EEXIST) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] create work directory failed"
+                       << ", dir=" << SUB_HEALTH_WORK_DIR << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    if (access(SUB_HEALTH_WORK_DIR.c_str(), W_OK) != 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] work directory is not writable"
+                       << ", dir=" << SUB_HEALTH_WORK_DIR << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    return UBSE_OK;
+}
+
+void ReapSubHealthProcessAsync(pid_t pid)
+{
+    std::thread([pid]() {
+        int status = 0;
+        pid_t waitRet = 0;
+        do {
+            waitRet = waitpid(pid, &status, 0);
+        } while (waitRet < 0 && errno == EINTR);
+    }).detach();
+}
+
+uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
+{
+    struct stat toolStat {};
+    if (stat(SUB_HEALTH_HIKPTOOL_BIN.c_str(), &toolStat) != 0 ||
+        !S_ISREG(toolStat.st_mode) ||
+        access(SUB_HEALTH_HIKPTOOL_BIN.c_str(), X_OK) != 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool is invalid or not executable"
+                       << ", path=" << SUB_HEALTH_HIKPTOOL_BIN
+                       << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    std::string hikptoolLib = SUB_HEALTH_HIKPTOOL_LIB_DIR + "/libhikptdev.so.1";
+    if (access(hikptoolLib.c_str(), R_OK) != 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool library is not readable"
+                       << ", path=" << hikptoolLib
+                       << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    auto ret = PrepareSubHealthWorkDir();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    // 删除上一轮结果，保证本轮读取的一定是新生成的detection.json
+    if (unlink(SUB_HEALTH_DETECTION_FILE.c_str()) != 0 && errno != ENOENT) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] remove old detection file failed"
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE
+                       << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    std::string ldLibraryPath = "LD_LIBRARY_PATH=" + SUB_HEALTH_HIKPTOOL_LIB_DIR;
+    const char* oldLdLibraryPath = std::getenv("LD_LIBRARY_PATH");
+    if (oldLdLibraryPath != nullptr && oldLdLibraryPath[0] != '\0') {
+        ldLibraryPath += ":";
+        ldLibraryPath += oldLdLibraryPath;
+    }
+
+    // 在父进程中构造子进程环境，避免fork后调用setenv
+    std::vector<std::string> envStrings;
+    for (char** env = environ; env != nullptr && *env != nullptr; ++env) {
+        std::string item = *env;
+        if (item.rfind("LD_LIBRARY_PATH=", 0) == 0) {
+            continue;
+        }
+        envStrings.emplace_back(std::move(item));
+    }
+    envStrings.emplace_back(ldLibraryPath);
+
+    std::vector<char*> envp;
+    envp.reserve(envStrings.size() + 1);
+    for (auto& item : envStrings) {
+        envp.push_back(const_cast<char*>(item.c_str()));
+    }
+    envp.push_back(nullptr);
+
+    // fork前获取最大文件描述符，子进程仅执行close等安全操作
+    long maxFd = sysconf(_SC_OPEN_MAX);
+    if (maxFd < 0) {
+        maxFd = 1024;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] start hikptool detection"
+                  << ", hikptool=" << SUB_HEALTH_HIKPTOOL_BIN
+                  << ", libraryDir=" << SUB_HEALTH_HIKPTOOL_LIB_DIR
+                  << ", workDir=" << SUB_HEALTH_WORK_DIR;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] fork hikptool failed"
+                       << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    if (pid == 0) {
+        if (chdir(SUB_HEALTH_WORK_DIR.c_str()) != 0) {
+            _exit(126);
+        }
+
+        // 避免hikptool继承UBSE的socket、UDS、epoll及内部IPC文件描述符
+        for (int fd = STDERR_FILENO + 1; fd < maxFd; ++fd) {
+            (void)close(fd);
+        }
+
+        // hikptool最多执行30秒，避免工具异常卡死
+        alarm(SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS);
+
+        char* const argv[] = {
+            const_cast<char*>(SUB_HEALTH_HIKPTOOL_BIN.c_str()),
+            const_cast<char*>("sub_health"),
+            nullptr,
+        };
+
+        execve(SUB_HEALTH_HIKPTOOL_BIN.c_str(), argv, envp.data());
+        _exit(127);
+    }
+
+    int status = 0;
+    bool processExited = false;
+
+    for (uint32_t count = 0; count < SUB_HEALTH_HIKPTOOL_WAIT_COUNT; ++count) {
+        pid_t waitRet = waitpid(pid, &status, WNOHANG);
+        if (waitRet == pid) {
+            processExited = true;
+            break;
+        }
+
+        if (waitRet < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            UBSE_LOG_ERROR << "[SUB_HEALTH] wait hikptool failed"
+                           << ", pid=" << pid
+                           << ", errno=" << errno;
+
+            if (errno != ECHILD) {
+                ReapSubHealthProcessAsync(pid);
+            }
+            return UBSE_ERROR;
+        }
+
+        // UBSE停止时不继续阻塞executor，由独立线程负责回收子进程
+        if (!subHealthEnabled.load()) {
+            UBSE_LOG_INFO << "[SUB_HEALTH] sub health is stopping"
+                          << ", pid=" << pid;
+            ReapSubHealthProcessAsync(pid);
+            return UBSE_ERROR;
+        }
+
+        usleep(SUB_HEALTH_HIKPTOOL_WAIT_INTERVAL_US);
+    }
+
+    if (!processExited) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] wait hikptool timeout"
+                       << ", pid=" << pid
+                       << ", timeout=" << SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS << "s";
+        ReapSubHealthProcessAsync(pid);
+        return UBSE_ERROR;
+    }
+
+    if (!WIFEXITED(status)) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool exited abnormally"
+                       << ", pid=" << pid;
+        return UBSE_ERROR;
+    }
+
+    int exitCode = WEXITSTATUS(status);
+    if (exitCode != 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool detection failed"
+                       << ", pid=" << pid
+                       << ", exitCode=" << exitCode;
+        return UBSE_ERROR;
+    }
+
+    if (!subHealthEnabled.load()) {
+        return UBSE_ERROR;
+    }
+
+    if (access(SUB_HEALTH_DETECTION_FILE.c_str(), R_OK) != 0) {
+        UBSE_LOG_ERROR << "[SUB_HEALTH] detection.json was not generated"
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE
+                       << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] hikptool detection success"
+                  << ", file=" << SUB_HEALTH_DETECTION_FILE;
+
+    return UBSE_OK;
 }
 
 size_t UbseNodeController::SubHealthSocketPairHash::operator()(const SubHealthSocketPair& key) const
@@ -527,16 +747,16 @@ uint32_t UbseNodeController::RegGlobalStateNotifyHandler(const UbseGlobalStateNo
     return UBSE_OK;
 }
 
-uint32_t ParseSubHealthLinkArray(
-    const rapidjson::Value& result, const std::string& srcEid, const SubHealthPortLocation& srcLocation,
-    const std::unordered_map<std::string, SubHealthPortLocation>& portLocations,
-    UbseSubHealthFlagMap& subHealthFlags, size_t& linkCount)
+uint32_t ParseSubHealthLinkArray(const rapidjson::Value& result, const std::string& srcEid,
+                                 const SubHealthPortLocation& srcLocation,
+                                 const std::unordered_map<std::string, SubHealthPortLocation>& portLocations,
+                                 UbseSubHealthFlagMap& subHealthFlags, size_t& linkCount)
 {
     const char* dstEidsKey = "sub_health_dst_eids";
     const char* latenciesKey = "sub_health_latencies";
 
-    if (!result.HasMember(dstEidsKey) || !result[dstEidsKey].IsArray() ||
-        !result.HasMember(latenciesKey) || !result[latenciesKey].IsArray()) {
+    if (!result.HasMember(dstEidsKey) || !result[dstEidsKey].IsArray() || !result.HasMember(latenciesKey) ||
+        !result[latenciesKey].IsArray()) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] invalid detection result"
                        << ", srcEid=" << srcEid;
         return UBSE_ERROR_INVAL;
@@ -547,8 +767,7 @@ uint32_t ParseSubHealthLinkArray(
 
     if (dstEids.Size() != latencies.Size()) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] dst eid and latency size mismatch"
-                       << ", srcEid=" << srcEid
-                       << ", dstCount=" << dstEids.Size()
+                       << ", srcEid=" << srcEid << ", dstCount=" << dstEids.Size()
                        << ", latencyCount=" << latencies.Size();
         return UBSE_ERROR_INVAL;
     }
@@ -556,8 +775,7 @@ uint32_t ParseSubHealthLinkArray(
     for (rapidjson::SizeType i = 0; i < dstEids.Size(); ++i) {
         if (!dstEids[i].IsString() || !latencies[i].IsNumber()) {
             UBSE_LOG_ERROR << "[SUB_HEALTH] invalid link item"
-                           << ", srcEid=" << srcEid
-                           << ", index=" << i;
+                           << ", srcEid=" << srcEid << ", index=" << i;
             return UBSE_ERROR_INVAL;
         }
 
@@ -565,9 +783,7 @@ uint32_t ParseSubHealthLinkArray(
         auto dstIter = portLocations.find(NormalizeSubHealthEid(dstEid));
         if (dstIter == portLocations.end()) {
             UBSE_LOG_WARN << "[SUB_HEALTH] destination primary eid not found in topology"
-                          << ", srcEid=" << srcEid
-                          << ", dstEid=" << dstEid
-                          << ", keep old cache";
+                          << ", srcEid=" << srcEid << ", dstEid=" << dstEid << ", keep old cache";
             return UBSE_ERROR;
         }
 
@@ -608,13 +824,9 @@ uint32_t ParseSubHealthLinkArray(
 
         if (isSubHealthy) {
             UBSE_LOG_INFO << "[SUB_HEALTH] sub healthy link detected"
-                          << ", srcEid=" << srcEid
-                          << ", dstEid=" << dstEid
-                          << ", latency=" << latency << "ms"
-                          << ", nodeId=" << srcLocation.nodeId
-                          << ", socketId=" << srcLocation.socketId
-                          << ", peerNodeId=" << dstLocation.nodeId
-                          << ", peerSocketId=" << dstLocation.socketId
+                          << ", srcEid=" << srcEid << ", dstEid=" << dstEid << ", latency=" << latency << "ms"
+                          << ", nodeId=" << srcLocation.nodeId << ", socketId=" << srcLocation.socketId
+                          << ", peerNodeId=" << dstLocation.nodeId << ", peerSocketId=" << dstLocation.socketId
                           << ", cacheDirection=bidirectional";
         }
     }
@@ -627,8 +839,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
     std::ifstream file(SUB_HEALTH_DETECTION_FILE);
     if (!file.is_open()) {
         UBSE_LOG_WARN << "[SUB_HEALTH] open detection file failed"
-                      << ", file=" << SUB_HEALTH_DETECTION_FILE
-                      << ", keep old cache";
+                      << ", file=" << SUB_HEALTH_DETECTION_FILE << ", keep old cache";
         return UBSE_ERROR;
     }
 
@@ -638,17 +849,14 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
 
     if (document.HasParseError()) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] parse detection file failed"
-                       << ", file=" << SUB_HEALTH_DETECTION_FILE
-                       << ", offset=" << document.GetErrorOffset()
-                       << ", error=" << rapidjson::GetParseError_En(document.GetParseError())
-                       << ", keep old cache";
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE << ", offset=" << document.GetErrorOffset()
+                       << ", error=" << rapidjson::GetParseError_En(document.GetParseError()) << ", keep old cache";
         return UBSE_ERROR_INVAL;
     }
 
     if (!document.IsObject()) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] detection root is not object"
-                       << ", file=" << SUB_HEALTH_DETECTION_FILE
-                       << ", keep old cache";
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE << ", keep old cache";
         return UBSE_ERROR_INVAL;
     }
 
@@ -682,12 +890,9 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
             if (iter != portLocations.end()) {
                 if (iter->second.nodeId != nodeId || iter->second.socketId != cpuInfo.socketId) {
                     UBSE_LOG_ERROR << "[SUB_HEALTH] duplicated primary eid"
-                                   << ", eid=" << cpuInfo.primaryEid
-                                   << ", oldNodeId=" << iter->second.nodeId
-                                   << ", oldSocketId=" << iter->second.socketId
-                                   << ", newNodeId=" << nodeId
-                                   << ", newSocketId=" << cpuInfo.socketId
-                                   << ", keep old cache";
+                                   << ", eid=" << cpuInfo.primaryEid << ", oldNodeId=" << iter->second.nodeId
+                                   << ", oldSocketId=" << iter->second.socketId << ", newNodeId=" << nodeId
+                                   << ", newSocketId=" << cpuInfo.socketId << ", keep old cache";
                     return UBSE_ERROR;
                 }
                 continue;
@@ -700,8 +905,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
             };
 
             UBSE_LOG_INFO << "[SUB_HEALTH] primary eid mapping"
-                          << ", nodeId=" << nodeId
-                          << ", socketId=" << cpuInfo.socketId
+                          << ", nodeId=" << nodeId << ", socketId=" << cpuInfo.socketId
                           << ", primaryEid=" << cpuInfo.primaryEid;
         }
     }
@@ -712,8 +916,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
     }
 
     UBSE_LOG_INFO << "[SUB_HEALTH] build primary eid mapping success"
-                  << ", nodeCount=" << allNodes.size()
-                  << ", eidCount=" << portLocations.size();
+                  << ", nodeCount=" << allNodes.size() << ", eidCount=" << portLocations.size();
 
     size_t sourceCount = 0;
     size_t linkCount = 0;
@@ -723,8 +926,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
 
         if (!hostIter->value.IsObject()) {
             UBSE_LOG_ERROR << "[SUB_HEALTH] host detection result is not object"
-                           << ", host=" << host
-                           << ", keep old cache";
+                           << ", host=" << host << ", keep old cache";
             return UBSE_ERROR_INVAL;
         }
 
@@ -733,8 +935,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
         for (auto socketIter = socketResults.MemberBegin(); socketIter != socketResults.MemberEnd(); ++socketIter) {
             if (!socketIter->value.IsObject()) {
                 UBSE_LOG_ERROR << "[SUB_HEALTH] socket detection result is not object"
-                               << ", host=" << host
-                               << ", socket=" << socketIter->name.GetString()
+                               << ", host=" << host << ", socket=" << socketIter->name.GetString()
                                << ", keep old cache";
                 return UBSE_ERROR_INVAL;
             }
@@ -743,8 +944,7 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
 
             if (!result.HasMember("src_eid") || !result["src_eid"].IsString()) {
                 UBSE_LOG_ERROR << "[SUB_HEALTH] src_eid is invalid"
-                               << ", host=" << host
-                               << ", socket=" << socketIter->name.GetString()
+                               << ", host=" << host << ", socket=" << socketIter->name.GetString()
                                << ", keep old cache";
                 return UBSE_ERROR_INVAL;
             }
@@ -754,17 +954,15 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
             auto srcIter = portLocations.find(NormalizeSubHealthEid(srcEid));
             if (srcIter == portLocations.end()) {
                 UBSE_LOG_WARN << "[SUB_HEALTH] source primary eid not found in topology"
-                              << ", host=" << host
-                              << ", socket=" << socketIter->name.GetString()
-                              << ", srcEid=" << srcEid
-                              << ", keep old cache";
+                              << ", host=" << host << ", socket=" << socketIter->name.GetString()
+                              << ", srcEid=" << srcEid << ", keep old cache";
                 return UBSE_ERROR;
             }
 
             ++sourceCount;
 
-            auto ret = ParseSubHealthLinkArray(result, srcEid, srcIter->second, portLocations, subHealthFlags,
-                                               linkCount);
+            auto ret =
+                ParseSubHealthLinkArray(result, srcEid, srcIter->second, portLocations, subHealthFlags, linkCount);
             if (ret != UBSE_OK) {
                 return ret;
             }
@@ -779,10 +977,8 @@ uint32_t UbseNodeController::LoadSubHealthDetection(UbseSubHealthFlagMap& subHea
     }
 
     UBSE_LOG_INFO << "[SUB_HEALTH] load detection success"
-                  << ", file=" << SUB_HEALTH_DETECTION_FILE
-                  << ", sourceCount=" << sourceCount
-                  << ", linkCount=" << linkCount
-                  << ", socketPairCount=" << subHealthFlags.size()
+                  << ", file=" << SUB_HEALTH_DETECTION_FILE << ", sourceCount=" << sourceCount
+                  << ", linkCount=" << linkCount << ", socketPairCount=" << subHealthFlags.size()
                   << ", subHealthyPairCount=" << subHealthyCount;
 
     return UBSE_OK;
@@ -858,21 +1054,30 @@ uint32_t UbseNodeController::RefreshSubHealthCache()
         return UBSE_OK;
     }
 
-    UBSE_LOG_INFO << "[SUB_HEALTH] start refresh"
-                  << ", file=" << SUB_HEALTH_DETECTION_FILE;
+    UBSE_LOG_INFO << "[SUB_HEALTH] start refresh";
+
+    // 刷新缓存前先执行hikptool生成最新检测结果
+    auto ret = RunSubHealthDetection(subHealthEnabled_);
+    if (ret != UBSE_OK) {
+        if (!subHealthEnabled_.load()) {
+            UBSE_LOG_INFO << "[SUB_HEALTH] detection stopped because sub health is stopping";
+            return UBSE_OK;
+        }
+
+        UBSE_LOG_WARN << "[SUB_HEALTH] run detection failed, keep old cache, " << FormatRetCode(ret);
+        return ret;
+    }
 
     UbseSubHealthFlagMap subHealthFlags;
-    auto ret = LoadSubHealthDetection(subHealthFlags);
+    ret = LoadSubHealthDetection(subHealthFlags);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[SUB_HEALTH] load detection failed, keep old cache, "
-                      << FormatRetCode(ret);
+        UBSE_LOG_WARN << "[SUB_HEALTH] load detection failed, keep old cache, " << FormatRetCode(ret);
         return ret;
     }
 
     ret = UpdateSubHealthCache(subHealthFlags);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[SUB_HEALTH] update cache failed, keep old cache, "
-                      << FormatRetCode(ret);
+        UBSE_LOG_WARN << "[SUB_HEALTH] update cache failed, keep old cache, " << FormatRetCode(ret);
         return ret;
     }
 
