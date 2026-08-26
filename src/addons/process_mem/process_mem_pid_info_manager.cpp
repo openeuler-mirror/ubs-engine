@@ -1044,8 +1044,6 @@ void ProcessMemPidInfoManager::VmRssCheckCallBack(const collect::PidCollectInfoM
                    << " entries, root_filtered=" << rootFilteredCount;
 
     UpdateManagedPidVmRssBatch(collectInfo);
-
-    RebalanceRemoteCheck();
 }
 
 } // namespace process_mem::manager

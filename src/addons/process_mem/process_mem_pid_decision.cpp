@@ -1817,12 +1817,9 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
             pidsStr += ",";
         }
     }
-    std::string traceId = TraceContext::GetTraceId();
-    borrowExecutor_->Execute([this, affectedPids, traceId]() {
-        TraceContext::SetTraceId(traceId);
-        ReconcileApplyChanges(affectedPids);
-        TraceContext::Clear();
-    });
+    // 同步执行: 对账修正 currentRemote 后, collect 周期内随后的 rebalance 判断
+    // 才能基于本周期 smap 实测值, 避免落后一个周期
+    ReconcileApplyChanges(affectedPids);
     UBSE_LOG_INFO << "[process_mem] reconcile: ledger=" << debts.size() << " added=" << added << " removed=" << removed
                   << " affected_pids=[" << pidsStr << "]";
     return UBSE_OK;
@@ -2518,6 +2515,8 @@ void ProcessMemPidDecision::CollectActiveReturnDebts(const std::map<pid_t, def::
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status == def::BorrowSlotStatus::COMPLETED && slot.returnStatus != def::ReturnStatus::RETURNING) {
+                // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
+                // 用容量找缺口会错误跳过这类零成本债务
                 debts.emplace_back(pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes});
                 totalRemote += slot.migratedBytes;
             }

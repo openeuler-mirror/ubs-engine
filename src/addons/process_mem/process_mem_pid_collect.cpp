@@ -608,6 +608,9 @@ void ProcessMemPidCollect::DoCollectRound(uint64_t roundNum)
     // 并随后以 smap 实测回填 migratedBytes; 幂等, 每周期收敛
     decision::ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
 
+    // 对账(含 smap 回填修正 currentRemote)之后再做回迁判断, 保证基于本周期实测值
+    ProcessMemPidInfoManager::GetInstance().RebalanceRemoteCheck();
+
     lastPidSet_ = std::move(curPids);
 
     prevRoundDurMs_.store(
