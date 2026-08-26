@@ -139,21 +139,18 @@ void ReapSubHealthProcessAsync(pid_t pid)
 
 uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
 {
-    struct stat toolStat {};
-    if (stat(SUB_HEALTH_HIKPTOOL_BIN.c_str(), &toolStat) != 0 ||
-        !S_ISREG(toolStat.st_mode) ||
+    struct stat toolStat{};
+    if (stat(SUB_HEALTH_HIKPTOOL_BIN.c_str(), &toolStat) != 0 || !S_ISREG(toolStat.st_mode) ||
         access(SUB_HEALTH_HIKPTOOL_BIN.c_str(), X_OK) != 0) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool is invalid or not executable"
-                       << ", path=" << SUB_HEALTH_HIKPTOOL_BIN
-                       << ", errno=" << errno;
+                       << ", path=" << SUB_HEALTH_HIKPTOOL_BIN << ", errno=" << errno;
         return UBSE_ERROR;
     }
 
     std::string hikptoolLib = SUB_HEALTH_HIKPTOOL_LIB_DIR + "/libhikptdev.so.1";
     if (access(hikptoolLib.c_str(), R_OK) != 0) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool library is not readable"
-                       << ", path=" << hikptoolLib
-                       << ", errno=" << errno;
+                       << ", path=" << hikptoolLib << ", errno=" << errno;
         return UBSE_ERROR;
     }
 
@@ -165,8 +162,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
     // 删除上一轮结果，保证本轮读取的一定是新生成的detection.json
     if (unlink(SUB_HEALTH_DETECTION_FILE.c_str()) != 0 && errno != ENOENT) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] remove old detection file failed"
-                       << ", file=" << SUB_HEALTH_DETECTION_FILE
-                       << ", errno=" << errno;
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE << ", errno=" << errno;
         return UBSE_ERROR;
     }
 
@@ -202,8 +198,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
     }
 
     UBSE_LOG_INFO << "[SUB_HEALTH] start hikptool detection"
-                  << ", hikptool=" << SUB_HEALTH_HIKPTOOL_BIN
-                  << ", libraryDir=" << SUB_HEALTH_HIKPTOOL_LIB_DIR
+                  << ", hikptool=" << SUB_HEALTH_HIKPTOOL_BIN << ", libraryDir=" << SUB_HEALTH_HIKPTOOL_LIB_DIR
                   << ", workDir=" << SUB_HEALTH_WORK_DIR;
 
     pid_t pid = fork();
@@ -252,8 +247,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
             }
 
             UBSE_LOG_ERROR << "[SUB_HEALTH] wait hikptool failed"
-                           << ", pid=" << pid
-                           << ", errno=" << errno;
+                           << ", pid=" << pid << ", errno=" << errno;
 
             if (errno != ECHILD) {
                 ReapSubHealthProcessAsync(pid);
@@ -274,8 +268,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
 
     if (!processExited) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] wait hikptool timeout"
-                       << ", pid=" << pid
-                       << ", timeout=" << SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS << "s";
+                       << ", pid=" << pid << ", timeout=" << SUB_HEALTH_HIKPTOOL_TIMEOUT_SECONDS << "s";
         ReapSubHealthProcessAsync(pid);
         return UBSE_ERROR;
     }
@@ -289,8 +282,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
     int exitCode = WEXITSTATUS(status);
     if (exitCode != 0) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] hikptool detection failed"
-                       << ", pid=" << pid
-                       << ", exitCode=" << exitCode;
+                       << ", pid=" << pid << ", exitCode=" << exitCode;
         return UBSE_ERROR;
     }
 
@@ -300,8 +292,7 @@ uint32_t RunSubHealthDetection(const std::atomic<bool>& subHealthEnabled)
 
     if (access(SUB_HEALTH_DETECTION_FILE.c_str(), R_OK) != 0) {
         UBSE_LOG_ERROR << "[SUB_HEALTH] detection.json was not generated"
-                       << ", file=" << SUB_HEALTH_DETECTION_FILE
-                       << ", errno=" << errno;
+                       << ", file=" << SUB_HEALTH_DETECTION_FILE << ", errno=" << errno;
         return UBSE_ERROR;
     }
 
@@ -1153,6 +1144,119 @@ void UbseNodeController::ClearSubHealthCacheForNode(const std::string& nodeId)
     UBSE_LOG_INFO << "[SUB_HEALTH] clear node cache, nodeId=" << nodeId << ", removed=" << removed;
 }
 
+uint32_t UbseNodeController::GetSubHealthSocketPairByPort(const std::string& slotId, const std::string& chipId,
+                                                          const std::string& portId, SubHealthSocketPair& socketPair)
+{
+    uint32_t localSlotId = 0;
+    auto ret = ConvertStrToUint32(slotId, localSlotId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] convert local slot id failed"
+                      << ", slotId=" << slotId;
+        return ret;
+    }
+
+    auto localNode = GetNodeBySlotId(localSlotId);
+    if (localNode.nodeId.empty()) {
+        UBSE_LOG_WARN << "[SUB_HEALTH] local node not found"
+                      << ", slotId=" << slotId;
+        return UBSE_ERROR;
+    }
+
+    for (const auto& [_, cpuInfo] : localNode.cpuInfos) {
+        if (cpuInfo.chipId != chipId) {
+            continue;
+        }
+
+        auto portIter = cpuInfo.portInfos.find(portId);
+        if (portIter == cpuInfo.portInfos.end()) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] local port not found"
+                          << ", nodeId=" << localNode.nodeId << ", chipId=" << chipId << ", portId=" << portId;
+            return UBSE_ERROR;
+        }
+
+        const auto& portInfo = portIter->second;
+        if (portInfo.remoteSlotId.empty() || portInfo.remoteChipId.empty()) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] peer topology is empty"
+                          << ", nodeId=" << localNode.nodeId << ", chipId=" << chipId << ", portId=" << portId;
+            return UBSE_ERROR;
+        }
+
+        uint32_t peerSlotId = 0;
+        ret = ConvertStrToUint32(portInfo.remoteSlotId, peerSlotId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] convert peer slot id failed"
+                          << ", peerSlotId=" << portInfo.remoteSlotId;
+            return ret;
+        }
+
+        auto peerNode = GetNodeBySlotId(peerSlotId);
+        if (peerNode.nodeId.empty()) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] peer node not found"
+                          << ", peerSlotId=" << portInfo.remoteSlotId;
+            return UBSE_ERROR;
+        }
+
+        for (const auto& [_, peerCpuInfo] : peerNode.cpuInfos) {
+            if (peerCpuInfo.chipId != portInfo.remoteChipId) {
+                continue;
+            }
+
+            socketPair = {
+                localNode.nodeId,
+                peerNode.nodeId,
+                cpuInfo.socketId,
+                peerCpuInfo.socketId,
+            };
+
+            UBSE_LOG_INFO << "[SUB_HEALTH] resolve down port socket pair"
+                          << ", nodeId=" << socketPair.importNodeId << ", socketId=" << socketPair.importSocketId
+                          << ", chipId=" << chipId << ", portId=" << portId
+                          << ", peerNodeId=" << socketPair.exportNodeId
+                          << ", peerSocketId=" << socketPair.exportSocketId << ", peerChipId=" << portInfo.remoteChipId
+                          << ", peerPortId=" << portInfo.remotePortId;
+            return UBSE_OK;
+        }
+
+        UBSE_LOG_WARN << "[SUB_HEALTH] peer cpu not found"
+                      << ", peerNodeId=" << peerNode.nodeId << ", peerChipId=" << portInfo.remoteChipId;
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_WARN << "[SUB_HEALTH] local cpu not found"
+                  << ", nodeId=" << localNode.nodeId << ", chipId=" << chipId;
+    return UBSE_ERROR;
+}
+
+void UbseNodeController::ClearSubHealthCacheForSocketPair(const SubHealthSocketPair& socketPair)
+{
+    SubHealthSocketPair reverseSocketPair{
+        socketPair.exportNodeId,
+        socketPair.importNodeId,
+        socketPair.exportSocketId,
+        socketPair.importSocketId,
+    };
+
+    std::unique_lock<std::shared_mutex> lock(subHealthMutex_);
+
+    size_t removed = 0;
+    removed += subHealthSocketPairCache_.erase(socketPair);
+    removed += subHealthSocketPairCache_.erase(reverseSocketPair);
+
+    if (removed == 0) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] down socket pair not in cache"
+                      << ", nodeId=" << socketPair.importNodeId << ", socketId=" << socketPair.importSocketId
+                      << ", peerNodeId=" << socketPair.exportNodeId << ", peerSocketId=" << socketPair.exportSocketId;
+        return;
+    }
+
+    RebuildHostExportSubHealthCacheLocked();
+
+    UBSE_LOG_INFO << "[SUB_HEALTH] clear down socket pair cache"
+                  << ", nodeId=" << socketPair.importNodeId << ", socketId=" << socketPair.importSocketId
+                  << ", peerNodeId=" << socketPair.exportNodeId << ", peerSocketId=" << socketPair.exportSocketId
+                  << ", removed=" << removed;
+}
+
 bool UbseNodeController::IsSocketPairSubHealthy(const std::string& importNodeId, const std::string& exportNodeId,
                                                 uint32_t importSocketId, uint32_t exportSocketId) const
 {
@@ -1179,12 +1283,41 @@ bool UbseNodeController::IsHostExportSubHealthy(const std::string& importNodeId,
 
 uint32_t UbseNodeController::SubHealthPortChangeHandler(std::string&, std::string& eventMessage)
 {
-    if (eventMessage.rfind("UP;", 0) != 0) {
+    auto& controller = UbseNodeController::GetInstance();
+
+    if (eventMessage.rfind("UP;", 0) == 0) {
+        UBSE_LOG_INFO << "[SUB_HEALTH] port up, trigger refresh, eventMessage=" << eventMessage;
+        controller.TriggerSubHealthRefresh();
+        return UBSE_OK;
+    }
+    if (eventMessage.rfind("DOWN;", 0) == 0) {
+        std::vector<std::string> fields;
+        Split(eventMessage.substr(std::string("DOWN;").size()), ":", fields);
+        if (fields.size() < 4) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] invalid port down event"
+                          << ", eventMessage=" << eventMessage;
+            controller.TriggerSubHealthRefresh();
+            return UBSE_OK;
+        }
+
+        SubHealthSocketPair socketPair{};
+        auto ret = controller.GetSubHealthSocketPairByPort(fields[0], fields[1], fields[2], socketPair);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "[SUB_HEALTH] resolve down socket pair failed"
+                          << ", eventMessage=" << eventMessage << ", " << FormatRetCode(ret);
+            controller.TriggerSubHealthRefresh();
+            return UBSE_OK;
+        }
+
+        controller.ClearSubHealthCacheForSocketPair(socketPair);
+
+        UBSE_LOG_INFO << "[SUB_HEALTH] port down, clear socket pair and trigger refresh"
+                      << ", eventMessage=" << eventMessage;
+
+        controller.TriggerSubHealthRefresh();
         return UBSE_OK;
     }
 
-    UBSE_LOG_INFO << "[SUB_HEALTH] port up, trigger refresh, eventMessage=" << eventMessage;
-    UbseNodeController::GetInstance().TriggerSubHealthRefresh();
     return UBSE_OK;
 }
 

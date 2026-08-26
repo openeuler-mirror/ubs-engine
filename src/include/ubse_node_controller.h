@@ -427,7 +427,7 @@ private:
 
     void StopSubHealth();
 
-    // 处理端口UP事件
+    // 处理端口UP/DOWN事件
     static uint32_t SubHealthPortChangeHandler(std::string& eventId, std::string& eventMessage);
 
     struct SubHealthSocketPair {
@@ -462,6 +462,13 @@ private:
     struct SubHealthHostExportHash {
         size_t operator()(const SubHealthHostExport& key) const;
     };
+
+    // 根据DOWN端口获取对应SocketPair
+    uint32_t GetSubHealthSocketPairByPort(const std::string& slotId, const std::string& chipId,
+                                          const std::string& portId, SubHealthSocketPair& socketPair);
+
+    // 清理指定SocketPair的亚健康缓存
+    void ClearSubHealthCacheForSocketPair(const SubHealthSocketPair& socketPair);
 
     // 根据SocketPair缓存重建HostExport缓存
     void RebuildHostExportSubHealthCacheLocked();
