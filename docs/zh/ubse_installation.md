@@ -274,6 +274,46 @@ VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务�
     rpm -e bash-completion
     ```
 
+## （可选）安装hikptool工具
+
+使用ubse内存借用功能，考虑链路亚健康时，需要安装hikptool工具。
+
+以下命令需要root或sudo权限执行。
+
+1. 源码下载：git clone [https://atomgit.com/openeuler/hikptool.git](https://atomgit.com/openeuler/hikptool.git) 。下载至/usr/bin/目录下。
+
+2. 编译安装：
+
+    ```bash
+    cd hikptool
+    cmake -S . -B build
+    cmake --build build -j"$(nproc)"
+    ```
+
+    编译最终产物包括二进制程序hikptool和动态库文件libhikptdev.so.1.x.x。
+
+3. 动态库配置：
+
+    ```shell
+    cd build
+    export LD_LIBRARY_PATH=./libhikptdev/src/rciep:$LD_LIBRARY_PATH
+    ```
+
+    该 export 需在 build/ 目录下执行
+
+4. 用户态的hikptool，加权限后，可直接./执行。(ubse会自动调用，此处只作为hikptool工具调用说明)
+
+    ```shell
+    chmod -R 755 /usr/bin/hikptool 
+    ./hikptool sub_health
+    ```
+
+5. 亚健康检测结果存在当前目录下的detection.json文件中。(ubse自动调用时，检测结果在/var/log/ubse/detection.json)
+
+6. 如需进行链路亚健康的内存借用决策，则需要在ubse.conf里设置subHealthPenaltyEnabled=true，开启ubse对hikptool工具的调用。设置该配置前，请确认 hikptool 已安装至 /usr/bin/ 目录且具备执行权限（见上文第 1-4 步）
+
+7. 工具详细使用手册参考：[https://atomgit.com/openeuler/hikptool/tree/master/ub/subhealth](https://atomgit.com/openeuler/hikptool/tree/master/ub/subhealth)。
+
 ## 验证部署
 
 ### 检查服务状态
