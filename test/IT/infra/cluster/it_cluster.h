@@ -149,6 +149,34 @@ public:
     UbseResult RestartNode(const std::string& nodeId, bool waitForElection = true, uint32_t electionTimeoutMs = 30000);
 
     /**
+     * @brief 启动一个延迟节点 (deferred node).
+     *
+     * 配合 ItClusterBuilder::DeferNodes 使用: StartCluster 跳过延迟节点, case 在需要时调用本接口启动.
+     * 节点必须存在于拓扑中且尚未启动. 重复启动返回错误.
+     *
+     * @param nodeId 节点 ID
+     * @param configOverrides 启动前重新生成该节点配置时应用的 override (section -> key -> value).
+     *        非空时会在启动前重新生成 workDir/<nodeId>/ubse.conf; 空时沿用 StartCluster 阶段生成的配置.
+     * @param waitForElection 是否等待选举收敛
+     * @param electionTimeoutMs 选举收敛超时
+     * @return UBSE_OK on success
+     */
+    UbseResult StartNode(const std::string& nodeId,
+                         const std::map<std::string, std::map<std::string, std::string>>& configOverrides = {},
+                         bool waitForElection = false, uint32_t electionTimeoutMs = 30000);
+
+    /**
+     * @brief 优雅停止一个节点 (正常关闭流程, 区别于 KillNode 的 SIGKILL).
+     *
+     * 停止后可通过 StartNode(nodeId) 重新启动, 实现"停止 -> 修改配置 -> 重启"的故障注入/恢复流程.
+     * 节点未启动时返回 UBSE_OK (幂等).
+     *
+     * @param nodeId 节点 ID
+     * @return UBSE_OK on success
+     */
+    UbseResult StopNode(const std::string& nodeId);
+
+    /**
      * @brief Check if a specific node is running.
      */
     bool IsNodeRunning(const std::string& nodeId) const;

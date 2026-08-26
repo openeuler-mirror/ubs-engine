@@ -1,5 +1,6 @@
 add_library(it_election_cases STATIC
     election_cases.cpp
+    election_deferred_start_cases.cpp
 )
 target_include_directories(it_election_cases PUBLIC
     ${CMAKE_SOURCE_DIR}/test/IT

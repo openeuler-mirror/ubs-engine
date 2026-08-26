@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,11 @@ struct ClusterSpec {
     // Per-node config overrides: nodeId -> section -> key -> value.
     // Applied on top of global overrides during config generation.
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides;
+
+    // Node IDs that StartCluster should NOT auto-start (deferred start via StartNode).
+    // Config files for these nodes are still generated in Phase 0, but their ItNode
+    // instances are only created when the test case calls StartNode().
+    std::set<std::string> deferredNodeIds;
 
     static ClusterSpec FromRuntimePaths(const std::string& binaryPath, const std::string& baseWorkDir,
                                         const std::vector<NodeSpec>& nodes, const std::string& stubLibDir = "");
