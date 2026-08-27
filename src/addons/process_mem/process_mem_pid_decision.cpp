@@ -695,9 +695,22 @@ int ProcessMemPidDecision::CollectSrcNuma(pid_t pid, uint64_t roundNum)
         return -1;
     }
 
+    // 只统计本机 NUMA: numa_maps 含远端借入页面的分布, 远端占用更大时会把远端 numa
+    // 当 srcNuma, 导致同平面 socket 解析错配或失效
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
     int bestNuma = -1;
     size_t maxPages = 0;
     for (const auto& [numaId, memSize] : numaDistribution) {
+        bool isLocal = false;
+        for (const auto& [numaLoc, numaInfo] : curNodeInfo.numaInfos) {
+            if (static_cast<uint32_t>(numaLoc.numaId) == numaId) {
+                isLocal = true;
+                break;
+            }
+        }
+        if (!isLocal) {
+            continue;
+        }
         if (memSize > maxPages) {
             maxPages = memSize;
             bestNuma = static_cast<int>(numaId);
@@ -908,6 +921,8 @@ bool ProcessMemPidDecision::BuildBorrower(pid_t pid, int srcNumaId, uint64_t nee
         }
     }
     borrower.samePlanePrefer = samePlanePrefer_;
+    UBSE_LOG_INFO << "[process_mem] build_borrower round=" << roundNum << " pid=" << pid << " src_numa=" << srcNumaId
+                  << " affinity_socket=" << borrower.affinitySocketId << " same_plane_prefer=" << samePlanePrefer_;
     return true;
 }
 
@@ -1002,7 +1017,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     increments[created.remoteNumaId] += need;
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " ubse_created debt_id=" << debtId
                   << " export_slot=" << created.exportSlotId << " remote_numa=" << created.remoteNumaId
-                  << " capacity_gb=" << BytesToGbDouble(created.capacity);
+                  << " src_numa=" << srcNumaId << " capacity_gb=" << BytesToGbDouble(created.capacity);
 
     std::vector<std::pair<int, uint64_t>> numaTargets;
     def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, debtId, created, increments, numaTargets);
@@ -1802,12 +1817,9 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
             pidsStr += ",";
         }
     }
-    std::string traceId = TraceContext::GetTraceId();
-    borrowExecutor_->Execute([this, affectedPids, traceId]() {
-        TraceContext::SetTraceId(traceId);
-        ReconcileApplyChanges(affectedPids);
-        TraceContext::Clear();
-    });
+    // 同步执行: 对账修正 currentRemote 后, collect 周期内随后的 rebalance 判断
+    // 才能基于本周期 smap 实测值, 避免落后一个周期
+    ReconcileApplyChanges(affectedPids);
     UBSE_LOG_INFO << "[process_mem] reconcile: ledger=" << debts.size() << " added=" << added << " removed=" << removed
                   << " affected_pids=[" << pidsStr << "]";
     return UBSE_OK;
@@ -2301,6 +2313,9 @@ uint32_t ProcessMemPidDecision::CreateReplacementDebt(const def::ReturnRequestIt
         return createRet;
     }
     newRemoteNuma = static_cast<int>(desc.numaId);
+    UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name << " r2r_borrow new_debt_id=" << newDebtId
+                  << " pid=" << pid << " src_numa=" << ctx.srcNuma << " old_remote_numa=" << ctx.oldRemoteNuma
+                  << " new_remote_numa=" << newRemoteNuma << " amount_gb=" << BytesToGbDouble(item.size);
     return UBSE_OK;
 }
 
@@ -2500,6 +2515,8 @@ void ProcessMemPidDecision::CollectActiveReturnDebts(const std::map<pid_t, def::
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status == def::BorrowSlotStatus::COMPLETED && slot.returnStatus != def::ReturnStatus::RETURNING) {
+                // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
+                // 用容量找缺口会错误跳过这类零成本债务
                 debts.emplace_back(pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes});
                 totalRemote += slot.migratedBytes;
             }

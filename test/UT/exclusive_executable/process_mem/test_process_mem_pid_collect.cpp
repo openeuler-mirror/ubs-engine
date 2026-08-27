@@ -22,7 +22,6 @@ size_t GetPageSize();
 bool GetNumaInfoFromToken(const std::string& token, const size_t pageSize,
                           std::unordered_map<uint32_t, size_t>& numaMemDistribution);
 void ParseLine(const std::string& line, std::unordered_map<uint32_t, size_t>& numaMemDistribution);
-std::vector<pid_t> GetChildrenPidsFallback(pid_t parentPid);
 std::vector<pid_t> GetChildrenPids(pid_t parentPid);
 } // namespace process_mem::collect
 
@@ -113,12 +112,6 @@ INSTANTIATE_TEST_SUITE_P(ParseLineCases, TestProcessMemPidCollectParseLine,
                                          NumaLineCase{"   N0=100    N1=200   ", {{0, 100}, {1, 200}}},
                                          NumaLineCase{"N0=100\nN1=200", {{0, 100}, {1, 200}}}));
 
-TEST_F(TestProcessMemPidCollect, GetChildrenPidsFallbackReturnsVector)
-{
-    auto children = GetChildrenPidsFallback(1);
-    EXPECT_TRUE(children.empty() || !children.empty());
-}
-
 TEST_F(TestProcessMemPidCollect, GetChildrenPidsReturnsVector)
 {
     auto children = GetChildrenPids(1);
@@ -169,12 +162,6 @@ TEST_F(TestProcessMemPidCollect, CollectProcessNumaMemDistributionInitPid)
 TEST_F(TestProcessMemPidCollect, GetChildrenPidsForKnownPid)
 {
     auto children = GetChildrenPids(1);
-    EXPECT_TRUE(children.empty() || !children.empty());
-}
-
-TEST_F(TestProcessMemPidCollect, GetChildrenPidsFallbackForKnownPid)
-{
-    auto children = GetChildrenPidsFallback(1);
     EXPECT_TRUE(children.empty() || !children.empty());
 }
 
