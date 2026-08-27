@@ -695,9 +695,22 @@ int ProcessMemPidDecision::CollectSrcNuma(pid_t pid, uint64_t roundNum)
         return -1;
     }
 
+    // 只统计本机 NUMA: numa_maps 含远端借入页面的分布, 远端占用更大时会把远端 numa
+    // 当 srcNuma, 导致同平面 socket 解析错配或失效
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
     int bestNuma = -1;
     size_t maxPages = 0;
     for (const auto& [numaId, memSize] : numaDistribution) {
+        bool isLocal = false;
+        for (const auto& [numaLoc, numaInfo] : curNodeInfo.numaInfos) {
+            if (static_cast<uint32_t>(numaLoc.numaId) == numaId) {
+                isLocal = true;
+                break;
+            }
+        }
+        if (!isLocal) {
+            continue;
+        }
         if (memSize > maxPages) {
             maxPages = memSize;
             bestNuma = static_cast<int>(numaId);
@@ -908,6 +921,8 @@ bool ProcessMemPidDecision::BuildBorrower(pid_t pid, int srcNumaId, uint64_t nee
         }
     }
     borrower.samePlanePrefer = samePlanePrefer_;
+    UBSE_LOG_INFO << "[process_mem] build_borrower round=" << roundNum << " pid=" << pid << " src_numa=" << srcNumaId
+                  << " affinity_socket=" << borrower.affinitySocketId << " same_plane_prefer=" << samePlanePrefer_;
     return true;
 }
 
@@ -1002,7 +1017,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     increments[created.remoteNumaId] += need;
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " ubse_created debt_id=" << debtId
                   << " export_slot=" << created.exportSlotId << " remote_numa=" << created.remoteNumaId
-                  << " capacity_gb=" << BytesToGbDouble(created.capacity);
+                  << " src_numa=" << srcNumaId << " capacity_gb=" << BytesToGbDouble(created.capacity);
 
     std::vector<std::pair<int, uint64_t>> numaTargets;
     def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, debtId, created, increments, numaTargets);
@@ -2301,6 +2316,9 @@ uint32_t ProcessMemPidDecision::CreateReplacementDebt(const def::ReturnRequestIt
         return createRet;
     }
     newRemoteNuma = static_cast<int>(desc.numaId);
+    UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name << " r2r_borrow new_debt_id=" << newDebtId
+                  << " pid=" << pid << " src_numa=" << ctx.srcNuma << " old_remote_numa=" << ctx.oldRemoteNuma
+                  << " new_remote_numa=" << newRemoteNuma << " amount_gb=" << BytesToGbDouble(item.size);
     return UBSE_OK;
 }
 

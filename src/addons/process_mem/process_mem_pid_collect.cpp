@@ -99,26 +99,6 @@ std::optional<bool> ReadNumaRemoteAttr(uint32_t numaId)
     return attr == 1;
 }
 
-std::vector<pid_t> GetChildrenPidsFallback(pid_t parentPid)
-{
-    std::vector<pid_t> children;
-    char cmd[256];
-    int ret = snprintf_s(cmd, sizeof(cmd), sizeof(cmd), "pgrep -P %d 2>/dev/null", parentPid);
-    if (ret < 0) {
-        return children;
-    }
-
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe)
-        return children;
-
-    pid_t pid;
-    while (fscanf_s(pipe.get(), "%d", &pid) == 1) {
-        children.push_back(pid);
-    }
-    return children;
-}
-
 std::vector<pid_t> GetChildrenPids(pid_t parentPid)
 {
     std::string path = "/proc/" + std::to_string(parentPid) + "/task/" + std::to_string(parentPid) + "/children";
@@ -135,7 +115,8 @@ std::vector<pid_t> GetChildrenPids(pid_t parentPid)
             return children;
         }
     }
-    return GetChildrenPidsFallback(parentPid);
+    // 文件打不开/无内容: 进程无子进程或已退出(子进程已 reparent), 返回空即可
+    return {};
 }
 
 uint32_t ProcessMemPidCollect::Init()
