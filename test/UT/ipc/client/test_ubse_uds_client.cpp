@@ -661,6 +661,9 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_OversizedBody)
 
 TEST_F(TestUbseUdsClient, HandlerServerReq_AllocFail)
 {
+#ifdef __SANITIZE_ADDRESS__
+    GTEST_SKIP() << "ASAN intercepts operator new[], so allocation failure cannot be mocked with mockcpp";
+#endif
     MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqAllocFailHeader));
     MOCKER(operator new[]).stubs().will(returnValue(static_cast<void*>(nullptr)));
 

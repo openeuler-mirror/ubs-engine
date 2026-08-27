@@ -60,6 +60,21 @@ constexpr const char* UBSE_IT_UDS_SOCKET_PATH_ENV = "UBSE_IT_UDS_SOCKET_PATH";
 constexpr const char* UBSE_IT_AUTH_USER = "ubse";
 constexpr const char* UBSE_OBMM_DEV_PREFIX = "/dev/obmm_shmdev";
 
+// Early-init guard.
+//
+// When the IT daemon runs under ASAN, libasan calls libc functions (e.g.
+// mkdir) during ITS OWN initialization.  Because libasan is preloaded first,
+// this happens BEFORE this library's constructor runs — i.e. while the
+// dynamic loader is still initializing.  In that window getenv()/std::string
+// are not safe to use (they can fault reading the loader's env area), so the
+// stubs below forward directly to the real libc function without any path
+// redirection until g_runtimeReady is set.
+static volatile bool g_runtimeReady = false;
+__attribute__((constructor)) static void MarkPreloadRuntimeReady()
+{
+    g_runtimeReady = true;
+}
+
 bool IsObmmDevicePath(const char* path)
 {
     if (path == nullptr) {
@@ -402,6 +417,10 @@ extern "C" int open(const char* pathname, int flags, ...)
         va_end(args);
     }
 
+    if (!g_runtimeReady) {
+        return real_open_func(pathname, flags, mode);
+    }
+
     const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
     if (seiPath != nullptr && seiPath[0] != '\0' && pathname != nullptr &&
         strcmp(pathname, "/proc/sys/kernel/arm64_sync_sei") == 0) {
@@ -438,6 +457,10 @@ extern "C" FILE* popen(const char* command, const char* mode)
     if (real_popen_func == nullptr) {
         errno = ENOSYS;
         return nullptr;
+    }
+
+    if (!g_runtimeReady) {
+        return real_popen_func(command, mode);
     }
 
     const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
@@ -509,6 +532,9 @@ extern "C" DIR* opendir(const char* name)
         errno = ENOSYS;
         return nullptr;
     }
+    if (!g_runtimeReady) {
+        return real_opendir(name);
+    }
     std::string redirected = RedirectSysfsPath(name);
     redirected = RedirectUbseConfPath(redirected.c_str());
     return real_opendir(redirected.c_str());
@@ -543,6 +569,9 @@ extern "C" int lstat(const char* path, struct stat* buf)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_lstat(path, buf);
+    }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
@@ -555,6 +584,9 @@ extern "C" FILE* fopen64(const char* path, const char* mode)
     if (real_fopen64 == nullptr) {
         errno = ENOSYS;
         return nullptr;
+    }
+    if (!g_runtimeReady) {
+        return real_fopen64(path, mode);
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
@@ -592,6 +624,9 @@ extern "C" int stat(const char* path, struct stat* buf)
     if (real_stat == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_stat(path, buf);
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
@@ -643,6 +678,9 @@ extern "C" int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_bind(sockfd, addr, addrlen);
+    }
 
     sockaddr_un redirected{};
     socklen_t redirectedLen = 0;
@@ -660,6 +698,9 @@ extern "C" char* realpath(const char* path, char* resolvedPath)
         errno = ENOSYS;
         return nullptr;
     }
+    if (!g_runtimeReady) {
+        return real_realpath(path, resolvedPath);
+    }
 
     std::string sysfsRedirected = RedirectSysfsPath(path);
     std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
@@ -673,6 +714,9 @@ extern "C" int mkdir(const char* pathname, mode_t mode)
     if (real_mkdir == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_mkdir(pathname, mode);
     }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
@@ -691,6 +735,9 @@ extern "C" int chmod(const char* pathname, mode_t mode)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_chmod(pathname, mode);
+    }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
     return real_chmod(redirected.c_str(), mode);
@@ -708,6 +755,9 @@ extern "C" int chown(const char* pathname, uid_t owner, gid_t group)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_chown(pathname, owner, group);
+    }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
     return real_chown(redirected.c_str(), owner, group);
@@ -719,6 +769,9 @@ extern "C" int unlink(const char* pathname)
     if (real_unlink == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_unlink(pathname);
     }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
@@ -737,6 +790,9 @@ extern "C" int access(const char* pathname, int mode)
     if (real_access == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_access(pathname, mode);
     }
 
     std::string sysfsRedirected = RedirectSysfsPath(pathname);
@@ -764,6 +820,9 @@ extern "C" int connect(int sockfd, const struct sockaddr* addr, socklen_t addrle
     if (real_connect == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_connect(sockfd, addr, addrlen);
     }
     BindElectionTcpSourceIfNeeded(sockfd, addr, addrlen);
     sockaddr_un redirected{};

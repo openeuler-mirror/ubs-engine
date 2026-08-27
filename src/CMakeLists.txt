@@ -76,20 +76,6 @@ target_link_libraries(ubse PRIVATE
         ubse_node_controller_register_config
         -Wl,--no-whole-archive
 )
-if (ASAN_BUILD)
-    # 编译选项
-    target_compile_options(ubse PRIVATE
-            -fsanitize=address
-            -fsanitize-recover=address
-            -fno-omit-frame-pointer)
-
-    # 给 ubse 单独设置链接选项
-    target_link_options(ubse PRIVATE
-            -fsanitize=address
-            -fsanitize=leak
-            -static-libasan
-            -fsanitize-recover=address)
-endif ()
 target_compile_options(ubse PRIVATE
         # C 和 C++ 编译选项
         $<$<CONFIG:Debug>: ${DEBUG_FLAGS}>

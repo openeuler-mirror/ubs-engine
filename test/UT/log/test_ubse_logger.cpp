@@ -214,10 +214,10 @@ TEST_F(TestUbseLogger, TestDecodeChar)
 {
     UbseLoggerEntry ubseLoggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
     // 准备输入数据
-    char value = 'A';                          // 设置要写入的char型为'A'
-    char buffer[512];                          // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(char), buffer); // 将整数拷贝到 buffer
-    std::ostringstream oss;                    // 用于捕获输出流
+    char value = 'A';                                        // 设置要写入的char型为'A'
+    char buffer[512];                                        // 设置buffer的容量为512
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value)); // 将整数拷贝到 buffer
+    std::ostringstream oss;                                  // 用于捕获输出流
 
     // 调用被测试的函数
     const char* nextBuffer = ubseLoggerEntry.DecodeChar(oss, buffer);
@@ -233,17 +233,17 @@ TEST_F(TestUbseLogger, TestDecodeUint)
     uint32_t value = 123456; // 设置要写入的uint32_t型数为123456
     std::ostringstream oss;
     char buffer[512]; // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(uint32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     const char* nextBuffer = ubseLoggerEntry.DecodeUint(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint32_t)); // 验证返回的指针
 
     value = 0; // 设置value为0测试边界值
-    std::copy_n(&value, sizeof(uint32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeUint(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint32_t)); // 验证返回的指针
 
     value = 4294967295; // 设置value为4294967295测试边界值
-    std::copy_n(&value, sizeof(uint32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeUint(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint32_t)); // 验证返回的指针
 }
@@ -257,17 +257,17 @@ TEST_F(TestUbseLogger, TestDecodeUlong)
     uint64_t value = 123456789012345; // 设置要写入的uint64_t型数为123456789012345
     std::ostringstream oss;
     char buffer[512]; // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(uint64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     const char* nextBuffer = ubseLoggerEntry.DecodeUlong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint64_t)); // 验证返回的指针
 
     value = 0; // 设置value为0测试边界值
-    std::copy_n(&value, sizeof(uint64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeUlong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint64_t)); // 验证返回的指针
 
     value = UINT64_MAX; // 测试边界值
-    std::copy_n(&value, sizeof(uint64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeUlong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint64_t)); // 验证返回的指针
 }
@@ -281,7 +281,7 @@ TEST_F(TestUbseLogger, TestDecodeInt)
     // 准备输入数据
     int32_t value = -123456; // 设置要写入的int32_t型数为-123456
     char buffer[512];        // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(int32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     std::ostringstream oss; // 用于捕获输出流
     // 调用被测试的函数
     const char* nextBuffer = ubseLoggerEntry.DecodeInt(oss, buffer);
@@ -289,12 +289,12 @@ TEST_F(TestUbseLogger, TestDecodeInt)
     EXPECT_EQ(nextBuffer, buffer + sizeof(int32_t)); // 验证返回的指针
 
     value = INT32_MIN; // 测试INT32_MIN边界值
-    std::copy_n(&value, sizeof(int32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeInt(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int32_t)); // 验证返回的指针
 
     value = INT32_MAX; // 测试INT32_MAX边界值
-    std::copy_n(&value, sizeof(int32_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeInt(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int32_t)); // 验证返回的指针
 }
@@ -308,19 +308,19 @@ TEST_F(TestUbseLogger, TestDecodeLong)
     // 准备输入数据
     int64_t value = -123456789012345; // 假设要写入的in64_t型数为-123456789012345
     char buffer[512];                 // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(int64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     std::ostringstream oss; // 用于捕获输出流
     // 调用DecodeString
     const char* nextBuffer = ubseLoggerEntry.DecodeLong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int64_t)); // 验证返回的指针
 
     value = INT64_MIN; // 测试INT64_MIN边界值
-    std::copy_n(&value, sizeof(int64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeLong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int64_t)); // 验证返回的指针
 
     value = INT64_MAX; // 测试INT64_MAX边界值
-    std::copy_n(&value, sizeof(int64_t), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     nextBuffer = ubseLoggerEntry.DecodeLong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int64_t)); // 验证返回的指针
 }
@@ -334,7 +334,7 @@ TEST_F(TestUbseLogger, TestDecodeDouble)
     // 准备输入数据
     double value = 3.14; // 假设要写入的数为3.14
     char buffer[512];    // 设置buffer的容量为512
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
 
     std::ostringstream oss; // 用于捕获输出流
 
@@ -343,43 +343,43 @@ TEST_F(TestUbseLogger, TestDecodeDouble)
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = DBL_MAX; // 测试DBL_MAX边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = DBL_MIN; // 测试DBL_MIN边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = DBL_TRUE_MIN; // 测试DBL_TRUE_MIN边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = -DBL_MAX; // 测试-DBL_MAX边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = -DBL_MIN; // 测试-DBL_MIN边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = -0.0; // 测试-0.0边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = +0.0; // 测试+0.0边界值
-    std::copy_n(&value, sizeof(double), buffer);
+    memcpy_s(buffer, sizeof(buffer), &value, sizeof(value));
     // 调用被测试的函数
     nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针

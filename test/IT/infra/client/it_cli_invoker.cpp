@@ -64,7 +64,15 @@ std::string BuildCliEnvPrefix(const std::string& cliBinaryPath, const std::strin
     std::filesystem::path preloadPath =
         std::filesystem::path(cliBinaryPath).parent_path().parent_path() / "lib" / "libubse_interface_preload.so";
     if (std::filesystem::exists(preloadPath)) {
-        envPrefix += " LD_PRELOAD=" + ShellQuote(preloadPath.string());
+        // CLI 二进制同样经过 ASAN 插桩：必须把 libasan 前置到 LD_PRELOAD，
+        // 否则（stub 先加载）触发 "ASan runtime does not come first"，CLI 子进程 SEGV。
+        std::string preloadValue;
+        const char* asanLibasan = getenv("UBSE_ASAN_LIBASAN");
+        if (asanLibasan != nullptr && asanLibasan[0] != '\0') {
+            preloadValue = std::string(asanLibasan) + ":";
+        }
+        preloadValue += preloadPath.string();
+        envPrefix += " LD_PRELOAD=" + ShellQuote(preloadValue);
     }
     return envPrefix;
 }
