@@ -19,6 +19,9 @@
 #include <vector>
 
 namespace ubse::utils {
+
+using CnaBitRange = std::tuple<uint8_t, uint8_t, uint8_t>;
+
 /**
  * @brief 解析 EID 字符串 为128位bit字符串
  * @param baseEid 基础 EID
@@ -40,7 +43,7 @@ void ConstructEid(const std::string& bitStr, std::string& eid);
  *          例如{7,15,0}表示低7~15位的闭区间，且基础值偏移为0，写入时该位段实际值为serverIdx对应比特位叠加基础值偏移。
  * @param ranges serverIdx位段集合
  */
-void SetEidCnaRule(const std::vector<std::tuple<uint8_t, uint8_t, uint8_t>>& ranges);
+void SetEidCnaRule(const std::vector<CnaBitRange>& ranges);
 
 } // namespace ubse::utils
 

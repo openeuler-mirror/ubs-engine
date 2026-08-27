@@ -20,11 +20,13 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
+#include "ubse_mti_eid_internal.h"
 #include "ubse_net_util.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "lcne/ubse_lcne_busInstance.h"
 #include "lcne/ubse_lcne_host_info.h"
 #include "lcne/ubse_lcne_node_info.h"
@@ -350,5 +352,92 @@ TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_LocalIpNotFound)
     MOCKER_CPP(&UbseNetUtil::GetIpInfo).stubs().with(outBound(localIps)).will(returnValue(UBSE_OK));
     module.UpdateClusterIpListAndLocalIp();
     EXPECT_TRUE(module.localIp.empty());
+}
+
+TEST_F(TestUbseLcneModule, SetAndVerifyEidRule_Success)
+{
+    UbseLcneModule module;
+    adapter_plugins::mti::UbseMtiEidGroup info;
+    info.primaryEid = "0000:0000:003f:0200:0010:0000:1039:0b00";
+    module.allSocketComEid.emplace(UbseMtiIouInfo{"1", "1", "1"}, info);
+
+    MOCKER_CPP(&utils::SetEidCnaRule).stubs().with(any());
+    uint32_t serverIdx = 0;
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::GetServerIdx)
+        .stubs()
+        .with(outBound(serverIdx))
+        .will(returnValue(UBSE_OK));
+    std::string validStr = info.primaryEid;
+    MOCKER_CPP(&utils::OverwriteEid)
+        .stubs()
+        .with(eq(serverIdx), eq(info.primaryEid), outBound(validStr))
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(module.SetAndVerifyEidRule(), UBSE_OK);
+}
+
+TEST_F(TestUbseLcneModule, SetAndVerifyEidRule_EmptyMap)
+{
+    UbseLcneModule module;
+    MOCKER_CPP(&utils::SetEidCnaRule).stubs().with(any());
+
+    EXPECT_EQ(module.SetAndVerifyEidRule(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseLcneModule, SetAndVerifyEidRule_GetServerIdxFailed)
+{
+    UbseLcneModule module;
+    adapter_plugins::mti::UbseMtiEidGroup info;
+    info.primaryEid = "0000:0000:0004:0200:0010:0000:0404:0500";
+    module.allSocketComEid.emplace(UbseMtiIouInfo{"1", "1", "1"}, info);
+
+    MOCKER_CPP(&utils::SetEidCnaRule).stubs().with(any());
+    uint32_t serverIdx = 0;
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::GetServerIdx)
+        .stubs()
+        .with(outBound(serverIdx))
+        .will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(module.SetAndVerifyEidRule(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseLcneModule, SetAndVerifyEidRule_OverwriteFailed)
+{
+    UbseLcneModule module;
+    adapter_plugins::mti::UbseMtiEidGroup info;
+    info.primaryEid = "0000:0000:0004:0200:0010:0000:0404:0500";
+    module.allSocketComEid.emplace(UbseMtiIouInfo{"1", "1", "1"}, info);
+
+    MOCKER_CPP(&utils::SetEidCnaRule).stubs().with(any());
+    uint32_t serverIdx = 0;
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::GetServerIdx)
+        .stubs()
+        .with(outBound(serverIdx))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&utils::OverwriteEid).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(module.SetAndVerifyEidRule(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseLcneModule, SetAndVerifyEidRule_OverwriteMismatch)
+{
+    UbseLcneModule module;
+    adapter_plugins::mti::UbseMtiEidGroup info;
+    info.primaryEid = "0000:0000:0004:0200:0010:0000:0404:0500";
+    module.allSocketComEid.emplace(UbseMtiIouInfo{"1", "1", "1"}, info);
+
+    MOCKER_CPP(&utils::SetEidCnaRule).stubs().with(any());
+    uint32_t serverIdx = 0;
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::GetServerIdx)
+        .stubs()
+        .with(outBound(serverIdx))
+        .will(returnValue(UBSE_OK));
+    std::string validStr = "4245:4944:0000:0000:0000:0000:0200:0000";
+    MOCKER_CPP(&utils::OverwriteEid)
+        .stubs()
+        .with(eq(serverIdx), eq(info.primaryEid), outBound(validStr))
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(module.SetAndVerifyEidRule(), UBSE_ERROR);
 }
 } // namespace ubse::mti

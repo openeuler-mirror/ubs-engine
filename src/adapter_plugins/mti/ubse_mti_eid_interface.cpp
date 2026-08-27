@@ -27,11 +27,11 @@ using namespace common::def;
 constexpr uint8_t CNA_BIT_OFFSET = 96;
 constexpr uint8_t CNA_BIT_LEN = 24;
 
-static std::vector<std::tuple<uint8_t, uint8_t, uint8_t>> g_serverIdxBitRanges = {
+static std::vector<CnaBitRange> g_serverIdxBitRanges = {
     std::make_tuple(static_cast<uint8_t>(7), static_cast<uint8_t>(15), static_cast<uint8_t>(0)),
     std::make_tuple(static_cast<uint8_t>(20), static_cast<uint8_t>(23), static_cast<uint8_t>(1))};
 
-void SetEidCnaRule(const std::vector<std::tuple<uint8_t, uint8_t, uint8_t>>& ranges)
+void SetEidCnaRule(const std::vector<CnaBitRange>& ranges)
 {
     g_serverIdxBitRanges = ranges;
 }
