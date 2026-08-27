@@ -36,6 +36,10 @@ set_target_properties(xalarm_stub PROPERTIES
 # Class method overrides for static libs (MTI/MMI/NodeController) were removed
 # because LD_PRELOAD cannot intercept static-linked symbols.
 add_library(ubse_interface_preload SHARED ubse_interface_preload.cpp)
+# LD_PRELOAD 进 daemon 的 stub 不做 ASAN 插桩：其不链接自身 ASAN runtime，
+# 插桩会引入对 __asan_* 符号的引用，与 daemon 的 libasan 顺序/符号冲突。
+target_compile_options(ubse_interface_preload PRIVATE -fno-sanitize=address)
+target_link_options(ubse_interface_preload PRIVATE -fno-sanitize=address)
 
 add_library(ubse_capability_it_stub STATIC capability_stub.cpp)
 target_include_directories(ubse_capability_it_stub PRIVATE

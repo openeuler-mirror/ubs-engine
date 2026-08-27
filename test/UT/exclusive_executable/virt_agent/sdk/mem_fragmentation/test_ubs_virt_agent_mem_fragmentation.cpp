@@ -380,6 +380,9 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_AllParam
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_AllocateMemoryFailed)
 {
+#ifdef __SANITIZE_ADDRESS__
+    GTEST_SKIP() << "ASAN intercepts operator new[], so allocation failure cannot be mocked with mockcpp";
+#endif
     char taskId[MEM_TASK_ID_MAX] = "test_task_id";
     async_task_info_c result{};
     MOCKER(operator new[]).stubs().will(returnValue(static_cast<uint8_t*>(nullptr)));

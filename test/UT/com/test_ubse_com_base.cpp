@@ -677,6 +677,5 @@ TEST_F(TestUbseComBase, TestBufferDeserialize)
     UbseComBaseBufferMessage ubseBM(data, testLen);
     ubseBM.SetInputRawData(data, testLen);
     EXPECT_EQ(UBSE_OK, ubseBM.Deserialize());
-    SafeDeleteArray(data);
 }
 } // namespace ubse::ut::com

@@ -113,7 +113,7 @@ TEST_F(TestUbsEngineMem, UbsMemNumastatGetWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     auto ret = ubs_mem_numastat_get(1, &numa_mems, &numa_mem_cnt);
@@ -211,7 +211,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -318,7 +318,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWithLenderWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -422,7 +422,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWithCandidateWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -534,7 +534,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdGetWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -605,7 +605,7 @@ TEST_F(TestUbsEngineMem, UbsMemFdListWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     auto ret = ubs_mem_fd_list(&fd_descs, &fd_desc_cnt);
@@ -723,7 +723,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaCreateWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -822,7 +822,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaCreateWithLenderWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -916,7 +916,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaCreateWithCandidateWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -988,7 +988,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaGetWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
@@ -1059,7 +1059,7 @@ TEST_F(TestUbsEngineMem, UbsMemNumaListWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     auto ret = ubs_mem_numa_list(&numa_descs, &numa_desc_cnt);
@@ -1344,7 +1344,11 @@ TEST_F(TestUbsEngineMem, UbsMemShmListForAllSchene)
     shmDescList.emplace_back(ubseMemShmDesc2);
     UbseIpcMessage respMessage{};
     EXPECT_EQ(UbseMemShmListResponsePack(shmDescList, respMessage), UBSE_OK);
-    ubse_api_buffer_t mockRespBuffer{.buffer = respMessage.buffer, .length = respMessage.length};
+    ubse_api_buffer_t mockRespBuffer{};
+    mockRespBuffer.length = respMessage.length;
+    mockRespBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
+    memcpy_s(mockRespBuffer.buffer, mockRespBuffer.length, respMessage.buffer, respMessage.length);
+    delete[] respMessage.buffer;
     MOCKER_CPP(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&mockRespBuffer)).will(returnValue(UBSE_OK));
     ret = ubs_mem_shm_list(&g_validShmDescs, &g_validShmDescCnt);
     EXPECT_EQ(ret, UBS_SUCCESS);

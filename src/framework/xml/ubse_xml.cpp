@@ -391,9 +391,23 @@ void UbseXml::SetXmlns(const std::string& uri)
         return;
     }
 
-    // 创建新的命名空间定义（不会重复添加）
+    // 若节点已声明默认命名空间（prefix 为空），原地更新其 href。
+    // 不能直接 xmlNewNs 新建：libxml2 会因节点上已存在同前缀（默认）命名空间而拒绝创建，
+    // 且 xmlNewNs(nullptr, ...) 创建的命名空间无人接管会造成内存泄漏。
+    for (xmlNsPtr ns = curNode->nsDef; ns != nullptr; ns = ns->next) {
+        if (ns->prefix == nullptr) {
+            xmlFree(const_cast<char*>(
+                reinterpret_cast<const char*>(ns->href))); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            ns->href = xmlStrdup(
+                reinterpret_cast<const xmlChar*>(uri.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            xmlSetNs(curNode, ns);
+            return;
+        }
+    }
+
+    // 无默认命名空间：新建并挂到当前节点的 nsDef 列表，由节点持有、随 xmlFreeNode 释放
     xmlNsPtr ns = xmlNewNs(
-        nullptr, reinterpret_cast<const xmlChar*>(uri.c_str()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        curNode, reinterpret_cast<const xmlChar*>(uri.c_str()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         nullptr);                                               // nullptr = 默认命名空间
     if (ns) {
         // 将命名空间绑定到当前节点
@@ -413,9 +427,12 @@ void UbseXml::Attr(const std::string& key, const std::string& value)
     }
 
     // 特殊处理：xmlns 命名空间声明
+    // 只走 SetXmlns，不能再同时 xmlSetProp 设置字面 "xmlns" 属性：
+    // 否则序列化时 nsDef 里的默认命名空间与字面属性会各输出一次 xmlns，造成重复声明。
     if (key == "xmlns") {
-        // 设置默认命名空间（无前缀）
         SetXmlns(value);
+        Back(); // 按原逻辑，操作后回退
+        return;
     }
 
     // 普通属性处理

@@ -357,6 +357,30 @@ function build_cmake() {
     # 确保构建目录已创建
     [ ! -d "${build_dir}" ] && mkdir -p "${build_dir}"
 
+    # ASAN 工具链探测：确保 -fsanitize=address 可编译链接
+    if [[ "$enable_asan" == 'ON' ]]; then
+        echo 'int main(){return 0;}' > "${build_dir}/asan_probe.c"
+        if ! gcc -fsanitize=address -o "${build_dir}/asan_probe" "${build_dir}/asan_probe.c" 2>/dev/null; then
+            log_info "ASAN toolchain check failed: cannot link -fsanitize=address."
+            log_info "Install libasan matching your gcc version, e.g.: sudo dnf install libasan"
+            echo_failure
+            exit 1
+        fi
+        rm -f "${build_dir}/asan_probe" "${build_dir}/asan_probe.c"
+
+        # 运行期 ASAN 行为：报告模式，不拦截。
+        # verify_asan_link_order=0：IT daemon 的 preload stub 排在 libasan（DT_NEEDED）之前加载，
+        # 关闭 link-order 校验以避免 daemon 启动 abort（libasan 本身不做 LD_PRELOAD，见下）。
+        export ASAN_OPTIONS="detect_odr_violation=0:detect_leaks=1:abort_on_error=0:halt_on_error=0:exitcode=0:report_globals=0:malloc_fill_byte=0:free_fill_byte=0:log_path=${build_dir}/asan_logs/asan_log:verify_asan_link_order=0"
+        rm -rf "${build_dir}/asan_logs"
+        mkdir -p "${build_dir}/asan_logs"
+        # ASAN 模式信号：node_launcher 据此对 IT daemon 子进程禁用 ASLR。
+        # 背景：新内核（6.x，如 WSL2）默认 vm.mmap_rnd_bits=32，高熵 ASLR 与 gcc 12 libasan
+        # 不兼容，daemon 等大体积 ASAN 二进制在 main 之前随机 SEGV（概率约 30-50%）。
+        # 不要用它做 LD_PRELOAD：preloaded libasan 会重入 loader 导致崩溃（glibc 2.38 实测）。
+        export UBSE_ASAN_LIBASAN="$(gcc -print-file-name=libasan.so)"
+    fi
+
     log_info "***** start build_cmake *****"
 
     log_info "building target ${build_target}."
@@ -404,7 +428,23 @@ function build_cmake() {
     fi
 
     # CMake 构建
-    cmake --build "${build_dir}" --target "${build_target}" -j "${jobs}"
+    # ASAN 报告模式下容忍用例失败：报告必须照常产出，失败码在报告生成后透传。
+    # （否则 ERR trap 会因 cmake --build 非零直接终止脚本，报告永远不生成）
+    local build_status=0
+    if [[ "$enable_asan" == 'ON' ]]; then
+        cmake --build "${build_dir}" --target "${build_target}" -j "${jobs}" || build_status=$?
+    else
+        cmake --build "${build_dir}" --target "${build_target}" -j "${jobs}"
+    fi
+
+    # 生成 ASAN 报告（无论用例成败）
+    if [[ "$enable_asan" == 'ON' ]]; then
+        bash "${PROJECT_ROOT_DIR}/scripts/asan_report.sh" "${build_dir}/asan_logs"
+    fi
+
+    if [[ "${build_status}" -ne 0 ]]; then
+        return "${build_status}"
+    fi
 
     # 生成覆盖率报告
     if [[ "$enable_coverage" == 'ON' ]]; then

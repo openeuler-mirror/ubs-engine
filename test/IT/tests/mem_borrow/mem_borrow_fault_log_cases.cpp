@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <cstdint>
+#include <cstdlib>
 #include <future>
 #include "ubse_error.h"
 
@@ -484,6 +485,9 @@ void RunP1FaultLogBorrowMasterToImSendFailed(ubse::it::infra::ItCluster& cluster
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 清理
         ret = sdk.MemShmDelete(name);
@@ -654,9 +658,10 @@ void RunP1FaultLogBorrowMasterToReqSendFailed(ubse::it::infra::ItCluster& cluste
         }
         comStubControl.SetComSendFailed(importNodeId, false);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
     }
-
-    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
     {
         // 清理创建的资源
         ret = sdk.MemShmDetach("it_p1_fl_br_master_to_req_send_failed_attach");
@@ -907,8 +912,10 @@ void RunP1FaultLogBorrowImportSendFailed(ubse::it::infra::ItCluster& cluster)
         }
         comStubControl.SetComSendFailed(masterNodeId, false);
         EXPECT_NE(ret, UBS_SUCCESS);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
     }
-
     obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
     comStubControl.RestoreMemApiWaitTimeOut();
 
@@ -1012,6 +1019,9 @@ void RunP1FaultLogBorrowReqSendFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         ubse::it::infra::ItMemCreateInfo attachInfo;
         EXPECT_NE(cliInvoker.AttachMemory(attachInfo, name), UBS_SUCCESS);
@@ -1232,6 +1242,9 @@ void RunP1FaultLogBorrowObmmImportFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 清理
         ret = sdk.MemShmDelete(name);
@@ -1351,6 +1364,9 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach("it_p1_fl_share_att_check_failed_1", nullptr, 0, &attachDesc);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         auto& attachSdk = cluster.GetSdkClient(nodeId);
         // 节点3尝试attach共享内存，触发SHARE_ATTACH_CHECK_FAILED
@@ -1358,6 +1374,9 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc2 = nullptr;
         ret = attachSdk.MemShmAttach(name, nullptr, 0, &attachDesc2);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+        if (attachDesc2 != nullptr) {
+            free(attachDesc2);
+        }
 
         // 清理
         ret = sdk.MemShmDelete(name);
@@ -1422,6 +1441,9 @@ void RunP1FaultLogShareAttachAuthFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = attachSdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_AUTH_FAILED);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 清理
         ret = sdk.MemShmDelete(name);
@@ -1469,12 +1491,18 @@ void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_OK(ret);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 节点1再次attach，触发SHARE_ATTACH_EXIST
         IT_LOG_INFO << "[ShareAttachExist-01] Attaching SHM duplicated: name=" << name;
         ubs_mem_shm_desc_t* attachDesc2 = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc2);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
+        if (attachDesc2 != nullptr) {
+            free(attachDesc2);
+        }
 
         // 清理
         ret = sdk.MemShmDetach(name);
@@ -1939,6 +1967,9 @@ void RunP1FaultLogReturnMasterToImSendFailed(ubse::it::infra::ItCluster& cluster
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_OK(ret);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         IT_LOG_INFO << "Detaching Share: name=" << name;
         // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
@@ -2343,6 +2374,9 @@ void RunP1FaultLogReturnImportSendFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_OK(ret);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         IT_LOG_INFO << "Detaching Share: name=" << name;
         // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
@@ -2833,6 +2867,9 @@ void RunP1FaultLogReturnObmmImportFailed(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
         ASSERT_IT_OK(ret);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 节点1尝试Detach共享内存，触发RETURN_OBMM_IMPORT_FAILED
         IT_LOG_INFO << "[ReturnObmmImportFailed-01] Detaching OBMM import failed: name=" << name;
@@ -2918,6 +2955,9 @@ void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster)
         ubs_mem_shm_desc_t* attachDesc = nullptr;
         ret = sdk2.MemShmAttach(name, nullptr, 0, &attachDesc);
         EXPECT_IT_OK(ret);
+        if (attachDesc != nullptr) {
+            free(attachDesc);
+        }
 
         // 节点1尝试归还存在attach的共享内存，触发SHARED_RETURN_IN_ATTACHED
         IT_LOG_INFO << "[ShareReturnInAttached-01] Returning share with attached node: name=" << name;
@@ -3036,7 +3076,11 @@ void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster)
         // 使用std::future获取线程返回值
         auto future1 = std::async(std::launch::async, [&]() {
             ubs_mem_shm_desc_t* attachDesc = nullptr;
-            return sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+            auto attachRet = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+            if (attachDesc != nullptr) {
+                free(attachDesc);
+            }
+            return attachRet;
         });
         auto future2 = std::async(std::launch::async, [&]() -> int {
             EXPECT_NE(cliInvoker.DetachMemory(name), UBS_SUCCESS);

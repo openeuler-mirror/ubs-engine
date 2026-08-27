@@ -5,6 +5,7 @@
 
 #include <sched.h>
 #include <sys/mount.h>
+#include <sys/personality.h>
 #include <unistd.h>
 
 #include <cerrno>
@@ -54,8 +55,21 @@ int main(int argc, char** argv)
     const std::string stubLibDir = argv[4];
     if (!stubLibDir.empty()) {
         setenv("LD_LIBRARY_PATH", stubLibDir.c_str(), 1);
+        // 注意：不要把 libasan 放进 LD_PRELOAD。preload 的 libasan 会在 ld.so 完成
+        // 可执行文件依赖初始化之前运行 interceptor init（内部 dlsym 重入 loader），
+        // glibc 2.38 下随机 SEGV。daemon 本身已通过 DT_NEEDED 链接 libasan，由 ld.so
+        // 在正确时机初始化，与 UT 二进制一致，稳定。stub 在 libasan 之前加载的
+        // link-order 差异由 ASAN_OPTIONS 的 verify_asan_link_order=0 兜底（build.sh 已设置）。
         const std::string preloadPath = stubLibDir + "/libubse_interface_preload.so";
         setenv("LD_PRELOAD", preloadPath.c_str(), 1);
+        // 新内核（6.x，如 WSL2）默认 vm.mmap_rnd_bits=32，高熵 ASLR 与 gcc 12 的
+        // libasan 不兼容：main 之前 ASAN 初始化阶段随机 SEGV（体积越大的二进制
+        // 概率越高，daemon 几乎必现）。ASAN 模式下禁用 daemon 进程 ASLR 规避；
+        // personality 标志跨 fork/exec 继承，daemon 子进程同样生效。
+        const char* asanLibasan = getenv("UBSE_ASAN_LIBASAN");
+        if (asanLibasan != nullptr && asanLibasan[0] != '\0') {
+            personality(ADDR_NO_RANDOMIZE);
+        }
     }
     if (chdir(workDir.c_str()) != 0) {
         std::cerr << "failed to chdir to " << workDir << ", errno=" << errno << std::endl;

@@ -365,6 +365,9 @@ TEST_F(TestUbseNodeControllerAgent, HandleGetDirConnectInfoCallback_Success)
 
 TEST_F(TestUbseNodeControllerAgent, UbseGetDirConnectInfoFromRemote_AllocFail)
 {
+#ifdef __SANITIZE_ADDRESS__
+    GTEST_SKIP() << "ASAN intercepts operator new[], so allocation failure cannot be mocked with mockcpp";
+#endif
     std::string nodeId = "test-node";
     std::map<std::string, PhysicalLink> devDirConnectInfoRemote{};
 
