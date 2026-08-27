@@ -132,7 +132,8 @@ section取值：[ubse.memory]
 | 10 | radius.borrow      | 借入节点的内存借用半径。        | 默认值：用#注释（不限制）<br>取值范围：[0, 65535]<br>如果取值超过范围，则取默认值65535（不限制）。        | - 控制借入节点请求内存的半径范围。<br>- 所有节点的配置需保持一致。<br>- 仅适用于fd和numa借用场景。                                                                                                                                                                                                                                                            |
 | 11 | obmm.memory.offline.timeout | obmm_unimport操作超时时间。       | 默认值：用#注释<br>单位：秒<br>取值范围：[10, 1800]                                        | - 当显式配置该配置项且值在范围内时，obmm_unimport超时时间固定为该值。<br>- 当不配置、配置值非法或超出范围时，超时时间由内部决策。 |
 | 12 | subHealthPenaltyEnabled | 链路亚健康感知总开关，控制借用调度是否考虑链路亚健康状态。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值false。 | - **false**（默认）：忽略亚健康，调度行为与历史版本一致，`subHealth.strategy` 不生效。<br>- **true**：开启亚健康感知，由 `subHealth.strategy` 决定亚健康对调度的影响方式。<br>- 修改该配置需重启进程，不支持热更新。<br>- 所有节点的配置需保持一致。 |
-| 13 | subHealth.strategy | 亚健康影响策略，仅在 `subHealthPenaltyEnabled=true` 时生效。 | 默认值：weight<br>取值范围：<br>- exclude<br>- weight<br>参数配置取值范围之外或错误值都会被重置为默认值 weight。 | - **exclude**：链路一旦亚健康即被过滤，不再作为候选。<br>- **weight**（默认）：亚健康以权重方式参与评分（wSubHealth=0.10）。<br>- 修改该配置需重启进程，不支持热更新。<br>- 所有节点的配置需保持一致。 |
+| 13 | subHealthRefreshInterval | 链路亚健康检测结果的定时刷新周期。 | 默认值：60<br>单位：秒<br>取值范围：大于0的整数<br>参数配置为0、超出有效范围或错误值时取默认值60。 | - 仅在 `subHealthPenaltyEnabled=true` 时生效。<br>- 修改该配置需重启进程，不支持热更新。<br>- 所有节点的配置需保持一致。 |
+| 14 | subHealth.strategy | 亚健康影响策略，仅在 `subHealthPenaltyEnabled=true` 时生效。 | 默认值：weight<br>取值范围：<br>- exclude<br>- weight<br>参数配置取值范围之外或错误值都会被重置为默认值 weight。 | - **exclude**：链路一旦亚健康即被过滤，不再作为候选。<br>- **weight**（默认）：亚健康以权重方式参与评分（wSubHealth=0.10）。<br>- 修改该配置需重启进程，不支持热更新。<br>- 所有节点的配置需保持一致。 |
 
 ## URMA配置说明
 
