@@ -19,8 +19,8 @@
 #include "ubse_com_def.h"
 #include "ubse_error.h"
 #include "ubse_map_util.h"
-#include "lock/ubse_lock.h"
 #include "ubse_route_table.h"
+#include "lock/ubse_lock.h"
 
 #include <condition_variable>
 
@@ -206,9 +206,9 @@ public:
 
     void RegisterVerifyMsgCb(VerifyMsgCb cb);
 
-    std::string GetNodeIdByIp(const std::string &ip);
+    std::string GetNodeIdByIp(const std::string& ip);
 
-    UbseRouteTable &GetRouteTable()
+    UbseRouteTable& GetRouteTable()
     {
         return routeTable_;
     }
@@ -252,13 +252,13 @@ protected:
 
     UbseResult NormalRequestHandle(UBSHcomServiceContext& context);
 
-    void ForwardMessage(UbseComMessageCtx &msgCtx, const std::string &finalDst);
+    void ForwardMessage(UbseComMessageCtx& msgCtx, const std::string& finalDst);
 
-    static UbseComMessagePtr CopyForwardMsg(UbseComMessageCtx &msgCtx);
+    static UbseComMessagePtr CopyForwardMsg(UbseComMessageCtx& msgCtx);
 
-    static void SubmitForward(const std::string &engineName, UbseComMessageCtx fwCtx);
+    static void SubmitForward(const std::string& engineName, UbseComMessageCtx fwCtx);
 
-    void ParseContextMsg(UBSHcomServiceContext &context, UbseComMessage *msg, UbseComMessageCtx &msgCtx);
+    void ParseContextMsg(UBSHcomServiceContext& context, UbseComMessage* msg, UbseComMessageCtx& msgCtx);
 
     UbseResult GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseChannelType chType,
                                const UBSHcomChannelPtr& channelPtr, std::string& engineName, std::string& remoteNodeId);
@@ -288,6 +288,7 @@ protected:
 
 protected:
     UbseResult InsertChannelToMap(UbseComChannelInfo& chInfo);
+    void AddDirectRouteIfChannelExists(const UBSHcomChannelPtr& ch);
     UbseResult AddConnectingNodeForServer(UbseComChannelInfo& chInfo);
     void UpdateNewChannelIdMap(const std::string& nodeId, UbseComChannelInfo& channelInfo);
     bool SplitIp(const std::string ipPortStr, std::string& ip);
@@ -432,11 +433,11 @@ public:
     static std::string GetNodeIdByIp(const std::string& engineName, const std::string& ip);
 };
 
-bool CertCallback(const std::string &name, std::string &value);
-bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len,
-                        UBSHcomTLSEraseKeypass &erase);
-bool CACallback(const std::string &name, std::string &caPath, std::string &crlPath,
-                UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb);
-void KeyPassErase(void *pass, int len);
+bool CertCallback(const std::string& name, std::string& value);
+bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyPass, int& len,
+                        UBSHcomTLSEraseKeypass& erase);
+bool CACallback(const std::string& name, std::string& caPath, std::string& crlPath,
+                UBSHcomPeerCertVerifyType& peerCertVerifyType, UBSHcomTLSCertVerifyCallback& cb);
+void KeyPassErase(void* pass, int len);
 } // namespace ubse::com
 #endif // UBSE_COM_ENGINE_H
