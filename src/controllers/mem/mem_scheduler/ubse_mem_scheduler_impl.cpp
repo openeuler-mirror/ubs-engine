@@ -140,6 +140,12 @@ UbseResult SchedulerImpl::NodeObjChangeHandler(const UbseNodeInfo& nodeInfo)
     return ret;
 }
 
+bool SchedulerImpl::HasNodeCache(const NodeId& nodeId)
+{
+    std::lock_guard<std::mutex> lock{lock_};
+    return nodeInfo_->GetNodeInfo(nodeId) != nullptr;
+}
+
 UbseResult SchedulerImpl::ScheduleBorrow(const SchedulerRequest& request,
                                          adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {

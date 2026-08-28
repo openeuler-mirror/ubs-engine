@@ -19,9 +19,12 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 uint32_t UbseMemControllerMasterOnlineHandler::MasterOnlineHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
-    ClearNodeMap();
+    auto ret = ClearNodeMap();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Clear node map failed, nodeId=" << nodeId << ", ret=" << ubse::log::FormatRetCode(ret);
+    }
     ClearOnLineMap();
-    return UBSE_OK;
+    return ret;
 }
 
 void UbseMemControllerMasterOnlineHandler::Initial()

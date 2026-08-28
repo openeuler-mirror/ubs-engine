@@ -494,26 +494,56 @@ void UpdateSchedulerCache(const std::string& nodeId)
     });
 }
 
-void ClearNodeMap()
+static UbseResult EnsureSchedulerNodeCacheReady(const std::string& nodeId)
+{
+    if (ubse::mem::scheduler::SchedulerImpl::GetInstance().HasNodeCache(nodeId)) {
+        UBSE_LOG_INFO << "Scheduler node cache already exists, nodeId=" << nodeId;
+        return UBSE_OK;
+    }
+
+    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Failed to ensure scheduler node cache, node not found, nodeId=" << nodeId;
+        return UBSE_ERR_NODE_NOT_EXIST;
+    }
+
+    auto ret = ubse::mem::scheduler::SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to update scheduler node cache, nodeId=" << nodeId << ", ret=" << FormatRetCode(ret);
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "Notify scheduler node cache rebuild success, nodeId=" << nodeId;
+    return UBSE_OK;
+}
+
+UbseResult ClearNodeMap()
 {
     auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
     if (module == nullptr) {
         UBSE_LOG_ERROR << "elc module not load.";
-        return;
+        return UBSE_ERROR;
     }
     if (module->IsLeader()) {
         Node node{};
         auto ret = module->GetCurrentNode(node);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Get current node failed";
-            return;
+            return ret;
         }
         UBSE_LOG_INFO << "current node is master.";
+        ret = EnsureSchedulerNodeCacheReady(node.id);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Skip scheduler account cache rebuild because node cache is not ready, nodeId=" << node.id
+                           << ", ret=" << FormatRetCode(ret);
+            return ret;
+        }
         UpdateSchedulerCache(node.id);
-        return;
+        return UBSE_OK;
     }
     auto curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtLedger::GetInstance().ClearOtherNodeMaps(curNodeId);
     ubse::mem::scheduler::SchedulerImpl::GetInstance().ClearCache();
+    return UBSE_OK;
 }
 } // namespace ubse::mem::controller

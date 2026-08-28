@@ -64,6 +64,14 @@ public:
     UbseResult NodeObjChangeHandler(const UbseNodeInfo& nodeInfo);
 
     /* *
+     * @brief   判断指定节点的scheduler节点缓存是否已经创建
+     *
+     * @param nodeId  [IN] 节点ID
+     * @return true：已创建；false：未创建
+     */
+    bool HasNodeCache(const NodeId& nodeId);
+
+    /* *
      * @brief   借用对象状态变化统一处理入口
      *          （支持 fd/numa/shm/addr 的 import/export 对象）
      *

@@ -84,6 +84,29 @@ TEST_F(TestSchedulerImpl, NodeObjChangeHandlerWithValidNode)
     EXPECT_EQ(node->GetNodeId(), "1");
 }
 
+TEST_F(TestSchedulerImpl, HasNodeCacheReflectsCreationAndClearing)
+{
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<config::UbseConfModule>()));
+
+    SchedulerImpl::GetInstance().Init();
+    EXPECT_FALSE(SchedulerImpl::GetInstance().HasNodeCache("1"));
+
+    UbseNodeInfo info{};
+    info.nodeId = "1";
+    info.hostName = "host-1";
+    info.allocator = UbseAllocator::BUDDY_HIGHMEM;
+    info.blockSize = 128;
+    info.isLender = true;
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    EXPECT_EQ(SchedulerImpl::GetInstance().NodeObjChangeHandler(info), UBSE_OK);
+    EXPECT_TRUE(SchedulerImpl::GetInstance().HasNodeCache("1"));
+
+    SchedulerImpl::GetInstance().ClearCache();
+    EXPECT_FALSE(SchedulerImpl::GetInstance().HasNodeCache("1"));
+}
+
 TEST_F(TestSchedulerImpl, MemoryObjChangeHandlerSchedulingFailsWithoutNodes)
 {
     MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>)
