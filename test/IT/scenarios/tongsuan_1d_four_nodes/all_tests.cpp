@@ -248,6 +248,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, ExistingMasterUniqueStandby)
     ubse::it::tests::election::RunFourNodeExistingMasterUniqueStandbyTest(Cluster());
 }
 
+// 新集群启动平滑：四节点启动收敛后，校验各节点 local:ready 与 cluster:working 状态日志。
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, StartupSmooth)
+{
+    ubse::it::tests::election::RunFourNodeStartupSmoothTest(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — Fault Log 校验
 // ====================================================================

@@ -91,6 +91,34 @@ size_t CountLogLines(const std::string& path, const std::string& substring)
     return count;
 }
 
+// 返回日志文件中首个（first=true）或最后一个（first=false）包含指定子串的行的时间戳文本。
+// 日志行首格式为 "[YYYY-MM-DD HH:MM:SS.mmm+HH:MM]"，取首个 '[' 到首个 ']'（含）之间的内容；
+// 无匹配行返回空串。
+std::string MatchTimeText(const std::string& path, const std::string& substring, bool first)
+{
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        return "";
+    }
+    std::string result;
+    std::string line;
+    while (std::getline(ifs, line)) {
+        if (line.find(substring) == std::string::npos) {
+            continue;
+        }
+        auto open = line.find('[');
+        auto close = line.find(']');
+        std::string ts = (open == std::string::npos || close == std::string::npos || close < open) ?
+                             line :
+                             line.substr(open, close - open + 1);
+        if (first) {
+            return ts;
+        }
+        result = ts;
+    }
+    return result;
+}
+
 // 通过源码日志校验主节点是否周期性向对端节点发送心跳。
 // 读取主节点配置的心跳周期，等待 3 个完整周期 + 余量后统计 [ELECTION] ProcTimer
 // MASTER send pkt 日志，验证周期性（>=3 次）且确实发往对端节点。
@@ -358,6 +386,80 @@ void RunTwoNodeBothElectionDisabledTest(ubse::it::infra::ItCluster& cluster)
     }
 }
 
+// 双节点周期对账（定时触发）测试：验证主节点周期对账定时器（UbseNodeLedger，5 分钟一次）
+// 会周期性触发节点的 cluster 状态平滑（WORKING->SMOOTHING）与恢复（SMOOTHING->WORKING）。
+// 状态日志仅由主节点输出，故统一在主节点 ubse.log 上按 nodeId 校验两个节点：
+//   - 周期 smoothing：初始上线为 INIT(0)->SMOOTHING(1)（current state=0, update state=1），
+//     只有周期对账才会 WORKING(2)->SMOOTHING(1)（current state=2, update state=1），该记录唯一标识周期触发。
+//   - working：初始 1 次 + 每个周期 1 次，累计 >=2 即证明定时再度触发。
+void RunTwoNodePeriodicLedgerTest(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_EQ(nodeIds.size(), 2U) << "本用例要求双节点集群,实际=" << nodeIds.size();
+
+    // 前置：集群收敛为1主+1备
+    auto roles = CollectElectionRoles(cluster);
+    ASSERT_EQ(roles.masterCount, 1U) << "集群应存在唯一主节点";
+    ASSERT_EQ(roles.standbyCount, 1U) << "集群应存在唯一备节点";
+    const std::string masterId = roles.masterNodeId;
+    const std::string masterLog = cluster.GetNode(masterId).GetLogFilePath();
+
+    // 周期对账间隔 5 分钟（UBSE_NODE_LEDGER_INTERVAL=300s）；等待 1 个周期 + 余量。
+    constexpr uint32_t kLedgerIntervalMs = 300 * 1000;                  // 5min
+    constexpr uint32_t kWaitTimeoutMs = kLedgerIntervalMs + 120 * 1000; // 7min 余量
+
+    for (const auto& nodeId : nodeIds) {
+        const std::string periodicSmoothing =
+            "nodeId=" + nodeId + " update cluster state, current state=2, update state=1";
+        const std::string workingLog = "nodeId=" + nodeId + " update cluster state, current state=1, update state=2";
+
+        // 周期 smoothing：WORKING(2)->SMOOTHING(1)，仅周期对账产生
+        auto retSmoothing = ubse::it::infra::ItWaitHelper::WaitForCondition(
+            [&]() -> bool { return CountLogLines(masterLog, periodicSmoothing) >= 1; }, kWaitTimeoutMs);
+        EXPECT_IT_OK(retSmoothing) << "master 应记录 node " << nodeId << " 的周期 smoothing (2->1)";
+
+        // working：初始 1 次 + 周期至少 1 次
+        auto retWorking = ubse::it::infra::ItWaitHelper::WaitForCondition(
+            [&]() -> bool { return CountLogLines(masterLog, workingLog) >= 2; }, kWaitTimeoutMs);
+        EXPECT_IT_OK(retWorking) << "master 应记录 node " << nodeId << " 的周期 working (累计>=2)";
+    }
+}
+
+// 双节点节点信息上报汇总测试：验证节点内存等信息采集持续进行。
+// 主节点每 60s（UBSE_REPORT_LOG_INTERVAL）打印一次 "ubse node last 1min report summary" 汇总日志。
+// 取首个汇总日志时间戳，等待 70s（大于 1 个上报周期）后取最新汇总日志时间戳，
+// 两者应不相等，否则说明采集上报已停止。
+void RunTwoNodeNodeReportSummaryTest(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_EQ(nodeIds.size(), 2U) << "本用例要求双节点集群,实际=" << nodeIds.size();
+
+    auto roles = CollectElectionRoles(cluster);
+    ASSERT_EQ(roles.masterCount, 1U) << "集群应存在唯一主节点";
+    ASSERT_EQ(roles.standbyCount, 1U) << "集群应存在唯一备节点";
+    const std::string masterId = roles.masterNodeId;
+    const std::string masterLog = cluster.GetNode(masterId).GetLogFilePath();
+
+    const std::string summaryMark = "ubse node last 1min report summary";
+
+    // 等待首个上报汇总日志出现（上报汇总周期 60s，主节点上线后首次打印不超过 60s）
+    auto retFirst = ubse::it::infra::ItWaitHelper::WaitForCondition(
+        [&]() -> bool { return CountLogLines(masterLog, summaryMark) >= 1; }, 90000);
+    ASSERT_IT_OK(retFirst) << "master 未在预期时间内打印上报汇总日志";
+
+    // 初始打印时间戳
+    const std::string initialTs = MatchTimeText(masterLog, summaryMark, true);
+    ASSERT_FALSE(initialTs.empty()) << "应能解析首个上报汇总日志的时间戳";
+
+    // 等待 70s（大于 1 个上报周期），确保采集上报再次发生
+    std::this_thread::sleep_for(std::chrono::seconds(70));
+
+    // 最新时间戳
+    const std::string latestTs = MatchTimeText(masterLog, summaryMark, false);
+    ASSERT_FALSE(latestTs.empty()) << "应能解析最新上报汇总日志的时间戳";
+    EXPECT_NE(latestTs, initialTs) << "等待 70s 后应有新的采集上报，汇总日志时间戳应发生变化";
+}
+
 // 四节点选举测试：验证集群收敛为1主+1备+2代理
 void RunFourNodeElectionTest(ubse::it::infra::ItCluster& cluster)
 {
@@ -582,6 +684,46 @@ void RunFourNodeCandidateNodesOnlyMasterTest(ubse::it::infra::ItCluster& cluster
         },
         30000);
     EXPECT_IT_OK(ret4) << "candidate node 4 should become master and appoint a unique standby";
+}
+
+// 四节点新集群启动平滑测试：验证新集群启动后各节点平滑上线。
+// 步骤：① CLI 确认集群收敛为1主+1备+2agent；
+// ② 逐节点校验其自身日志记录 local 状态 READY(1)（"local node update local state to 1"）；
+// ③ 逐节点校验主节点日志记录 cluster 状态 WORKING(2)
+//    （"nodeId=<nodeId> update cluster state, current state=1, update state=2"）。
+void RunFourNodeStartupSmoothTest(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_EQ(nodeIds.size(), 4U) << "本用例要求四节点集群,实际=" << nodeIds.size();
+
+    // ① CLI 确认集群收敛
+    std::string masterId;
+    ASSERT_IT_OK(cluster.GetMasterNodeId(masterId));
+    auto roles = CollectElectionRoles(cluster);
+    ASSERT_EQ(roles.masterCount, 1U) << "集群应存在唯一主节点";
+    ASSERT_EQ(roles.standbyCount, 1U) << "集群应存在唯一备节点";
+    ASSERT_EQ(roles.agentCount, 2U) << "集群应存在2个agent节点";
+
+    std::vector<ubse::it::infra::ItNodeInfo> nodeInfos;
+    EXPECT_EQ(cluster.GetCliInvoker(masterId).QueryClusterInfo(nodeInfos), UBS_SUCCESS);
+    EXPECT_EQ(nodeInfos.size(), 4U) << "display cluster 应显示全部4个节点";
+
+    // ②③ 逐节点校验 local: READY(1) 与 cluster: WORKING(2)
+    for (const auto& nodeId : nodeIds) {
+        // local: ready — 该节点自身日志 "local node update local state to 1"
+        const std::string localReady = "local node update local state to 1";
+        auto retLocal = ubse::it::infra::ItWaitHelper::WaitForCondition(
+            [&]() -> bool { return CountLogLines(cluster.GetNode(nodeId).GetLogFilePath(), localReady) > 0; }, 30000);
+        EXPECT_IT_OK(retLocal) << "node " << nodeId << " local state should reach READY(1)";
+
+        // cluster: working — 主节点日志 "nodeId=<nodeId> update cluster state, current state=1, update state=2"
+        const std::string clusterWorking =
+            "nodeId=" + nodeId + " update cluster state, current state=1, update state=2";
+        auto retCluster = ubse::it::infra::ItWaitHelper::WaitForCondition(
+            [&]() -> bool { return CountLogLines(cluster.GetNode(masterId).GetLogFilePath(), clusterWorking) > 0; },
+            30000);
+        EXPECT_IT_OK(retCluster) << "master should log cluster state WORKING(2) for node " << nodeId;
+    }
 }
 
 } // namespace ubse::it::tests::election

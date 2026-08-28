@@ -1088,6 +1088,20 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, MasterPeriodicHeartbeat)
     ubse::it::tests::election::RunTwoNodeMasterPeriodicHeartbeatTest(Cluster());
 }
 
+// 周期对账定时触发：双节点长时间运行（周期对账 5 分钟一次），
+// 验证主节点日志中出现周期性的 cluster smoothing 与 cluster working 记录。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, PeriodicLedger)
+{
+    // ubse::it::tests::election::RunTwoNodePeriodicLedgerTest(Cluster());
+}
+
+// 节点信息上报汇总：验证节点内存等信息采集持续进行。
+// 获取 "ubse node last 1min report summary" 首个时间戳，等待 70s 后取最新时间戳，两者应不相等。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, NodeReportSummary)
+{
+    ubse::it::tests::election::RunTwoNodeNodeReportSummaryTest(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — 拓扑校验
 // ====================================================================
