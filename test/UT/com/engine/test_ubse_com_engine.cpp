@@ -12,7 +12,11 @@
 
 #include "test_ubse_com_engine.h"
 #include <sys/stat.h>
+#include <chrono>
+#include <condition_variable>
 #include <fstream>
+#include <mutex>
+#include <thread>
 #include "ubse_com_def.h"
 #include "ubse_election.h"
 #include "../test_ubse_com_mock.h"
@@ -20,7 +24,7 @@
 #include "crc/ubse_crc.h"
 
 namespace ubse::com {
-void VarifyFailReply(UbseComMessageCtx &message);
+void VarifyFailReply(UbseComMessageCtx& message);
 } // namespace ubse::com
 
 namespace ubse::ut::com {
@@ -95,6 +99,31 @@ TEST_F(TestUbseComEngine, TestGetRemoteNodeId)
     std::string remoteNodeId = "1";
     EXPECT_EQ(UBSE_OK, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL, channelPtr,
                                               engineName, remoteNodeId));
+}
+
+TEST_F(TestUbseComEngine, TestDirectRouteExistsWhenLinkUpNotified)
+{
+    const std::string expectedRemoteNodeId = "MockNode";
+    UbseComEngine* engine = nullptr;
+    bool routeExistsWhenNotified = false;
+    UbseComLinkStateNotify linkStateNotify = [&](const UbseComEngineInfo&, const std::string& remoteNodeId,
+                                                 const UBSHcomChannelPtr&, UbseLinkState state) {
+        if (state == UbseLinkState::LINK_UP) {
+            routeExistsWhenNotified = engine->GetRouteTable().Lookup(remoteNodeId) == remoteNodeId;
+        }
+    };
+    UbseComEngineInfo info;
+    UbseComLinkManager linkManager;
+    UbseComEngine comEngine(info, nullptr, linkStateNotify, linkManager);
+    engine = &comEngine;
+    UbseComChannelConnectInfo connectInfo(false, "192.168.1.1", 0, "", "LocalNode");
+    UBSHcomChannelPtr channel = new TestChannel(1, "", expectedRemoteNodeId);
+    std::string engineName = "engine";
+    std::string remoteNodeId;
+
+    ASSERT_EQ(UBSE_OK,
+              comEngine.GetRemoteNodeId(connectInfo, UbseChannelType::NORMAL, channel, engineName, remoteNodeId));
+    EXPECT_TRUE(routeExistsWhenNotified);
 }
 
 TEST_F(TestUbseComEngine, TestCreateChannel)
@@ -202,15 +231,15 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
 
     // Register callback that returns true
-    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return true; });
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx&) -> bool { return true; });
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
 
     // Register callback that returns false
-    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return false; });
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx&) -> bool { return false; });
     EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
 
     // Register callback that returns true again
-    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return true; });
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx&) -> bool { return true; });
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
 
     delete (req);
@@ -330,7 +359,32 @@ TEST_F(TestUbseComEngine, TestInsertChannelToMap)
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     EXPECT_EQ(UBSE_OK, mockengine.InsertChannelToMap(channelInfo));
+    EXPECT_EQ("MockNode", mockengine.GetRouteTable().Lookup("MockNode"));
     EXPECT_EQ(UBSE_ERROR, mockengine.InsertChannelToMap(channelInfo));
+
+    linkManager.SetIsStop();
+    UbseComEngine stoppedEngine(info, mockService, linkStateNotify, linkManager);
+    MOCKER(&UbseComLinkManager::GetChannelByChannelId).expects(never());
+    EXPECT_EQ(UBSE_OK, stoppedEngine.InsertChannelToMap(channelInfo));
+    EXPECT_TRUE(stoppedEngine.GetRouteTable().Lookup("MockNode").empty());
+}
+
+TEST_F(TestUbseComEngine, TestRemoveChannelDeletesDirectRoute)
+{
+    const std::string remoteNodeId = "MockNode";
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, mockService, linkStateNotify, linkManager);
+    UBSHcomChannelPtr channel = new TestChannel(1, remoteNodeId + "@Normal");
+    UbseComChannelConnectInfo connectInfo(false, "192.168.1.1", 0, remoteNodeId, "LocalNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channel, connectInfo);
+    ASSERT_EQ(UBSE_OK, engine.InsertChannelToMap(channelInfo));
+    MOCKER(&UbseComLinkManager::RemoveChannelByChannelId).stubs();
+
+    engine.RemoveChannel(remoteNodeId, UbseChannelType::NORMAL);
+
+    EXPECT_TRUE(engine.GetRouteTable().Lookup(remoteNodeId).empty());
 }
 
 TEST_F(TestUbseComEngine, TestRemoveChannelByChannelIdForBroken)
@@ -358,15 +412,104 @@ TEST_F(TestUbseComEngine, TestNewChannel)
     EXPECT_EQ(UBSE_OK, mockengine.NewChannel(ipPortStr, channelPtr, payload));
 }
 
-TEST_F(TestUbseComEngine, TestBrokenChannel)
+TEST_F(TestUbseComEngine, TestNewChannelDefersDirectRouteUntilRegistration)
 {
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
-    mockengine.BrokenChannel(channelPtr);
+    UbseComEngine engine(info, mockService, linkStateNotify, linkManager);
+    UBSHcomChannelPtr channel = new TestChannel();
+
+    EXPECT_EQ(UBSE_OK, engine.NewChannel("192.168.1.1:100", channel, "MockNode@Normal"));
+    EXPECT_TRUE(engine.GetRouteTable().Lookup("MockNode").empty());
+}
+
+TEST_F(TestUbseComEngine, TestBrokenChannelDeletesDirectRoute)
+{
+    const std::string remoteNodeId = "MockNode";
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, mockService, linkStateNotify, linkManager);
+    UBSHcomChannelPtr channel = new TestChannel(1, remoteNodeId + "@Normal");
+    UbseComChannelConnectInfo connectInfo(false, "192.168.1.1", 0, remoteNodeId, "LocalNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channel, connectInfo);
+    ASSERT_EQ(UBSE_OK, engine.InsertChannelToMap(channelInfo));
+
+    engine.BrokenChannel(channel);
+
+    EXPECT_TRUE(engine.GetRouteTable().Lookup(remoteNodeId).empty());
+}
+
+TEST_F(TestUbseComEngine, TestBrokenChannelDoesNotDeleteReplacementRoute)
+{
+    const std::string remoteNodeId = "MockNode";
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool notifyEntered = false;
+    bool releaseNotify = false;
+    UbseComLinkStateNotify linkStateNotify = [&](const UbseComEngineInfo&, const std::string&, const UBSHcomChannelPtr&,
+                                                 UbseLinkState state) {
+        if (state != UbseLinkState::LINK_DOWN) {
+            return;
+        }
+        std::unique_lock<std::mutex> lock(mutex);
+        notifyEntered = true;
+        condition.notify_one();
+        condition.wait(lock, [&]() { return releaseNotify; });
+    };
+    UbseComEngineInfo info;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, mockService, linkStateNotify, linkManager);
+    UbseComChannelConnectInfo connectInfo(false, "192.168.1.1", 0, remoteNodeId, "LocalNode");
+    UBSHcomChannelPtr oldChannel = new TestChannel(1, remoteNodeId + "@Normal");
+    UbseComChannelInfo oldInfo(true, UbseChannelType::NORMAL, "ManBo", oldChannel, connectInfo);
+    UBSHcomChannelPtr replacement = new TestChannel(2, remoteNodeId + "@Normal");
+    UbseComChannelInfo replacementInfo(true, UbseChannelType::NORMAL, "ManBo", replacement, connectInfo);
+    ASSERT_EQ(UBSE_OK, engine.InsertChannelToMap(oldInfo));
+
+    std::thread brokenThread([&]() { engine.BrokenChannel(oldChannel); });
+    bool notificationStarted = false;
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        notificationStarted = condition.wait_for(lock, std::chrono::seconds(1), [&]() { return notifyEntered; });
+    }
+    if (!notificationStarted) {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            releaseNotify = true;
+        }
+        condition.notify_one();
+        brokenThread.join();
+        FAIL() << "broken-channel notification did not start";
+    }
+    EXPECT_EQ(UBSE_OK, engine.InsertChannelToMap(replacementInfo));
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        releaseNotify = true;
+    }
+    condition.notify_one();
+    brokenThread.join();
+
+    EXPECT_EQ(remoteNodeId, engine.GetRouteTable().Lookup(remoteNodeId));
+}
+
+TEST_F(TestUbseComEngine, TestBrokenChannel)
+{
+    const std::string remoteNodeId = "MockNode";
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, mockService, linkStateNotify, linkManager);
+    UbseComChannelConnectInfo connectInfo(false, "192.168.1.1", 0, remoteNodeId, "LocalNode");
+    UBSHcomChannelPtr replacement = new TestChannel(1, remoteNodeId + "@Normal");
+    UbseComChannelInfo replacementInfo(true, UbseChannelType::NORMAL, "ManBo", replacement, connectInfo);
+    ASSERT_EQ(UBSE_OK, engine.InsertChannelToMap(replacementInfo));
+    UBSHcomChannelPtr oldChannel = new TestChannel(2, remoteNodeId + "@Normal");
+
+    engine.BrokenChannel(oldChannel);
+
+    EXPECT_EQ(remoteNodeId, engine.GetRouteTable().Lookup(remoteNodeId));
 }
 
 TEST_F(TestUbseComEngine, TestSendRequest)

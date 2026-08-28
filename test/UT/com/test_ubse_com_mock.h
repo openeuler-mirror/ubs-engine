@@ -13,17 +13,27 @@
 #ifndef UBS_ENGINE_TEST_UBSE_COM_MOCK_H
 #define UBS_ENGINE_TEST_UBSE_COM_MOCK_H
 
+#include <string>
+#include <utility>
+
 #include "hcom/hcom_service.h"
 
 namespace ubse::ut::com {
 using namespace ock::hcom;
 class TestChannel : public UBSHcomChannel {
 public:
-    TestChannel() {}
+    explicit TestChannel(uint64_t id = 1, std::string peerConnectPayload = "", std::string callResponse = "")
+        : id_(id),
+          peerConnectPayload_(std::move(peerConnectPayload)),
+          callResponse_(std::move(callResponse))
+    {
+    }
     ~TestChannel() override {}
     int32_t Send(const UBSHcomRequest& req, const Callback* done = nullptr) override {}
     int32_t Call(const UBSHcomRequest& req, UBSHcomResponse& rsp, const Callback* done = nullptr) override
     {
+        rsp.address = callResponse_.data();
+        rsp.size = callResponse_.size();
         return 0;
     }
     int32_t Reply(const UBSHcomReplyContext& ctx, const UBSHcomRequest& req, const Callback* done = nullptr) override {}
@@ -87,19 +97,24 @@ public:
     void InvokeChannelBrokenCb(UBSHcomChannelPtr& channel) override {}
     uint64_t GetId() override
     {
-        return 1;
+        return id_;
     }
     std::string GetUuid() override {}
     uintptr_t GetTimerList() override {}
     uint32_t GetLocalIp() override {}
     std::string GetPeerConnectPayload() override
     {
-        return "";
+        return peerConnectPayload_;
     }
     uint16_t GetDelayEraseTime() override {}
     HcomServiceCtxStore* GetCtxStore() override {}
     UBSHcomChannelCallBackType GetCallBackType() override {}
     void SetEnableMrCache(bool) override {}
+
+private:
+    uint64_t id_;
+    std::string peerConnectPayload_;
+    std::string callResponse_;
 };
 } // namespace ubse::ut::com
 #endif // UBS_ENGINE_TEST_UBSE_COM_MOCK_H

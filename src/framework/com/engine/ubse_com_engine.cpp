@@ -434,13 +434,13 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
     UbseComChannelInfo chInfo(false, chType, engineName, channelPtr, info);
     rwLock_.LockWrite();
     linkManager_.InsertChannel(chInfo);
+    AddDirectRouteIfChannelExists(channelPtr);
     rwLock_.UnLock();
     UBSE_LOG_INFO << "Create channel remote=" << info.GetRemoteNodeId() << " successfully, engine=" << engineName
                   << ", channel id=" << channelPtr->GetId() << ", type=" << ChannelTypeToString(chType);
     RemoveConnectingNode(info.GetIp(), chType);
 
     linkStateNotify_(engineInfo_, remoteNodeId, channelPtr, UbseLinkState::LINK_UP);
-    routeTable_.AddDirectRoute(remoteNodeId);
     return UBSE_OK;
 }
 
@@ -477,15 +477,15 @@ void UbseComEngine::DestroyChannel(const UBSHcomChannelPtr& ch)
 void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type)
 {
     UbseComChannelInfo channelInfo{};
-    rwLock_.LockRead();
+    rwLock_.LockWrite();
     UbseResult ret = linkManager_.GetChannelByRemoteNodeId(remoteNodeId, type, channelInfo);
-    rwLock_.UnLock();
     if (ret != UBSE_OK) {
+        rwLock_.UnLock();
         UBSE_LOG_ERROR << "Failed to get channel info, " << FormatRetCode(ret);
         return;
     }
-    rwLock_.LockWrite();
     linkManager_.RemoveChannelByChannelId(channelInfo.GetChannel()->GetId(), this);
+    routeTable_.DelDirectRoute(remoteNodeId);
     rwLock_.UnLock();
 }
 
@@ -829,8 +829,17 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo& chInfo)
     rwLock_.UnLock();
     rwLock_.LockWrite();
     linkManager_.InsertChannel(chInfo);
+    AddDirectRouteIfChannelExists(chInfo.GetChannel());
     rwLock_.UnLock();
     return UBSE_OK;
+}
+
+void UbseComEngine::AddDirectRouteIfChannelExists(const UBSHcomChannelPtr& ch)
+{
+    auto iter = linkManager_.channelIdMap_.find(ch->GetId());
+    if (iter != linkManager_.channelIdMap_.end()) {
+        routeTable_.AddDirectRoute(iter->second.GetConnectInfo().GetRemoteNodeId());
+    }
 }
 
 void UbseComEngine::UpdateNewChannelIdMap(const std::string& nodeId, UbseComChannelInfo& channelInfo)
@@ -911,7 +920,6 @@ UbseResult UbseComEngine::NewChannel(const std::string& ipPort, const UBSHcomCha
                       << " , refused because channel already exists";
         return UBSE_ERROR;
     }
-    routeTable_.AddDirectRoute(payLoadPair.first);
     return UBSE_OK;
 }
 
@@ -926,7 +934,6 @@ void UbseComEngine::BrokenChannel(const UBSHcomChannelPtr& ch)
     auto channelId = ch->GetId();
     UBSE_LOG_INFO << "Engine=" << engineName << " channel broken, id=" << ch->GetId()
                   << ", payload=" << ch->GetPeerConnectPayload();
-    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
     rwLock_.LockWrite();
     UbseComChannelInfo channelInfo;
     auto ret = linkManager_.GetChannelByChannelId(channelId, channelInfo);
@@ -939,9 +946,9 @@ void UbseComEngine::BrokenChannel(const UBSHcomChannelPtr& ch)
         engineInfo_.GetBrokenChannelCb()("", linkManager_.GetNodeIdByChannelId(channelId));
     }
     linkManager_.RemoveChannelByChannelIdForBroken(channelId);
+    routeTable_.DelDirectRoute(channelInfo.GetConnectInfo().GetRemoteNodeId());
     rwLock_.UnLock();
     linkStateNotify_(engineInfo_, channelInfo.GetConnectInfo().GetRemoteNodeId(), ch, UbseLinkState::LINK_DOWN);
-    routeTable_.DelDirectRoute(channelInfo.GetConnectInfo().GetRemoteNodeId());
 }
 
 void VarifyFailReply(UbseComMessageCtx& message)
