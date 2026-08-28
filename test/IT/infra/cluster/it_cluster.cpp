@@ -53,6 +53,14 @@ ItNode::ClusterContext ItCluster::BuildClusterContext() const
 
 UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeoutMs)
 {
+    // 校验 deferred 节点 ID 必须存在于拓扑中, 尽早暴露 DeferNodes 配置错误
+    for (const auto& nodeId : clusterSpec_.deferredNodeIds) {
+        if (clusterSpec_.FindNode(nodeId) == nullptr) {
+            IT_LOG_ERROR << "Deferred node " << nodeId << " not in topology, check DeferNodes()";
+            return UBSE_ERROR_DEF(1);
+        }
+    }
+
     // Phase 0: Generate per-node config files
     ItConfigBuilder configBuilder(clusterSpec_.nodes, clusterSpec_.baseWorkDir);
     // Apply per-node config overrides (e.g. election.candidate per node)
@@ -74,8 +82,14 @@ UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeou
     }
 
     // Phase 1: Create ItNode instances and start all nodes simultaneously
+    // Deferred nodes (DeferNodes) are skipped here: their config was generated in
+    // Phase 0, but the daemon is only started later via StartNode().
     auto ctx = BuildClusterContext();
     for (const auto& cfg : clusterSpec_.nodes) {
+        if (clusterSpec_.deferredNodeIds.count(cfg.nodeId) != 0) {
+            IT_LOG_INFO << "Node " << cfg.nodeId << " is deferred, skip auto-start (use StartNode to start it)";
+            continue;
+        }
         auto node = std::make_unique<ItNode>(cfg, ctx);
         ret = node->Start();
         if (ret != UBSE_OK) {
@@ -361,6 +375,96 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
     return UBSE_OK;
 }
 
+UbseResult ItCluster::StartNode(const std::string& nodeId,
+                                const std::map<std::string, std::map<std::string, std::string>>& configOverrides,
+                                bool waitForElection, uint32_t electionTimeoutMs)
+{
+    // 节点已启动则直接返回成功 (幂等)
+    if (nodes_.find(nodeId) != nodes_.end()) {
+        IT_LOG_WARN << "StartNode: node " << nodeId << " already running";
+        return UBSE_OK;
+    }
+    // 节点必须在拓扑中
+    const auto* cfg = clusterSpec_.FindNode(nodeId);
+    if (cfg == nullptr) {
+        IT_LOG_ERROR << "StartNode: node " << nodeId << " not in topology";
+        return UBSE_ERROR_DEF(1);
+    }
+    // 节点通常应是 deferred 的 (StartCluster 跳过启动); 这里不强制报错, 只 warn,
+    // 允许 case 在 StopNode 后用 StartNode 重新启动 (修改配置后重启节点)
+    if (clusterSpec_.deferredNodeIds.count(nodeId) == 0) {
+        IT_LOG_WARN << "StartNode: node " << nodeId << " is not in deferredNodeIds";
+    }
+
+    // 若提供了 configOverrides, 在启动前重新生成该节点配置 (覆盖 StartCluster 阶段生成的默认配置)
+    if (!configOverrides.empty()) {
+        ItConfigBuilder configBuilder(clusterSpec_.nodes, clusterSpec_.baseWorkDir);
+        configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
+            .WithCertUse(false)
+            .WithMockPlugin(clusterSpec_.mockPluginEnabled);
+        // 先还原 StartCluster 阶段为该节点预置的 override
+        for (const auto& [section, keys] : clusterSpec_.nodeConfigOverrides[nodeId]) {
+            for (const auto& [key, value] : keys) {
+                configBuilder.WithNodeOverride(nodeId, section, key, value);
+            }
+        }
+        // 再应用 case 提供的 override (后应用者覆盖前者, case 优先级最高)
+        for (const auto& [section, keys] : configOverrides) {
+            for (const auto& [key, value] : keys) {
+                configBuilder.WithNodeOverride(nodeId, section, key, value);
+            }
+        }
+        UbseResult ret = configBuilder.GenerateNodeConfig(nodeId);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "StartNode: failed to regenerate config for node " << nodeId;
+            return ret;
+        }
+        IT_LOG_INFO << "StartNode: regenerated config for node " << nodeId << " with " << configOverrides.size()
+                    << " sections of overrides";
+    }
+
+    auto ctx = BuildClusterContext();
+    auto node = std::make_unique<ItNode>(*cfg, ctx);
+    UbseResult ret = node->Start();
+    if (ret != UBSE_OK) {
+        IT_LOG_ERROR << "Failed to start node " << nodeId;
+        return ret;
+    }
+    ret = node->WaitForStartup(clusterSpec_.startupTimeoutMs);
+    if (ret != UBSE_OK) {
+        IT_LOG_ERROR << "Node " << nodeId << " did not start up in time";
+        return ret;
+    }
+    ret = node->InitializeSdkClient();
+    if (ret != UBSE_OK) {
+        IT_LOG_WARN << "Failed to initialize SDK client for node " << nodeId;
+    }
+    nodes_[nodeId] = std::move(node);
+    IT_LOG_INFO << "Node " << nodeId << " started via StartNode";
+
+    if (waitForElection) {
+        ret = WaitForElectionConvergence(electionTimeoutMs);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "Election did not converge after starting node " << nodeId;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult ItCluster::StopNode(const std::string& nodeId)
+{
+    auto it = nodes_.find(nodeId);
+    if (it == nodes_.end()) {
+        IT_LOG_WARN << "StopNode: node " << nodeId << " is not running, no-op";
+        return UBSE_OK;
+    }
+    it->second->Stop();
+    nodes_.erase(it);
+    IT_LOG_INFO << "Node " << nodeId << " stopped via StopNode";
+    return UBSE_OK;
+}
+
 bool ItCluster::IsNodeRunning(const std::string& nodeId) const
 {
     auto it = nodes_.find(nodeId);
@@ -389,13 +493,15 @@ UbseResult ItCluster::WaitForElectionConvergence(uint32_t timeoutMs)
         bool hasMaster = false;
         bool hasStandby = false;
         uint32_t queriedNodeCount = 0;
+        uint32_t runningNodeCount = 0;
 
         for (const auto& nodeId : nodeIds_) {
             auto it = nodes_.find(nodeId);
             if (it == nodes_.end()) {
-                stableConvergenceCount = 0;
-                return false;
+                // deferred/未启动节点 (DeferNodes + StartNode 场景): 不参与本次收敛判断
+                continue;
             }
+            ++runningNodeCount;
 
             std::string role;
             int32_t ret = it->second->GetCliInvoker().GetRole(role);
@@ -412,12 +518,12 @@ UbseResult ItCluster::WaitForElectionConvergence(uint32_t timeoutMs)
             }
         }
 
-        if (queriedNodeCount != nodeIds_.size()) {
+        if (queriedNodeCount != runningNodeCount) {
             stableConvergenceCount = 0;
             return false;
         }
 
-        bool converged = nodeIds_.size() == 1 ? hasMaster : (hasMaster && hasStandby);
+        bool converged = runningNodeCount == 1 ? hasMaster : (hasMaster && hasStandby);
         if (!converged) {
             stableConvergenceCount = 0;
             return false;

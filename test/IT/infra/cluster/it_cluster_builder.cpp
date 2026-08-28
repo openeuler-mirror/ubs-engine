@@ -122,6 +122,12 @@ ItClusterBuilder& ItClusterBuilder::WithNodeHostname(const std::string& nodeId, 
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::DeferNodes(std::vector<std::string> ids)
+{
+    deferredNodeIds_.insert(ids.begin(), ids.end());
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -142,6 +148,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.mockPluginEnabled = mockPluginEnabled_;
     spec.meshType = meshType_;
     spec.nodeConfigOverrides = nodeConfigOverrides_;
+    spec.deferredNodeIds = deferredNodeIds_;
     // 应用每节点自定义主机名
     for (auto& node : spec.nodes) {
         auto it = nodeHostnameOverrides_.find(node.nodeId);
