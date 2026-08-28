@@ -204,6 +204,7 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_four_nodes_boundary_hostname
     tongsuan_1d_four_nodes_candidate_nodes
     tongsuan_1d_four_nodes_deferred_start
+    tongsuan_1d_four_nodes_deferred_two_nodes_start
     zhisuan_npu_single_node
 )
 

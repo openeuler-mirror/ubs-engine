@@ -29,6 +29,12 @@ void RunDeferredStopNodeTest(ubse::it::infra::ItCluster& cluster);
 // P0: 停止后带新配置重启 deferred 节点, 验证"修改配置 -> 重启"流程
 void RunDeferredRestartNodeWithNewConfigTest(ubse::it::infra::ItCluster& cluster);
 
+// P0: 4节点集群；3，4号节点未启动场景，集群仅有一主一备
+void RunDeferredTwoNodesStartNodeNotRunningTest(ubse::it::infra::ItCluster& cluster);
+
+// P0: 4节点集群；启动3，4号节点
+void RunDeferredTwoNodesStartNodeWithConfigOverrideTest(ubse::it::infra::ItCluster& cluster);
+
 } // namespace ubse::it::tests::election
 
 #endif // IT_ELECTION_DEFERRED_START_CASES_H
