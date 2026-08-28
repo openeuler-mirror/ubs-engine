@@ -27,6 +27,8 @@
 #include "message/ubse_ssu_query_verify_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
+#include "src/framework/misc/ubse_env_util.h"
+#include "ipc/message/ubse_ssu_obj_message.h"
 #include "ubse_com_op_code.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -2653,9 +2655,24 @@ static uint32_t GetConnectInfoViaRpc(const std::string &name, const UbseSsuVfe *
     return UBSE_OK;
 }
 
-// 设置连接信息中的srcEid字段，后续添加实现
+// 设置连接信息中的srcEid字段，从ubse.service环境变量SSU_SRC_EID读取源端EID
+// 校验逻辑：与适配器GetSrcEid保持一致
 static uint32_t SetSrcEidInfo(const UbseSsuVfe *vfe, std::vector<UbseSsuConnectInfo> &connectInfoList)
 {
+    (void)vfe;
+    constexpr size_t maxEidStrLen = ipc::message::MAX_EID_LEN - 1;
+    // 从ubse.service环境变量SSU_SRC_EID读取源端EID
+    std::string eidStr = ubse::utils::GetEnv<std::string>("SSU_SRC_EID", "");
+    if (eidStr.empty()) {
+        return UBSE_OK;
+    }
+    // 与适配器GetSrcEid保持一致：超长时截断到EID_SIZE，不返回错误
+    if (eidStr.size() > maxEidStrLen) {
+        eidStr.resize(maxEidStrLen);
+    }
+    for (auto &info : connectInfoList) {
+        info.srcEid = eidStr;
+    }
     return UBSE_OK;
 }
 
