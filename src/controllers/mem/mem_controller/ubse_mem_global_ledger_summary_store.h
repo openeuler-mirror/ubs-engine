@@ -38,6 +38,7 @@ public:
     void PutNodeExportItem(const std::string &targetNodeId, const UbseGlobalLedgerSummaryItem &item);
     void PutNodeImportItem(const std::string &targetNodeId, const UbseGlobalLedgerSummaryItem &item);
     void RemoveNodeImportItem(const std::string &targetNodeId, const std::string &name);
+    void RemoveAllNodeImportItems(const std::string &targetNodeId);
     void RemoveNodeExportItem(const std::string &targetNodeId, const std::string &name);
     bool UpdateNodeExportItem(const std::string &targetNodeId, const std::string &name, const UbseMemState &state);
     bool UpdateNodeImportItem(const std::string &targetNodeId, const std::string &name, const UbseMemState &state);

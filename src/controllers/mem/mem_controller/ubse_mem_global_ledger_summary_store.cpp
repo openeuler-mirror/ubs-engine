@@ -163,6 +163,17 @@ void UbseGlobalLedgerSummaryStore::RemoveNodeImportItem(const std::string &targe
     it->second.shmSummary.importItems.erase(name);
 }
 
+void UbseGlobalLedgerSummaryStore::RemoveAllNodeImportItems(const std::string &targetNodeId)
+{
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    auto it = summaries_.find(targetNodeId);
+    if (it == summaries_.end()) {
+        UBSE_LOG_WARN << "Stored global node ledger summary not found when removing all import items, targetNodeId=" << targetNodeId;
+        return;
+    }
+    it->second.shmSummary.importItems.clear();
+}
+
 UbseResult UbseGlobalLedgerSummaryStore::GetNodeSummary(const std::string &targetNodeId,
                                                         UbseGlobalNodeLedgerSummary &summary) const
 {
