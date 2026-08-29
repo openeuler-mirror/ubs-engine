@@ -320,12 +320,32 @@ size_t UbseNodeController::SubHealthHostExportHash::operator()(const SubHealthHo
 }
 
 /**
- * 从 LCNE 模块获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
+ * 获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
+ * 非 clos 场景从 LCNE 模块获取；clos 组网下 LCNE 仅能提供本机柜节点，改用 nodeMgr 模块的全量节点信息
  * @return
  */
 std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
 {
     std::vector<UbseNodeInfo> nodeInfos{};
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        // clos 组网下全量静态节点信息由 nodeMgr 模块提供
+        const auto staticNodes = nodeMgr::GetAllNodes();
+        nodeInfos.reserve(staticNodes.size());
+        for (const auto& node : staticNodes) {
+            UbseNodeInfo ubseNodeInfo{node.nodeId};
+            ubseNodeInfo.groupId = node.groupId;
+            (void)ubse::utils::ConvertStrToUint32(node.nodeId, ubseNodeInfo.slotId);
+            auto cpyRet = strcpy_s(ubseNodeInfo.bondingEid, sizeof(ubseNodeInfo.bondingEid), node.bonding0Eid.c_str());
+            if (cpyRet != EOK) {
+                UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " copy eid failed, " << FormatRetCode(cpyRet);
+                continue;
+            }
+            nodeInfos.push_back(ubseNodeInfo);
+        }
+        return nodeInfos;
+    }
+
+    // 非 clos：从 LCNE 获取全量节点
     std::vector<UbseMtiNodeInfo> ubseNodeInfos{};
     auto ret = UbseMtiInterface::GetInstance().GetClusterNodeInfoList(ubseNodeInfos);
     if (ret != UBSE_OK) {
@@ -333,21 +353,12 @@ std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
         return {};
     }
 
-    const bool isClosType = UbseSmbios::GetInstance().IsClosType();
-    std::string currentNodeId;
-    if (isClosType) {
-        currentNodeId = GetCurNode().nodeId;
-    }
-
     nodeInfos.reserve(ubseNodeInfos.size());
     for (const auto& node : ubseNodeInfos) {
-        if (isClosType && node.nodeId != currentNodeId) {
-            continue;
-        }
         UbseNodeInfo ubseNodeInfo{node.nodeId};
         auto cpyRet = strcpy_s(ubseNodeInfo.bondingEid, sizeof(ubseNodeInfo.bondingEid), node.eid.c_str());
         if (cpyRet != EOK) {
-            UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " copy eid failed," << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " copy eid failed, " << FormatRetCode(cpyRet);
             continue;
         }
         nodeInfos.push_back(ubseNodeInfo);
@@ -1663,6 +1674,8 @@ UbseResult UbseNodeController::UpdateNodeInfoFirstAdd(const std::string& nodeId,
 {
     UBSE_LOG_INFO << "[FIRST_ADD] nodeId=" << nodeId << ", curNodeId=" << GetCurrentNodeId()
                   << ", reportState=" << static_cast<uint32_t>(info.clusterState);
+    // 首次上报不信任上报方携带的 clusterState，统一重置为 INIT，由主节点状态机后续推进（平滑/对账）
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
     if (info.nodeId != currentNodeId && nodeInfos.find(currentNodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "[CLUSTER_STATE_CHECK] current node not in cache, not allow update, nodeId=" << info.nodeId;
         rwMutex.unlock();

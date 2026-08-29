@@ -218,9 +218,12 @@ UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
 
 UbseResult UbseNodeControllerAgent::UbseCabinetInfoReportTimerHandler()
 {
+    UBSE_LOG_DEBUG << "timer cabinet trigger.";
     if (!IsCabinetMaster()) {
+        UBSE_LOG_DEBUG << "timer cabinet trigger, current role=" << static_cast<uint32_t>(GetClosRole());
         return UBSE_OK;
     }
+    UBSE_LOG_DEBUG << "timer cabinet trigger, current role is master.";
 
     taskExecutor_->Execute([this]() {
         auto ret = ReportCabinetFullInfo();
@@ -867,6 +870,7 @@ UbseResult UbseNodeControllerAgent::ReportSingleNodeToPrev(const UbseNodeInfo &i
 
 UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
 {
+    UBSE_LOG_INFO << "timer cabinet trigger, start to report cabinet info.";
     auto allNodes = UbseNodeController::GetInstance().GetLocalNodeInfos();
 
     std::vector<UbseNodeInfo> infos{};
