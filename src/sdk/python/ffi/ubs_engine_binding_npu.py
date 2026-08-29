@@ -30,9 +30,17 @@ from ubse.ffi.ubs_engine_binding_base import UbsEngineBindingBase
 class UbsEngineBindingNpu(UbsEngineBindingBase):
     """npu相关接口"""
 
+    # NPU 符号位于独立库 libubse-npu-client.so.1(由 ubs-engine-npu-client-libs 提供);
+    # 该库 DT_NEEDED 依赖 libubse-client.so.1, 基础符号(initialize/finalize)可经依赖链解析
+    NPU_LIB_PATH = '/usr/lib64/libubse-npu-client.so.1'
+
     def __init__(self):
         super().__init__()
         self._setup_npu_functions()
+
+    def _load_library(self):
+        # 覆盖基类实现: NPU 接口符号不在 libubse-client.so.1 中,需加载独立 SDK 库
+        self.lib_ubse = ctypes.CDLL(self.NPU_LIB_PATH)
 
     def ubs_device_list(self):
         """

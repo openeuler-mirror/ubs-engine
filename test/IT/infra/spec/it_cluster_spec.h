@@ -57,6 +57,10 @@ struct ClusterSpec {
     // WithCerts() flips it to true so deployed certs actually take effect.
     bool certUse = false;
 
+    // Custom plugin admission conf directory (overrides stubs/mock_plugin/conf).
+    // Used by scenarios that need their own admission config (e.g. npu IT).
+    std::string pluginConfDir;
+
     // Per-node config overrides: nodeId -> section -> key -> value.
     // Applied on top of global overrides during config generation.
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides;

@@ -65,6 +65,13 @@ public:
     /** @brief Enable or disable mock plugin config overlay. Defaults to true. */
     ItConfigBuilder& WithMockPlugin(bool enable);
 
+    /**
+     * @brief Set a custom plugin admission conf directory (overrides the default
+     * stubs/mock_plugin/conf). When set, the admission/plugin confs are copied
+     * from this directory even if mockPlugin is disabled.
+     */
+    ItConfigBuilder& WithPluginConfDir(const std::string& pluginConfDir);
+
     /** @brief Generate config files for all nodes. Returns UBSE_OK on success. */
     UbseResult GenerateAllConfigs(const std::string& templatePath = "");
 
@@ -83,6 +90,7 @@ private:
     std::vector<std::string> clusterIps_;
     bool certUse_ = false;
     bool mockPluginEnabled_ = true;
+    std::string pluginConfDir_;
     std::map<std::string, std::map<std::string, std::string>> overrides_;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeOverrides_;
 };

@@ -133,6 +133,12 @@ ItClusterBuilder& ItClusterBuilder::NoCertUse()
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::WithPluginConfDir(const std::string& pluginConfDir)
+{
+    pluginConfDir_ = pluginConfDir;
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::WithNodeConfig(const std::string& nodeId, const std::string& section,
                                                    const std::string& key, const std::string& value)
 {
@@ -165,6 +171,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.startupTimeoutMs = startupTimeoutMs_;
     spec.sceneType = sceneType_;
     spec.mockPluginEnabled = mockPluginEnabled_;
+    spec.pluginConfDir = pluginConfDir_;
     spec.meshType = meshType_;
     spec.nodeConfigOverrides = nodeConfigOverrides_;
     spec.globalConfigOverrides = globalConfigOverrides_;

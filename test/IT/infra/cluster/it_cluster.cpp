@@ -78,6 +78,7 @@ UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeou
     UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
                          .WithCertUse(clusterSpec_.certUse)
                          .WithMockPlugin(clusterSpec_.mockPluginEnabled)
+                         .WithPluginConfDir(clusterSpec_.pluginConfDir)
                          .GenerateAllConfigs();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to generate cluster configs";

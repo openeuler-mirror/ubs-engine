@@ -59,7 +59,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_plugin
         ubse_storage
         ubse_sdk
-        npu_controller
+        npu_plugin
         ubse_urma_controller
         ubse_urma_uvs
         ubse_node_mgr
@@ -68,6 +68,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_vip
         ubse_vsock_client
         ubse_ssu_sdk
+        ubse_npu_sdk
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC

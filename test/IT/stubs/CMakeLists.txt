@@ -49,10 +49,3 @@ add_subdirectory(node_controller)
 add_subdirectory(npu)
 add_subdirectory(net_util)
 add_subdirectory(mock_plugin)
-
-# IT-only PLUGIN module registrar: linked via --whole-archive into ubse_it_daemon
-# to activate OPTIONAL modules (election, com, lcne, etc.) without needing ssu_plugin.so
-add_library(ubse_it_module_registrar STATIC it_module_registrar.cpp)
-target_include_directories(ubse_it_module_registrar PRIVATE
-    ${PROJECT_SOURCE_DIR}/src/include
-)
