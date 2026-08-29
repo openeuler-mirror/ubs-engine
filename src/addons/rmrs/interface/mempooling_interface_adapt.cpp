@@ -684,13 +684,14 @@ uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& 
                 continue;
             }
             seenNumas.insert(numaId);
-            if (!FaultNumaLock::Instance().TryAcquireExclusive(numaId)) {
+            MpResult lockRet = FaultNumaLock::Instance().TryAcquireSelf(numaId);
+            if (lockRet != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[MemFree][MemFreeBase] Fault NUMA locked, numaId=" << numaId << ", borrowId=" << borrowId
                     << ".";
-                return MEM_POOLING_HANDLING_FAULT;
+                return lockRet;
             }
-            lockGuard.exclusiveNumaIds.push_back(numaId);
+            lockGuard.selfNumaIds.push_back(numaId);
         }
     }
 
@@ -1147,10 +1148,11 @@ int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& m
                 continue;
             }
             seenNumas.insert(nid);
-            if (!FaultNumaLock::Instance().TryAcquireShared(nid)) {
+            MpResult lockRet = FaultNumaLock::Instance().TryAcquireShared(nid);
+            if (lockRet != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "RemoteNumaMigrate fault NUMA locked, nid=" << nid << ".";
-                return MEM_POOLING_HANDLING_FAULT;
+                return lockRet;
             }
             lockGuard.sharedNumaIds.push_back(nid);
         }
@@ -1285,10 +1287,11 @@ int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayl
                 continue;
             }
             seenNumas.insert(destNid);
-            if (!FaultNumaLock::Instance().TryAcquireShared(destNid)) {
+            MpResult lockRet = FaultNumaLock::Instance().TryAcquireShared(destNid);
+            if (lockRet != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "MigrateOut fault NUMA locked, destNid=" << destNid << ".";
-                return MEM_POOLING_HANDLING_FAULT;
+                return lockRet;
             }
             lockGuard.sharedNumaIds.push_back(destNid);
         }

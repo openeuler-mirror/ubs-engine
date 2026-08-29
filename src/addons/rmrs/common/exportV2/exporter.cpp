@@ -23,7 +23,7 @@ namespace mempooling::exportV2 {
 using namespace ubse::log;
 
 const std::string SUB_MODULE_NAME = "[ExporterV2] ";
-constexpr size_t MAX_THREADPOOL_SIZE = 128;
+constexpr size_t MAX_THREADPOOL_SIZE = 16;
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << SUB_MODULE_NAME
 #define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << SUB_MODULE_NAME
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << SUB_MODULE_NAME

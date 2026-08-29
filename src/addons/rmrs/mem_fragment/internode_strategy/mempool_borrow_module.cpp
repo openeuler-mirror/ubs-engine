@@ -1214,7 +1214,7 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam& srcPa
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] ExecuteSingleBorrow failed, destParam=" << destParam.ToString()
                 << " err=" << ret << ".";
-            return ret;
+            return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
         }
     }
 
@@ -1434,7 +1434,7 @@ MpResult MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(const SrcMemo
         UbseMemNumaDesc desc;
         UbseMemNumaCandidateOpt opt;
         opt.slotIds = candidateNodeList;
-        opt.size = LiftFaultBorrowSizeKB(borrowSize) * KB_TO_BYTES;
+        opt.size = borrowSize;
         opt.distance = ubse::mem::controller::MEM_DISTANCE_L0;
         opt.highWatermark = waterMark.highWaterMark;
 

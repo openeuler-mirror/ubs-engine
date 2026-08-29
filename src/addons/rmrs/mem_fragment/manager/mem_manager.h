@@ -419,7 +419,7 @@ public:
     void AcquireExclusive(uint16_t numaId)
     {
         std::unique_lock<std::mutex> lk(mutex_);
-        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0 || selfCounts_[numaId] > 0) {
             cv_.wait(lk);
         }
         exclusiveLocks_.insert(numaId);
@@ -435,7 +435,7 @@ public:
     void AcquireShared(uint16_t numaId)
     {
         std::unique_lock<std::mutex> lk(mutex_);
-        while (exclusiveLocks_.count(numaId) > 0) {
+        while (exclusiveLocks_.count(numaId) > 0 || selfCounts_[numaId] > 0) {
             cv_.wait(lk);
         }
         sharedCounts_[numaId]++;
@@ -452,25 +452,67 @@ public:
         }
     }
 
-    // 共享锁：如果无独占锁则获取共享锁，否则返回 false
-    bool TryAcquireShared(uint16_t numaId)
+    // 共享锁：被独占锁占用时返回处理故障错误码，被自身锁占用时返回并发冲突错误码
+    MpResult TryAcquireShared(uint16_t numaId)
     {
         std::lock_guard<std::mutex> lk(mutex_);
         if (exclusiveLocks_.count(numaId) > 0) {
-            return false;
+            return MEM_POOLING_HANDLING_FAULT;
+        }
+        if (selfCounts_[numaId] > 0) {
+            return MEM_POOLING_ERROR_CONCURRENCY_CONFLICT;
         }
         sharedCounts_[numaId]++;
-        return true;
+        return MEM_POOLING_OK;
     }
 
-    bool TryAcquireExclusive(uint16_t numaId)
+    // 独占锁：被独占锁占用时返回处理故障错误码，被共享/自身锁占用时返回并发冲突错误码
+    MpResult TryAcquireExclusive(uint16_t numaId)
     {
         std::lock_guard<std::mutex> lk(mutex_);
-        if (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
-            return false;
+        if (exclusiveLocks_.count(numaId) > 0) {
+            return MEM_POOLING_HANDLING_FAULT;
+        }
+        if (sharedCounts_[numaId] > 0 || selfCounts_[numaId] > 0) {
+            return MEM_POOLING_ERROR_CONCURRENCY_CONFLICT;
         }
         exclusiveLocks_.insert(numaId);
-        return true;
+        return MEM_POOLING_OK;
+    }
+
+    // 自身锁（仅与自身并发）：同一NUMA上多把自身锁可并发，但与独占锁、共享锁均互斥
+    void AcquireSelf(uint16_t numaId)
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+            cv_.wait(lk);
+        }
+        selfCounts_[numaId]++;
+    }
+
+    void ReleaseSelf(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (selfCounts_[numaId] > 0) {
+            selfCounts_[numaId]--;
+            if (selfCounts_[numaId] == 0) {
+                cv_.notify_all();
+            }
+        }
+    }
+
+    // 自身锁：被独占锁占用时返回处理故障错误码，被共享锁占用时返回并发冲突错误码
+    MpResult TryAcquireSelf(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (exclusiveLocks_.count(numaId) > 0) {
+            return MEM_POOLING_HANDLING_FAULT;
+        }
+        if (sharedCounts_[numaId] > 0) {
+            return MEM_POOLING_ERROR_CONCURRENCY_CONFLICT;
+        }
+        selfCounts_[numaId]++;
+        return MEM_POOLING_OK;
     }
 
 private:
@@ -481,6 +523,7 @@ private:
 
     std::unordered_set<uint16_t> exclusiveLocks_;
     std::unordered_map<uint16_t, uint32_t> sharedCounts_;
+    std::unordered_map<uint16_t, uint32_t> selfCounts_;
     std::mutex mutex_;
     std::condition_variable cv_;
 };
@@ -488,6 +531,7 @@ private:
 struct FaultNumaLockGuard {
     std::vector<uint16_t> sharedNumaIds;
     std::vector<uint16_t> exclusiveNumaIds;
+    std::vector<uint16_t> selfNumaIds;
     ~FaultNumaLockGuard()
     {
         for (auto numaId : sharedNumaIds) {
@@ -495,6 +539,9 @@ struct FaultNumaLockGuard {
         }
         for (auto numaId : exclusiveNumaIds) {
             FaultNumaLock::Instance().ReleaseExclusive(numaId);
+        }
+        for (auto numaId : selfNumaIds) {
+            FaultNumaLock::Instance().ReleaseSelf(numaId);
         }
     }
 };

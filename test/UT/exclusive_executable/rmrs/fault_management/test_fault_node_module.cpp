@@ -2090,8 +2090,9 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_ResCodeNotOk_SetsError)
 {
     MpResult result = MEM_POOLING_OK;
     UbseByteBuffer respData;
-    respData.data = new uint8_t[sizeof(MpResult)];
-    respData.len = sizeof(MpResult);
+    // payload 长度非法（非 sizeof(MpResult)）时回退到 resCode：resCode 非 OK 应上报错误
+    respData.data = new uint8_t[8];
+    respData.len = 8;
     NumaLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
     delete[] respData.data;
     EXPECT_EQ(result, MEM_POOLING_ERROR);
@@ -2136,8 +2137,9 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteResHandler_ResCodeNotOk_SetsErro
 {
     MpResult result = MEM_POOLING_OK;
     UbseByteBuffer respData;
-    respData.data = new uint8_t[sizeof(MpResult)];
-    respData.len = sizeof(MpResult);
+    // payload 长度非法（非 sizeof(MpResult)）时回退到 resCode：resCode 非 OK 应上报错误
+    respData.data = new uint8_t[8];
+    respData.len = 8;
     BorrowIdLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
     delete[] respData.data;
     EXPECT_EQ(result, MEM_POOLING_ERROR);
@@ -2533,7 +2535,7 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteSuccess_ReturnsOk)
     }
 }
 
-TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWithRpcLen)
+TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsPayloadError)
 {
     BorrowGroupResult group;
     group.borrowNodeId = "Node1";
@@ -2552,7 +2554,10 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWi
     UbseByteBuffer resp;
     uint32_t ret = NumaLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_NE(ret, MEM_POOLING_OK);
+    // 新契约：RPC 传输层返回 OK，具体错误码回填到 payload
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_NE(resp.data, nullptr);
+    EXPECT_EQ(*reinterpret_cast<const MpResult*>(resp.data), MEM_POOLING_ERROR);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -2635,7 +2640,7 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_BorrowedDecision_CallsBo
     }
 }
 
-TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrCountIncremented)
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ReturnsPayloadError)
 {
     BorrowGroupResult group;
     group.borrowNodeId = "Node1";
@@ -2663,7 +2668,10 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrC
     UbseByteBuffer resp;
     uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_NE(ret, MEM_POOLING_OK);
+    // 新契约：RPC 传输层返回 OK，具体错误码回填到 payload
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_NE(resp.data, nullptr);
+    EXPECT_EQ(*reinterpret_cast<const MpResult*>(resp.data), MEM_POOLING_ERROR);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
