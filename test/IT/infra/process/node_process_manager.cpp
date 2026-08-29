@@ -349,7 +349,8 @@ UbseResult NodeProcessManager::Start()
     //   mem CLI/SDK APIs; without it UbseMemControllerModule never registers.
     const std::vector<std::pair<std::string, std::string>> pluginArtifacts = {
         {stubLibDir_ + "/libmem_plugin.so", workDir_ + "/plugin/libmem_plugin.so"},
-    };
+        {stubLibDir_ + "/libnpu_plugin.so", workDir_ + "/plugin/libnpu_plugin.so"},
+};
     for (const auto& [src, dst] : pluginArtifacts) {
         if (std::filesystem::exists(src)) {
             std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);

@@ -17,12 +17,12 @@ Prefix: /usr
 BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3 python3-setuptools
 BuildRequires:  glibc-devel >= 2.34 libstdc++-devel >= 10.3
 BuildRequires:  systemd-devel >= 249
-BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.40.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.1-7
+BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.40.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.0-27
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  glib2-devel >= 2.56
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
 BuildRequires:  libvirt-devel >= 9.0 kernel-devel
-Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.40.0 ubs-comm-lib >= 1.0.1-7 obmm
+Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.40.0 ubs-comm-lib >= 1.0.0-27 obmm
 Requires: tar systemd
 Requires(pre): coreutils shadow systemd glibc-common
 Requires(post): coreutils gawk util-linux systemd grep sed
@@ -179,6 +179,65 @@ Development package for UBSE python SSU SDK. Extends the ubse namespace package
 with SSU-specific modules (ubs_engine_ssu, ubs_engine_binding_ssu, ubs_engine_model_ssu).
 
 
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-npu-client-libs
+# ========================================================
+%define npu_lib_name libubse-npu-client
+%define npu_lib_soversion 1
+
+%package npu-client-libs
+Summary: UBSE NPU client shared library for third-party integration
+Provides: %{npu_lib_name}.so.%{npu_lib_soversion}
+Requires: %{name}-client-libs = %{version}-%{release}
+Requires: libboundscheck, libstdc++
+Conflicts: %{name} < %{version}-%{release}
+%description npu-client-libs
+UBSE NPU client shared library (%{npu_lib_name}.so.%{npu_lib_soversion}) for third-party
+applications to access UBSE NPU services. This package depends on ubs-engine-client-libs
+for the common IPC client code (libubse-client.so) at runtime.
+
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-npu-client-devel
+# ========================================================
+%package npu-client-devel
+Summary: Development package for UBSE NPU client SDK
+Requires: %{name}-npu-client-libs = %{version}-%{release}
+Requires: %{name}-client-devel = %{version}-%{release}
+Requires: pkgconfig
+Provides: %{name}-npu-client-devel = %{version}-%{release}
+%description npu-client-devel
+Header files and static libraries for developing applications that use the UBSE NPU client SDK.
+This package is required for compiling programs that link against UBSE NPU. It depends on
+ubs-engine-client-devel for the common SDK headers (e.g. ubs_error.h) and libubse-client.so
+link symlink.
+
+
+# ========================================================
+#                   SUBPACKAGE: python3-ubs-engine-npu
+# ========================================================
+%package -n python3-%{name}-npu
+Summary: Development package for UBSE python NPU SDK
+BuildArch: noarch
+Requires: python3-%{name} = %{version}-%{release}
+Requires: %{name}-npu-client-libs = %{version}-%{release}
+%description -n python3-%{name}-npu
+Development package for UBSE python NPU SDK. Extends the ubse namespace package
+with NPU-specific modules (ubs_engine_npu, ubs_engine_binding_npu, ubs_engine_model_npu).
+The ctypes binding loads libubse-npu-client.so.1 at runtime, so this package depends on
+ubs-engine-npu-client-libs.
+
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-npu
+# ========================================================
+%package npu
+Summary: npu
+Requires: %{name} = %{version}-%{release}
+%description npu
+Package for npu plugin
+
+
 %define project_dir %{name}-%{version}
 %define cmake_build_dir cmake-build-relwithdebinfo
 
@@ -263,6 +322,7 @@ bash build.sh -T RelWithDebInfo
 %py3_build
 # 通过清单驱动构建所有 Python 子包(新增子包只需在 subpackages/ 加清单,这里加一行)
 python3 build_subpackage.py ssu build
+python3 build_subpackage.py npu build
 
 %install
 #install main package
@@ -290,8 +350,8 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libvirtagent.so %{buildroo
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libstrategy.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/plugin_virt_agent.conf %{buildroot}/etc/ubse/plugins/
 cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/auth-virt_agent.conf %{buildroot}/etc/ubse/plugins/
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/
-ln -sf libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/libubs-virt-agent.so.1
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.1.0.1 %{buildroot}/usr/lib64/
+ln -sf libubs-virt-agent.so.1.0.1 %{buildroot}/usr/lib64/libubs-virt-agent.so.1
 ln -sf libubs-virt-agent.so.1 %{buildroot}/usr/lib64/libubs-virt-agent.so
 mkdir -p %{buildroot}/usr/include/virt_agent
 cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virt_agent/
@@ -304,7 +364,7 @@ cp %{_builddir}/%{project_dir}/conf/plugin_process_mem.conf %{buildroot}/etc/ubs
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
     --component ubse_sdk \
     --prefix %{buildroot}/usr
-ln -sf libubse-client.so.%{version} %{buildroot}/usr/lib64/libubse-client.so.1
+ln -sf libubse-client.so.1.0.1 %{buildroot}/usr/lib64/libubse-client.so.1
 
 #install client-devel
 ln -sf libubse-client.so.1 %{buildroot}/usr/lib64/libubse-client.so
@@ -340,7 +400,7 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildr
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
     --component ubse_ssu_sdk \
     --prefix %{buildroot}/usr
-ln -sf libubse-ssu-client.so.%{version} %{buildroot}/usr/lib64/libubse-ssu-client.so.1
+ln -sf libubse-ssu-client.so.1.0.1 %{buildroot}/usr/lib64/libubse-ssu-client.so.1
 
 #install ssu-client-devel (只装静态库 + 头文件)
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
@@ -357,6 +417,25 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libssu_plugin.so %{buildro
 #install python-ssu (通过清单驱动,扩展 ubse namespace)
 python3 build_subpackage.py ssu install --root=%{buildroot} --prefix=/usr --no-compile
 
+# ---- NPU install group (3 sub-packages) ----
+#install npu-client-libs (依赖主 client-libs 提供 libubse-client.so;只装动态库)
+cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
+    --component ubse_npu_sdk \
+    --prefix %{buildroot}/usr
+ln -sf libubse-npu-client.so.1.0.1 %{buildroot}/usr/lib64/libubse-npu-client.so.1
+
+#install npu-client-devel (只装静态库 + 头文件)
+cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
+    --component ubse_npu_sdk_devel \
+    --prefix %{buildroot}/usr
+ln -sf libubse-npu-client.so.1 %{buildroot}/usr/lib64/libubse-npu-client.so
+chmod 644 %{buildroot}/usr/lib64/libubse-npu-client.a
+
+#install python-npu (通过清单驱动,扩展 ubse namespace)
+python3 build_subpackage.py npu install --root=%{buildroot} --prefix=/usr --no-compile
+
+#install npu
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libnpu_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
 
 %pre
 set -e
@@ -464,6 +543,9 @@ if [ -f /lib/modules/ubse/bandbridge.ko ]; then
     depmod -a $(uname -r)
 fi
 %endif
+if [ "$ENABLE_AI" = "true" ]; then
+ 	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
+fi
 systemctl enable %{service_name}
 if [ "$MXE_SCENE" == "vm" ]; then
     update_config /etc/ubse/ubse_plugin_admission.conf
@@ -540,7 +622,7 @@ fi
 
 %files client-libs
 %defattr(755,root,root,-)
-/usr/lib64/libubse-client.so.%{version}
+/usr/lib64/libubse-client.so.1.0.1
 %defattr(-,root,root,-)
 /usr/lib64/libubse-client.so.1
 
@@ -551,6 +633,7 @@ fi
 %defattr(644,root,root,755)
 /usr/include/ubse/
 %exclude /usr/include/ubse/ubs_engine_ssu.h
+%exclude /usr/include/ubse/ubs_engine_npu.h
 
 %files -n python3-%{name}
 %{python3_sitelib}/ubse/
@@ -561,6 +644,12 @@ fi
 %exclude %{python3_sitelib}/ubse/ffi/__pycache__/ubs_engine_binding_ssu.*
 %exclude %{python3_sitelib}/ubse/models/ubs_engine_model_ssu.py
 %exclude %{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_ssu.*
+%exclude %{python3_sitelib}/ubse/ubs_engine_npu.py
+%exclude %{python3_sitelib}/ubse/__pycache__/ubs_engine_npu.*
+%exclude %{python3_sitelib}/ubse/ffi/ubs_engine_binding_npu.py
+%exclude %{python3_sitelib}/ubse/ffi/__pycache__/ubs_engine_binding_npu.*
+%exclude %{python3_sitelib}/ubse/models/ubs_engine_model_npu.py
+%exclude %{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_npu.*
 
 %files virtagent
 %defattr(644,root,root,-)
@@ -569,7 +658,7 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libvirtagent.so
 /usr/lib64/libstrategy.so
-/usr/lib64/libubs-virt-agent.so.%{version}
+/usr/lib64/libubs-virt-agent.so.1.0.1
 %defattr(-,root,root,-)
 /usr/lib64/libubs-virt-agent.so.1
 /usr/lib64/libubs-virt-agent.so
@@ -604,7 +693,7 @@ fi
 
 %files ssu-client-libs
 %defattr(755,root,root,-)
-/usr/lib64/libubse-ssu-client.so.%{version}
+/usr/lib64/libubse-ssu-client.so.1.0.1
 %defattr(-,root,root,-)
 /usr/lib64/libubse-ssu-client.so.1
 
@@ -623,3 +712,32 @@ fi
 %{python3_sitelib}/ubse/models/ubs_engine_model_ssu.py
 %{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_ssu.*
 %{python3_sitelib}/ubse_ssu-%{version}*.egg-info
+
+# ========================================================
+#                   NPU %files group
+# ========================================================
+%files npu-client-libs
+%defattr(755,root,root,-)
+/usr/lib64/libubse-npu-client.so.1.0.1
+%defattr(-,root,root,-)
+/usr/lib64/libubse-npu-client.so.1
+
+%files npu-client-devel
+%defattr(-,root,root,-)
+/usr/lib64/libubse-npu-client.so
+/usr/lib64/libubse-npu-client.a
+%defattr(644,root,root,755)
+/usr/include/ubse/ubs_engine_npu.h
+
+%files -n python3-%{name}-npu
+%{python3_sitelib}/ubse/ubs_engine_npu.py
+%{python3_sitelib}/ubse/__pycache__/ubs_engine_npu.*
+%{python3_sitelib}/ubse/ffi/ubs_engine_binding_npu.py
+%{python3_sitelib}/ubse/ffi/__pycache__/ubs_engine_binding_npu.*
+%{python3_sitelib}/ubse/models/ubs_engine_model_npu.py
+%{python3_sitelib}/ubse/models/__pycache__/ubs_engine_model_npu.*
+%{python3_sitelib}/ubse_npu-%{version}*.egg-info
+
+%files npu
+%defattr(755,root,root,-)
+/usr/lib64/ubse_plugin/libnpu_plugin.so

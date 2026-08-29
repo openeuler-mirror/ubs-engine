@@ -95,6 +95,13 @@ public:
     /** @brief Keep certificates deployed but set cert.use=false (default). */
     ItClusterBuilder& NoCertUse();
 
+    /**
+     * @brief Set a custom plugin admission conf directory (overrides
+     * stubs/mock_plugin/conf). Used by scenarios that need their own
+     * admission config (e.g. npu IT: npu_plugin enabled, mem_plugin off).
+     */
+    ItClusterBuilder& WithPluginConfDir(const std::string& pluginConfDir);
+
     /** @brief Add a per-node key=value config override in a specific section (nodeId only). */
     ItClusterBuilder& WithNodeConfig(const std::string& nodeId, const std::string& section, const std::string& key,
                                      const std::string& value);
@@ -128,6 +135,7 @@ private:
     bool waitForElection_ = true;
     std::string certResourceDir_;
     bool certUse_ = false;
+    std::string pluginConfDir_;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
     std::map<std::string, std::map<std::string, std::string>> globalConfigOverrides_;
 };

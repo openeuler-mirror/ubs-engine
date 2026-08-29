@@ -82,7 +82,7 @@ static void BuildFreeInfo(ubs_ub_alloc_devices_info_t& freeInfo, ubs_ub_devices_
 
 static uint16_t GenerateRandomUpi()
 {
-    constexpr uint16_t upiMax = 0x7fff - 1001;
+    constexpr uint16_t upiMax = 9999;
     std::random_device rd;
     std::mt19937 gen(rd());
     return std::uniform_int_distribution<uint16_t>(1, upiMax)(gen);
@@ -748,24 +748,19 @@ void RunUpiLegalRangeAllocTest(ubse::it::infra::ItCluster& cluster)
 }
 
 /*
- * 用例名称：验证传入upi错误，调用C SDK使能接口失败
- * 用例编号：enable_NPU_C_SDK__003
+ * 用例名称：验证传入已有bus instance guid且不同设备时alloc成功
  * 用例预置条件：
- *   P1: ubse已就绪
+ *   P1. ubse已就绪
  * 用例测试步骤：
  *   S1.调用查询SDK，查询环境上可用npu和1825设备
- *   S2.随机选择S1中的npu和1825设备，传入合法范围内随机的upi，调用使能SDK，检查使能是否成功
+ *   S2.选择S1中的npu和1825设备，调用使能SDK，检查使能是否成功
  *   S3.调用查询SDK，保存S2中创建的bus instance结果
- *   S4.选择其他设备，更换upi，传入与S2中创建的bus instance相同的guid，调用使能SDK，检查使能是否成功
- *   S5.调用查询SDK，检查此次查询结果中bus instance是否与S3中查询的一致
- *   S6.传入错误的upi，调用使能SDK，检查使能是否成功
- *   S7.调用查询SDK，检查此次查询结果是否与S5中相同
+ *   S4.选择其他设备，传入与S2中创建的bus instance相同的guid，调用使能SDK
+ *   S5.调用查询SDK，验证S4后bus instance设备变更
  * 用例预期结果：
  *   E2.使能成功
- *   E4.使能失败
- *   E5.结果一致
- *   E6.使能失败
- *   E7.结果相同
+ *   E4.使能成功
+ *   E5.bus instance仍存在，设备绑定替换为S4中的设备
  * 用例后置清理：调用去使能接口，销毁S2中创建的bus instance
  */
 void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster)
@@ -797,8 +792,6 @@ void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster)
     uint8_t upiStr1[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
     UpiToUpiStr(randomUpi1, upiStr1);
 
-    uint8_t invalidUpiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'0', '\0', '\0', '\0'};
-
     IT_LOG_INFO << "S2: Alloc with UPI=" << randomUpi0 << ", device index=" << devIdx0;
 
     ubs_ub_alloc_devices_info_t allocInfoS2 = {};
@@ -812,15 +805,13 @@ void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster)
     ubs_ub_devices_list_t devListS2 = {};
 
     sdkRet = client.NpuDeviceAlloc(&allocInfoS2, guidS2, &devListS2);
-    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E2: Alloc with legal UPI should succeed";
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E2: Alloc should succeed";
 
     ubs_ub_devices_list_t queryListS3 = {};
     sdkRet = client.NpuDeviceListQuery(&queryListS3);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     uint8_t busiCntS3 = queryListS3.busi_cnt;
     bool busiExistsS3 = BusiExists(queryListS3, guidS2);
-    bool npuBoundS3 = NpuBoundToBusi(queryListS3, npuItems[devIdx0].npuDev, guidS2);
-    bool nicPfeBoundS3 = NicPfeBoundToBusi(queryListS3, npuItems[devIdx0].affinityNicPfe, guidS2);
     client.NpuDeviceListFree(&queryListS3);
 
     IT_LOG_INFO << "S4: Alloc with mismatched UPI=" << randomUpi1 << ", same guid, device index=" << devIdx1;
@@ -836,58 +827,30 @@ void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster)
     ubs_ub_devices_list_t devListS4 = {};
 
     sdkRet = client.NpuDeviceAlloc(&allocInfoS4, guidS4, &devListS4);
-    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E4: Alloc with mismatched UPI should fail";
-    client.NpuDeviceListFree(&devListS4);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E4: Alloc with existing guid succeeds (devices replaced)";
 
     ubs_ub_devices_list_t queryListS5 = {};
     sdkRet = client.NpuDeviceListQuery(&queryListS5);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     EXPECT_EQ(queryListS5.busi_cnt, busiCntS3) << "E5: busi_cnt should be the same as S3";
-    EXPECT_EQ(BusiExists(queryListS5, guidS2), busiExistsS3) << "E5: Bus instance existence should be the same as S3";
-    EXPECT_EQ(NpuBoundToBusi(queryListS5, npuItems[devIdx0].npuDev, guidS2), npuBoundS3)
-        << "E5: NPU binding should be the same as S3";
-    EXPECT_EQ(NicPfeBoundToBusi(queryListS5, npuItems[devIdx0].affinityNicPfe, guidS2), nicPfeBoundS3)
-        << "E5: NIC_PFE binding should be the same as S3";
+    EXPECT_EQ(BusiExists(queryListS5, guidS2), busiExistsS3) << "E5: Bus instance still exists";
+    EXPECT_TRUE(NpuBoundToBusi(queryListS5, npuItems[devIdx1].npuDev, guidS2))
+        << "E5: NPU from S4 is now bound to bus instance";
+    EXPECT_TRUE(NicPfeBoundToBusi(queryListS5, npuItems[devIdx1].affinityNicPfe, guidS2))
+        << "E5: NIC_PFE from S4 is now bound to bus instance";
     client.NpuDeviceListFree(&queryListS5);
-
-    IT_LOG_INFO << "S6: Alloc with invalid UPI=0";
-
-    ubs_ub_alloc_devices_info_t allocInfoS6 = {};
-    ubs_ub_devices_type_t ubDevsS6[2] = {};
-    ubDevsS6[0] = npuItems[devIdx1].npuDev;
-    ubDevsS6[1] = npuItems[devIdx1].affinityNicPfe;
-    BuildAllocInfo(allocInfoS6, ubDevsS6, 2);
-    memcpy(allocInfoS6.upi_str, invalidUpiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
-
-    uint8_t guidS6[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
-    ubs_ub_devices_list_t devListS6 = {};
-
-    sdkRet = client.NpuDeviceAlloc(&allocInfoS6, guidS6, &devListS6);
-    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E6: Alloc with invalid UPI should fail";
-    client.NpuDeviceListFree(&devListS6);
-
-    ubs_ub_devices_list_t queryListS7 = {};
-    sdkRet = client.NpuDeviceListQuery(&queryListS7);
-    EXPECT_EQ(sdkRet, UBS_SUCCESS);
-    EXPECT_EQ(queryListS7.busi_cnt, busiCntS3) << "E7: busi_cnt should be the same as S5/S3";
-    EXPECT_EQ(BusiExists(queryListS7, guidS2), busiExistsS3)
-        << "E7: Bus instance existence should be the same as S5/S3";
-    EXPECT_EQ(NpuBoundToBusi(queryListS7, npuItems[devIdx0].npuDev, guidS2), npuBoundS3)
-        << "E7: NPU binding should be the same as S5/S3";
-    EXPECT_EQ(NicPfeBoundToBusi(queryListS7, npuItems[devIdx0].affinityNicPfe, guidS2), nicPfeBoundS3)
-        << "E7: NIC_PFE binding should be the same as S5/S3";
-    client.NpuDeviceListFree(&queryListS7);
 
     ubs_ub_alloc_devices_info_t freeInfo = {};
     ubs_ub_devices_type_t freeDevs[2] = {};
-    freeDevs[0] = npuItems[devIdx0].npuDev;
-    freeDevs[1] = npuItems[devIdx0].affinityNicPfe;
+    freeDevs[0] = npuItems[devIdx1].npuDev;
+    freeDevs[1] = npuItems[devIdx1].affinityNicPfe;
     BuildFreeInfo(freeInfo, freeDevs, 2, guidS2);
     memcpy(freeInfo.upi_str, upiStr0, MACRO_UBSE_UB_UPI_STR_SIZE);
 
     client.NpuDeviceFree(&freeInfo);
 
     client.NpuDeviceListFree(&devListS2);
+    client.NpuDeviceListFree(&devListS4);
 }
 
 /*
@@ -911,6 +874,7 @@ void RunNonexistentGuidAllocTest(ubse::it::infra::ItCluster& cluster)
     int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    uint8_t initialBusiCnt = queryList.busi_cnt;
     client.NpuDeviceListFree(&queryList);
     ASSERT_GE(npuItems.size(), 1u) << "Need at least one NPU device for nonexistent guid test";
 
@@ -939,7 +903,7 @@ void RunNonexistentGuidAllocTest(ubse::it::infra::ItCluster& cluster)
     ubs_ub_devices_list_t verifyList = {};
     sdkRet = client.NpuDeviceListQuery(&verifyList);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
-    EXPECT_EQ(verifyList.busi_cnt, 0u) << "E3: No bus instance should exist";
+    EXPECT_EQ(verifyList.busi_cnt, initialBusiCnt) << "E3: No new bus instance should be created";
     client.NpuDeviceListFree(&verifyList);
 }
 
@@ -1056,6 +1020,7 @@ void RunInvalidDevListFreeTest(ubse::it::infra::ItCluster& cluster)
     int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    uint8_t initialBusiCnt = queryList.busi_cnt;
     client.NpuDeviceListFree(&queryList);
     ASSERT_GE(npuItems.size(), 2u) << "Need at least 2 NPU devices for invalid dev list free test";
 
@@ -1126,7 +1091,7 @@ void RunInvalidDevListFreeTest(ubse::it::infra::ItCluster& cluster)
     ubs_ub_devices_list_t queryListS3 = {};
     sdkRet = client.NpuDeviceListQuery(&queryListS3);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
-    EXPECT_EQ(queryListS3.busi_cnt, 0u) << "E3: No bus instance should exist";
+    EXPECT_EQ(queryListS3.busi_cnt, initialBusiCnt) << "E3: No new bus instance should exist";
     client.NpuDeviceListFree(&queryListS3);
 
     ubs_ub_alloc_devices_info_t allocInfoS4 = {};

@@ -9,6 +9,7 @@ target_link_libraries(ubs-engine_ubse_sdk_ut
         ubse_node_controller
         ubse_ipc_client
         mem_plugin
-        npu_controller
+        npu_plugin
         ubse_ssu_sdk
+        ubse_npu_sdk
 )

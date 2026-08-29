@@ -61,6 +61,12 @@ ItConfigBuilder& ItConfigBuilder::WithMockPlugin(bool enable)
     return *this;
 }
 
+ItConfigBuilder& ItConfigBuilder::WithPluginConfDir(const std::string& pluginConfDir)
+{
+    pluginConfDir_ = pluginConfDir;
+    return *this;
+}
+
 UbseResult ItConfigBuilder::GenerateAllConfigs(const std::string& templatePath)
 {
     for (const auto& spec : nodeSpecs_) {
@@ -262,12 +268,16 @@ UbseResult ItConfigBuilder::GenerateConfig(const NodeSpec& nodeSpec, const std::
     IT_LOG_INFO << "Generated config for node " << nodeSpec.nodeId << " at " << outputPath;
 
     // Overlay with mock configs from stubs directories (overwrite if exists)
-    // Only copy when mockPluginEnabled_ is true. The daemon loads auxiliary configs
-    // from /etc/ubse/ first, then from the work directory. We do NOT copy from the
-    // source conf/ directory here because that would overwrite environment-specific
-    // configs (e.g. ubse_plugin_admission.conf with all plugins commented out).
-    if (mockPluginEnabled_) {
-        std::filesystem::path stubConfDir = std::filesystem::path(IT_DIRECTORY) / "stubs" / "mock_plugin" / "conf";
+    // Only copy when mockPluginEnabled_ is true, or when a custom plugin conf
+    // directory is explicitly set (e.g. npu IT uses its own admission conf).
+    // The daemon loads auxiliary configs from /etc/ubse/ first, then from the
+    // work directory. We do NOT copy from the source conf/ directory here
+    // because that would overwrite environment-specific configs
+    // (e.g. ubse_plugin_admission.conf with all plugins commented out).
+    if (mockPluginEnabled_ || !pluginConfDir_.empty()) {
+        std::filesystem::path stubConfDir =
+            pluginConfDir_.empty() ? (std::filesystem::path(IT_DIRECTORY) / "stubs" / "mock_plugin" / "conf")
+                                   : std::filesystem::path(pluginConfDir_);
         if (std::filesystem::exists(stubConfDir)) {
             CopyAuxiliaryConfigs(stubConfDir, outputDir);
         }

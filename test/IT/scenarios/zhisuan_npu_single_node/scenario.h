@@ -11,6 +11,13 @@
  */
 
 #include "it_scenario_fixture.h"
+#include "ubse_it_dir.h"
 
 // 智算NPU单节点场景：启动单节点AI集群（禁用选举和Mock插件），验证NPU设备分配/释放/查询
-IT_DEFINE_SCENARIO(ZhisuanNpuSingleNodeScenario, MakeBuilder().Zhisuan().SingleNode().Start(cluster_))
+// npu IT 使用独立的准入配置（test/IT/stubs/npu_plugin/conf）：
+// 仅开启 npu_plugin，关闭 mem_plugin，保证 NPU 插件在 IT 启动时被加载。
+IT_DEFINE_SCENARIO(ZhisuanNpuSingleNodeScenario,
+                   MakeBuilder().Zhisuan()
+                       .WithPluginConfDir(IT_DIRECTORY "/stubs/npu/conf")
+                       .SingleNode()
+                       .Start(cluster_))

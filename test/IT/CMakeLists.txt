@@ -68,6 +68,7 @@ target_include_directories(ubse_it_infra PUBLIC
 
 target_link_libraries(ubse_it_infra PUBLIC
     ubse_sdk_static
+    ubse_npu_sdk_static
     cpp-httplib
     GTest::gtest
 )
@@ -106,7 +107,6 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_node_controller_it_mock
         ubse_capability_it_stub
         ubse_npu_controller_it_mock
-        ubse_it_module_registrar
         ubse_context
         ubse_plugin
         ubse_mti
@@ -134,7 +134,6 @@ target_link_libraries(ubse_it_daemon PRIVATE
         trace_context
         ubse_urma_uvs
         ubse_urma_controller
-        npu_controller
         ubse_vip
         ubse_node_mgr
 )
@@ -164,6 +163,7 @@ add_dependencies(ubse_it_runtime
     xalarm_stub
     mock_plugin
     mem_plugin
+    npu_plugin
 )
 
 # =====================================================
