@@ -16,6 +16,7 @@
 #include <mutex>
 #include <set>
 #include "ubse_error.h"
+#include "ubse_node_controller.h"
 #include "OsHelper/OsHelper.h"
 #include "collect_util.h"
 #include "common_delete_func.h"
@@ -1200,14 +1201,14 @@ MpResult FinalizePidProcessing(const PidBorrowContext& ctx,
             MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(oldBorrowId, false, true);
             if (ret != UBSE_ERR_NOT_EXIST && ret != MEM_POOLING_OK) {
                 LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
-                finalRet = MEM_POOLING_ERROR;
+                finalRet = MEM_POOLING_FAULT_RETURN_MEM_ERROR;
                 continue;
             }
             freedOldBorrowIds.insert(oldBorrowId);
             if (!newBorrowId.empty() &&
                 BorrowIdRedirection::Instance().Update(oldBorrowId, newBorrowId) != MEM_POOLING_OK) {
                 LOG_ERROR << "[FaultManager][Simplified] Update BorrowIdRedirection failed for " << oldBorrowId;
-                finalRet = MEM_POOLING_ERROR;
+                finalRet = MEM_POOLING_FAULT_RETURN_MEM_ERROR;
             }
         }
     }
@@ -1342,7 +1343,7 @@ MpResult ProcessPendingMigration(pid_t pid, PendingMigrationState& state)
             auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
             if (smapRet != MEM_POOLING_OK) {
                 LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
-                return MEM_POOLING_ERROR;
+                return MEM_POOLING_FAULT_MIGRATE_ERROR;
             }
 
             MpResult ret = ExecuteMigrateForPidWithNuma(pid, remaining);
@@ -1350,7 +1351,7 @@ MpResult ProcessPendingMigration(pid_t pid, PendingMigrationState& state)
                 LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
                           << ", remaining=" << remaining.size() << " retained.";
                 MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-                return MEM_POOLING_ERROR;
+                return MEM_POOLING_FAULT_MIGRATE_ERROR;
             }
             MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
             for (const auto& entry : remaining) {
@@ -1559,13 +1560,14 @@ MpResult SendSimplifiedFaultToBorrower(const std::string& nodeId, const std::str
                     mempooling::over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler);
     if (ret != MEM_POOLING_OK) {
         // B2 节点通信失败
-        LOG_ERROR << "[FaultManager][Simplified] RPC send failed. nodeId=" << nodeId << ", borrowNode=" << borrowNode
-                  << ", rpc_ret=" << ret << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_RPC, nodeId=" << nodeId
+                  << ", borrowNode=" << borrowNode << ", err=" << MEM_POOLING_FAULT_IPC_ERROR
+                  << ", reason=rpc_send_fail.";
         return MEM_POOLING_FAULT_IPC_ERROR;
     }
     if (retHandler != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed. nodeId=" << nodeId
-                  << ", borrowNode=" << borrowNode << ", handler_ret=" << retHandler << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_BORROWER, nodeId=" << nodeId
+                  << ", borrowNode=" << borrowNode << ", err=" << retHandler << ", reason=borrower_processing_fail.";
         // 透传借入侧具体错误码
         return static_cast<MpResult>(retHandler);
     }
@@ -1597,6 +1599,8 @@ MpResult CollectClusterSocketQueue(
         return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
     }
     // A2 资源采集失败：直接使用本地账本接口获取各候选节点的 NUMA/socket 信息
+    // 节点级blockSize（芯片表项拆分粒度，单位M）来自nodeController，用于可借出内存对齐
+    auto nodeMap = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
     for (const auto& nodeId : candidateNodes) {
         std::vector<UbseNodeNumaInfo> numaNodeInfos;
         UbseResult ubseRet = UbseGetNodeNumaInfoByNodeId(nodeId, numaNodeInfos);
@@ -1605,12 +1609,25 @@ MpResult CollectClusterSocketQueue(
                       << ", ret=" << ubseRet << ".";
             return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
         }
+        // blockSize单位M，换算为KB作为可借出内存的对齐粒度；查询不到节点信息时退化为不对齐
+        uint64_t blockSizeKb = 0;
+        auto nodeInfoIt = nodeMap.find(nodeId);
+        if (nodeInfoIt != nodeMap.end()) {
+            blockSizeKb = static_cast<uint64_t>(nodeInfoIt->second.blockSize) * MB_TO_KBYTES;
+        }
+        if (blockSizeKb == 0) {
+            LOG_WARN << "[FaultManager][Simplified] blockSize invalid, skip align, nodeId=" << nodeId << ".";
+        }
         // 按 socket 聚合可借出内存
         std::unordered_map<uint32_t, uint64_t> socketCanBorrowMem;
         for (const auto& numa : numaNodeInfos) {
             uint64_t reservedMem = (numa.memTotal / MB_TO_KBYTES) * numa.mReservedMemRatio / NUM_TO_RATIO;
             uint64_t freeMem = numa.memFree / MB_TO_KBYTES;
             uint64_t borrowableMem = std::min(freeMem, reservedMem);
+            // borrowableMem单位KB，按blockSize向下取整，保证可借出容量为blockSize整数倍
+            if (blockSizeKb > 0) {
+                borrowableMem = (borrowableMem / blockSizeKb) * blockSizeKb;
+            }
             if (borrowableMem > 0) {
                 socketCanBorrowMem[numa.socketId] += borrowableMem;
                 LOG_INFO << "Node " << nodeId << ", Socket " << numa.socketId << ", canBorrowMem " << borrowableMem;
@@ -1787,30 +1804,36 @@ static MpResult SendToBorrowersAndAggregate(
     const std::string& nodeId, const std::unordered_map<std::string, SimplifiedFaultRecordsInNode>& borrowerData,
     const std::vector<pid_t>& unallocatedPids)
 {
-    std::vector<std::future<MpResult>> futures;
+    std::vector<std::future<std::pair<std::string, MpResult>>> futures;
     futures.reserve(borrowerData.size());
     for (const auto& [borrowNode, data] : borrowerData) {
         futures.push_back(std::async(std::launch::async, [nodeId, borrowNode, data]() {
-            return SendSimplifiedFaultToBorrower(nodeId, borrowNode, data);
+            MpResult r = SendSimplifiedFaultToBorrower(nodeId, borrowNode, data);
+            return std::make_pair(borrowNode, r);
         }));
     }
 
     // 结果汇总：逐级透传首个具体错误码（参考 FragmentHandleFault/ProcessBorrowOutNodeFaultParallel）
-    MpResult finalResult = MEM_POOLING_OK;
+    MpResult finalResult = MEM_POOLING_ERROR;
+    int errCount = 0;
     for (auto& f : futures) {
-        MpResult r = f.get();
-        if (r != MEM_POOLING_OK && finalResult == MEM_POOLING_OK) {
-            finalResult = r;
-            LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed, nodeId=" << nodeId
-                      << ", ret=" << r << ".";
+        auto [borrowNode, r] = f.get();
+        if (r != MEM_POOLING_OK) {
+            finalResult = get_higher_priority_error(r, finalResult);
+            LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_AGGREGATE, nodeId="
+                      << nodeId << ", borrowNode=" << borrowNode << ", err=" << r << ".";
+            errCount++;
+        } else {
+            LOG_INFO << "[FaultManager][Simplified] Borrower node processing success, nodeId=" << nodeId
+                     << ", borrowNode=" << borrowNode << ".";
         }
     }
-    if (finalResult == MEM_POOLING_OK && !unallocatedPids.empty()) {
+    if (errCount == 0 && !unallocatedPids.empty()) {
         finalResult = MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
-        LOG_ERROR << "[FaultManager][Simplified] Unallocated pids due to insufficient cluster memory, nodeId=" << nodeId
-                  << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_UNALLOCATED, nodeId=" << nodeId
+                  << ", err=" << MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR << ", reason=insufficient_cluster_memory.";
     }
-    return finalResult;
+    return (errCount > 0 || !unallocatedPids.empty()) ? finalResult : MEM_POOLING_OK;
 }
 
 MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const std::string& nodeId)
@@ -1820,7 +1843,8 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     UbseResult retErrorCode = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
     if (retErrorCode != UBSE_OK && retErrorCode != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-        LOG_ERROR << "[FaultManager][Simplified] GetDebtInfo failed, nodeId=" << nodeId << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_DEBT, nodeId=" << nodeId
+                  << ", err=" << MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR << ", reason=get_debt_info_fail.";
         return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (debtInfos.empty()) {
@@ -1832,7 +1856,9 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     std::unordered_map<pid_t, int64_t> pidStartTimeMap;
     MpResult ret = AggregatePidBorrowRecords(debtInfos, pidBorrowMap, pidStartTimeMap);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] AggregatePidBorrowRecords failed, nodeId=" << nodeId << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_AGGREGATE_PID, nodeId="
+                  << nodeId << ", err=" << MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR
+                  << ", reason=aggregate_pid_borrow_records_fail.";
         return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (pidBorrowMap.empty()) {
@@ -1852,6 +1878,8 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
     ret = CollectClusterSocketQueue(nodeId, borrowerNodes, socketQueueBySocketId);
     if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_COLLECT_CLUSTER, nodeId="
+                  << nodeId << ", err=" << ret << ", reason=collect_cluster_socket_queue_fail.";
         return ret;
     }
 
@@ -1872,14 +1900,19 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
     std::unordered_map<std::string, SimplifiedFaultRecordsInNode> borrowerData;
     BuildBorrowerData(nodeId, pidBorrowMap, pidStartTimeMap, pidAllocMap, borrowerData);
     if (borrowerData.empty()) {
-        LOG_ERROR << "[FaultManager][Simplified] No pid can be allocated, cluster memory insufficient, nodeId="
-                  << nodeId << ".";
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_ALLOCATE, nodeId=" << nodeId
+                  << ", err=" << MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR
+                  << ", reason=no_allocatable_pid_insufficient_memory.";
         return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
     }
 
     // 5. 节点间并行下发并汇总结果
     MpResult finalResult = SendToBorrowersAndAggregate(nodeId, borrowerData, unallocatedPids);
 
+    if (finalResult != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][FaultLentNode][BorrowOutFaultFail] phase=SIMPLIFIED_SEND, nodeId=" << nodeId
+                  << ", err=" << finalResult << ".";
+    }
     LOG_INFO << "[FaultManager][Simplified] End, result=" << finalResult << ".";
     return finalResult;
 }

@@ -125,7 +125,7 @@ MpResult EventHandler::HandleOverCommitNodeFault(const std::string& nodeId, bool
                            OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] BORROW_OUT failed, nodeId=" << nodeId << ".";
+                << "[FaultManager] BORROW_OUT failed, nodeId=" << nodeId << ", return ret " << ret << ".";
             return ret;
         }
     }
@@ -158,7 +158,8 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager] HandleAlarmRebootEvent recv " << eventId << " " << eventMessage << ".";
     bool isOverCommit = false;
-    MpResult ret = ResolveOverCommitMode(isOverCommit, false);
+    bool isSimplified = MpConfiguration::GetInstance().GetFaultSimplified();
+    MpResult ret = ResolveOverCommitMode(isOverCommit, isSimplified);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
@@ -172,7 +173,7 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
         }
         return resFragment;
     }
-    return HandleOverCommitNodeFault(nodeId, false);
+    return HandleOverCommitNodeFault(nodeId, isSimplified);
 }
 
 MpResult EventHandler::HandleAlarmUceEvent(ALARM_FAULT_TYPE eventId, std::string eventMessage)

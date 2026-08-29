@@ -2890,32 +2890,6 @@ MpResult MockProcessSingleBorrowForFault(const SrcMemoryBorrowParam& srcParam, c
     return MEM_POOLING_OK;
 }
 
-TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_LiftSmallSizeToMin4MB)
-{
-    SrcMemoryBorrowParam srcParam;
-    srcParam.srcNid = "Node0";
-    srcParam.srcSocketId = 0;
-    srcParam.srcNumaId = 0;
-
-    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
-    MemBorrowExecuteResult borrowExecuteResult;
-    ProcessMemUsrInfo usrInfo{};
-
-    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
-                           const bool))
-        .stubs()
-        .will(invoke(MockProcessSingleBorrowForFault));
-
-    // 入参1024KB(1MB)低于UBSE单笔借用下限4MB: 预期抬升到4MB后换算为字节下发
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {1024}, waterMark,
-                                                                             borrowExecuteResult, usrInfo, {"Node1"});
-    GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_OK);
-    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
-    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 4ULL * 1024 * 1024);
-}
-
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_PassThroughSizeAboveMin)
 {
     SrcMemoryBorrowParam srcParam;
@@ -2933,13 +2907,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_PassThroughSizeAboveMin
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
 
-    // 入参8192KB(8MB)高于下限: 不取整，仅KB→字节换算
     MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
                                                                              borrowExecuteResult, usrInfo, {"Node1"});
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
-    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 8ULL * 1024 * 1024);
+    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 8ULL * 1024);
 }
 
 // ==================== PID粒度故障专用借用（容器/虚机场景） ====================

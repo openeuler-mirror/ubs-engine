@@ -615,7 +615,7 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records,
     if (taskExecutor == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] Simplified fault task executor is not initialized.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     auto numaIds = CollectFaultRemoteNumaIds(records);
     FaultNumaReservedGuard reservedGuard;
@@ -623,7 +623,7 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records,
         if (!FaultNumaReservedLock::Instance().TryReserve(numaId)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[OverCommit][FaultManagement] Fault source NUMA already reserved, numaId=" << numaId << ".";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
         }
         reservedGuard.numaIds.push_back(numaId);
     }
@@ -689,7 +689,7 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records,
                 << "[OverCommit][FaultManagement] Executor submit failed, pid=" << pid;
             failCount++;
             MpResult expected = MEM_POOLING_OK;
-            highestPriorityError.compare_exchange_strong(expected, MEM_POOLING_ERROR);
+            highestPriorityError.compare_exchange_strong(expected, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
         }
     }
     taskExecutor->Wait();
@@ -729,12 +729,16 @@ void OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler(void
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    // 透传借入侧具体错误码，供主节点汇总（IPC / BORROW / MIGRATE / RETURN / PARTIAL 等）
-    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
-        *result = resCode != MEM_POOLING_OK ? resCode : MEM_POOLING_ERROR;
+    // 优先读 payload 中回填的具体错误码(单字节);仅当 payload 无效时 fallback 到 resCode
+    if (respData.len == MEMID_SUCCESS_RESPONSE_DATA_LENGTH || respData.len == MEMID_FAIL_RESPONSE_DATA_LENGTH) {
+        *result = static_cast<uint32_t>(respData.data[0]);
         return;
     }
-    *result = MEM_POOLING_OK;
+    if (resCode != MEM_POOLING_OK) {
+        *result = resCode;
+        return;
+    }
+    *result = MEM_POOLING_ERROR;
 }
 
 } // namespace mempooling::over_commit

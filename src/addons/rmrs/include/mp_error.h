@@ -112,6 +112,7 @@ using VmResult = uint32_t;
 #define MEM_POOLING_ERROR_EXIST MEM_POOLING_COMMON_ERROR(31)                    /* File exists */
 #define MEM_POOLING_ERROR_NOSPC MEM_POOLING_COMMON_ERROR(32)                    /* No space left on device */
 #define MEM_POOLING_ERROR_AGAIN MEM_POOLING_COMMON_ERROR(33)                    /* Try again */
+#define MEM_POOLING_ERROR_CONCURRENCY_CONFLICT MEM_POOLING_COMMON_ERROR(34) /* 并发冲突 */
 
 #define MEM_POOLING_ERROR MEM_POOLING_COMMON_ERROR(99) /* 错误 */
 
