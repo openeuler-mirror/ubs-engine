@@ -95,10 +95,13 @@ enum class ConfigSource : uint8_t
     NAME_CONFIG = 1 << 1,
 };
 
+// 槽生命周期单一状态: BORROWING(在途迁出) → COMPLETED(落地占用) → RETURNING(归还迁回中) → 删槽;
+// FAILED 由超时处理置位后随即删除, 不落账本
 enum class BorrowSlotStatus : uint8_t
 {
     BORROWING,
     COMPLETED,
+    RETURNING,
     FAILED,
 };
 
@@ -108,13 +111,6 @@ enum class AtomicMigrateResult : uint8_t
     kFail,
     kVanish,
     kFaultNoMigrate,
-};
-
-enum class ReturnStatus : uint8_t
-{
-    NONE,
-    RETURNING,
-    RETURNED,
 };
 
 struct ReturnRequestItem {
@@ -131,14 +127,14 @@ struct BorrowSlot {
     int remoteNumaId{-1};
     std::chrono::steady_clock::time_point borrowTime{};
     BorrowSlotStatus status{BorrowSlotStatus::BORROWING};
-    ReturnStatus returnStatus{ReturnStatus::NONE};
 };
 
 struct BorrowState {
     uint64_t currentRemote{0};
     std::vector<BorrowSlot> slots;
     std::unordered_map<int, uint64_t> remoteNumaMigrated;
-    // r2r 替换完成的旧债务名: 账本删除可能被陈旧副本复活, 用于阻止重复迁远端/重复绑定
+    // r2r 替换过的旧债务名集合: 远端迁远端为同步接口, 迁移完成后替换槽已置 COMPLETED(数据在远端 B),
+    // 集合仅用于归还重播/孤儿归还识别旧债名, 防止重复建债重复迁移; 旧债删除成功后移除
     std::set<std::string> r2rReplacedDebts;
 };
 

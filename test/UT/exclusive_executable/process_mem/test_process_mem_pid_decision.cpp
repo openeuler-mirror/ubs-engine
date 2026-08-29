@@ -785,9 +785,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
     const auto& borrow = snapshot.at(pid).borrow;
     ASSERT_EQ(borrow.slots.size(), 1u);
     EXPECT_EQ(borrow.slots[0].migratedBytes, 1 * GB);
-    EXPECT_EQ(borrow.currentRemote, 1 * GB);
-    EXPECT_EQ(borrow.remoteNumaMigrated.size(), 1u);
+    EXPECT_EQ(borrow.currentRemote, 2 * GB);
+    EXPECT_EQ(borrow.remoteNumaMigrated.size(), 2u);
     EXPECT_EQ(borrow.remoteNumaMigrated.at(5), 1 * GB);
+    EXPECT_EQ(borrow.remoteNumaMigrated.at(7), 1 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
@@ -875,9 +876,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 0u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArrayOrder)
@@ -920,10 +922,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArra
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    // 与 oom rearrange 一致: 大容量槽先填满, 不按数组顺序先到先得
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 0u);
-    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1 * GB);
+    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExceeded)
@@ -961,8 +963,9 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExc
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 1u);
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 2 * GB);
     EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 1536 * 1024 * 1024u);
 }
 

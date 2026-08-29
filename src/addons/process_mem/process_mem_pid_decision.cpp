@@ -45,10 +45,18 @@ constexpr uint64_t MB_128 = 128;
 constexpr uint32_t kBorrowHighWatermark = 100;
 constexpr uint32_t kMaxReturnRetry = 100;
 constexpr int64_t kEmergencyBroadcastIntervalMs = 2000;
+constexpr int kMaxConflictRetry = 3;       // rmrs 并发冲突放锁重试次数上限
+constexpr int kConflictRetryDelayMs = 100; // 放锁等待间隔, 让同 numa 冲突操作完成
 
 bool IsFaultHandling(uint32_t ret)
 {
     return ret == static_cast<uint32_t>(MEM_POOLING_HANDLING_FAULT);
+}
+
+// rmrs 并发冲突: 同 numa 被共享/自身锁占用(非故障), 等待冲突操作完成后重试可成功
+bool IsConcurrencyConflict(uint32_t ret)
+{
+    return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
 }
 
 // 归还完成判定: 债务已不存在视为完成, 保证归还幂等
@@ -198,20 +206,6 @@ uint32_t ResolveLocalDebt(const std::string& name, ResolvedReturnDebt& out)
     return UBSE_ERR_NOT_EXIST;
 }
 
-// 周期恢复防重复建槽: 账本槽位已记录该债务时跳过
-bool IsDebtAlreadyTracked(const std::map<pid_t, def::ManagedPidEntry>& snapshot, const std::string& debtName)
-{
-    for (const auto& [entryPid, entry] : snapshot) {
-        (void)entryPid;
-        for (const auto& s : entry.borrow.slots) {
-            if (s.debtId == debtName) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 // R2R 归还前置检查; UBSE_OK 可继续, 否则返回跳过原因的错误码
 uint32_t CheckRemoteToRemotePreconditions(pid_t pid, int oldRemoteNuma, const std::string& debtName)
 {
@@ -289,7 +283,7 @@ void RearrangePidMigrated(def::BorrowState& borrow)
     std::map<int, std::vector<size_t>> numaGroups;
     for (size_t i = 0; i < borrow.slots.size(); ++i) {
         const auto& s = borrow.slots[i];
-        if (s.status != def::BorrowSlotStatus::COMPLETED || s.returnStatus == def::ReturnStatus::RETURNING) {
+        if (s.status != def::BorrowSlotStatus::COMPLETED) {
             continue;
         }
         numaGroups[s.remoteNumaId].push_back(i);
@@ -414,7 +408,7 @@ uint32_t ProcessMemPidDecision::Init()
         return UBSE_ERROR;
     }
 
-    RecoverBorrowFromObmm();
+    ReconcileLedgerWithCache();
     ProcessMemPidInfoManager::GetInstance().CleanupStalePidConfigs();
 
     if (UbseTimerHandlerRegister(
@@ -552,7 +546,8 @@ bool ProcessMemPidDecision::CheckNodeFreeMemory(uint64_t& outShortage)
 
 uint64_t ProcessMemPidDecision::GetPendingMigrateTotal() const
 {
-    // 预期远端总占用 = 借用账本中已下发的迁移量, 归还侧暂不参与扣减
+    // 预期远端总占用 = 借用账本中已下发的迁移量; RETURNING 槽(归还中, 数据迁回)不计入,
+    // 归还回流不参与缺口扣减, 差值转负时由远端残留/外部占用截断为 0
     uint64_t expected = 0;
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     for (const auto& [pid, entry] : snapshot) {
@@ -805,50 +800,67 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
     pid_t pid, const std::string& debtId, const CreatedDebtInfo& created, const std::map<int, uint64_t>& increments,
     std::vector<std::pair<int, uint64_t>>& numaTargets)
 {
-    // 与同 pid 的被动归还/再平衡/对账迁出串行, 防止全量 migrateOut payload 互相覆盖
-    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-    def::AtomicMigrateResult result = def::AtomicMigrateResult::kFail;
+    // 与同 pid 的被动归还/再平衡/对账迁出串行, 防止全量 migrateOut payload 互相覆盖;
+    // rmrs 并发冲突(同 numa 其他操作在飞)时本次账本未变更, 放锁等待后重跑整个原子段
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
-    infoMgr.UpdateManagedPidBorrowStateAtomic(
-        pid,
-        [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
-            if (created.capacity > 0) {
-                auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
-                                           [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
-                if (slotIt == newBorrow.slots.end() || slotIt->status != def::BorrowSlotStatus::BORROWING ||
-                    slotIt->returnStatus != def::ReturnStatus::NONE) {
-                    result = def::AtomicMigrateResult::kVanish;
-                    return;
-                }
-            }
-            BuildMigrateTargets(newBorrow, increments, numaTargets, pid, debtId);
-            if (numaTargets.empty()) {
-                result = def::AtomicMigrateResult::kFail;
-                return;
-            }
-            auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets);
-            if (migrateRet != 0) {
-                if (IsFaultHandling(static_cast<uint32_t>(migrateRet))) {
-                    // 故障处理锁占用: 迁出未发生, 槽 migratedBytes 保持 0,
-                    // 债务保留并标记 COMPLETED, 后续由主动归还回收
-                    auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
-                                               [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
-                    if (slotIt != newBorrow.slots.end()) {
-                        slotIt->status = def::BorrowSlotStatus::COMPLETED;
-                        slotIt->migratedBytes = 0;
+    def::AtomicMigrateResult result = def::AtomicMigrateResult::kFail;
+    for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
+        bool conflict = false;
+        {
+            std::unique_lock<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+            infoMgr.UpdateManagedPidBorrowStateAtomic(
+                pid,
+                [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
+                    if (created.capacity > 0) {
+                        auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
+                                                   [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
+                        if (slotIt == newBorrow.slots.end() || slotIt->status != def::BorrowSlotStatus::BORROWING) {
+                            result = def::AtomicMigrateResult::kVanish;
+                            return;
+                        }
                     }
+                    BuildMigrateTargets(newBorrow, increments, numaTargets, pid, debtId);
+                    if (numaTargets.empty()) {
+                        result = def::AtomicMigrateResult::kFail;
+                        return;
+                    }
+                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets);
+                    if (migrateRet != 0) {
+                        if (IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
+                            // 并发冲突: 同 numa 迁移/归还操作在飞, 账本未变更, 放锁等待后重试
+                            conflict = true;
+                            return;
+                        }
+                        if (IsFaultHandling(static_cast<uint32_t>(migrateRet))) {
+                            // 故障处理锁占用: 迁出未发生, 槽 migratedBytes 保持 0,
+                            // 债务保留并标记 COMPLETED, 后续由主动归还回收
+                            auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
+                                                       [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
+                            if (slotIt != newBorrow.slots.end()) {
+                                slotIt->status = def::BorrowSlotStatus::COMPLETED;
+                                slotIt->migratedBytes = 0;
+                            }
+                            newStatus = ComputeSlotStatus(newBorrow.slots);
+                            result = def::AtomicMigrateResult::kFaultNoMigrate;
+                            return;
+                        }
+                        result = def::AtomicMigrateResult::kFail;
+                        return;
+                    }
+                    newBorrow.currentRemote += FlushBorrowIncrements(newBorrow, numaTargets, increments, debtId,
+                                                                     created);
                     newStatus = ComputeSlotStatus(newBorrow.slots);
-                    result = def::AtomicMigrateResult::kFaultNoMigrate;
-                    return;
-                }
-                result = def::AtomicMigrateResult::kFail;
-                return;
-            }
-            newBorrow.currentRemote += FlushBorrowIncrements(newBorrow, numaTargets, increments, debtId, created);
-            newStatus = ComputeSlotStatus(newBorrow.slots);
-            result = def::AtomicMigrateResult::kOk;
-        },
-        "borrow_commit");
+                    result = def::AtomicMigrateResult::kOk;
+                },
+                "borrow_commit");
+        }
+        if (!conflict) {
+            return result;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(kConflictRetryDelayMs));
+        UBSE_LOG_DEBUG << "[process_mem] borrow pid=" << pid << " debt_id=" << debtId
+                       << " concurrency conflict, retry attempt=" << attempt + 1;
+    }
     return result;
 }
 
@@ -890,7 +902,7 @@ uint64_t ProcessMemPidDecision::FlushBorrowIncrements(def::BorrowState& borrow,
         uint64_t remaining = incIt->second;
         for (auto& s : borrow.slots) {
             if (s.debtId != ownDebtId || s.remoteNumaId != numaId || s.status != def::BorrowSlotStatus::BORROWING ||
-                s.capacity == 0 || s.returnStatus == def::ReturnStatus::RETURNING) {
+                s.capacity == 0) {
                 continue;
             }
             uint64_t fill = std::min(s.capacity, remaining);
@@ -1211,6 +1223,50 @@ uint32_t ProcessMemPidDecision::HandleReturnRequest(const std::vector<def::Retur
     return UBSE_OK;
 }
 
+namespace {
+// 归还执行流守卫: 析构时释放 in-flight 标记, 保证所有失败/重试出口都解除去重
+class ReturnInFlightGuard {
+public:
+    explicit ReturnInFlightGuard(std::function<void()> release) : release_(std::move(release)) {}
+    ~ReturnInFlightGuard() { release_(); }
+    ReturnInFlightGuard(const ReturnInFlightGuard&) = delete;
+    ReturnInFlightGuard& operator=(const ReturnInFlightGuard&) = delete;
+
+private:
+    std::function<void()> release_;
+};
+} // namespace
+
+bool ProcessMemPidDecision::AcquireDebtReturnInFlight(const std::string& debtId)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    return inFlightDebtReturns_.insert(debtId).second;
+}
+
+void ProcessMemPidDecision::ReleaseDebtReturnInFlight(const std::string& debtId)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    inFlightDebtReturns_.erase(debtId);
+}
+
+bool ProcessMemPidDecision::AcquirePidReturnInFlight(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    return inFlightPidReturns_.insert(pid).second;
+}
+
+void ProcessMemPidDecision::ReleasePidReturnInFlight(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    inFlightPidReturns_.erase(pid);
+}
+
+bool ProcessMemPidDecision::IsPidReturnInFlight(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    return inFlightPidReturns_.count(pid) > 0;
+}
+
 bool ProcessMemPidDecision::EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene)
 {
     if (stopping_) {
@@ -1225,7 +1281,7 @@ bool ProcessMemPidDecision::EnqueueReturnDebt(pid_t pid, const def::ReturnReques
 }
 
 bool ProcessMemPidDecision::ResolveReturnDebtOrFree(const def::ReturnRequestItem& item, ReturnScene scene,
-                                                    ResolvedReturnDebt& resolved)
+                                                    ResolvedReturnDebt& resolved, bool& scheduleRetry)
 {
     // 归还前只解析一次债务信息(pid/R2R 字段), 不再预查拦截: 债务不存在时直接调 ubse 归还接口,
     // no_exist 按成功处理(幂等); usrInfo 无 pid 时统一归还接口收尾(rmrsFree 负责数据搬迁)
@@ -1247,8 +1303,7 @@ bool ProcessMemPidDecision::ResolveReturnDebtOrFree(const def::ReturnRequestItem
         }
         UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
                        << " direct return failed ret=" << backRet << ", retry later";
-        RetryReturnEnqueue(NextReturnRetryCount(item.name),
-                           [this, item, scene]() { return EnqueueReturnDebt(0, item, scene); });
+        scheduleRetry = true;
         return false;
     }
     return true;
@@ -1256,50 +1311,79 @@ bool ProcessMemPidDecision::ResolveReturnDebtOrFree(const def::ReturnRequestItem
 
 void ProcessMemPidDecision::RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene)
 {
+    if (!AcquireDebtReturnInFlight(item.name)) {
+        // 同债务归还已在飞(lender 重播/重试/主动扫描重复入队), 由在飞实例负责, 直接跳过
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
+                       << " skip: duplicate in-flight";
+        return;
+    }
     const pid_t originPid = pid;
     ResolvedReturnDebt resolved;
-    if (pid <= 0) {
-        if (!ResolveReturnDebtOrFree(item, scene, resolved)) {
-            return;
+    bool scheduleRetry = false;
+    {
+        // 守卫覆盖本次归还尝试; 失败需重试时在块退出(释放守卫)后调度, 否则重试任务会被去重跳过
+        ReturnInFlightGuard guard([this, &item]() { ReleaseDebtReturnInFlight(item.name); });
+        bool doAttempt = true;
+        if (pid <= 0) {
+            if (!ResolveReturnDebtOrFree(item, scene, resolved, scheduleRetry)) {
+                // 债务消失/pid 未解析已处理完毕(或已置重试标记), 不进入本次归还尝试
+                doAttempt = false;
+            } else {
+                pid = resolved.pid;
+            }
         }
-        pid = resolved.pid;
-    }
+        if (doAttempt) {
+            uint32_t ret = DoReturnDebtOnce(pid, item, scene, resolved);
+            if (ret == UBSE_OK) {
+                if (scene != ReturnScene::TIMEOUT) {
+                    // 归还成功收尾: 锁内删槽(扣 currentRemote, 槽空置 IDLE), 时序排在借出/再平衡之后;
+                    // r2r 替换槽(旧债务被孤儿归还/重播清掉时)替换映射一并移除
+                    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+                    ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturned(pid, item.name);
+                    ProcessMemPidInfoManager::GetInstance().RemoveR2rReplacedDebt(pid, item.name);
+                }
+                ResetReturnRetryCount(item.name);
+                return;
+            }
 
-    uint32_t ret = DoReturnDebtOnce(pid, item, scene, resolved);
-    if (ret == UBSE_OK) {
-        ResetReturnRetryCount(item.name);
-        return;
-    }
+            if (ret == UBSE_ERR_NOT_EXIST) {
+                // 债务已不存在: 直接调 ubse 归还接口收尾, no_exist 按成功处理(幂等)
+                uint32_t delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
+                UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                              << " debt_id=" << item.name << " debt gone, direct ubse return ret=" << delRet;
+                {
+                    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+                    ProcessMemPidInfoManager::GetInstance().SetManagedPidSlotReturning(pid, item.name, false);
+                    ProcessMemPidInfoManager::GetInstance().RemoveR2rReplacedDebt(pid, item.name);
+                }
+                ResetReturnRetryCount(item.name);
+                return;
+            }
 
-    if (ret == UBSE_ERR_NOT_EXIST) {
-        // 债务已不存在: 直接调 ubse 归还接口收尾, no_exist 按成功处理(幂等)
-        uint32_t delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
-        UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                      << " debt_id=" << item.name << " debt gone, direct ubse return ret=" << delRet;
-        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name,
-                                                                                 def::ReturnStatus::NONE);
-        ResetReturnRetryCount(item.name);
-        return;
+            // 失败保持 RETURNING: 归还线程池内的账本处于归还态, 防止重试间隙被对账/再平衡当正常占用处理
+            if (scene == ReturnScene::PASSIVE) {
+                // lender 每 5s 决策轮重播被动归还请求, 失败不自旋重试, 等下一轮广播
+                UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                               << " debt_id=" << item.name << " failed (ret=" << ret
+                               << "), wait for lender rebroadcast";
+                return;
+            }
+            scheduleRetry = true;
+            UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                           << " debt_id=" << item.name << " failed (ret=" << ret << "), retry later";
+        }
     }
-
-    ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name, def::ReturnStatus::NONE);
-    if (scene == ReturnScene::PASSIVE) {
-        // lender 每 5s 决策轮重播被动归还请求, 失败不自旋重试, 等下一轮广播
-        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                       << " debt_id=" << item.name << " failed (ret=" << ret << "), wait for lender rebroadcast";
-        return;
+    if (scheduleRetry) {
+        RetryReturnEnqueue(NextReturnRetryCount(item.name),
+                           [this, originPid, item, scene]() { return EnqueueReturnDebt(originPid, item, scene); });
     }
-    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                   << " debt_id=" << item.name << " failed (ret=" << ret << "), retry later";
-    RetryReturnEnqueue(NextReturnRetryCount(item.name),
-                       [this, originPid, item, scene]() { return EnqueueReturnDebt(originPid, item, scene); });
 }
 
 uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
                                                  const ResolvedReturnDebt& resolved)
 {
-    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
     if (scene == ReturnScene::TIMEOUT) {
+        // 超时归还: 槽已被超时处理删除, 直接锁外调 ubse 归还接口, 无需账本状态变更
         auto delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
         if (IsReturnDone(delRet)) {
             UBSE_LOG_INFO << "[process_mem] return timeout pid=" << pid << " debt_id=" << item.name
@@ -1310,8 +1394,12 @@ uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnReq
                       << " ubse delete failed ret=" << delRet;
         return delRet;
     }
-    ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturnStatus(pid, item.name,
-                                                                             def::ReturnStatus::RETURNING);
+    {
+        // 锁内只做账本状态变更: 置 RETURNING 后立即释放锁, 归还 RPC 全部锁外执行,
+        // 避免 rmrs 挂起时 pid 锁被长期持有, 阻塞采集/借出/再平衡
+        std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+        ProcessMemPidInfoManager::GetInstance().SetManagedPidSlotReturning(pid, item.name, true);
+    }
     if (scene == ReturnScene::ACTIVE || item.size == 0) {
         // 统一归还: 优先 rmrsFree(数据同 numa 搬迁到 spare + 释放块), 故障错误码由上层重试,
         // 其余错误码 fallback 到 ubse 归还接口(幂等)
@@ -1337,12 +1425,11 @@ bool ProcessMemPidDecision::EnqueuePidReturn(pid_t pid, ReturnScene scene, const
 uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots,
                                                 std::vector<def::BorrowSlot>& failedSlots)
 {
-    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
     if (slots.empty()) {
         return UBSE_OK;
     }
 
-    // remove/exited 归还: 账本缓存已先行删除, 按调用方传入的账本槽位全量归还, 不操作缓存
+    // remove/exited 归还: 账本缓存已先行删除, 不操作缓存, 全量 RPC 锁外执行(各债务相互独立)
     uint64_t freedBytes = 0;
     uint32_t freedCount = 0;
     uint32_t failCount = 0;
@@ -1422,16 +1509,30 @@ bool ProcessMemPidDecision::ReturnOnePidDebt(pid_t pid, const ubse::mem::control
 
 void ProcessMemPidDecision::RunPidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots)
 {
-    std::vector<def::BorrowSlot> failedSlots;
-    uint32_t ret = DoPidReturnOnce(pid, scene, slots, failedSlots);
-    if (IsReturnDone(ret) || failedSlots.empty()) {
-        ResetReturnRetryCount("pid:" + std::to_string(pid));
+    if (!AcquirePidReturnInFlight(pid)) {
+        // 同 pid 批量归还已在飞(重试/重复 pid 复用事件), 由在飞实例负责, 直接跳过
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                       << " skip: duplicate pid return in flight";
         return;
     }
-    UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid << " failed "
-                   << failedSlots.size() << " debts, retry later";
-    RetryReturnEnqueue(NextReturnRetryCount("pid:" + std::to_string(pid)),
-                       [this, pid, scene, failedSlots]() { return EnqueuePidReturn(pid, scene, failedSlots); });
+    std::vector<def::BorrowSlot> failedSlots;
+    bool scheduleRetry = false;
+    {
+        // 守卫覆盖本次批量归还; 失败重试在块退出(释放守卫)后调度, 避免重试任务被去重跳过
+        ReturnInFlightGuard guard([this, pid]() { ReleasePidReturnInFlight(pid); });
+        uint32_t ret = DoPidReturnOnce(pid, scene, slots, failedSlots);
+        if (IsReturnDone(ret) || failedSlots.empty()) {
+            ResetReturnRetryCount("pid:" + std::to_string(pid));
+            return;
+        }
+        scheduleRetry = true;
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid << " failed "
+                       << failedSlots.size() << " debts, retry later";
+    }
+    if (scheduleRetry) {
+        RetryReturnEnqueue(NextReturnRetryCount("pid:" + std::to_string(pid)),
+                           [this, pid, scene, failedSlots]() { return EnqueuePidReturn(pid, scene, failedSlots); });
+    }
 }
 
 uint32_t ProcessMemPidDecision::HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots)
@@ -1440,57 +1541,6 @@ uint32_t ProcessMemPidDecision::HandlePidExited(pid_t pid, const std::vector<def
         return UBSE_OK;
     }
     return UBSE_ERROR;
-}
-
-void ProcessMemPidDecision::RecoverBorrowFromObmm()
-{
-    std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debts;
-    auto ret = QueryDebtWithRetry(
-        [&debts]() { return ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debts); });
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[process_mem] recover borrow: get import debts failed, ret=" << ret;
-        return;
-    }
-    if (debts.empty()) {
-        return;
-    }
-
-    auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
-    auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
-
-    size_t recovered = 0;
-    size_t orphaned = 0;
-    size_t skipped = 0;
-    for (const auto& debt : debts) {
-        def::ProcessMemUsrInfo usrInfo{};
-        if (memcpy_s(&usrInfo, sizeof(usrInfo), debt.usrInfo, sizeof(usrInfo)) != EOK ||
-            usrInfo.pluginId != def::UsrInfoPluginType::PROCESS_MEM || usrInfo.pid <= 0) {
-            ++skipped;
-            continue;
-        }
-        pid_t pid = static_cast<pid_t>(usrInfo.pid);
-        if (IsDebtAlreadyTracked(snapshot, debt.name)) {
-            ++skipped;
-            continue;
-        }
-        auto pidIt = snapshot.find(pid);
-        if (pidIt != snapshot.end() && pidIt->second.borrow.r2rReplacedDebts.count(debt.name) > 0) {
-            ++orphaned;
-            EnqueueOrphanReturn(debt.name);
-            continue;
-        }
-        if (IsBorrowBindable(pid, usrInfo, snapshot)) {
-            RecoverBindDebt(pid, debt);
-            ++recovered;
-        } else {
-            ++orphaned;
-            EnqueueOrphanReturn(debt.name);
-        }
-    }
-    UBSE_LOG_INFO << "[process_mem] recover borrow: debts=" << debts.size() << " recovered=" << recovered
-                  << " orphaned=" << orphaned << " skipped=" << skipped;
-
-    RecoverSmapProcessConfig();
 }
 
 void ProcessMemPidDecision::RecoverBindDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt)
@@ -1585,24 +1635,113 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
                       << "skip migratedBytes recover to avoid over-borrow";
         return 0;
     }
+    if (!failedNumas->empty()) {
+        // 部分 numa 查询失败: 实测不完整, 修正账本会与后续下发迁移冲突, 跳过所有动作
+        UBSE_LOG_WARN << "[process_mem] recover config: smap query partial failed numa_count="
+                      << failedNumas->size() << ", skip recover to avoid corrupting ledger";
+        return 0;
+    }
 
     size_t filled = 0;
     uint64_t filledBytes = 0;
+    size_t corrected = 0;
     for (const auto& [pid, state] : snapshot) {
-        if (state.borrow.slots.empty()) {
+        if (state.borrow.slots.empty() || IsPidReturnInFlight(pid)) {
+            // 批量归还执行中: smap 仍含旧进程残留数据, 回填会污染新槽位, 跳过本轮
             continue;
         }
         // 周期化后与同 pid 的迁出声明(借入/归还/再平衡)串行, 防止回填与下发互相覆盖
         std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
         RecoverPidMigratedBytes(pid, smapMemKb, *failedNumas, filled, filledBytes);
+        // 回填后按最新账本判定强行归还: 期望 numa 配置丢失则重新下发恢复
+        if (CorrectSmapConfig(pid, smapMemKb)) {
+            ++corrected;
+        }
+    }
+
+    // 账本无槽但 smap 残留配置(债被强行归还连账本一起删/进程退出): 下发空目标清掉,
+    // 否则内核侧残留目标使后续查询/迁移基于过期配置
+    for (const auto& [pid, numaMap] : smapMemKb) {
+        if (numaMap.empty() || IsPidReturnInFlight(pid)) {
+            continue;
+        }
+        auto snapIt = snapshot.find(pid);
+        if (snapIt != snapshot.end() && !snapIt->second.borrow.slots.empty()) {
+            continue; // 有槽的已在上方处理
+        }
+        std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+        int ret = RmrsMigrateToNumas(pid, "", {});
+        if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
+            // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
+            UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
+                          << " clear residual smap config concurrency conflict, retry next round";
+            continue;
+        }
+        if (ret != 0) {
+            UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
+                          << " clear residual smap config failed ret=" << ret;
+            continue;
+        }
+        ++corrected;
+        UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " no slot but smap residual, cleared";
     }
 
     size_t dirty = 0;
     size_t smapEntries = 0;
     ReportDirtySmapStates(smapMemKb, snapshot, dirty, smapEntries);
     UBSE_LOG_INFO << "[process_mem] recover config: smap_numa_entries=" << smapEntries << " filled=" << filled
-                  << " filled_gb=" << BytesToGbDouble(filledBytes) << " dirty=" << dirty << " query_fail=" << queryFail;
+                  << " filled_gb=" << BytesToGbDouble(filledBytes) << " dirty=" << dirty << " corrected=" << corrected
+                  << " query_fail=" << queryFail;
     return static_cast<uint32_t>(dirty);
+}
+
+// 对账周期内 smap 修正: 检测"内存被强行归还"导致的配置丢失/残留, 重新下发 migrateOut
+// 使内核侧配置与账本一致(幂等, 仅差异触发); 调用方已持 pid 锁
+bool ProcessMemPidDecision::CorrectSmapConfig(
+    pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb)
+{
+    auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
+    auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(pid);
+    if (it == snapshot.end()) {
+        return false;
+    }
+    const auto& borrow = it->second.borrow;
+    bool hasInFlight = false;
+    std::vector<std::pair<int, uint64_t>> expected;
+    for (const auto& s : borrow.slots) {
+        if (s.status != def::BorrowSlotStatus::COMPLETED) {
+            hasInFlight = true;
+            break;
+        }
+        if (s.remoteNumaId >= 0 && s.migratedBytes > 0) {
+            expected.emplace_back(s.remoteNumaId, s.migratedBytes);
+        }
+    }
+    if (hasInFlight || expected.empty()) {
+        // 借出在途/归还迁回中: 配置由对应流程覆盖下发, 在此重发会清掉在途目标; 无期望目标无需修正
+        return false;
+    }
+    auto numaIt = smapMemKb.find(pid);
+    for (const auto& [nid, bytes] : expected) {
+        auto entryIt = (numaIt != smapMemKb.end()) ? numaIt->second.find(nid) : numaIt->second.end();
+        if (entryIt != numaIt->second.end() && entryIt->second > 0) {
+            continue;
+        }
+        // 期望 numa 配置缺失(内存被强行归还): 重新下发期望目标, 内核按目标重新迁移恢复借出
+        int ret = RmrsMigrateToNumas(pid, "", expected);
+        if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
+            // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
+            UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " numa=" << nid
+                          << " smap config restore concurrency conflict, retry next round";
+            return false;
+        }
+        UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " numa=" << nid
+                      << " smap config lost (forcibly returned), migrate reissued targets=" << expected.size()
+                      << " ret=" << ret;
+        return ret == 0;
+    }
+    return false;
 }
 
 void ProcessMemPidDecision::RecoverPidMigratedBytes(
@@ -1613,6 +1752,10 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
     static const std::unordered_map<int, uint64_t> kEmptyNumaMap;
     auto numaIt = smapMemKb.find(pid);
     const auto& numaMap = (numaIt != smapMemKb.end()) ? numaIt->second : kEmptyNumaMap;
+    if (!failedNumas.empty()) {
+        // 部分 numa 查询失败: 实测不完整, 任何账本修正都会影响后续下发迁移的最终结果
+        return;
+    }
 
     size_t slotCount = 0;
     uint64_t total = 0;
@@ -1637,7 +1780,7 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
             });
             for (size_t idx : order) {
                 auto& slot = newBorrow.slots[idx];
-                if (slot.returnStatus == def::ReturnStatus::RETURNING || failedNumas.count(slot.remoteNumaId) > 0) {
+                if (slot.status == def::BorrowSlotStatus::RETURNING || failedNumas.count(slot.remoteNumaId) > 0) {
                     continue;
                 }
                 auto remIt = remainingByNuma.find(slot.remoteNumaId);
@@ -1655,7 +1798,8 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
                 ++filled;
                 filledBytes += slot.migratedBytes;
             }
-            // 只统计 COMPLETED 槽: BORROWING 为在途预期量(由 canMigrate 的 pending 扣减), 计入会与
+            // 只统计 COMPLETED 槽: migratedBytes 为账本权威值(借出 commit 时写入);
+            // BORROWING 为在途预期量(由 canMigrate 的 pending 扣减), 计入会与
             // CommitBorrowAndMigrate 的 currentRemote += delta 重复计数
             for (const auto& slot : newBorrow.slots) {
                 if (slot.status == def::BorrowSlotStatus::COMPLETED) {
@@ -1666,8 +1810,18 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
             newStatus = def::ProcessStatus::BORROWED;
         },
         "reconcile_smap");
+    std::unordered_map<int, uint64_t> numaBytes{};
+    for (const auto& [nid, kb] : numaMap) {
+        if (failedNumas.count(nid) == 0) {
+            numaBytes[nid] = kb * kBytesPerKb;
+        }
+    }
+    if (!numaBytes.empty()) {
+        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidNumaMigrated(pid, numaBytes);
+    }
     UBSE_LOG_INFO << "[process_mem] recover config: pid=" << pid << " slots=" << slotCount
-                  << " currentRemote_gb=" << BytesToGbDouble(total);
+                  << " currentRemote_gb=" << BytesToGbDouble(total)
+                  << " numa_migrated=" << numaBytes.size();
 }
 
 void ProcessMemPidDecision::ReportDirtySmapStates(
@@ -1750,6 +1904,25 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
         if (inCache) {
             continue;
         }
+        if (it != snapshot.end()) {
+            bool pidReturning = false;
+            for (const auto& slot : it->second.borrow.slots) {
+                if (slot.status == def::BorrowSlotStatus::RETURNING) {
+                    pidReturning = true;
+                    break;
+                }
+            }
+            if (pidReturning) {
+                // r2r 建债窗口: 新债已建、替换槽未更新, 债名不在本地槽; 跳过补录/孤儿归还,
+                // 由 r2r 流程持锁接管, 防止补录成独立槽造成双槽同债
+                continue;
+            }
+            if (it->second.borrow.r2rReplacedDebts.count(debt.name) > 0) {
+                // r2r 替换完成的旧债被陈旧副本复活: 数据已在远端 B, 不补录, 孤儿归还清掉
+                EnqueueOrphanReturn(debt.name);
+                continue;
+            }
+        }
         if (IsBorrowBindable(pid, usrInfo, snapshot)) {
             RecoverBindDebt(pid, debt);
             ++added;
@@ -1762,7 +1935,7 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
     for (const auto& [pid, entry] : snapshot) {
         std::vector<std::string> vanished;
         for (const auto& slot : entry.borrow.slots) {
-            if (slot.returnStatus == def::ReturnStatus::RETURNING) {
+            if (slot.status == def::BorrowSlotStatus::RETURNING) {
                 continue; // 归还流程收尾，避免并发双删
             }
             // 借用中: 债务可能尚未创建/账本尚未可见, 误删会中止借入, 由超时检查兜底清理
@@ -1786,11 +1959,16 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
                         newBorrow.slots.erase(slotIt);
                     }
                 }
-                uint64_t total = 0;
+                // 删槽后按 COMPLETED 口径重算: 全槽之和会把 BORROWING/RETURNING 在途量计入,
+                // 与 commit 时 += delta / 归还重算重复或虚高; 同步重建 numa 投影,
+                // 防止残留槽目标被 ReconcileApplyChanges 按旧投影重发(内存被强行归还时恢复错误借出)
+                newBorrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(newBorrow);
+                newBorrow.remoteNumaMigrated.clear();
                 for (const auto& s : newBorrow.slots) {
-                    total += s.migratedBytes;
+                    if (s.capacity > 0 && s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0) {
+                        newBorrow.remoteNumaMigrated[s.remoteNumaId] += s.migratedBytes;
+                    }
                 }
-                newBorrow.currentRemote = total;
                 if (newBorrow.slots.empty()) {
                     newStatus = def::ProcessStatus::IDLE;
                 }
@@ -1803,6 +1981,10 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
         removed += vanished.size();
         affectedSet.insert(pid);
     }
+
+    // 全量 smap 实测回填 migratedBytes/currentRemote(幂等, 原 RecoverBorrowFromObmm 职责);
+    // 回填不依赖对账变更, 无条件执行(账本空时无槽可填), 保证随后重发/回迁判断基于本周期实测
+    RecoverSmapProcessConfig();
 
     if (affectedSet.empty()) {
         UBSE_LOG_DEBUG << "[process_mem] reconcile: ledger=" << debts.size() << " no change";
@@ -1869,6 +2051,12 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
             continue;
         }
         int ret = RmrsMigrateToNumas(pid, "", migrateTargets);
+        if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
+            // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新判定重发
+            UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid
+                          << " migrate reissue concurrency conflict, retry next round";
+            continue;
+        }
         if (skippedTargets > 0) {
             UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid << " skipped=" << skippedTargets
                           << " targets on query-failed numas";
@@ -2020,11 +2208,11 @@ uint32_t ProcessMemPidDecision::ReturnOneDebt(const def::ReturnRequestItem& item
 
 uint32_t ProcessMemPidDecision::ReturnDebtByUbse(pid_t pid, const def::ReturnRequestItem& item)
 {
+    // 纯 RPC 不碰账本: 成功删槽由 RunReturnDebt 锁内收尾(EXITED 批量场景槽已先行删除)
     auto delRet = pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name);
     if (IsReturnDone(delRet)) {
         UBSE_LOG_INFO << "[process_mem] return pid=" << pid << " debt_id=" << item.name
                       << " amount_gb=" << BytesToGbDouble(item.size) << " ubse_return_ok ubse_ret=" << delRet;
-        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidSlotReturned(pid, item.name);
         return UBSE_OK;
     }
     UBSE_LOG_WARN << "[process_mem] return pid=" << pid << " debt_id=" << item.name
@@ -2073,7 +2261,25 @@ uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRe
         }
     }
     if (!numaTargets.empty()) {
-        auto migrateRet = RmrsMigrateToNumas(pid, item.name, numaTargets);
+        // 调用迁回接口时 currentRemote 与下发目标同步(全量重算, 失败重试幂等);
+        // rmrs 并发冲突时放锁等待后重试, 迁回目标是锁外快照构建, 冲突方完成前目标不变
+        std::unique_lock<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+        int migrateRet = UBSE_ERROR;
+        for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
+            infoMgr.UpdateManagedPidBorrowStateAtomic(pid, [&](def::BorrowState& borrow, def::ProcessStatus&) {
+                borrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(borrow);
+            }, "return_migrate_sync");
+            migrateRet = RmrsMigrateToNumas(pid, item.name, numaTargets);
+            if (!IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
+                break;
+            }
+            pidLock.unlock();
+            std::this_thread::sleep_for(std::chrono::milliseconds(kConflictRetryDelayMs));
+            pidLock.lock();
+            UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                           << " debt_id=" << item.name << " migrate back concurrency conflict, retry attempt="
+                           << attempt + 1;
+        }
         if (migrateRet != 0) {
             UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
                           << " debt_id=" << item.name << " migrate_back failed ret=" << migrateRet;
@@ -2140,6 +2346,8 @@ uint32_t ProcessMemPidDecision::ReturnDebtRemoteToRemote(const def::ReturnReques
                       << " old debt delete failed ret=" << delRet << ", keep slot for retry";
         return delRet;
     }
+    // r2r 收尾: 旧债删除成功, 移除替换映射(重播/孤儿归还不再识别该旧债名); 替换槽已是 COMPLETED 正常占用
+    ProcessMemPidInfoManager::GetInstance().RemoveR2rReplacedDebt(resolved.pid, item.name);
     if (migrationDone) {
         UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
                       << " remote_to_remote: old debt delete retry succeeded";
@@ -2216,8 +2424,25 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
         return createRet;
     }
 
-    int migrateRet = MigrateDebtRemoteToRemote(pid, ctx.oldRemoteNuma, out.remoteNuma, migrateBytes);
+    // 同步迁移与账本更新原子: 迁移完成(数据已到远端 B)后必须立即更新槽 remoteNumaId 并置 COMPLETED,
+    // 否则并发 migrateOut 下发会在迁移完成瞬间读到旧投影(仍含远端 A), 下发错误的迁出目标;
+    // rmrs 并发冲突时放锁等待后重试(迁移未发生, 重试幂等)
+    std::unique_lock<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+    int migrateRet = UBSE_ERROR;
+    for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
+        migrateRet = MigrateDebtRemoteToRemote(pid, ctx.oldRemoteNuma, out.remoteNuma, migrateBytes);
+        if (!IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
+            break;
+        }
+        pidLock.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(kConflictRetryDelayMs));
+        pidLock.lock();
+        UBSE_LOG_DEBUG << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
+                       << " remote_to_remote concurrency conflict, retry attempt=" << attempt + 1;
+    }
     if (migrateRet != 0) {
+        // 迁移失败数据仍在远端 A, 账本未变更, 释放锁后回滚(删新债), 异常路径不持锁做 RPC
+        pidLock.unlock();
         return RollbackReplacementDebt(pid, ctx, out.debtId, migrateRet, migrateBytes);
     }
     UBSE_LOG_INFO << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
@@ -2236,8 +2461,11 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
                 slotIt->remoteNumaId = out.remoteNuma;
                 slotIt->capacity = item.size;
                 slotIt->migratedBytes = migrateBytes;
-                slotIt->returnStatus = def::ReturnStatus::NONE;
+                // 远端迁远端为同步接口, 迁移返回时数据已在远端 B 落地: 替换槽直接置 COMPLETED
+                // 视为正常占用, 计入 currentRemote/投影, 无需 RETURNING 屏障
+                slotIt->status = def::BorrowSlotStatus::COMPLETED;
             }
+            borrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(borrow);
         },
         "r2r_replace");
     return UBSE_OK;
@@ -2245,9 +2473,25 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
 
 uint32_t ProcessMemPidDecision::DeleteOldReturnDebt(const std::string& debtId)
 {
-    ubse::mem::controller::UbseMemBorrower delBorrower{};
-    delBorrower.nodeId = GetCurrentNodeId();
-    auto delRet = ubse::mem::controller::UbseMemNumaDelete(debtId, delBorrower);
+    uint32_t delRet = UBSE_ERROR;
+    if (pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate) {
+        // 旧债块内可能残留其它 pid 的数据: 优先 rmrsFree(同 numa 搬迁到 spare + 释放块 + 删 ubse 债务),
+        // 不能只删 ubse 债务条目而把块留在原位
+        delRet = pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(debtId);
+    }
+    if (IsFaultHandling(delRet)) {
+        // 故障处理中: 旧债由 rmrs 救援, 不 fallback 到 ubse 删除, 上层周期重试
+        UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << debtId
+                      << " old debt delete blocked by fault handling, skip ubse fallback";
+        std::lock_guard<std::mutex> lock(pendingOldDebtDeletesMutex_);
+        pendingOldDebtDeletes_.insert(debtId);
+        return UBSE_ERROR;
+    }
+    if (delRet != UBSE_OK) {
+        ubse::mem::controller::UbseMemBorrower delBorrower{};
+        delBorrower.nodeId = GetCurrentNodeId();
+        delRet = ubse::mem::controller::UbseMemNumaDelete(debtId, delBorrower);
+    }
     if (!IsReturnDone(delRet)) {
         std::lock_guard<std::mutex> lock(pendingOldDebtDeletesMutex_);
         pendingOldDebtDeletes_.insert(debtId);
@@ -2353,7 +2597,7 @@ void ProcessMemPidDecision::OomRearrangeMigrated()
     for (const auto& [pid, entry] : snapshot) {
         bool hasCompleted = false;
         for (const auto& s : entry.borrow.slots) {
-            if (s.status == def::BorrowSlotStatus::COMPLETED && s.returnStatus != def::ReturnStatus::RETURNING) {
+            if (s.status == def::BorrowSlotStatus::COMPLETED) {
                 hasCompleted = true;
                 break;
             }
@@ -2378,8 +2622,7 @@ void ProcessMemPidDecision::OomRearrangeMigrated()
                 std::map<int, size_t> groups;
                 for (size_t i = 0; i < borrow.slots.size(); ++i) {
                     const auto& s = borrow.slots[i];
-                    if (s.status != def::BorrowSlotStatus::COMPLETED ||
-                        s.returnStatus == def::ReturnStatus::RETURNING) {
+                    if (s.status != def::BorrowSlotStatus::COMPLETED) {
                         continue;
                     }
                     groups[s.remoteNumaId]++;
@@ -2514,7 +2757,7 @@ void ProcessMemPidDecision::CollectActiveReturnDebts(const std::map<pid_t, def::
 {
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
-            if (slot.status == def::BorrowSlotStatus::COMPLETED && slot.returnStatus != def::ReturnStatus::RETURNING) {
+            if (slot.status == def::BorrowSlotStatus::COMPLETED) {
                 // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
                 // 用容量找缺口会错误跳过这类零成本债务
                 debts.emplace_back(pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes});
