@@ -247,7 +247,9 @@ void SetupSignalHandlers()
 
 int main(int argc, char** argv)
 {
+#if !defined(__SANITIZE_ADDRESS__)
     SetupSignalHandlers();
+#endif
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

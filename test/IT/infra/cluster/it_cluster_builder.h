@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -66,6 +67,25 @@ public:
                                      const std::string& value);
 
     /**
+     * @brief Override the reported hostname of a node (nodeId only).
+     *
+     * 覆盖默认主机名 it-node-<slotId>，使节点经预加载库 gethostname 覆写后
+     * 上报指定主机名（用于 group/provider 边界主机名长度验证）。
+     */
+    ItClusterBuilder& WithNodeHostname(const std::string& nodeId, const std::string& hostname);
+
+    /**
+     * @brief 标记指定节点为延迟启动.
+     *
+     * 被标记的节点在 StartCluster 阶段只生成配置文件, 不启动 daemon;
+     * 测试用例在需要时通过 ItCluster::StartNode(nodeId) 手动启动.
+     * 适用于"先启动部分节点验证选举/组网, 再按需拉起剩余节点"的场景.
+     *
+     * @param ids 延迟启动的节点 ID 列表
+     */
+    ItClusterBuilder& DeferNodes(std::vector<std::string> ids);
+
+    /**
      * @brief Build and start the cluster.
      *
      * Election behavior is controlled by NoElection():
@@ -90,6 +110,8 @@ private:
     bool mockPluginEnabled_ = true;
     bool waitForElection_ = true;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
+    std::map<std::string, std::string> nodeHostnameOverrides_;
+    std::set<std::string> deferredNodeIds_;
 };
 
 } // namespace ubse::it::infra

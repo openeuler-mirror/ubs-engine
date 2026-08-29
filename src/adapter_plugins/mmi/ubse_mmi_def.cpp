@@ -84,7 +84,7 @@ std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowReq& obj)
 {
     return os << "(" << static_cast<const UbseMemFdBorrowReq&>(obj) << " srcSocket: " << obj.srcSocket
               << " srcNuma: " << obj.srcNuma << " highWatermark: " << obj.highWatermark
-              << " lowWatermark: " << obj.lowWatermark << ")";
+              << " lowWatermark: " << obj.lowWatermark << " samePlanePrefer: " << obj.samePlanePrefer << ")";
 }
 
 std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowReq& obj)

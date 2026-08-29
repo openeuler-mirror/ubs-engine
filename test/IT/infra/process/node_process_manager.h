@@ -73,6 +73,7 @@ private:
     std::string nodeIp_;
     std::string workDir_;
     uint32_t slotId_ = 1;
+    std::string hostname_;
     std::string clusterNodeIds_;
     std::string clusterIps_;
     std::vector<uint32_t> clusterSlotIds_;

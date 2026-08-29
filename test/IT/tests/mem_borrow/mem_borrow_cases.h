@@ -14,6 +14,7 @@
 #define IT_MEM_BORROW_CASES_H
 
 #include "it_cluster.h"
+#include "mem_borrow_p1_cases.h"
 
 #include <string>
 #include <vector>
@@ -22,6 +23,9 @@ namespace ubse::it::tests::mem_borrow {
 
 // CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
 void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster);
+
+// 内存状态巡检（节点启停联动）：双节点均启动时节点2状态ok；停止节点2后变nok；恢复后恢复ok
+void RunMemCheckStatusChangeTest(ubse::it::infra::ItCluster& cluster);
 
 // CLI节点借入汇总查询测试
 void RunP0CliNodeBorrowOk01(ubse::it::infra::ItCluster& cluster);
@@ -35,9 +39,6 @@ void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster);
 // CLI内存操作测试（指定链路）：四节点场景，指定链路创建NUMA，精确校验export-node
 void RunP0CliCreateNumaLinkIdOk01(ubse::it::infra::ItCluster& cluster);
 
-// CLI内存操作测试（长选项）：使用长选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
-void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster);
-
 // CLI内存类型过滤查询测试：创建NUMA/FD/SHARE三种类型内存，按类型和名称查询借用详情，验证完整生命周期
 void RunP0CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster);
 
@@ -47,8 +48,17 @@ void RunP0CliNumaStatusOk01(ubse::it::infra::ItCluster& cluster);
 // CLI内存配置查询测试：查询内存配置信息，验证输出格式
 void RunP0CliMemConfigOk01(ubse::it::infra::ItCluster& cluster);
 
-// 四节点SHM attach后import_desc_cnt验证：节点1创建 → 节点2/3/4分别attach(每个返回import_desc_cnt=1) → detach → delete
-void RunP1ShmAttachMultiNode01(ubse::it::infra::ItCluster& cluster);
+// CLI isLender配置查询测试（false场景）：双节点，节点2配置isLender=false，
+// 在master节点查询 display memory -t config，校验节点2为false、节点1为true
+void RunP0CliMemConfigLenderFalse01(ubse::it::infra::ItCluster& cluster);
+
+// CLI isLender配置查询测试（true场景）：双节点，节点2配置isLender=true，
+// 在master节点查询 display memory -t config，校验节点2为true、节点1为true
+void RunP0CliMemConfigLenderTrue01(ubse::it::infra::ItCluster& cluster);
+
+// CLI指定链路创建NUMA测试（三节点单一借出节点）：节点1/2 isLender=false，节点3 isLender=true，
+// 节点1指定到节点3的链路创建NUMA，通过borrow_detail校验借出节点（lend_node）为节点3
+void RunP0CliCreateNumaOneLenderLink01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create ====================
 void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster);
@@ -70,6 +80,8 @@ void RunP0FdCreateLenderInvalidVal02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderNullPtr02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
+// 四节点边界主机名场景：节点1/2分别指定节点3/4（provider）创建FD内存成功
+void RunP0FdCreateLenderBoundaryHostname01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create_with_candidate ====================
 void RunP0FdCreateCandidateOk01(ubse::it::infra::ItCluster& cluster);
@@ -81,9 +93,11 @@ void RunP0FdCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_permission ====================
+void RunP0FdPermChangeOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_get ====================
+void RunP0FdGetOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetOverLen01(ubse::it::infra::ItCluster& cluster);
@@ -141,6 +155,7 @@ void RunP0NumaCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_get ====================
+void RunP0NumaGetOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetOverLen01(ubse::it::infra::ItCluster& cluster);
@@ -175,6 +190,7 @@ void RunP0ShmCreateInvalidVal02(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateUsrInfoOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_affinity ====================
 void RunP0ShmCreateAffinityOk01(ubse::it::infra::ItCluster& cluster);
@@ -183,6 +199,8 @@ void RunP0ShmCreateAffinityInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityDup01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateAffinityAttach-Ok-01: 双节点，亲和创建+指定provider={2}创建128MB共享内存+节点1映射成功
+void RunP0ShmCreateAffinityAttachOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_lender ====================
 void RunP0ShmCreateLenderOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
@@ -191,11 +209,27 @@ void RunP0ShmCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-SocketPort-Ok-01: 指定借出节点socket_id+port_id创建共享内存
+void RunP0ShmCreateLenderSocketPortOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-NumaPort-Ok-01: 指定借出节点numa_id+port_id创建共享内存
+void RunP0ShmCreateLenderNumaPortOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-SocketNuma-Ok-01: 指定借出节点socket_id+numa_id创建共享内存
+void RunP0ShmCreateLenderSocketNumaOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-UsrInfo-Ok-01: 以空值(全0)/空串/"TESTTESTTEST"三种usr_info创建SHM，shm_get校验usr_info回显一致
+void RunP0ShmCreateLenderUsrInfoOk01(ubse::it::infra::ItCluster& cluster);
+// P0-ShmCreateLender-AllNodes-Ok-01: 四节点依次指定节点1/2/3/4作为借出节点创建4个共享内存，校验mem_size与export_node
+void RunP0ShmCreateLenderAllNodesOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_attach ====================
 void RunP0ShmAttachOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster);
+
+// P0-ShmAttach-BoundMax-01: name=47字节边界，节点1/2均attach校验出参，shm_get校验整体账本
+void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster);
+
+// P0-ShmCreateAttach-Ok-01: 双节点创建1024M共享内存，节点1映射成功
+void RunP0ShmCreateAttachOk01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_get ====================
 void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster);
@@ -240,11 +274,17 @@ void RunP0CliCreateFdOk01(ubse::it::infra::ItCluster& cluster);
 // P0-CliCreateFd-InvalidVal-01: CLI create fd with size=0
 void RunP0CliCreateFdInvalidVal01(ubse::it::infra::ItCluster& cluster);
 
+// P0-CliFd-LongOption-01: CLI create/delete fd with long option
+void RunP0CliFdLongOption01(ubse::it::infra::ItCluster& cluster);
+
 // P0-CliCreateShare-Ok-01: CLI create share success
 void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliCreateShare-OverLen-01: CLI create share with name too long
 void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
+void RunP0CliShareLongOption01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47 chars, 4M
 void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster);

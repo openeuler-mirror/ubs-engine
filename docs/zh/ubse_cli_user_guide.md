@@ -130,6 +130,8 @@ Enter certificate password:
 Certificates imported successfully
 ```
 
+**证书 otherName OID 传 nodeId 示例：** `-s` 指定的 server.pem 中 SAN 的 otherName（OID `1.3.6.1.4.1.2011.999.1`，UTF8String）值**必须等于本节点 nodeId**，否则 TLS 握手被拒。第三方/自建 CA 完整生成示例见 [ubse_security_description.md：证书 otherName OID 传 nodeId 示例](./ubse_security_description.md#证书-othername-oid-传-nodeid-示例)。
+
 ### 移除证书
 
 **描述**
@@ -520,7 +522,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 | lend_node   | 借出节点信息。例：computer1(1)<br/>节点信息由2部分组成：<br/>1.括号前部分：主机名<br/>2.括号内部分：节点的槽位号 | 字符串                                                                                                                                       |
 | lend_numa | 借出numa信息。例：1(216)<br/>numa信息由2部分组成：<br/>1.括号前部分：numaId<br/>2.括号内部分：socketId | 字符串                                                                                                                                       |
 | lend_size   | numa节点的借用内存总量，单位: MB                             | 整数                                                                                                                                        |
-| status      | 借用状态                                                    | 可选值：<br>done：借用完成<br>exporting：借出节点正在执行导出<br>importing：代入节点正在执行导入<br>unexporting：借出节点正在取消导出<br>unimporting：代入节点正在取消导入<br>fault：当次借用请求出现故障 |
+| status      | 借用状态                                                    | 可选值：<br>done：借用完成<br>exporting：借出节点正在执行导出<br>importing：代入节点正在执行导入<br>unexporting：借出节点正在取消导出<br>unimporting：代入节点正在取消导入<br>abnormal：删除导入失败，账本与实际状态不一致，清理占用后重试归还<br>fault：当次借用请求出现故障 |
 | handle | 资源操作句柄<br/>句柄含义：<br/>numa类型：远端numaId<br/>fd、share类型：内存块标识信息集合 | numa-id: 整数<br/>mem-ids: 整数数组，用,分隔                                                                                                        |
 
 **示例**
@@ -854,7 +856,7 @@ ubsectl display process-mem -t <type>
 
 | 参数名 | 说明 | 取值 |
 |------|------|------|
-| -t<br/>--type | 必选，查询的进程内存配置信息类型 | config |
+| -t<br/>--type | 必选，查询的进程内存配置信息类型 | config：按配置条目展示<br/>proc_detail：按当前纳管进程展开展示 |
 
 **约束限制**
 
@@ -863,24 +865,31 @@ ubsectl display process-mem -t <type>
 
 **输出信息说明**
 
-| 字段名                | 字段描述                | 字段取值 |
-| -------------------- | ----------------------- | -------- |
-| pid                  | 进程ID                  | 整数     |
-| evictThreshold       | 迁出阈值(%)              | 整数     |
-| targetEvictThreshold | 预期迁出比例(%)           | 整数     |
-| reclaimThreshold     | 迁回阈值(%)              | 整数     |
-| totalMemoryUsage     | 进程期望总内存大小         | 整数     |
-| srcNuma              | 本地NUMA节点ID（可选）      | 整数     |
+| 字段名      | 字段描述                 | 字段取值       |
+| ----------- | ------------------------ | -------------- |
+| PID         | 进程ID，配置条目未匹配到进程时为 N/A | 整数 / N/A     |
+| Name        | 进程名                   | 字符串         |
+| Size        | 进程期望最大内存大小       | 如 1G、512M、1.5G |
+| RemoteRatio | 远端内存占比上限          | 0.00-1.00      |
 
 **示例**
 
 ```bash
+# 查看配置条目
 $ ubsectl display process-mem -t config
 ---------------------------------------------------------------------------------------------------
-pid         evictThreshold   targetEvictThreshold   reclaimThreshold   totalMemoryUsage   srcNuma
+PID         Name            Size       RemoteRatio
 ---------------------------------------------------------------------------------------------------
-1234        80               50                     30                 1073741824         1
-5678        80               50                     30                 1073741824         N/A
+1234        N/A             1G         0.50
+N/A         myapp           512M       0.30
+---------------------------------------------------------------------------------------------------
+
+# 查看按当前纳管进程展开的详情（name 配置会展开为实际进程）
+$ ubsectl display process-mem -t proc_detail
+---------------------------------------------------------------------------------------------------
+PID         Name            Size       RemoteRatio
+---------------------------------------------------------------------------------------------------
+1234        myapp           1G         0.50
 ---------------------------------------------------------------------------------------------------
 ```
 
@@ -888,50 +897,44 @@ pid         evictThreshold   targetEvictThreshold   reclaimThreshold   totalMemo
 
 **描述**
 
-修改指定进程的内存配置信息，包括迁出阈值、预期迁出比例、迁回阈值以及进程的期望内存大小。当进程存在子进程时，子进程会继承父进程的内存使用配置。
+修改指定进程（或进程名匹配的所有进程）的内存配置信息，包括期望最大内存大小与远端内存占比上限。当进程存在子进程时，子进程会继承父进程的内存使用配置。
 
 **用法**
 
 ```shell
-ubsectl change process-mem -p <pid> -e <evict-thresh> -t <target-evict-thresh> -r <reclaim-thresh> -s <size> [--src-numa <numa-id>]
+ubsectl change process-mem (-p <pid> | -n <name>) -s <size> -r <remote-ratio>
 ```
 
 **输入参数说明**
 
 | 参数名 | 说明 | 取值 |
 |------|------|------|
-| -p<br/>--pid | 必选，目标进程的PID | 整数，范围 1-4194304 |
-| -e<br/>--evict-thresh | 必选，迁出阈值(%)。当进程总内存使用超过此比例时，触发迁出动作 | 整数，范围 1-100 |
-| -t<br/>--target-evict-thresh | 必选，预期迁出比例(%)。迁出后远端内存占总内存的目标比例 | 整数，范围 1-100 |
-| -r<br/>--reclaim-thresh | 必选，迁回阈值(%)。当进程总内存使用低于此比例时，将远端内存全部迁回并释放 | 整数，范围 1-100，需比--evict-thresh至少小5 |
-| -s<br/>--size | 必选，进程期望总内存大小 | 格式为数字+单位(B/K/M/G)，支持最多两位小数，范围 128M~32G，如 512M、1G、1.5G |
-| -sn<br/>--src-numa | 可选，本地NUMA节点ID。同平面socket会被选为借出socket | 整数 |
+| -p<br/>--pid | 与 -n 二选一，目标进程的PID | 整数，范围 1-4194304 |
+| -n<br/>--name | 与 -p 二选一，目标进程名（comm），匹配所有同名进程 | 字符串，最长 15 字符，仅含字母/数字/点/冒号/下划线/连字符 |
+| -s<br/>--size | 必选，进程期望最大内存大小 | 格式为数字+单位(B/K/M/G，按1024换算)，支持最多两位小数，范围 128M~32G，如 512M、1G、1.5G |
+| -r<br/>--remote-ratio | 必选，远端内存占比上限 | 小数，范围 0.0-1.0 |
 
 **约束限制**
 
 1. ubsectl只能在root，ubse用户中运行
 2. 需要目标节点的 process_mem 插件正常启动，否则配置无法生效
-3. evict-thresh必须比reclaim-thresh至少大5，避免震荡
+3. -p 与 -n 互斥，必须二选一
 4. 当进程已有子进程时，子进程会继承该配置
 
 **输出信息说明**
 
-Set successfully / 错误信息
+Set process-mem config successfully / 错误信息
 
 **示例**
 
 ```bash
-# 配置PID为1234的进程，迁出阈值80%，预期迁出比例50%，迁回阈值30%，期望内存1G
-$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 30 -s 1G
-Set successfully
+# 配置PID为1234的进程，期望最大内存1G，远端占比50%
+$ ubsectl change process-mem -p 1234 -s 1G -r 0.5
+Set process-mem config successfully
 
-# 指定本地NUMA节点
-$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 30 -s 1G --src-numa 0
-Set successfully
-
-# 参数校验失败
-$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 76 -s 1G
-evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
+# 按进程名配置（匹配当前节点所有同名进程）
+$ ubsectl change process-mem -n myapp -s 512M -r 0.3
+Set process-mem config successfully
 ```
 
 ### 移除进程内存配置
@@ -943,19 +946,21 @@ evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
 **用法**
 
 ```shell
-ubsectl remove process-mem -p <pid>
+ubsectl remove process-mem (-p <pid> | -n <name>)
 ```
 
 **输入参数说明**
 
 | 参数名 | 说明 | 取值 |
 |------|------|------|
-| -p<br/>--pid | 必选，目标进程的PID | 整数，范围 1-4194304 |
+| -p<br/>--pid | 与 -n 互斥，必选其一，目标进程的PID | 整数，范围 1-4194304 |
+| -n<br/>--name | 与 -p 互斥，必选其一，目标进程名 | 字符串，匹配当前节点所有同名进程 |
 
 **约束限制**
 
 1. ubsectl只能在root，ubse用户中运行
 2. 需要目标节点的 process_mem 插件正常启动，否则配置移除操作无法执行
+3. -p 与 -n 互斥，必须二选一
 
 **输出信息说明**
 
@@ -964,7 +969,12 @@ Unset successfully
 **示例**
 
 ```bash
+# 移除PID为1234的进程配置
 $ ubsectl remove process-mem -p 1234
+Unset successfully
+
+# 按进程名移除配置（匹配当前节点所有同名进程）
+$ ubsectl remove process-mem -n myapp
 Unset successfully
 ```
 

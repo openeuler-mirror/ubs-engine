@@ -65,6 +65,8 @@ private:
     static VmResult ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos,
                                                         std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos);
 
+    static VmResult WaitForFreeHugePage(const VMNodeLocInfo& numaLoc);
+
     // RAS fault handler adapter for OOM events
     static uint32_t OomAdapter(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 

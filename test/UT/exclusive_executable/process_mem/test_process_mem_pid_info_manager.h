@@ -16,6 +16,10 @@
 #include "gtest/gtest.h"
 #include "process_mem_pid_info_manager.h"
 
+#define private public
+#include "process_mem_pid_decision.h"
+#undef private
+
 namespace ubse::ut::process_mem {
 
 class TestProcessMemPidInfoManager : public testing::Test {

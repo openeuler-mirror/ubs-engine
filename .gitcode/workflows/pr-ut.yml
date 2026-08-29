@@ -1,0 +1,64 @@
+name: ubs-engine_UT
+
+on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+  pull_request_comment:
+    types: [created]
+    comments: [ '^reut$' ]
+    branches:
+      - master
+
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 3
+  exceed-action: QUEUE
+
+permissions:
+  repository: read
+  pr: write
+
+stages:
+  ut_stage:
+    name: UT
+    jobs:
+      ubs-engine_ut:
+        name: ubs-engine_ut
+        runs-on: [euler-latest, x64, large]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+        steps:
+          - name: Checkout Platform Code
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
+          - name: RPM Build ubs-comm
+            run: | 
+                set -eux
+                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
+                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
+                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
+                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
+                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
+                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+          - name: UT ubs-engine
+            run: | 
+                set -eux
+                sudo dnf install -y gmock-devel
+                ls -al
+                bash build.sh ut -j 3

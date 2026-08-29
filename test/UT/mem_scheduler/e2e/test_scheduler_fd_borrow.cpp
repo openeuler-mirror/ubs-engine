@@ -1135,7 +1135,9 @@ TEST_F(TestSchedulerEndToEnd, CheckMixBorrowReturnIsOk)
 /**
  * @brief 用例 29: SocketFreeMem_Insufficient
  *
- * 请求大小超过 Socket 可借出内存。HUGETLB_PMD（32个2M大页=64MB），waterLine=100，blockSize=128MB。64MB < 128MB → 可借出为 0。
+ * 验证 GetAvailableLendSize 契约：返回具体可用字节（不按 blockSize 对齐），
+ * socket 级为各 NUMA 可用字节之和。
+ * HUGETLB_PMD 场景未配置 2M 大页（nr_hugepages_2M=0）→ memTotal=0 → 可借出 0 字节。
  *
  * 前置状态:
  * - 两节点已注册，allocator=HUGETLB_PMD, blockSize=128
@@ -1143,10 +1145,10 @@ TEST_F(TestSchedulerEndToEnd, CheckMixBorrowReturnIsOk)
  * 操作步骤:
  *   1. Mock 节点（HUGETLB_PMD），注册
  *   2. 获取 node2 socket36
- *   3. 调用 GetAvailableLendSize(100, 128MB)
+ *   3. 调用 socket->GetAvailableLendSize(100)
  *
  * 预期输出:
- *   1. GetAvailableLendSize 返回值 == 0
+ *   1. GetAvailableLendSize 返回值 == 0（未配置大页内存，无可用字节）
  */
 TEST_F(TestSchedulerEndToEnd, SocketFreeMem_Insufficient)
 {
@@ -1161,9 +1163,9 @@ TEST_F(TestSchedulerEndToEnd, SocketFreeMem_Insufficient)
     auto socket = impl.nodeInfo_->GetSocketInfo("2", 36);
     ASSERT_NE(socket, nullptr);
 
-    // HUGETLB_PMD 32个2M大页 = 64MB 总内存，waterLine=100, blockSize=128MB
-    // 可借出 = (64MB / 128MB) * 128MB = 0
-    uint64_t available = socket->GetAvailableLendSize(100, 128 * ONE_M);
+    // HUGETLB_PMD 场景未配置 2M 大页，memTotal=0，waterLine=100
+    // 契约返回具体可用字节：0
+    uint64_t available = socket->GetAvailableLendSize(100);
     EXPECT_EQ(available, 0u);
 }
 
@@ -1987,6 +1989,52 @@ TEST_F(TestSchedulerEndToEnd, FdBorrowMultiNumaSplit)
     EXPECT_EQ(static_cast<uint64_t>(obj.algoResult.exportNumaInfos[0].size), BYTE_1GB * 16);
     EXPECT_EQ(obj.algoResult.exportNumaInfos[1].numaId, 0);
     EXPECT_EQ(static_cast<uint64_t>(obj.algoResult.exportNumaInfos[1].size), BYTE_1GB * 4);
+}
+
+/**
+ * @brief 用例 55: FdBorrowNonAlignedSizeExactBlockCount
+ *
+ * 非块对齐请求按 blockSize 向上取整后参与 LendCountFilter 过滤。
+ *
+ * 前置状态:
+ * - 两节点已注册，blockSize=128，全互联链路
+ * - node2 exportTotalTimes=2（单 socket 最多导出 2 块）
+ *
+ * 操作步骤:
+ *   1. 请求 256MB（= 2 blocks，恰好等于上限）→ 应成功
+ *   2. 归还释放
+ *   3. 请求 256MB+1B（向上取整为 384MB = 3 blocks > 2）→ 应被 LendCountFilter 拒绝
+ *
+ * 预期输出:
+ *   1. 256MB 请求返回 == UBSE_OK
+ *   2. 256MB+1B 请求返回 != UBSE_OK
+ *
+ * 修复前 requestSizeMb 先截断到 MB（256），requiredBlocks 误算为 2，
+ * 非对齐请求会被放行但实际导出 3 块，超出 exportTotalTimes。
+ */
+TEST_F(TestSchedulerEndToEnd, FdBorrowNonAlignedSizeExactBlockCount)
+{
+    auto nodeMap = CreateNodeMap(2);
+    AddFullMeshPeers(nodeMap);
+    nodeMap["2"].exportTotalTimes = 2;
+
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    auto& impl = SchedulerImpl::GetInstance();
+
+    // 块对齐: 256MB = 2 blocks, maxExportTimes=2 → 允许
+    auto alignedObj = MakeFdObj("fd-align-2blocks", BYTE_256MB);
+    ASSERT_EQ(impl.MemoryObjChangeHandler(alignedObj), UBSE_OK);
+    alignedObj.status.state = adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
+    ASSERT_EQ(impl.MemoryObjChangeHandler(alignedObj), UBSE_OK);
+    alignedObj.status.state = adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
+    ASSERT_EQ(impl.MemoryObjChangeHandler(alignedObj), UBSE_OK);
+
+    // 非块对齐: 256MB+1B 向上取整为 384MB = 3 blocks > 2 → 拒绝
+    auto nonAlignedObj = MakeFdObj("fd-nonaligned-3blocks", BYTE_256MB + 1);
+    ASSERT_NE(impl.MemoryObjChangeHandler(nonAlignedObj), UBSE_OK);
 }
 
 } // namespace ubse::mem::scheduler::ut

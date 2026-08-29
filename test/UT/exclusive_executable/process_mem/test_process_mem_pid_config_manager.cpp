@@ -18,9 +18,15 @@ namespace ubse::ut::process_mem {
 using namespace ::process_mem::manager;
 using namespace ::process_mem::def;
 
-void TestProcessMemPidConfigManager::SetUp() {}
+void TestProcessMemPidConfigManager::SetUp()
+{
+    ubse::storage::MockResetStorageErrors();
+}
 
-void TestProcessMemPidConfigManager::TearDown() {}
+void TestProcessMemPidConfigManager::TearDown()
+{
+    ubse::storage::MockResetStorageErrors();
+}
 
 TEST_F(TestProcessMemPidConfigManager, GetExactStartTimeInvalidPid)
 {
@@ -34,198 +40,121 @@ TEST_F(TestProcessMemPidConfigManager, GetExactStartTimeNonExistentPid)
     EXPECT_EQ(startTime, 0u);
 }
 
-TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistInvalidPid)
+TEST_F(TestProcessMemPidConfigManager, PersistProcMemConfigPidMode)
 {
-    bool result = ProcessMemPidConfigManager::IsPidInfoExist(-1, 12345);
-    EXPECT_FALSE(result);
+    ProcessMemNewConfigInfo config{};
+    config.isPid = true;
+    config.identifier = "1234";
+    config.maxMemory = 1024000;
+    config.remoteRatio = 0.5;
+    config.startTime = 9999;
+
+    auto ret = ProcessMemPidConfigManager::PersistProcMemConfig(config);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    ProcessMemPidConfigManager::DeleteProcMemConfig(true, "1234");
 }
 
-TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistNonExistentPid)
+TEST_F(TestProcessMemPidConfigManager, PersistProcMemConfigNameMode)
 {
-    bool result = ProcessMemPidConfigManager::IsPidInfoExist(99999999, 12345);
-    EXPECT_FALSE(result);
+    ProcessMemNewConfigInfo config{};
+    config.isPid = false;
+    config.identifier = "myproc";
+    config.maxMemory = 2048000;
+    config.remoteRatio = 0.3;
+
+    auto ret = ProcessMemPidConfigManager::PersistProcMemConfig(config);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    ProcessMemPidConfigManager::DeleteProcMemConfig(false, "myproc");
 }
 
-TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistValidPidWrongStartTime)
+TEST_F(TestProcessMemPidConfigManager, PersistProcMemConfigStoragePutError)
 {
-    bool result = ProcessMemPidConfigManager::IsPidInfoExist(1, 0);
-    EXPECT_FALSE(result);
+    ubse::storage::MockSetStoragePutError(UBSE_ERROR);
+
+    ProcessMemNewConfigInfo config{};
+    config.isPid = true;
+    config.identifier = "4001";
+    config.maxMemory = 1024000;
+
+    auto ret = ProcessMemPidConfigManager::PersistProcMemConfig(config);
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistValidPid)
+TEST_F(TestProcessMemPidConfigManager, DeleteProcMemConfigNonExistent)
 {
-    auto exactStartTime = ProcessMemPidConfigManager::GetExactStartTime(1);
-    bool result = ProcessMemPidConfigManager::IsPidInfoExist(1, exactStartTime);
-    EXPECT_TRUE(result);
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeleteProcMemConfig(true, "99999999"));
 }
 
-TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoInvalidPid)
+TEST_F(TestProcessMemPidConfigManager, DeleteProcMemConfigStorageDeleteError)
 {
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = -1;
-    pidInfo.startTime = 12345;
-    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
-    EXPECT_FALSE(result);
+    ubse::storage::MockSetStorageDeleteError(UBSE_ERROR);
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeleteProcMemConfig(true, "4002"));
 }
 
-TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoNonExistentPid)
+TEST_F(TestProcessMemPidConfigManager, GetAllPersistedProcMemConfigsEmpty)
 {
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 99999999;
-    pidInfo.startTime = 12345;
-    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
-    EXPECT_FALSE(result);
+    std::vector<ProcessMemNewConfigInfo> configs;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedProcMemConfigs(configs));
+    EXPECT_TRUE(configs.empty());
 }
 
-TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoValidPidWrongStartTime)
+TEST_F(TestProcessMemPidConfigManager, GetAllPersistedProcMemConfigsStorageListError)
 {
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 1;
-    pidInfo.startTime = 0;
-    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
-    EXPECT_FALSE(result);
+    ubse::storage::MockSetStorageListError(UBSE_ERROR);
+
+    std::vector<ProcessMemNewConfigInfo> configs;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedProcMemConfigs(configs));
+    EXPECT_TRUE(configs.empty());
 }
 
-TEST_F(TestProcessMemPidConfigManager, PersistPidConfigInfo)
-{
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 1234;
-    pidInfo.configInfo.evictThreshold = 80;
-    pidInfo.configInfo.targetEvictThreshold = 70;
-    pidInfo.configInfo.reclaimThreshold = 50;
-    pidInfo.configInfo.expectedMemoryUsage = 1024000;
-    pidInfo.startTime = 9999;
-
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo));
-
-    ProcessMemPidConfigManager::DeletePidConfigInfo(1234);
-}
-
-TEST_F(TestProcessMemPidConfigManager, DeletePidConfigInfo)
-{
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 5678;
-    pidInfo.configInfo.evictThreshold = 85;
-    pidInfo.startTime = 8888;
-
-    ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo);
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(5678));
-}
-
-TEST_F(TestProcessMemPidConfigManager, DeletePidConfigInfoNonExistent)
-{
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(99999999));
-}
-
-TEST_F(TestProcessMemPidConfigManager, GetAllPersistedPidConfigInfo)
-{
-    ProcessMemPidInfo pidInfo1{};
-    pidInfo1.configInfo.pid = 1111;
-    pidInfo1.startTime = 1000;
-    pidInfo1.configInfo.evictThreshold = 80;
-
-    ProcessMemPidInfo pidInfo2{};
-    pidInfo2.configInfo.pid = 2222;
-    pidInfo2.startTime = 2000;
-    pidInfo2.configInfo.evictThreshold = 90;
-
-    ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo1);
-    ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo2);
-
-    std::vector<ProcessMemPidInfo> pidInfos;
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedPidConfigInfo(pidInfos));
-
-    ProcessMemPidConfigManager::DeletePidConfigInfo(1111);
-    ProcessMemPidConfigManager::DeletePidConfigInfo(2222);
-}
-
-TEST_F(TestProcessMemPidConfigManager, QueryPidConfigCallbackNullBuffer)
+TEST_F(TestProcessMemPidConfigManager, QueryProcMemConfigCallbackNullBuffer)
 {
     UbseByteBuffer buff{};
     buff.data = nullptr;
     buff.len = 0;
-    std::vector<ProcessMemPidInfo> pidInfos;
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", buff, &pidInfos));
-    EXPECT_TRUE(pidInfos.empty());
+    std::vector<ProcessMemNewConfigInfo> configs;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryProcMemConfigCallback("prefix", "key", buff, &configs));
+    EXPECT_TRUE(configs.empty());
 }
 
-TEST_F(TestProcessMemPidConfigManager, QueryPidConfigCallbackValidBuffer)
+TEST_F(TestProcessMemPidConfigManager, QueryProcMemConfigCallbackValidBuffer)
 {
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 3333;
-    pidInfo.startTime = 3000;
-    pidInfo.configInfo.evictThreshold = 75;
+    ProcessMemNewConfigInfo config{};
+    config.isPid = true;
+    config.identifier = "3333";
+    config.maxMemory = 3072000;
+    config.remoteRatio = 0.6;
+    config.startTime = 3000;
 
     ubse::serial::UbseSerialization serializer;
-    auto ret = pidInfo.SerializePidInfo(serializer);
+    auto ret = config.Serialize(serializer);
     EXPECT_EQ(ret, UBSE_OK);
 
     UbseByteBuffer buff{};
     buff.data = serializer.GetBuffer();
     buff.len = serializer.GetLength();
 
-    std::vector<ProcessMemPidInfo> pidInfos;
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "3333", buff, &pidInfos));
+    std::vector<ProcessMemNewConfigInfo> configs;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryProcMemConfigCallback("prefix", "3333", buff, &configs));
+    ASSERT_EQ(configs.size(), 1u);
+    EXPECT_TRUE(configs[0].isPid);
+    EXPECT_EQ(configs[0].identifier, "3333");
+    EXPECT_EQ(configs[0].maxMemory, 3072000u);
+    EXPECT_DOUBLE_EQ(configs[0].remoteRatio, 0.6);
+    EXPECT_EQ(configs[0].startTime, 3000u);
 }
 
-// ==================== Storage error path tests ====================
-
-TEST_F(TestProcessMemPidConfigManager, PersistPidConfigInfoStoragePutError)
-{
-    ubse::storage::MockSetStoragePutError(UBSE_ERROR);
-
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 4001;
-    pidInfo.configInfo.evictThreshold = 80;
-    pidInfo.startTime = 1000;
-
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo));
-
-    ubse::storage::MockSetStoragePutError(UBSE_OK);
-}
-
-TEST_F(TestProcessMemPidConfigManager, DeletePidConfigInfoStorageDeleteError)
-{
-    ubse::storage::MockSetStorageDeleteError(UBSE_ERROR);
-
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(4002));
-
-    ubse::storage::MockSetStorageDeleteError(UBSE_OK);
-}
-
-TEST_F(TestProcessMemPidConfigManager, GetAllPersistedPidConfigInfoStorageQueryError)
-{
-    ubse::storage::MockSetStorageQueryError(UBSE_ERROR);
-
-    std::vector<ProcessMemPidInfo> pidInfos;
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedPidConfigInfo(pidInfos));
-
-    ubse::storage::MockSetStorageQueryError(UBSE_OK);
-}
-
-// ==================== CheckPidConfigInfo with valid pid ====================
-
-TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoValidPid)
-{
-    ProcessMemPidInfo pidInfo{};
-    pidInfo.configInfo.pid = 1;
-    auto exactStartTime = ProcessMemPidConfigManager::GetExactStartTime(1);
-    pidInfo.startTime = exactStartTime;
-    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
-    EXPECT_TRUE(result);
-}
-
-// ==================== QueryPidConfigCallback with deserialization error path ====================
-
-TEST_F(TestProcessMemPidConfigManager, QueryPidConfigCallbackInvalidData)
+TEST_F(TestProcessMemPidConfigManager, QueryProcMemConfigCallbackInvalidData)
 {
     UbseByteBuffer buff{};
     uint8_t badData = 0xFF;
     buff.data = &badData;
     buff.len = 1;
 
-    std::vector<ProcessMemPidInfo> pidInfos;
-    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", buff, &pidInfos));
-    EXPECT_TRUE(pidInfos.empty());
+    std::vector<ProcessMemNewConfigInfo> configs;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryProcMemConfigCallback("prefix", "key", buff, &configs));
+    EXPECT_TRUE(configs.empty());
 }
 } // namespace ubse::ut::process_mem

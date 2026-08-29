@@ -14,6 +14,7 @@
 #include "tests/client/client_cases.h"
 #include "tests/election/election_cases.h"
 #include "tests/fault/fault_cases.h"
+#include "tests/log/log_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
 #include "tests/smoke/smoke_cases.h"
 #include "tests/topo/topo_cases.h"
@@ -211,6 +212,18 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliNodeBadParam02)
     ubse::it::tests::topo::RunP0CliNodeBadParam02(Cluster());
 }
 
+// P0-CliHelpInfo-Ok-01: ubsectl -h / --help 输出全量已注册指令和参数信息, 且内容一致
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliHelpInfoOk01)
+{
+    ubse::it::tests::topo::RunP0CliHelpInfoOk01(Cluster());
+}
+
+// P0-CliCompletion-Ok-01: ubsectl 命令自动补齐功能
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCompletionOk01)
+{
+    ubse::it::tests::topo::RunP0CliCompletionOk01(Cluster());
+}
+
 // ==================== CLI Mem P0 ====================
 
 // P0-CliCreateShare-OverLen-01: CLI create share name超长
@@ -335,4 +348,33 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, ElectionConvergence)
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, BmcFaultSingleNode)
 {
     ubse::it::tests::fault::RunBmcFaultSingleNodeTest(Cluster(), "1");
+}
+
+// 日志绕接测试：修改 log.max.fileSize=2M 并重启生效，追加数据触发绕接，
+// 验证有新的绕接压缩文件生成且绕接后日志正常打印，最后恢复配置
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, LogRotationTest)
+{
+    ubse::it::tests::log::RunLogRotationTest(Cluster());
+}
+
+// 日志绕接文件数量上限测试：设置 log.max.fileSize=2M、log.fileNums=3 并重启生效，
+// 连续触发 4 次绕接，验证绕接文件仅保留 3 个且最早生成的日志包被删除替换，最后恢复配置
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, LogRotationFileNumTest)
+{
+    ubse::it::tests::log::RunLogRotationFileNumTest(Cluster());
+}
+
+// 日志格式校验测试：验证默认目录下存在日志，日志文件权限为 640，
+// 获取最近 50h 日志并校验格式：标准格式（含进程/线程/traceid/函数信息）、
+// 第三方组件格式（无函数名），日志等级必须在 WARN/DEBUG/INFO/ERROR/CRIT 内
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, LogFormatTest)
+{
+    ubse::it::tests::log::RunLogFormatTest(Cluster());
+}
+
+// 日志回调注册测试：注册自定义日志处理函数，验证注册成功日志及自定义处理函数
+// 输出的日志均符合自定义格式 [simple_log_handler] {LEVEL}：{message}（等级 INFO|WARN|ERROR|CRIT）
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, LogCallbackTest)
+{
+    ubse::it::tests::log::RunLogCallbackTest(Cluster());
 }

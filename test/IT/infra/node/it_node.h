@@ -27,6 +27,7 @@
 #include "it_lcne_client.h"
 #include "it_obmm_stub_control.h"
 #include "it_sdk_client.h"
+#include "mock_lcne_client.h"
 #include "mock_lcne_server.h"
 #include "node_process_manager.h"
 
@@ -88,11 +89,17 @@ public:
     /** @brief Gracefully stop: finalize SDK, stop process, stop mock server. */
     UbseResult Stop();
 
-    /** @brief Kill process (SIGKILL) for fault injection. */
-    UbseResult Kill();
+    /** @brief Kill UBSE daemon process (SIGKILL) for fault injection. */
+    UbseResult KillUBSE();
 
-    /** @brief Restart a previously stopped/killed node. */
-    UbseResult Restart(uint32_t startupTimeoutMs = 10000);
+    /** @brief Start UBSE daemon process. */
+    UbseResult StartUBSE(uint32_t startupTimeoutMs = 10000);
+
+    /** @brief Stop UBSE daemon process. */
+    UbseResult StopUBSE();
+
+    /** @brief Restart UBSE daemon process. */
+    UbseResult RestartUBSE(uint32_t startupTimeoutMs = 10000);
 
     /** @brief Wait for the node's UDS socket to appear. */
     UbseResult WaitForStartup(uint32_t timeoutMs);
@@ -258,6 +265,25 @@ public:
     /** @brief Restore GetWaitTimeOut() to default (MAX_WAIT_TIME_MS = 30000). */
     void RestoreMemApiWaitTimeOut();
 
+    // --- Link (LCNE topology) fault injection via mock server ---
+    /**
+     * @brief 按链路注入断链(全局状态): 若本节点与 peerNodeId 在场景连接表中存在链路,
+     *        则将本侧相连端口 (对 ubpuIds 指定的 ubpu) 置为 down; 不指定ubpuIds或无链路则 no-op.
+     *        当peernode为"UNKNOWN"时, 对指定的portIds端口均进行断链.
+     *        构造断链后需要调用 NotifyLinkUpDown() 上报端口变化，否则 UBSE 不会感知端口变化。 
+     */
+    void MarkLinkDown(const std::string& peerNodeId, const std::set<int>& ubpuIds, const std::set<int>& portIds = {});
+
+    /** @brief 清空本节点注入的 down 端口, 恢复默认(不注入). */
+    void ClearLinkDowns();
+
+    /**
+     * @brief 本节点 LCNE 作为客户端, 向 UBSE 上报端口 link-up/link-down 拓扑变更告警.
+     * @param isPortDown    true: 端口 down; false: 端口 up
+     * @param interfaceName 拓扑中的接口名, 如 "400GUB1/1/1"
+     */
+    UbseResult NotifyLinkUpDown(const bool isPortDown, const std::string& interfaceName);
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();
@@ -273,6 +299,7 @@ private:
     std::string udsSocketPath_;
     ItCliInvoker cliInvoker_;
     std::unique_ptr<MockLcneServer> mockLcneServer_;
+    std::unique_ptr<MockLcneClient> mockLcneClient_;
     std::unique_ptr<NodeProcessManager> process_;
     std::unique_ptr<ItSdkClient> sdkClient_;
     std::unique_ptr<ItLcneClient> lcneClient_;

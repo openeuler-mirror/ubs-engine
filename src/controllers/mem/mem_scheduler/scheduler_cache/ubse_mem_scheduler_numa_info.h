@@ -29,7 +29,7 @@ public:
 
     void Init(const UbseNumaInfo& ubseNumaInfo);
     void UpdateNumaMemorySize(uint64_t total, uint64_t used, uint64_t free);
-    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine, uint64_t blockSize) const;
+    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine) const;
 
     [[nodiscard]] uint64_t GetMemTotalSize() const
     {

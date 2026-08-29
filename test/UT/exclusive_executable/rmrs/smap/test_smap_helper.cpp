@@ -142,6 +142,153 @@ TEST_F(TestSmapHelper, AllocateHugePages_Success)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
+// GetOriginalHugePages带输出参，MOCKER_CPP宏不支持含逗号类型，用别名
+using GetOriginalHugePagesFunc = MpResult (*)(const std::string&, uint64_t&);
+using TryAllocateHugePagesOnceFunc = MpResult (*)(MpSmapHelper*, const std::string&, uint64_t);
+
+// 按调用次数返回预设值（模拟nr_hugepages随分配变化）
+static std::vector<uint64_t> gHugePageReadSeq;
+static size_t gHugePageReadIdx = 0;
+MpResult MockGetOriginalHugePagesSeq(const std::string& filePath, uint64_t& pages)
+{
+    (void)filePath;
+    if (gHugePageReadIdx >= gHugePageReadSeq.size()) {
+        return MEM_POOLING_ERROR;
+    }
+    pages = gHugePageReadSeq[gHugePageReadIdx++];
+    return MEM_POOLING_OK;
+}
+
+static int gTryAllocateCalls = 0;
+static MpResult gTryAllocateRet = MEM_POOLING_OK;
+MpResult MockTryAllocateHugePagesOnce(MpSmapHelper* self, const std::string& filePath, uint64_t target)
+{
+    (void)self;
+    (void)filePath;
+    (void)target;
+    ++gTryAllocateCalls;
+    return gTryAllocateRet;
+}
+
+/*
+ * 用例描述：当前nr_hugepages已满足借用量所需（上轮RESUME已分过）
+ * 预期：直接跳过，不再写nr_hugepages（幂等）
+ */
+TEST_F(TestSmapHelper, IdempotentAllocateHugePages_AlreadyEnough_Skip)
+{
+    gHugePageReadSeq = {10};
+    gHugePageReadIdx = 0;
+    gTryAllocateCalls = 0;
+    gTryAllocateRet = MEM_POOLING_OK;
+
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, GetOriginalHugePagesFunc)
+        .stubs()
+        .will(invoke(MockGetOriginalHugePagesSeq));
+    MOCKER_CPP(&MpSmapHelper::TryAllocateHugePagesOnce, TryAllocateHugePagesOnceFunc)
+        .stubs()
+        .will(invoke(MockTryAllocateHugePagesOnce));
+
+    // borrowSize=4MB对应2个2M页，当前10页已满足
+    MpResult ret = MpSmapHelper::GetInstance().IdempotentAllocateHugePages(5, 4ULL * 1024 * 1024);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(gTryAllocateCalls, 0);
+}
+
+/*
+ * 用例描述：当前nr_hugepages不足，写入后达标
+ * 预期：补足差额一次后成功
+ */
+TEST_F(TestSmapHelper, IdempotentAllocateHugePages_FillGap_Success)
+{
+    // 首读不足(1页 < 4MB对应的2页)，写后重读达标(2页)
+    gHugePageReadSeq = {1, 2};
+    gHugePageReadIdx = 0;
+    gTryAllocateCalls = 0;
+    gTryAllocateRet = MEM_POOLING_OK;
+
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, GetOriginalHugePagesFunc)
+        .stubs()
+        .will(invoke(MockGetOriginalHugePagesSeq));
+    MOCKER_CPP(&MpSmapHelper::TryAllocateHugePagesOnce, TryAllocateHugePagesOnceFunc)
+        .stubs()
+        .will(invoke(MockTryAllocateHugePagesOnce));
+
+    MpResult ret = MpSmapHelper::GetInstance().IdempotentAllocateHugePages(5, 4ULL * 1024 * 1024);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(gTryAllocateCalls, 1);
+}
+
+/*
+ * 用例描述：写入大页持续失败且读回始终不足
+ * 预期：重试耗尽后返回失败
+ */
+TEST_F(TestSmapHelper, IdempotentAllocateHugePages_AlwaysShort_Fail)
+{
+    gHugePageReadSeq = {0};
+    gHugePageReadIdx = 0;
+    gTryAllocateCalls = 0;
+    gTryAllocateRet = MEM_POOLING_ERROR;
+
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, GetOriginalHugePagesFunc)
+        .stubs()
+        .will(invoke(MockGetOriginalHugePagesSeq));
+    MOCKER_CPP(&MpSmapHelper::TryAllocateHugePagesOnce, TryAllocateHugePagesOnceFunc)
+        .stubs()
+        .will(invoke(MockTryAllocateHugePagesOnce));
+
+    MpResult ret = MpSmapHelper::GetInstance().IdempotentAllocateHugePages(5, 4ULL * 1024 * 1024);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+/*
+ * 用例描述：读取nr_hugepages失败
+ * 预期：直接返回失败，不尝试写入
+ */
+TEST_F(TestSmapHelper, IdempotentAllocateHugePages_ReadFail_Fail)
+{
+    gTryAllocateCalls = 0;
+
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, GetOriginalHugePagesFunc)
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&MpSmapHelper::TryAllocateHugePagesOnce, TryAllocateHugePagesOnceFunc)
+        .stubs()
+        .will(invoke(MockTryAllocateHugePagesOnce));
+
+    MpResult ret = MpSmapHelper::GetInstance().IdempotentAllocateHugePages(5, 4ULL * 1024 * 1024);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(gTryAllocateCalls, 0);
+}
+
+/*
+ * 用例描述：借用量非2M整倍数（5MB）
+ * 预期：页数向上取整为3（截断会算出2页导致尾部1MB无大页承载迁不完），首读2页不足需补足
+ */
+TEST_F(TestSmapHelper, IdempotentAllocateHugePages_NotAligned_RoundUp)
+{
+    // 首读2页: 截断口径(2页)会误判已满足直接跳过；向上取整口径(3页)不足需补足一次
+    gHugePageReadSeq = {2, 3};
+    gHugePageReadIdx = 0;
+    gTryAllocateCalls = 0;
+    gTryAllocateRet = MEM_POOLING_OK;
+
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, GetOriginalHugePagesFunc)
+        .stubs()
+        .will(invoke(MockGetOriginalHugePagesSeq));
+    MOCKER_CPP(&MpSmapHelper::TryAllocateHugePagesOnce, TryAllocateHugePagesOnceFunc)
+        .stubs()
+        .will(invoke(MockTryAllocateHugePagesOnce));
+
+    MpResult ret = MpSmapHelper::GetInstance().IdempotentAllocateHugePages(5, 5ULL * 1024 * 1024);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(gTryAllocateCalls, 1);
+}
+
 // 模拟 dlsym 返回 nullptr，表示找不到符号
 TEST_F(TestSmapHelper, TestSmapMode_Failure_dlsym_nullptr)
 {
@@ -1375,7 +1522,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsO
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskWaiting));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
 
-    EXPECT_EQ(result, MEM_POOLING_ERROR);
+    EXPECT_EQ(result, MEM_POOLING_MIGRATE_TIMEOUT);
 }
 
 // Test case for when SmapGetBackResult returns MEM_POOLING_ERROR
@@ -1437,6 +1584,70 @@ TEST_F(TestSmapHelper, TestSmapMigrateBack_Failed_SetSmapRunMode_Failed)
     MigrateBackMsg migrateBackMsg;
     MpResult result = MpSmapHelper::GetInstance().SmapMigrateBack(migrateBackMsg);
     ASSERT_EQ(result, MEM_POOLING_ERROR);
+}
+
+// ==================== GetSmapMigratePeriodMs: period.config解析与兜底 ====================
+
+// 写入临时配置文件并返回路径（UT串行执行，固定路径无冲突）
+static std::string WritePeriodConfigForTest(const std::string& content)
+{
+    std::string path = "/tmp/ut_smap_period.config";
+    std::ofstream out(path, std::ios::trunc);
+    out << content;
+    out.close();
+    return path;
+}
+
+/*
+ * 用例描述：开关on且周期合法（key=value格式，含注释行）
+ * 预期：解析出配置周期，不取兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_SwitchOnValidPeriod_Parse)
+{
+    std::string path =
+        WritePeriodConfigForTest("# comment line\nsmap.period.file.config.switch=on\nsmap.migrate.period=2500\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 2500U);
+}
+
+/*
+ * 用例描述：空格分隔格式兼容
+ * 预期：同样解析成功
+ */
+TEST_F(TestSmapHelper, GetPeriod_SpaceSeparatedFormat_Parse)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch on\nsmap.migrate.period 1800\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 1800U);
+}
+
+/*
+ * 用例描述：开关off时文件周期不生效（smap用内部默认值，读到的值不可信）
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_SwitchOff_Fallback)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch=off\nsmap.migrate.period=2500\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 3000U);
+}
+
+/*
+ * 用例描述：配置文件缺失
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_FileMissing_Fallback)
+{
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, "/tmp/ut_smap_period_not_exist.config"), 3000U);
+}
+
+/*
+ * 用例描述：周期字段非法（非数字/0）
+ * 预期：回退兜底值
+ */
+TEST_F(TestSmapHelper, GetPeriod_InvalidValue_Fallback)
+{
+    std::string path = WritePeriodConfigForTest("smap.period.file.config.switch=on\nsmap.migrate.period=abc\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path), 3000U);
+    std::string path2 = WritePeriodConfigForTest("smap.period.file.config.switch=on\nsmap.migrate.period=0\n");
+    EXPECT_EQ(MpSmapHelper::GetSmapMigratePeriodMs(3000, path2), 3000U);
 }
 
 } // namespace mempooling::smap

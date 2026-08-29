@@ -140,7 +140,7 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess)
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    delete respMessage.buffer;
+    delete[] respMessage.buffer;
     respMessage.buffer = nullptr;
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     int32_t ret = ubs_topo_node_list(&list, &cnt);

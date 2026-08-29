@@ -41,7 +41,9 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/config/it_config_builder.cpp
     ${IT_INFRA_DIR}/process/node_process_manager.cpp
     ${IT_INFRA_DIR}/mock/mock_lcne_server.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_client.cpp
     ${IT_INFRA_DIR}/mock/mock_lcne_xml.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_port.cpp
     ${IT_INFRA_DIR}/helper/it_wait_helper.cpp
     ${IT_INFRA_DIR}/helper/it_xalarm_helper.cpp
     ${IT_INFRA_DIR}/helper/it_fault_log_helper.cpp
@@ -187,10 +189,21 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_single_node
     tongsuan_1d_two_nodes
     tongsuan_1d_two_nodes_election_candidate_false
+    tongsuan_1d_two_nodes_election_disabled
     tongsuan_1d_two_nodes_ub_feature_fault
     tongsuan_1d_two_nodes_runtime_fault
+    tongsuan_1d_two_nodes_lender_false
+    tongsuan_1d_two_nodes_lender_true
+    tongsuan_1d_two_nodes_group_provider
+    tongsuan_1d_two_nodes_group_all
+    tongsuan_1d_three_nodes_one_lender
+    tongsuan_1d_three_nodes_provider
     tongsuan_1d_two_nodes_sei_disabled
     tongsuan_1d_four_nodes
+    tongsuan_1d_four_nodes_two_group
+    tongsuan_1d_four_nodes_boundary_hostname
+    tongsuan_1d_four_nodes_candidate_nodes
+    tongsuan_1d_four_nodes_deferred_start
     zhisuan_npu_single_node
 )
 

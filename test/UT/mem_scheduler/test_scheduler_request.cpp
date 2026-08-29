@@ -12,6 +12,7 @@
 
 #include "test_scheduler_request.h"
 
+#include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_mem_scheduler_request.h"
 #include "adapter_plugins/mmi/ubse_mmi_def.h"
 
@@ -19,9 +20,22 @@ namespace ubse::mem::scheduler::ut {
 
 using namespace ubse::mem::scheduler;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
 
 constexpr uint64_t KB = 1024ULL;
 constexpr uint64_t MB = KB * 1024;
+
+namespace {
+UbseResult RegisterNode(SchedulerNodeManager& nodeMgr, const std::string& nodeId, uint32_t blockSize)
+{
+    nodeController::UbseNodeInfo node{};
+    node.nodeId = nodeId;
+    node.hostName = "host-" + nodeId;
+    node.blockSize = blockSize;
+    node.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_WORKING;
+    return nodeMgr.UpdateNodeInfo(node);
+}
+} // namespace
 
 // ==================== BuildFromFdBorrow ====================
 
@@ -157,6 +171,130 @@ TEST_F(TestSchedulerRequest, BuildFromNumaBorrowNoSrcSocket)
 
     EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
               result.filterNames_.end());
+}
+
+TEST_F(TestSchedulerRequest, BuildFromNumaBorrowSamePlanePreferMarksParams)
+{
+    UbseMemNumaBorrowReq req{};
+    req.name = "n1";
+    req.requestNodeId = "1";
+    req.importNodeId = "2";
+    req.size = 256 * MB;
+    req.srcSocket = 36;
+    req.samePlanePrefer = true;
+
+    auto result = SchedulerRequest::BuildFromNumaBorrow(req);
+
+    // 同平面优先: 保留 affinitySocketId, 加评分标记, 不加严格过滤
+    EXPECT_EQ(result.GetParamOpt<int>("affinitySocketId"), 36);
+    EXPECT_TRUE(result.GetParamOpt<bool>("samePlanePrefer").has_value());
+    EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
+              result.filterNames_.end());
+}
+
+TEST_F(TestSchedulerRequest, SetupFromNodeConfMountsSocketAffinityScore)
+{
+    SchedulerNodeManager nodeMgr; // 默认 free-priority
+    SchedulerRequest req;
+    req.requestMode_ = RequestMode::BORROW;
+    req.params_["affinitySocketId"] = 36;
+    req.params_["samePlanePrefer"] = true;
+
+    auto result = SchedulerRequest::SetupFromNodeConf(std::move(req), &nodeMgr);
+
+    EXPECT_NE(std::find(result.scoreNames_.begin(), result.scoreNames_.end(), "SocketAffinityScore"),
+              result.scoreNames_.end());
+    EXPECT_DOUBLE_EQ(result.weights_.wAffinity, 0.1);
+    EXPECT_DOUBLE_EQ(result.weights_.wBalance, ScoreWeights::ForBorrow().wBalance - 0.1);
+}
+
+TEST_F(TestSchedulerRequest, SetupFromNodeConfNoAffinityKeepsWeights)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerRequest req;
+    req.requestMode_ = RequestMode::BORROW;
+
+    auto result = SchedulerRequest::SetupFromNodeConf(std::move(req), &nodeMgr);
+
+    EXPECT_EQ(std::find(result.scoreNames_.begin(), result.scoreNames_.end(), "SocketAffinityScore"),
+              result.scoreNames_.end());
+    EXPECT_DOUBLE_EQ(result.weights_.wAffinity, 0.0);
+    EXPECT_DOUBLE_EQ(result.weights_.wBalance, ScoreWeights::ForBorrow().wBalance);
+}
+
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowAlignsRequestSizeToBlock)
+{
+    SchedulerNodeManager nodeMgr;
+    ASSERT_EQ(RegisterNode(nodeMgr, "1", 128), UBSE_OK);
+
+    UbseMemFdBorrowReq req{};
+    req.name = "r1";
+    req.requestNodeId = "1";
+    req.importNodeId = "1";
+    req.size = 128 * MB + 1; // 非块对齐: 按 128MB 向上取整为 256MB
+
+    auto result = SchedulerRequest::BuildFromFdBorrow(req, &nodeMgr);
+
+    EXPECT_EQ(result.requestSize_, 256 * MB);
+}
+
+TEST_F(TestSchedulerRequest, BuildFromShareBorrowAlignsRequestSizeViaRequestNode)
+{
+    SchedulerNodeManager nodeMgr;
+    ASSERT_EQ(RegisterNode(nodeMgr, "1", 128), UBSE_OK);
+
+    UbseMemShareBorrowReq req{};
+    req.name = "s1";
+    req.requestNodeId = "1"; // SHARE 请求无 importNodeId, 回退使用 requestNodeId
+    req.size = 128 * MB + 1;
+
+    auto result = SchedulerRequest::BuildFromShareBorrow(req, &nodeMgr);
+
+    EXPECT_EQ(result.requestSize_, 256 * MB);
+}
+
+TEST_F(TestSchedulerRequest, BuildFromAddrBorrowKeepsRawSize)
+{
+    UbseMemAddrBorrowReq req{};
+    req.name = "a1";
+    req.requestNodeId = "1";
+    req.importNodeId = "1";
+    req.exportAddrList.push_back({.addr = 0, .size = 128 * MB + 1});
+
+    auto result = SchedulerRequest::BuildFromAddrBorrow(req);
+
+    // ADDR 借用为精确大小, 不做 blockSize 对齐
+    EXPECT_EQ(result.requestSize_, 128 * MB + 1);
+}
+
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowKeepsRawSizeWhenNodeMissing)
+{
+    UbseMemFdBorrowReq req{};
+    req.name = "r1";
+    req.requestNodeId = "1";
+    req.importNodeId = "1";
+    req.size = 128 * MB + 1;
+
+    // info 为空时无法获取 blockSize, 保留原始值
+    auto result = SchedulerRequest::BuildFromFdBorrow(req, nullptr);
+
+    EXPECT_EQ(result.requestSize_, 128 * MB + 1);
+}
+
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowKeepsRawSizeWhenBlockSizeZero)
+{
+    SchedulerNodeManager nodeMgr;
+    ASSERT_EQ(RegisterNode(nodeMgr, "1", 0), UBSE_OK);
+
+    UbseMemFdBorrowReq req{};
+    req.name = "r1";
+    req.requestNodeId = "1";
+    req.importNodeId = "1";
+    req.size = 128 * MB + 1;
+
+    auto result = SchedulerRequest::BuildFromFdBorrow(req, &nodeMgr);
+
+    EXPECT_EQ(result.requestSize_, 128 * MB + 1);
 }
 
 // ==================== BuildFromShareBorrow ====================

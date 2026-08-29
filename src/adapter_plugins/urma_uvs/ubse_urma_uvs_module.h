@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -13,6 +13,7 @@
 #ifndef UBSE_MANAGER_UBSE_URMA_MODULE_H
 #define UBSE_MANAGER_UBSE_URMA_MODULE_H
 
+#include <mutex>
 #include <set>
 
 #include "ubse_common_def.h"
@@ -29,7 +30,6 @@ using UvsSetShareTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_
 using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char* urmaEid, char* buf, size_t len);
 using UvsCreateAggrDev = uint32_t (*)(char* aggrDevEid, const char* aggrDevName);
 using UvsDeleteAggrDev = uint32_t (*)(char* aggrDevEid);
-using UvsGetEidSharing = int (*)(bool* enabled);
 
 constexpr uint32_t EID_LEN = 16;
 constexpr uint32_t IODIE_NUM = 2;
@@ -78,7 +78,7 @@ public:
 
     void Stop() override;
 
-    bool IsEidSharingModeEnabled() const;
+    UbseResult EnsureEidSharingConfigured(bool& enabled);
 
     // 提供函数指针访问
     UvsSetTopoInfo uvsSetTopoInfo = nullptr;
@@ -86,12 +86,13 @@ public:
     UvsGetDeviceNameByUrmaEid uvsGetDeviceNameByUrmaEid = nullptr;
     UvsCreateAggrDev uvsCreateAggrDev = nullptr;
     UvsDeleteAggrDev uvsDeleteAggrDev = nullptr;
-    UvsGetEidSharing uvsGetEidSharing = nullptr;
 
 private:
     void Cleanup();
+    UbseResult ConfigureEidSharing();
     void* handle = nullptr;
-    bool eidSharingModeEnabled{false};
+    std::mutex eidSharingMutex;
+    bool eidSharingConfigured{false};
 };
 } // namespace ubse::urma
 #endif // UBSE_MANAGER_UBSE_URMA_MODULE_H

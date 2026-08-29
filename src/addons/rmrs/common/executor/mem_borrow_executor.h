@@ -40,8 +40,7 @@ public:
                        std::string& borrowId, int16_t& presentNumaId, bool isBorrowIdPersistence = true);
     MpResult MemFree(const std::string& name);
 
-    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
-                                         bool isFault = false);
+    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool smapBack, bool isFault = false);
 
     MpResult MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault = false);
 
@@ -77,6 +76,7 @@ public:
 
     static bool IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo);
     static MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     static std::vector<UbseNumaMemoryDebtInfo> FilterValidDebtInfos(
         const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     static uint64_t SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,

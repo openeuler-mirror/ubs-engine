@@ -32,49 +32,39 @@ void TestUbseLoggerModule::TearDown(void)
 
 /*
  * 用例描述
- * 测试Initialize是否返回UBSE_OK
+ * 测试Initialize不依赖配置模块：配置模块未注册时初始化仍成功
  */
-TEST_F(TestUbseLoggerModule, TestInitialize2)
+TEST_F(TestUbseLoggerModule, TestInitializeWithoutConfig)
 {
-    GTEST_SKIP();
     UbseLoggerModule loggerModule;
-    std::string cfgLevel = "INFO";
-    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseLoggerConfig::GetLogCfgLevel).stubs().will(returnValue(cfgLevel));
-    MOCKER(&UbseLoggerConfig::GetLogCfgFileSize).stubs().will(returnValue(20)); // 设置GetLogCfgFileSize返回值为20
-    MOCKER(&UbseLoggerConfig::GetLogCfgFileNums).stubs().will(returnValue(20)); // 设置GetLogCfgFileNums返回值为20
-    MOCKER(&UbseLoggerConfig::GetLogCfgQueueItems)
-        .stubs()
-        .will(returnValue(1024)); // 设置GetLogCfgQueueItems返回值为1024
-    UbseLoggerManager::gInstance = new (std::nothrow) UbseLoggerManager();
-    MOCKER(*UbseLoggerManager::Instance).stubs().will(returnValue(UbseLoggerManager::gInstance));
-    UbseLoggerManager::gInited_ = false;
-    MOCKER(&UbseLoggerManager::Init).stubs().will(returnValue(UBSE_OK));
+    UbseLoggerManager::gInstance = nullptr;
     EXPECT_EQ(loggerModule.Initialize(), UBSE_OK);
-    EXPECT_EQ(loggerModule.Start(), UBSE_OK);
-    EXPECT_NO_THROW(loggerModule.Stop());
-    EXPECT_NO_THROW(loggerModule.UnInitialize());
+    EXPECT_NE(UbseLoggerManager::gInstance, nullptr);
+    EXPECT_NO_THROW(loggerModule.Stop());         // join写线程并销毁管理器
+    EXPECT_NO_THROW(loggerModule.UnInitialize()); // 释放Initialize创建的writer
 }
 /*
  * 用例描述
- * 测试Initialize是否返回UBSE_ERROR
+ * 测试配置就绪时Initialize读取配置并正常初始化
  */
-TEST_F(TestUbseLoggerModule, TestInitialize3)
+TEST_F(TestUbseLoggerModule, TestInitializeWithConfig)
 {
-    GTEST_SKIP();
     UbseLoggerModule loggerModule;
     std::string cfgLevel = "INFO";
-    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLoggerConfig::GetLogCfgLevel).stubs().will(returnValue(cfgLevel));
     MOCKER(&UbseLoggerConfig::GetLogCfgFileSize).stubs().will(returnValue(20)); // 设置GetLogCfgFileSize返回值为20
     MOCKER(&UbseLoggerConfig::GetLogCfgFileNums).stubs().will(returnValue(20)); // 设置GetLogCfgFileNums返回值为20
     MOCKER(&UbseLoggerConfig::GetLogCfgQueueItems)
         .stubs()
         .will(returnValue(1024)); // 设置GetLogCfgQueueItems返回值为1024
+    MOCKER(&UbseLoggerConfig::GetSyslogSwitch).stubs().will(returnValue(false));
+    MOCKER(&UbseLoggerConfig::GetSyslogType).stubs().will(returnValue(LOG_USER));
     UbseLoggerManager::gInstance = new (std::nothrow) UbseLoggerManager();
-    MOCKER(*UbseLoggerManager::Instance).stubs().will(returnValue(UbseLoggerManager::gInstance));
-    MOCKER(&UbseLoggerManager::Init).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(loggerModule.Initialize(), UBSE_ERROR);
+    MOCKER(*UbseLoggerManager::Instance).stubs().will(returnValue(UbseLoggerManager::gInstance.load()));
+    MOCKER(&UbseLoggerManager::Init).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(loggerModule.Initialize(), UBSE_OK);
+    EXPECT_NO_THROW(loggerModule.Stop());         // 销毁管理器
+    EXPECT_NO_THROW(loggerModule.UnInitialize()); // 释放Initialize创建的writer
 }
 /*
  * 用例描述
@@ -91,25 +81,6 @@ TEST_F(TestUbseLoggerModule, TestStop)
     UbseLoggerModule loggerModule;
     UbseLoggerManager::gInstance = nullptr;
     EXPECT_NO_THROW(loggerModule.Stop());
-}
-
-/*
- * 用例描述
- * 测试Initialize返回UBSE_ERROR
- */
-TEST_F(TestUbseLoggerModule, TestInitializeFail)
-{
-    GTEST_SKIP();
-    UbseLoggerModule loggerModule;
-    void* mockMethod = nullptr;
-    MOCKER(&dlopen).stubs().will(returnValue(mockMethod));
-    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
-
-    MOCKER(&dlopen).reset();
-    MOCKER(&dlsym).stubs().will(returnValue(mockMethod));
-    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
 }
 
 } // namespace ubse::ut::log

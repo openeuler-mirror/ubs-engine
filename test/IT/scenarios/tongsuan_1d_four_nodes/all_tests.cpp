@@ -129,6 +129,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderOk01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"1", "2", "3", "4"});
 }
 
+// P0-ShmCreateLender-AllNodes-Ok-01: 依次指定节点1/2/3/4作为借出节点创建共享内存，校验mem_size与export_node
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderAllNodesOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderAllNodesOk01(Cluster());
+}
+
 // ====================================================================
 // P0 测试 — CLI 接口正确性
 // ====================================================================
@@ -155,6 +161,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateShareOk01)
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOk01(Cluster());
 }
 
+// P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliShareLongOption01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliShareLongOption01(Cluster());
+}
+
 // P0-CliCreateNuma-LinkId-Ok-01: 指定链路创建 NUMA，精确校验 export-node
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateNumaLinkIdOk01)
 {
@@ -165,10 +177,46 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateNumaLinkIdOk01)
 // P1 测试 — SDK 对外行为语义
 // ====================================================================
 
+// P1-FdBorrow-MultiNode-Ok-01: 多节点 FD 借用用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FdBorrowMultiNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowMultiNodeOk01(Cluster());
+}
+
+// P1-FdBorrow-Cycle-01(四节点): 四节点并发借用成环借用失败用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FdBorrowCycle01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowCycle01(Cluster());
+}
+
+// P1-NumaCreate-MultiNode-Ok-01(四节点): 多节点 NUMA 创建用例
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1NumaCreateMultiNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateMultiNodeOk01(Cluster());
+}
+
 // P1-ShmAttach-MultiNode-01: 四节点SHM attach后import_desc_cnt验证
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
 {
     ubse::it::tests::mem_borrow::RunP1ShmAttachMultiNode01(Cluster());
+}
+
+// P1-ShmDetach-MultiNode-01: 四节点SHM detach后内存账本consumer归空校验
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmDetachMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmDetachMultiNode01(Cluster());
+}
+
+// P1-ShmCreate-Concurrent-MultiNode-01: 四节点，4节点各自并发创建共享内存，全部创建成功
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmCreateConcurrentMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmCreateConcurrentMultiNode01(Cluster());
+}
+
+// P1-ShmCreate-WithProviders-MultiNode-01: 四节点，指定2个provider创建共享内存，校验export_node在provider集合内
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmCreateWithProvidersMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmCreateWithProvidersMultiNode01(Cluster());
 }
 
 // ====================================================================
@@ -193,8 +241,21 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
 }
 
+// 错峰启动：节点2先启动并独自成为主，随后节点1、3、4同时启动。
+// 验证已存在主节点时其余节点同时启动，集群最终收敛出唯一主（仍为节点2）+ 唯一备。
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ExistingMasterUniqueStandby)
+{
+    ubse::it::tests::election::RunFourNodeExistingMasterUniqueStandbyTest(Cluster());
+}
+
+// 新集群启动平滑：四节点启动收敛后，校验各节点 local:ready 与 cluster:working 状态日志。
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, StartupSmooth)
+{
+    ubse::it::tests::election::RunFourNodeStartupSmoothTest(Cluster());
+}
+
 // ====================================================================
-// P2 测试 — Fault Log 校验
+// P1 测试 — Fault Log 校验
 // ====================================================================
 
 // P1-FaultLog-ShareAttachCheckFailed-01: attach不存在的共享内存 或 attach请求节点不在共享域
@@ -207,4 +268,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareAttachCheckFailed01)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareReturnRegionFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnRegionFailed(Cluster());
+}
+
+// ====================================================================
+// P0 测试 — Link Change 校验
+// ====================================================================
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliTopoCpuLinkChange01)
+{
+    ubse::it::tests::topo::RunP0CliTopoCpuLinkChange01(Cluster());
 }

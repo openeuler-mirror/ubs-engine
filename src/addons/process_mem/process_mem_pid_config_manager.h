@@ -16,20 +16,20 @@
 namespace process_mem::manager {
 class ProcessMemPidConfigManager {
 public:
-    static void PersistPidConfigInfo(const def::ProcessMemPidInfo& pidInfo);
-
-    static void GetAllPersistedPidConfigInfo(std::vector<def::ProcessMemPidInfo>& pidConfigInfos);
-
-    static bool CheckPidConfigInfo(const def::ProcessMemPidInfo& pidInfo);
-
     static uint64_t GetExactStartTime(pid_t pid);
 
-    static void QueryPidConfigCallback(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
-                                       void* ctx);
+    static uint32_t PersistProcMemConfig(const def::ProcessMemNewConfigInfo& config);
+    static void GetAllPersistedProcMemConfigs(std::vector<def::ProcessMemNewConfigInfo>& configs);
+    static uint32_t DeleteProcMemConfig(bool isPid, const std::string& identifier);
 
-    static void DeletePidConfigInfo(pid_t pid);
+    static uint32_t PersistFossilConfig(pid_t pid, const def::FossilPidConfigInfo& fossil);
+    static uint32_t DeleteFossilConfig(pid_t pid);
+    static void GetAllFossilConfigs(std::vector<std::pair<pid_t, def::FossilPidConfigInfo>>& fossils);
 
-    static bool IsPidInfoExist(pid_t pid, uint64_t startTime);
+    static void QueryProcMemConfigCallback(const std::string& keyPrefix, const std::string& key,
+                                           const UbseByteBuffer& buff, void* ctx);
+    static void QueryFossilConfigCallback(const std::string& keyPrefix, const std::string& key,
+                                          const UbseByteBuffer& buff, void* ctx);
 };
 } // namespace process_mem::manager
 #endif

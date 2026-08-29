@@ -26,6 +26,7 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
+#include "api/ubse_mem_controller_api_common.h"
 #include "api/ubse_mem_controller_helper.h"
 #include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
@@ -131,12 +132,9 @@ std::string GetBorrowNodeId(const UbseMemAlgoResult& algoResult)
 
 // 辅助函数：处理NUMA导入对象
 void ProcessNumaImportObj(const std::string& resourceId, const UbseMemNumaBorrowImportObj& numaImportObj,
-                          const std::string& nodeId,
+                          const std::string& nodeId, const std::unordered_set<std::string>& exportKeys,
                           std::unordered_map<std::string, UbseNumaMemoryDebtInfo>& numaMemoryDebtInfoMap)
 {
-    if (numaImportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
-        return;
-    }
     std::string borrowNodeId = GetBorrowNodeId(numaImportObj.algoResult);
     std::string lentNodeId = GetLentNodeId(numaImportObj.algoResult);
     if (!nodeId.empty() && nodeId != borrowNodeId && nodeId != lentNodeId) {
@@ -188,6 +186,9 @@ void ProcessNumaImportObj(const std::string& resourceId, const UbseMemNumaBorrow
     }
     debtInfo.uid = numaImportObj.req.udsInfo.uid;
     debtInfo.username = numaImportObj.req.udsInfo.username;
+    // 状态映射复用SDK get/list口径（GetOptStageByObjState）
+    debtInfo.state =
+        GetOptStageByObjState(numaImportObj, exportKeys.count(GenerateExportObjKey(resourceId, borrowNodeId)) > 0);
 }
 
 // 辅助函数：处理NUMA导出对象
@@ -254,8 +255,9 @@ void ProcessDebtInfo(const NodeMemDebtInfoMap& memDebtInfoMap, const std::string
                      std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     std::unordered_map<std::string, UbseNumaMemoryDebtInfo> numaMemoryDebtInfoMap; // key:resourceId_borrowNodeId
+    std::unordered_set<std::string> exportKeys;
 
-    // 遍历所有节点账本信息
+    // 先完整收集全部工作节点的导出键, 保证后续处理导入对象时 exportObjExist 判断与节点迭代顺序无关
     for (const auto& nodeDebtInfoPair : memDebtInfoMap) {
         const std::string& tmpNodeId = nodeDebtInfoPair.first;
         const auto& nodeDebtInfo = nodeDebtInfoPair.second;
@@ -264,12 +266,24 @@ void ProcessDebtInfo(const NodeMemDebtInfoMap& memDebtInfoMap, const std::string
         if (!IsNodeWorking(tmpNodeId, nodeMap)) {
             continue;
         }
+        for (const auto& exportPair : nodeDebtInfo.numaExportObjMap) {
+            exportKeys.insert(exportPair.first);
+        }
+    }
 
+    for (const auto& nodeDebtInfoPair : memDebtInfoMap) {
+        const std::string& tmpNodeId = nodeDebtInfoPair.first;
+        const auto& nodeDebtInfo = nodeDebtInfoPair.second;
+
+        // 跳过非工作状态的节点
+        if (!IsNodeWorking(tmpNodeId, nodeMap)) {
+            continue;
+        }
         // 处理导入对象
         for (const auto& numaImportObjPair : nodeDebtInfo.numaImportObjMap) {
             const std::string& resourceId = numaImportObjPair.first;
             const auto& numaImportObj = numaImportObjPair.second;
-            ProcessNumaImportObj(resourceId, numaImportObj, nodeId, numaMemoryDebtInfoMap);
+            ProcessNumaImportObj(resourceId, numaImportObj, nodeId, exportKeys, numaMemoryDebtInfoMap);
         }
 
         // 处理导出对象
@@ -414,9 +428,6 @@ UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaB
 {
     // 处理导入对象
     const auto& numaImportObj = numaImportObjPair.second;
-    if (numaImportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
-        return UBSE_ERROR;
-    }
     std::string borrowNodeId = GetBorrowNodeId(numaImportObj.algoResult);
     debtInfo.name = numaImportObjPair.first;
     debtInfo.borrowNodeId = borrowNodeId;
@@ -439,6 +450,9 @@ UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaB
     if (!numaImportObj.status.importResults.empty()) {
         debtInfo.remoteNumaId = numaImportObj.status.importResults.front().numaId;
     }
+    // 本地导入侧状态映射：不做“单导入（导出配对）”判断（本地账本无法判断远端导出），
+    // 统一按“存在导出”映射，SUCCESS 稳定为 UBSE_EXIST
+    debtInfo.state = GetOptStageByObjState(numaImportObj, true);
     return UBSE_OK;
 }
 

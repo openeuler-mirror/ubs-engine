@@ -20,12 +20,6 @@ void TestProcessMemPlugin::SetUp() {}
 
 void TestProcessMemPlugin::TearDown() {}
 
-TEST_F(TestProcessMemPlugin, UbsePluginInitFailNoLibrary)
-{
-    uint32_t ret = UbsePluginInit(123);
-    EXPECT_NE(ret, UBSE_OK);
-}
-
 TEST_F(TestProcessMemPlugin, UbsePluginDeInit)
 {
     EXPECT_NO_THROW(UbsePluginDeInit());

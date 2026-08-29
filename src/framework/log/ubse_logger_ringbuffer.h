@@ -51,6 +51,12 @@ public:
     bool Pop(UbseLoggerEntry& loggerEntry);
     void Swap();
 
+    uint32_t PendingCount() const
+    {
+        return (readBuffer_.right_.load() - readBuffer_.left_.load()) +
+               (writeBuffer_.right_.load() - writeBuffer_.left_.load());
+    }
+
 public:
     std::shared_mutex mtx_{};
     bool stop_ = false;

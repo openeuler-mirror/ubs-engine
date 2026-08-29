@@ -692,6 +692,12 @@ TEST_F(TestUbseCommunication, TestNormalRequestHandle)
     UBSHcomServiceContext ubsHcomServiceContext;
     EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID, mockengine.NormalRequestHandle(ubsHcomServiceContext));
     UbseComMessage ubseComMessage;
+    // ASAN 下 mockcpp 对 SoftCrc32 打桩不可靠，真实 SoftCrc32 会以 GetMessageBodyLen()
+    // 读取 body；bodyLen_ 未初始化时为垃圾值，可能触发栈溢出中止整个测试进程。
+    // 显式置 0 使路径确定安全。
+    UbseComMessageHead msgHead;
+    msgHead.SetBodyLen(0);
+    ubseComMessage.SetMessageHead(msgHead);
     MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(&ubseComMessage));
     EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL, mockengine.NormalRequestHandle(ubsHcomServiceContext));
     MOCKER(CheckMessageBodyLen).stubs().will(returnValue(true));

@@ -14,7 +14,10 @@
 #define TEST_PROCESS_MEM_PID_COLLECT_H
 
 #include "gtest/gtest.h"
+
+#define private public
 #include "process_mem_pid_collect.h"
+#undef private
 
 namespace ubse::ut::process_mem {
 

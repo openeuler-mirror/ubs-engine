@@ -1016,7 +1016,7 @@ int UBSRMRSRemove(const std::vector<pid_t>& pids, int pidType);
 ```cpp
 #include "mempooling_interface.h"
 
-int RemoteNumaMigrate(const std::vector<pid_t>& pids, int srcNid, int destNid);
+int UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& msg);
 ```
 
 ### 描述 DESCRIPTION
@@ -1025,11 +1025,15 @@ int RemoteNumaMigrate(const std::vector<pid_t>& pids, int srcNid, int destNid);
 
 ### 参数 Parameters
 
-| name    | IN/OUT | description                   |
-| ------- | ------ | ----------------------------- |
-| pids    | IN     | 移除的进程信息，包含进程的PID |
-| srcNid  | IN     | 源远端NUMA                    |
-| destNid | IN     | 目标远端NUMA                  |
+| name             | IN/OUT | description              |
+| ---------------- | ------ | ------------------------ |
+| MigrateEscapeMsg | IN     | 迁移的进程信息           |
+| pid              | IN     | 进程的PID                |
+| srcNid           | IN     | 源远端NUMA               |
+| destNid          | IN     | 目标远端NUMA             |
+| ratio            | IN     | 内存迁移比例             |
+| memSize          | IN     | 内存迁移大小(KB)         |
+| migrateMode      | IN     | 迁移模式按大小还是按比例  |
 
 ### 返回值 RETURN VALUE
 

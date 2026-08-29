@@ -10,6 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <map>
+#include <vector>
+
 #include "ubse_storage.h"
 
 namespace ubse::storage {
@@ -17,6 +20,15 @@ namespace ubse::storage {
 static uint32_t g_mockStoragePutError = 0;
 static uint32_t g_mockStorageQueryError = 0;
 static uint32_t g_mockStorageDeleteError = 0;
+static uint32_t g_mockStorageListError = 0;
+static std::vector<std::string> g_mockStorageKeys;
+static std::map<std::string, std::vector<uint8_t>> g_mockStorageQueryPayloads;
+
+void MockSetStorageQueryPayload(const std::string& keyPrefix, const std::string& key,
+                                const std::vector<uint8_t>& payload)
+{
+    g_mockStorageQueryPayloads[keyPrefix + ":" + key] = payload;
+}
 
 void MockSetStoragePutError(uint32_t err)
 {
@@ -30,11 +42,22 @@ void MockSetStorageDeleteError(uint32_t err)
 {
     g_mockStorageDeleteError = err;
 }
+void MockSetStorageListError(uint32_t err)
+{
+    g_mockStorageListError = err;
+}
+void MockSetStorageKeys(const std::vector<std::string>& keys)
+{
+    g_mockStorageKeys = keys;
+}
 void MockResetStorageErrors()
 {
     g_mockStoragePutError = 0;
     g_mockStorageQueryError = 0;
     g_mockStorageDeleteError = 0;
+    g_mockStorageListError = 0;
+    g_mockStorageKeys.clear();
+    g_mockStorageQueryPayloads.clear();
 }
 
 uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data)
@@ -45,11 +68,27 @@ uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key
 uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                               UbseStorageDealDataFunc func)
 {
+    auto it = g_mockStorageQueryPayloads.find(keyPrefix + ":" + key);
+    if (it != g_mockStorageQueryPayloads.end()) {
+        UbseByteBuffer buff{};
+        buff.data = const_cast<uint8_t*>(it->second.data());
+        buff.len = it->second.size();
+        func(keyPrefix, key, buff, ctx);
+    }
     return g_mockStorageQueryError;
 }
 
 uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key)
 {
     return g_mockStorageDeleteError;
+}
+
+uint32_t UbseStorageListKeys(const std::string& keyPrefix, std::vector<std::string>& keys)
+{
+    if (g_mockStorageListError != 0) {
+        return g_mockStorageListError;
+    }
+    keys = g_mockStorageKeys;
+    return 0;
 }
 } // namespace ubse::storage

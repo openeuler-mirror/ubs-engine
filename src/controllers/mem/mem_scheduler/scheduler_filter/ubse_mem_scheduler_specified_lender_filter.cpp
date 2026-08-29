@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ubse_math_util.h"
 #include "ubse_mem_scheduler_specified_lender_filter.h"
 
 namespace ubse::mem::scheduler {
@@ -87,37 +88,41 @@ UbseResult SpecifiedLenderFilter::CheckNumaCapacity(std::vector<NodeInfo>& nodes
         RecordWarning(std::string("GetNodeInfo failed, node=") + nodes.front().nodeId);
         return UBSE_ERROR;
     }
-    uint64_t blockSize = static_cast<uint64_t>(nodePtr->GetBlockSize()) * ONE_M;
+    uint64_t blockSize = 0;
+    if (!ubse::utils::SizeMb2Byte(nodePtr->GetBlockSize(), blockSize) || blockSize == 0) {
+        blockSize = 1; //  blockSize 非法或转换溢出时退化为不按块对齐
+    }
     auto highWatermarkOpt = request.GetParamOpt<size_t>("highWatermark");
     uint64_t highWatermark = static_cast<uint64_t>(highWatermarkOpt.value_or(MAX_PERCENT));
 
     for (auto& socketInfo : nodes.front().socketInfos) {
         socketInfo.numaInfos.erase(
-            std::remove_if(socketInfo.numaInfos.begin(), socketInfo.numaInfos.end(),
-                           [&](const NumaId& numaId) {
-                               auto it = numaToSize.find(numaId);
-                               if (it == numaToSize.end()) {
-                                   RecordReject(nodes.front().nodeId, std::string("numa=") + std::to_string(numaId) +
-                                                                          " not in specified lender numas");
-                                   return true;
-                               }
-                               uint64_t requiredSize = it->second;
-                               auto* numaInfo = nodeInfo.GetNumaInfo(nodes.front().nodeId, numaId);
-                               if (numaInfo == nullptr) {
-                                   RecordWarning(std::string("GetNumaInfo failed, node=") + nodes.front().nodeId +
-                                                 ", numa=" + std::to_string(numaId));
-                                   return true;
-                               }
-                               uint64_t available = numaInfo->GetAvailableLendSize(highWatermark, blockSize);
-                               if (available < requiredSize) {
-                                   RecordReject(nodes.front().nodeId,
-                                                std::string("numa=") + std::to_string(numaId) +
-                                                    " available=" + std::to_string(available) +
-                                                    " < lender_size=" + std::to_string(requiredSize));
-                                   return true;
-                               }
-                               return false;
-                           }),
+            std::remove_if(
+                socketInfo.numaInfos.begin(), socketInfo.numaInfos.end(),
+                [&](const NumaId& numaId) {
+                    auto it = numaToSize.find(numaId);
+                    if (it == numaToSize.end()) {
+                        RecordReject(nodes.front().nodeId,
+                                     std::string("numa=") + std::to_string(numaId) + " not in specified lender numas");
+                        return true;
+                    }
+                    uint64_t requiredSize = it->second;
+                    auto* numaInfo = nodeInfo.GetNumaInfo(nodes.front().nodeId, numaId);
+                    if (numaInfo == nullptr) {
+                        RecordWarning(std::string("GetNumaInfo failed, node=") + nodes.front().nodeId +
+                                      ", numa=" + std::to_string(numaId));
+                        return true;
+                    }
+                    // available返回具体可用字节，requiredSize为具体numaSize，没有向上取整，此处按 blockSize 对齐得到整块可借容量
+                    uint64_t available = (numaInfo->GetAvailableLendSize(highWatermark) / blockSize) * blockSize;
+                    if (available < requiredSize) {
+                        RecordReject(nodes.front().nodeId, std::string("numa=") + std::to_string(numaId) +
+                                                               " available=" + std::to_string(available) +
+                                                               " < lender_size=" + std::to_string(requiredSize));
+                        return true;
+                    }
+                    return false;
+                }),
             socketInfo.numaInfos.end());
     }
     return UBSE_OK;

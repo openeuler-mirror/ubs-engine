@@ -150,7 +150,8 @@ ItNode::ItNode(NodeSpec spec, ClusterContext ctx)
       ctx_(std::move(ctx)),
       lcneUdsPath_(spec_.workDir + "/run/ubm/socket/ubm_nuds/restconf.sock"),
       udsSocketPath_(spec_.UdsSocketPath()),
-      cliInvoker_(ctx_.cliBinaryPath, udsSocketPath_)
+      cliInvoker_(ctx_.cliBinaryPath, udsSocketPath_,
+                  spec_.hostname.empty() ? "it-node-" + std::to_string(spec_.slotId) : spec_.hostname)
 {
 }
 
@@ -247,6 +248,7 @@ NodeProcessConfig ItNode::BuildProcessConfig() const
     config.sceneType = ctx_.sceneType;
     config.meshType = ctx_.meshType;
     config.lcneUdsPath = lcneUdsPath_;
+    config.hostname = spec_.hostname;
     return config;
 }
 
@@ -284,6 +286,10 @@ UbseResult ItNode::Start()
         return ret;
     }
 
+    // UBSE HTTP 服务(UDS) socket 在宿主机上的实际路径:
+    // 启动器将 <workDir>/run bind-mount 到 /var/run/ubse, 而 UBSE 监听 UBSE_UBM_UDS_ADDRESS=/var/run/ubse/ubse_ubm.socket
+    mockLcneClient_ = std::make_unique<MockLcneClient>(spec_.workDir + "/run/ubse_ubm.socket");
+
     IT_LOG_INFO << "Node " << spec_.nodeId << " started";
     return UBSE_OK;
 }
@@ -302,6 +308,7 @@ UbseResult ItNode::Stop()
         mockLcneServer_->Stop();
         mockLcneServer_.reset();
     }
+    mockLcneClient_.reset();
 
     // Clean up LCNE UDS socket
     if (!lcneUdsPath_.empty()) {
@@ -313,7 +320,7 @@ UbseResult ItNode::Stop()
     return UBSE_OK;
 }
 
-UbseResult ItNode::Kill()
+UbseResult ItNode::KillUBSE()
 {
     FinalizeSdkClient();
 
@@ -323,7 +330,36 @@ UbseResult ItNode::Kill()
     return process_->Kill();
 }
 
-UbseResult ItNode::Restart(uint32_t startupTimeoutMs)
+UbseResult ItNode::StartUBSE(uint32_t startupTimeoutMs)
+{
+    auto procConfig = BuildProcessConfig();
+    process_ = std::make_unique<NodeProcessManager>(std::move(procConfig));
+    UbseResult ret = process_->Start();
+    if (ret != UBSE_OK) {
+        IT_LOG_ERROR << "Failed to restart node " << spec_.nodeId;
+        return ret;
+    }
+
+    ret = process_->WaitForStartup(startupTimeoutMs);
+    if (ret != UBSE_OK) {
+        IT_LOG_ERROR << "Node " << spec_.nodeId << " did not start up in time";
+        process_->Stop();
+        return ret;
+    }
+
+    IT_LOG_INFO << "Node " << spec_.nodeId << " started";
+    return UBSE_OK;
+}
+
+UbseResult ItNode::StopUBSE()
+{
+    if (!process_) {
+        return UBSE_OK;
+    }
+    return process_->Stop();
+}
+
+UbseResult ItNode::RestartUBSE(uint32_t startupTimeoutMs)
 {
     if (process_) {
         process_->Stop();
@@ -714,5 +750,47 @@ void ItNode::SetMemApiWaitTimeOut(uint32_t timeoutMs)
 void ItNode::RestoreMemApiWaitTimeOut()
 {
     SetMemApiWaitTimeOut(0);
+}
+
+void ItNode::MarkLinkDown(const std::string& peerNodeId, const std::set<int>& ubpuIds, const std::set<int>& portIds)
+{
+    // 通过集群上下文将 peerNodeId 映射为 slotId (ctx_.nodeIds 与 ctx_.clusterSlotIds 按序一一对应)
+    bool found = false;
+    uint32_t peerSlotId = 0;
+    if (peerNodeId == "UNKNOWN") {
+        peerSlotId = UINT32_MAX;
+        found = true;
+    } else {
+        for (size_t i = 0; i < ctx_.nodeIds.size(); ++i) {
+            if (ctx_.nodeIds[i] == peerNodeId) {
+                peerSlotId = ctx_.clusterSlotIds[i];
+                found = true;
+                break;
+            }
+        }
+    }
+    if (!found) {
+        IT_LOG_WARN << "MarkLinkDown: unknown peer node " << peerNodeId;
+        return;
+    }
+    if (mockLcneServer_) {
+        mockLcneServer_->MarkLinkDown(peerSlotId, ubpuIds, portIds);
+    }
+}
+
+void ItNode::ClearLinkDowns()
+{
+    if (mockLcneServer_) {
+        mockLcneServer_->ClearLinkDowns();
+    }
+}
+
+UbseResult ItNode::NotifyLinkUpDown(const bool isPortDown, const std::string& interfaceName)
+{
+    if (!mockLcneClient_) {
+        IT_LOG_WARN << "NotifyLinkUpDown: mock lcne client is not initialized on node " << spec_.nodeId;
+        return UBSE_ERROR;
+    }
+    return mockLcneClient_->NotifyLinkUpDown(isPortDown, interfaceName);
 }
 } // namespace ubse::it::infra

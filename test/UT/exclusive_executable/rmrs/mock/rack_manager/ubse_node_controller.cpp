@@ -43,4 +43,9 @@ UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
     return ubseNodeInfo;
 }
 
+std::string UbseNodeController::GetCurrentNodeId()
+{
+    return "mock_node_id";
+}
+
 } // namespace ubse::nodeController

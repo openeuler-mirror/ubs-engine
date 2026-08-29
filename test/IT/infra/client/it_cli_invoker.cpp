@@ -51,15 +51,28 @@ std::string ShellQuote(const std::string& value)
     return quoted;
 }
 
-std::string BuildCliEnvPrefix(const std::string& cliBinaryPath, const std::string& udsSocketPath)
+std::string BuildCliEnvPrefix(const std::string& cliBinaryPath, const std::string& udsSocketPath,
+                              const std::string& itHostname)
 {
     std::string envPrefix =
         "env UBSE_IT_UDS_SOCKET_PATH=" + ShellQuote(udsSocketPath) + " UBSE_UDS_ADDRESS=" + ShellQuote(udsSocketPath);
+    // 注入每节点唯一主机名，使 CLI 进程内 gethostname() 与节点守护进程上报一致
+    if (!itHostname.empty()) {
+        envPrefix += " UBSE_IT_HOSTNAME=" + ShellQuote(itHostname);
+    }
 
     std::filesystem::path preloadPath =
         std::filesystem::path(cliBinaryPath).parent_path().parent_path() / "lib" / "libubse_interface_preload.so";
     if (std::filesystem::exists(preloadPath)) {
-        envPrefix += " LD_PRELOAD=" + ShellQuote(preloadPath.string());
+        // CLI 二进制同样经过 ASAN 插桩：必须把 libasan 前置到 LD_PRELOAD，
+        // 否则（stub 先加载）触发 "ASan runtime does not come first"，CLI 子进程 SEGV。
+        std::string preloadValue;
+        const char* asanLibasan = getenv("UBSE_ASAN_LIBASAN");
+        if (asanLibasan != nullptr && asanLibasan[0] != '\0') {
+            preloadValue = std::string(asanLibasan) + ":";
+        }
+        preloadValue += preloadPath.string();
+        envPrefix += " LD_PRELOAD=" + ShellQuote(preloadValue);
     }
     return envPrefix;
 }
@@ -79,9 +92,11 @@ void LogCliOutput(const std::string& output)
 
 } // namespace
 
-ItCliInvoker::ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath)
+ItCliInvoker::ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath,
+                           const std::string& itHostname)
     : cliBinaryPath_(cliBinaryPath),
-      udsSocketPath_(udsSocketPath)
+      udsSocketPath_(udsSocketPath),
+      itHostname_(itHostname)
 {
 }
 
@@ -243,7 +258,7 @@ std::string ItCliInvoker::ExecuteCommand(const std::string& command) const
 {
     std::string fullCmd = "timeout --kill-after=" + std::to_string(CLI_COMMAND_KILL_AFTER_SECONDS) + "s " +
                           std::to_string(CLI_COMMAND_TIMEOUT_SECONDS) + "s " +
-                          BuildCliEnvPrefix(cliBinaryPath_, udsSocketPath_) + " " + command + " 2>&1";
+                          BuildCliEnvPrefix(cliBinaryPath_, udsSocketPath_, itHostname_) + " " + command + " 2>&1";
     FILE* pipe = popen(fullCmd.c_str(), "r");
     if (pipe == nullptr) {
         IT_LOG_ERROR << "popen failed for command: " << fullCmd;

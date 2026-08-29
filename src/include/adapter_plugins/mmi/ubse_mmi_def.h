@@ -82,7 +82,8 @@ enum UbseMemState
     UBSE_MEM_IMPORT_SUCCESS,
     UBSE_MEM_IMPORT_DESTROYING,
     UBSE_MEM_IMPORT_DESTROYING_WAIT,
-    UBSE_MEM_IMPORT_DESTROYED
+    UBSE_MEM_IMPORT_DESTROYED,
+    UBSE_MEM_IMPORT_ABNORMAL
 };
 
 // 内存故障类型
@@ -232,10 +233,11 @@ struct UbseMemShmAffinitySocketInfo {
 };
 
 struct UbseMemNumaBorrowReq : public UbseMemFdBorrowReq {
-    int srcSocket{-1};         // 内存申请需求方节点socket信息 -1 无效
-    int srcNuma{-1};           // 内存申请需求方节点NUMA信息  -1 无效
-    size_t highWatermark{100}; // 必填，算法百分比，vm自己决策场景，单位%
-    size_t lowWatermark{11};   // 必填，算法比分在，单位%
+    int srcSocket{-1};           // 内存申请需求方节点socket信息 -1 无效
+    int srcNuma{-1};             // 内存申请需求方节点NUMA信息  -1 无效
+    size_t highWatermark{100};   // 必填，算法百分比，vm自己决策场景，单位%
+    size_t lowWatermark{11};     // 必填，算法比分在，单位%
+    bool samePlanePrefer{false}; // true=同平面优先, false=同平面必须(当 srcSocket!=-1 时)
     UbseMemLenderLinkInfo linkInfo{};
     uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
     friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowReq& obj);

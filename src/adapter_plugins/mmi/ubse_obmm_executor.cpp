@@ -29,6 +29,7 @@ std::vector<__u32> overrideCap = {CAP_DAC_OVERRIDE};
 static const std::string OBMM_LOG_INFO = "#######UB[OBMM]########";
 static constexpr uint64_t OFFLINE_TIMEOUT_MIN_S = 10;
 static constexpr uint64_t OFFLINE_TIMEOUT_MAX_S = 1800;
+static constexpr int OBMM_IMPORT_BASE_DIST = 40;
 
 uint64_t RmObmmExecutor::offlineTimeoutMs_ = DEFAULT_UNIMPORT_TIMEOUT_MS;
 bool RmObmmExecutor::offlineTimeoutConfigured_ = false;
@@ -287,7 +288,7 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc& desc, const Obmm
         return INVALID_MEM_ID;
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
-    memid = obmmImportFunc(obmmMemDesc, obmmFlags, 0, numa);
+    memid = obmmImportFunc(obmmMemDesc, obmmFlags, OBMM_IMPORT_BASE_DIST, numa);
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (memid == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};

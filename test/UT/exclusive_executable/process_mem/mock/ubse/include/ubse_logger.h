@@ -106,4 +106,4 @@ struct UbseLog {
     bool operator==(UbseLoggerEntry& loggerEntry);
 };
 } // namespace ubse::log
-#endif // UBSE_LOGGER_H
+#endif

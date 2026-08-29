@@ -603,7 +603,20 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetMaxConnectionCount(NO_500);
     hcomNetService_->SetEnableMrCache(true);
     hcomNetService_->SetCtxStoreCapacity(NO_2048);
-    hcomNetService_->SetActiveBackup(false);
+    // 仿真环境（QEMU虚拟机）不支持hcom主备倒换；物理环境默认开启主备倒换。
+    // 注意：制造商信息获取失败与仿真环境分开处理，失败时打WARN便于现场区分高可用降级原因。
+    std::string manufacturer;
+    auto ret = UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "get system manufacturer failed, close hcom backup.";
+        hcomNetService_->SetActiveBackup(false);
+    } else if (UbseSmbios::GetInstance().IsQemuVm()) {
+        UBSE_LOG_INFO << "current system manufacturer is " << manufacturer << ", simulation env, close hcom backup.";
+        hcomNetService_->SetActiveBackup(false);
+    } else {
+        UBSE_LOG_INFO << "current system manufacturer is " << manufacturer << ", active hcom backup.";
+        hcomNetService_->SetActiveBackup(true);
+    }
 }
 
 void UbseComEngine::RegisterEngineHandlers()

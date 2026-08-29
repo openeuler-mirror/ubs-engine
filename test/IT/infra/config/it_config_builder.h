@@ -68,6 +68,18 @@ public:
     /** @brief Generate config files for all nodes. Returns UBSE_OK on success. */
     UbseResult GenerateAllConfigs(const std::string& templatePath = "");
 
+    /**
+     * @brief 为单个节点重新生成配置文件 (StartNode 场景使用).
+     *
+     * 用已有的 nodeSpecs/overrides 重新生成指定节点的 ubse.conf, 覆盖 workDir/<nodeId>/ubse.conf.
+     * 用于 case 在 StartNode 前修改配置 (通过 WithNodeOverride 预置后调用本方法).
+     *
+     * @param nodeId 目标节点 ID (必须存在于构造时的 nodeSpecs)
+     * @param templatePath 配置模板路径 (空则自动查找)
+     * @return UBSE_OK on success
+     */
+    UbseResult GenerateNodeConfig(const std::string& nodeId, const std::string& templatePath = "");
+
 private:
     UbseResult GenerateConfig(const NodeSpec& nodeSpec, const std::string& outputDir, const std::string& templatePath);
 

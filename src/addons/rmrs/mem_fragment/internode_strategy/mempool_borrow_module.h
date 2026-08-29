@@ -131,6 +131,8 @@ struct MemBorrowStrategyResult {
 struct MemBorrowExecuteResult {
     std::vector<std::string> borrowIds;
     std::vector<uint16_t> presentNumaId;
+    // 实际借用量KB（UBSE按block粒度取整后可能大于需求量，与borrowIds逐一对应）
+    std::vector<uint64_t> borrowedSizesKB;
 
     std::string ToString() const
     {
@@ -266,10 +268,18 @@ public:
                                                          const std::vector<uint64_t>& borrowSizes,
                                                          const WaterMark& waterMark,
                                                          MemBorrowExecuteResult& borrowExecuteResult,
-                                                         const ProcessMemUsrInfo& processMemUsrInfo);
+                                                         const ProcessMemUsrInfo& processMemUsrInfo,
+                                                         const std::vector<std::string>& candidateNodes = {});
+    // PID粒度故障处理专用借用（容器/虚机场景）: usrInfo按正常借用协议写借入方本地numaId（int16前2字节），
+    // 使virt_agent水线检测可正确归属并触发低水线归还；不记入BorrowIdInFaultProcess（该集合服务裸机老链路）
+    static MpResult MemBorrowExecuteForPidFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                            const std::vector<uint64_t>& borrowSizes,
+                                                            const WaterMark& waterMark,
+                                                            MemBorrowExecuteResult& borrowExecuteResult,
+                                                            const std::vector<std::string>& candidateNodes = {});
     static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
                                                     const UbseMemNumaCandidateOpt& opt, const bool& isFault,
-                                                    UbseMemNumaDesc& desc);
+                                                    UbseMemNumaDesc& desc, const bool trackInFaultProcess = true);
     MpResult MemFree(std::string nodeId);
 
     MpResult SafeUint64To32(uint32_t& targetNum, uint64_t tmp);

@@ -39,6 +39,8 @@ struct NodeProcessConfig {
     std::string sceneType;
     uint32_t meshType = 1;
     std::string lcneUdsPath;
+    // 每节点自定义主机名，为空时回落默认 it-node-<slotId>
+    std::string hostname;
 };
 
 } // namespace ubse::it::infra

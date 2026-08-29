@@ -502,7 +502,8 @@ private:
     std::unordered_map<UbseMemState, std::string> UbseMemStateMap = {
         {UBSE_MEM_EXPORT_RUNNING, "exporting"},      {UBSE_MEM_EXPORT_SUCCESS, "single"},
         {UBSE_MEM_EXPORT_DESTROYING, "unexporting"}, {UBSE_MEM_IMPORT_RUNNING, "importing"},
-        {UBSE_MEM_IMPORT_SUCCESS, "done"},           {UBSE_MEM_IMPORT_DESTROYING, "unimporting"}};
+        {UBSE_MEM_IMPORT_SUCCESS, "done"},           {UBSE_MEM_IMPORT_DESTROYING, "unimporting"},
+        {UBSE_MEM_IMPORT_ABNORMAL, "abnormal"}};
 
 private:
     std::string errorMsg_{};

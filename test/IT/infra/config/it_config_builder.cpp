@@ -74,6 +74,24 @@ UbseResult ItConfigBuilder::GenerateAllConfigs(const std::string& templatePath)
     return UBSE_OK;
 }
 
+UbseResult ItConfigBuilder::GenerateNodeConfig(const std::string& nodeId, const std::string& templatePath)
+{
+    for (const auto& spec : nodeSpecs_) {
+        if (spec.nodeId != nodeId) {
+            continue;
+        }
+        std::string outputDir = spec.workDir.empty() ? baseWorkDir_ + "/" + spec.nodeId : spec.workDir;
+        UbseResult ret = GenerateConfig(spec, outputDir, templatePath);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "Failed to generate config for node " << nodeId;
+            return ret;
+        }
+        return UBSE_OK;
+    }
+    IT_LOG_ERROR << "GenerateNodeConfig: node " << nodeId << " not in nodeSpecs";
+    return UBSE_ERROR_DEF(1);
+}
+
 std::string ItConfigBuilder::FindTemplatePath(const std::string& templatePath)
 {
     if (!templatePath.empty() && std::filesystem::exists(templatePath)) {

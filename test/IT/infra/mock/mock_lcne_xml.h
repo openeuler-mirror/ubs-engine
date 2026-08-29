@@ -28,6 +28,7 @@ std::string UrmaEidXml();
 std::string FeEidXml(uint32_t slotId);
 std::string FeBindingXml(uint32_t slotId);
 std::string SubscriptionResponseXml();
+std::string LinkUpDownNotificationXml(const std::string& linkUpDown, const std::string& interfaceName);
 std::string AddDecoderResponseJson();
 std::string DeleteDecoderResponseJson();
 std::string InvalidateDecoderResponseJson();

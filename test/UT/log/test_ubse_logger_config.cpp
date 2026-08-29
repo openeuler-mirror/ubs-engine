@@ -32,6 +32,11 @@ void TestUbseLoggerConfig::SetUp(void)
 
 void TestUbseLoggerConfig::TearDown(void)
 {
+    // 清理用例写入的配置模块引用，避免污染后续用例（测试隔离）
+    auto it = UbseContext::GetInstance().moduleMap_.find(typeid(UbseConfModule));
+    if (it != UbseContext::GetInstance().moduleMap_.end()) {
+        UbseContext::GetInstance().moduleMap_.erase(it);
+    }
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -404,7 +409,9 @@ TEST_F(TestUbseLoggerConfig, testGetSyslogType_valid)
     MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(ubseLogConfig.GetSyslogType(), SYSLOG_TYPE_USER);
     auto it = UbseContext::GetInstance().moduleMap_.find(typeid(UbseConfModule));
-    UbseContext::GetInstance().moduleMap_.erase(it);
+    if (it != UbseContext::GetInstance().moduleMap_.end()) {
+        UbseContext::GetInstance().moduleMap_.erase(it);
+    }
 }
 /*
  * 用例描述
@@ -417,7 +424,7 @@ TEST_F(TestUbseLoggerConfig, testGetSyslogType_valid)
 TEST_F(TestUbseLoggerConfig, testGetLogCfgLevelNullPtr)
 {
     UbseLoggerConfig ubseLogConfig;
-    EXPECT_EQ(ubseLogConfig.GetLogCfgLevel(), "");
+    EXPECT_EQ(ubseLogConfig.GetLogCfgLevel(), "INFO");
     GlobalMockObject::verify();
 }
 /*
@@ -431,7 +438,7 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgLevelNullPtr)
 TEST_F(TestUbseLoggerConfig, testGetLogCfgFileSizeNullPtr)
 {
     UbseLoggerConfig ubseLogConfig;
-    EXPECT_EQ(ubseLogConfig.GetLogCfgFileSize(), UBSE_ERROR_NULLPTR);
+    EXPECT_EQ(ubseLogConfig.GetLogCfgFileSize(), 20); // 20为logCfgFileSize的默认值
     GlobalMockObject::verify();
 }
 /*
@@ -445,7 +452,7 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgFileSizeNullPtr)
 TEST_F(TestUbseLoggerConfig, testGetLogCfgFileNumsNullPtr)
 {
     UbseLoggerConfig ubseLogConfig;
-    EXPECT_EQ(ubseLogConfig.GetLogCfgFileNums(), UBSE_ERROR_NULLPTR);
+    EXPECT_EQ(ubseLogConfig.GetLogCfgFileNums(), 20); // 20为logCfgFileNums的默认值
     GlobalMockObject::verify();
 }
 /*
@@ -459,7 +466,7 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgFileNumsNullPtr)
 TEST_F(TestUbseLoggerConfig, testGetLogCfgQueueItemsNullPtr)
 {
     UbseLoggerConfig ubseLogConfig;
-    EXPECT_EQ(ubseLogConfig.GetLogCfgQueueItems(), UBSE_ERROR_NULLPTR);
+    EXPECT_EQ(ubseLogConfig.GetLogCfgQueueItems(), 4096); // 4096为logCfgQueueItems的默认值
     GlobalMockObject::verify();
 }
 /*
@@ -488,6 +495,29 @@ TEST_F(TestUbseLoggerConfig, testGetSyslogTypeNullPtr)
 {
     UbseLoggerConfig ubseLogConfig;
     EXPECT_EQ(ubseLogConfig.GetSyslogType(), SYSLOG_TYPE_USER);
+    GlobalMockObject::verify();
+}
+
+/*
+ * 用例描述
+ * 测试配置模块未注册（未就绪）时Initialize仍返回成功，且各getter返回默认值
+ * 预期结果
+ * 1.Initialize返回UBSE_OK
+ * 2.各配置项返回默认值
+ */
+TEST_F(TestUbseLoggerConfig, testInitializeWithoutConfig)
+{
+    auto it = UbseContext::GetInstance().moduleMap_.find(typeid(UbseConfModule));
+    if (it != UbseContext::GetInstance().moduleMap_.end()) {
+        UbseContext::GetInstance().moduleMap_.erase(it);
+    }
+    UbseLoggerConfig ubseLogConfig;
+    EXPECT_EQ(ubseLogConfig.Initialize(), UBSE_OK);
+    EXPECT_EQ(ubseLogConfig.GetLogCfgLevel(), "INFO");
+    EXPECT_EQ(ubseLogConfig.GetLogCfgFileSize(), 20);     // 20为logCfgFileSize的默认值
+    EXPECT_EQ(ubseLogConfig.GetLogCfgFileNums(), 20);     // 20为logCfgFileNums的默认值
+    EXPECT_EQ(ubseLogConfig.GetLogCfgQueueItems(), 4096); // 4096为logCfgQueueItems的默认值
+    EXPECT_FALSE(ubseLogConfig.GetSyslogSwitch());
     GlobalMockObject::verify();
 }
 } // namespace ubse::ut::log

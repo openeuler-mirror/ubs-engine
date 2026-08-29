@@ -13,6 +13,8 @@
 #ifndef UBSE_LOGGER_MANAGER_H
 #define UBSE_LOGGER_MANAGER_H
 
+#include <atomic>
+
 #include "ubse_common_def.h"
 #include "ubse_logger.h"
 #include "ubse_logger_filesink.h"
@@ -29,7 +31,7 @@ public:
 
     static void Destroy();
 
-    explicit UbseLoggerManager() = default;
+    explicit UbseLoggerManager();
 
     ~UbseLoggerManager() = default;
 
@@ -50,9 +52,11 @@ public:
 
     static UbseLogLevel StringToLogLevel(const std::string& level);
 
-    static UbseLoggerManager* gInstance;
+    static std::atomic<UbseLoggerManager*> gInstance;
 
 private:
+    void ResizeBuffer(uint32_t newCapacity);
+
     static bool gInited_;
     UbseLogLevel minLogLevel_ = UbseLogLevel::INFO;
     bool syslogOpen_ = false;

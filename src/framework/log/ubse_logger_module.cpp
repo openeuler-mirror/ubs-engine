@@ -34,6 +34,7 @@ UbseLoggerWriter* g_writer = nullptr;
 UbseResult UbseLoggerModule::Initialize()
 {
     TraceContext::InitUuid();
+    // 配置模块在拓扑序中先于日志模块初始化，此处读取真实配置；配置模块缺失时不视为失败，getter使用默认值
     UbseLoggerConfig config;
     auto ret = config.Initialize();
     if (ret != UBSE_OK) {
@@ -59,8 +60,10 @@ UbseResult UbseLoggerModule::Initialize()
     ret = log->Init(options, g_writer);
     if (ret != UBSE_OK) {
         delete g_writer;
+        g_writer = nullptr;
         return ret;
     }
+    // Init启动写线程后，启动缓冲中的早期日志会按FIFO顺序自动输出，无需额外刷新
     return UBSE_OK;
 }
 

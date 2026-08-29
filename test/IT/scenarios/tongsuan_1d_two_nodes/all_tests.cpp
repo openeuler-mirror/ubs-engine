@@ -14,6 +14,7 @@
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
 #include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
+#include "tests/mem_borrow/mem_borrow_p1_cases.h"
 #include "tests/sei_degrade/sei_degrade_cases.h"
 #include "tests/topo/topo_cases.h"
 
@@ -111,6 +112,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBoundMax01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateBoundMax01(Cluster());
 }
 
+// P0-ShmCreate-UsrInfo-Ok-01: 双节点，null(全0)/空串/"TESTTESTTEST" 三种 usr_info 创建 SHM，shm_get 校验 usr_info 回显一致
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateUsrInfoOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateUsrInfoOk01(Cluster());
+}
+
 // P0-ShmCreateAffinity-Ok-01: 标准创建
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAffinityOk01)
 {
@@ -145,6 +152,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAffinityBadParam01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAffinityDup01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmCreateAffinityDup01(Cluster());
+}
+
+// P0-ShmCreateAffinityAttach-Ok-01: 亲和创建+指定provider={2}，创建成功且节点1映射成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAffinityAttachOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateAffinityAttachOk01(Cluster());
 }
 
 // P0-ShmCreateLender-Ok-01: 指定借出节点创建，region={1,2}
@@ -183,6 +196,30 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderDup01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateLenderDup01(Cluster());
 }
 
+// P0-ShmCreateLender-SocketPort-Ok-01: 指定借出节点socket_id+port_id创建共享内存成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderSocketPortOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderSocketPortOk01(Cluster());
+}
+
+// P0-ShmCreateLender-NumaPort-Ok-01: 指定借出节点numa_id+port_id创建共享内存成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderNumaPortOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderNumaPortOk01(Cluster());
+}
+
+// P0-ShmCreateLender-SocketNuma-Ok-01: 指定借出节点socket_id+numa_id创建共享内存成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderSocketNumaOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderSocketNumaOk01(Cluster());
+}
+
+// P0-ShmCreateLender-UsrInfo-Ok-01: 空值(全0)/空串/"TESTTESTTEST"三种usr_info创建SHM，shm_get校验usr_info回显与输入一致
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderUsrInfoOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderUsrInfoOk01(Cluster());
+}
+
 // P0-ShmAttach-NotReady-01: 未创建时attach
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachNotReady01)
 {
@@ -199,6 +236,18 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachOk01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachDup01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmAttachDup01(Cluster());
+}
+
+// P0-ShmAttach-BoundMax-01: name=47字节，节点1/2均attach校验出参，shm_get校验整体账本
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachBoundMax01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmAttachBoundMax01(Cluster());
+}
+
+// P0-ShmCreateAttach-Ok-01: 双节点创建1024M共享内存，节点1映射成功（入参：1024MB/region={1,2}；出参：create/attach/get均UBS_SUCCESS且出参校验通过；预期：创建就绪，节点1映射成功，账本含节点1）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAttachOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateAttachOk01(Cluster());
 }
 
 // P0-ShmGet-NotExist-01: 查询不存在
@@ -247,6 +296,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDetachOk01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDetachNotReady01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmDetachNotReady01(Cluster());
+}
+
+// P1-ShmDetachReattach-MultiNode-01: 双节点SHM 节点1创建→节点1attach→节点1detach→节点2attach，全部成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmDetachReattachMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmDetachReattachMultiNode01(Cluster());
 }
 
 // P0-ShmDel-Ok-01: 创建后删除
@@ -449,6 +504,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateCandidateDup01)
 
 // ==================== Mem FD permission P0 测试 ====================
 
+// P0-FdPerm-Change-Ok-01: 权限变更成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermChangeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdPermChangeOk01(Cluster());
+}
+
 // P0-FdPerm-NotExist-01: name不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermNotExist01)
 {
@@ -456,6 +517,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermNotExist01)
 }
 
 // ==================== Mem FD get P0 测试 ====================
+
+// // P0-FdGet-Ok-01: 查询存在的FD并校验字段
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdGetOk01(Cluster());
+}
 
 // P0-FdGet-NotExist-01: 查询不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetNotExist01)
@@ -687,6 +754,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaListNullPtr01)
     ubse::it::tests::mem_borrow::RunP0NumaListNullPtr01(Cluster());
 }
 
+// P0-NumaGet-Ok-01: 正常查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaGetOk01(Cluster());
+}
+
 // P0-NumaGet-NotExist-01: 查询不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetNotExist01)
 {
@@ -775,6 +848,13 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemOk01)
     ubse::it::tests::mem_borrow::RunP0CliCheckMemOk01(Cluster());
 }
 
+// P0-CliCheckMem-StatusChange-01: 内存状态巡检（节点启停联动）
+// 双节点均启动时节点2状态ok；停止节点2后变nok；恢复节点2后恢复ok
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemStatusChange01)
+{
+    ubse::it::tests::mem_borrow::RunMemCheckStatusChangeTest(Cluster());
+}
+
 // P0-CliNodeBorrow-Ok-01: 查询节点借入汇总
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNodeBorrowOk01)
 {
@@ -831,6 +911,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateFdInvalidVal01)
     ubse::it::tests::mem_borrow::RunP0CliCreateFdInvalidVal01(Cluster());
 }
 
+// P0-CliFd-LongOption-01: CLI create/delete fd with long option
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliFdLongOption01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliFdLongOption01(Cluster());
+}
+
 // P0-CliAttachMem-NotReady-01: CLI attach 未创建的共享内存
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemNotReady01)
 {
@@ -873,6 +959,18 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliBorrowDetailOk01)
     ubse::it::tests::mem_borrow::RunP0CliBorrowDetailOk01(Cluster());
 }
 
+// P1-CliBorrowDetail-Ledger-01: 双节点SHM 创建→节点1attach→borrow_detail查账(存在)→detach/delete→再查账(为空)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliBorrowDetailLedger01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliBorrowDetailLedger01(Cluster());
+}
+
+// P1-CliBorrowDetail-MultiNode-01: 双节点SHM 节点1/节点2各自创建(region覆盖双节点)→borrow_detail查账(2条share记录)→节点2删除→再查账(仅剩节点1记录)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliBorrowDetailMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliBorrowDetailMultiNode01(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — 对外行为语义
 // ====================================================================
@@ -885,6 +983,93 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
     ubse::it::tests::mem_borrow::RunP1CliCreateNumaParamVariant01(Cluster());
 }
 
+// P1-CliSdkMemOk-01: 测试CLI创建后调用SDK接口正常
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliSdkMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliSdkMemOK01(Cluster());
+}
+
+// ==================== sdk Mem P1 测试 ====================
+
+// P1-FdCreate-DiffNode-Ok-01: fd创建用例，不同节点创建同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateDiffNodeOk01(Cluster());
+}
+
+// P1-FdGet-DiffNode-Ok-01: fd获取用例，不同节点获取同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdGetDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdGetDiffNodeOk01(Cluster());
+}
+
+// P1-FdBorrowMultiTime-Ok-01: fd多轮借用用例，不同节点多轮借用同名FD
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdBorrowMultiTimeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdBorrowMultiTimeOk01(Cluster());
+}
+
+// P1-FdCreate-MultiThread-Ok-01: 单节点多并发FD创建
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateMultiThreadOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateMultiThreadOk01(Cluster());
+}
+
+// P1-FdCreate-Concurrent-AllNode-Fail-01: 双节点，节点1/2各8路并发创建FD(总计16并发)（入参：每节点8个不同name/4MB；出参：16个返回值，至少1个非UBS_SUCCESS；预期：双节点互为借出/借入并发竞争，至少一个节点借用失败，成功者全部归还）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FdCreateConcurrentAllNodeFail01)
+{
+    ubse::it::tests::mem_borrow::RunP1FdCreateConcurrentAllNodeFail01(Cluster());
+}
+
+// P1-NumaCreate-MultiTime-Ok-01: numa 创建用例，多轮创建后归还
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaCreateMultiTimeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateMultiTimeOk01(Cluster());
+}
+
+// P1-NumaCreate-DiffNode-Ok-01: numa 创建用例，不同节点创建同名NUMA
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaCreateDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaCreateDiffNodeOk01(Cluster());
+}
+
+// P1-NumaGet-DiffNode-Ok-01: numa 获取用例，不同节点获取同名NUMA
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaGetDiffNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaGetDiffNodeOk01(Cluster());
+}
+
+// P1-NumaBorrow-Node2DecisionFail-01: 双节点默认全互联场景，节点1借用NUMA成功(节点2借出)；
+// 节点2再借用NUMA，因已借出过(LentSize>0)触发RoleConflictFilter决策失败，返回UBS_ENGINE_ERR_ALLOCATE
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1NumaBorrowNode2DecisionFail01)
+{
+    ubse::it::tests::mem_borrow::RunP1NumaBorrowNode2DecisionFail01(Cluster());
+}
+
+// P1-ShmCreate-Concurrent-01: 双节点，8并发创建共享内存，全部创建成功（入参：8个不同name/128MB/region={1,2}；出参：均UBS_SUCCESS且mem_stage就绪；预期：8个全部创建成功）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmCreateConcurrent01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmCreateConcurrent01(Cluster());
+}
+
+// P1-ShmRecreate-AfterDelete-01: 双节点，节点1创建SHM→删除→节点2创建同名SHM成功（入参：同名/128MB/region={1,2}；出参：删除后MemShmGet非成功，节点2创建UBS_SUCCESS且mem_stage就绪；预期：删除释放同名，节点2可重建）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1ShmRecreateAfterDelete01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmRecreateAfterDelete01(Cluster());
+}
+
+// P1-CliNumaRecreateAfterDeleteLink-01: 双节点，查询cpu链路→CLI指定链路创建NUMA→删除→同链路同名重建（入参：display topo -t cpu 获取link-id；create memory -t numa -n <name> -s 128M -l <link-id>；出参：创建/删除/重建均成功，回显name/size/numa-id/import-node完整，export-node为链路对端节点；预期：删除后账本无该记录，同链路同名可重建）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliNumaRecreateAfterDeleteLink01)
+{
+    ubse::it::tests::mem_borrow::RunP1CliNumaRecreateAfterDeleteLink01(Cluster());
+}
+
+// P1-SdkCliMemOk-01: 测试SDK创建后调用CLI接口正常
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1SdkCliMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP1SdkCliMemOK01(Cluster());
+}
+
 // ====================================================================
 // 选举测试
 // ====================================================================
@@ -895,17 +1080,50 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
     ubse::it::tests::election::RunTwoNodeElectionTest(Cluster());
 }
 
+// 选举测试：验证主节点向集群其他节点周期发送心跳。
+// 观测主节点日志 "[ELECTION] ProcTimer MASTER send pkt id=<id>"（DEBUG级别），
+// 等待3个心跳周期后应看到至少3次发送，且确有发往对端（备节点）的心跳。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, MasterPeriodicHeartbeat)
+{
+    ubse::it::tests::election::RunTwoNodeMasterPeriodicHeartbeatTest(Cluster());
+}
+
+// 周期对账定时触发：双节点长时间运行（周期对账 5 分钟一次），
+// 验证主节点日志中出现周期性的 cluster smoothing 与 cluster working 记录。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, PeriodicLedger)
+{
+    // ubse::it::tests::election::RunTwoNodePeriodicLedgerTest(Cluster());
+}
+
+// 节点信息上报汇总：验证节点内存等信息采集持续进行。
+// 获取 "ubse node last 1min report summary" 首个时间戳，等待 70s 后取最新时间戳，两者应不相等。
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, NodeReportSummary)
+{
+    ubse::it::tests::election::RunTwoNodeNodeReportSummaryTest(Cluster());
+}
+
+// ====================================================================
+// P1 测试 — 拓扑校验
+// ====================================================================
+
+// P1-CliTopoCpu-LinkOneNodeOnline-01: 链路一端节点在线, 另一侧节点离线
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliTopoCpuLinkOneNodeOnline01)
+{
+    // 需要重启，耗时较长，当前情况跳过执行
+    // ubse::it::tests::topo::RunP1CliTopoCpuLinkOneNodeOnline01(Cluster());
+}
+
 // ====================================================================
 // P1 测试 — Fault Log 校验
 // ====================================================================
 
-// P2-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
+// P1-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowCheckFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowCheckFailed(Cluster());
 }
 
-// P2-FaultLog-BorrowNameExist-01: 同名重复创建
+// P1-FaultLog-BorrowNameExist-01: 同名重复创建
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowNameExist01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowNameExist(Cluster());

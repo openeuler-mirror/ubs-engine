@@ -60,6 +60,9 @@ public:
 
     MpResult AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
+    // 幂等版分大页: 先读当前nr_hugepages, 已>=目标值直接跳过, 供故障处理多轮RESUME重试安全调用
+    MpResult IdempotentAllocateHugePages(uint64_t numaId, uint64_t borrowSize);
+
     static int QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource);
 
     static MpResult SmapMode(int runMode);
@@ -118,6 +121,13 @@ public:
     static MpResult SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList);
 
     static MpResult SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId);
+
+    // 从period.config解析smap冷热迁移周期(ms)；开关关闭/文件缺失/字段非法时回退fallbackMs
+    static uint32_t GetSmapMigratePeriodMs(uint32_t fallbackMs = 3000,
+                                           const std::string& configPath = "/opt/ubturbo/conf/smap/period.config");
+
+    // 禁用pid冷热迁移后阻塞等待在途迁移收敛（一个周期+边界buffer），供采集稳态值前调用
+    static void WaitSmapMigrateQuiesce();
 
     static const int smapParamErrorCode;    // SMAP参数错误码 Invalid argument -22
     static const int smapDealErrorCode;     // SMAP处理异常错误码 -9

@@ -24,7 +24,8 @@ namespace ubse::it::infra {
 
 class ItCliInvoker {
 public:
-    ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath);
+    ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath,
+                 const std::string& itHostname = "");
 
     // --- Raw CLI queries ---
     int32_t QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos);
@@ -67,6 +68,7 @@ private:
 
     std::string cliBinaryPath_;
     std::string udsSocketPath_;
+    std::string itHostname_;
 };
 
 } // namespace ubse::it::infra

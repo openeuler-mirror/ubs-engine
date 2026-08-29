@@ -11,6 +11,9 @@
  */
 
 #include "mp_smap_helper.h"
+#include <algorithm>
+#include <cctype>
+#include <sstream>
 #include "ubse_def.h"
 #include "ubse_logger.h"
 #include "ubse_security.h"
@@ -23,6 +26,52 @@
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
+
+namespace {
+// period.config解析常量: 开关关闭/文件缺失/字段非法时周期回退兜底值
+constexpr uint32_t kSmapPeriodMaxMs = 60000;   // 周期合法上限，超出按配置异常回退兜底值
+constexpr uint32_t kSmapQuiesceBufferMs = 500; // 周期后的边界buffer，覆盖周期边界在途迁移
+const std::string kSmapMigratePeriodKey = "smap.migrate.period";
+const std::string kSmapPeriodSwitchKey = "smap.period.file.config.switch";
+
+std::string TrimString(const std::string& str)
+{
+    size_t begin = str.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos) {
+        return "";
+    }
+    size_t end = str.find_last_not_of(" \t\r\n");
+    return str.substr(begin, end - begin + 1);
+}
+
+std::string ToLowerString(const std::string& str)
+{
+    std::string lower = str;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return lower;
+}
+
+// 按"key=value"或"key value"切分配置行，key/value均trim；注释行(#/;)与空行返回false
+bool SplitConfigLine(const std::string& line, std::string& key, std::string& value)
+{
+    std::string trimmed = TrimString(line);
+    if (trimmed.empty() || trimmed[0] == '#' || trimmed[0] == ';') {
+        return false;
+    }
+    size_t sep = trimmed.find('=');
+    if (sep == std::string::npos) {
+        std::istringstream iss(trimmed);
+        if (!(iss >> key >> value)) {
+            return false;
+        }
+    } else {
+        key = TrimString(trimmed.substr(0, sep));
+        value = TrimString(trimmed.substr(sep + 1));
+    }
+    return !key.empty();
+}
+} // namespace
 
 using namespace ubse::log;
 using namespace mempooling::smap;
@@ -343,6 +392,92 @@ MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borr
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MpSmapHelper] AllocateHugePages final failed after " << MAX_RETRY << " retries, numaId=" << numaId
         << ", targetHugePages=" << targetHugePages << ".";
+
+    return MEM_POOLING_ERROR;
+}
+
+// 幂等版分大页: 以"当前nr_hugepages >= 借用量对应页数"为达标判据, 上轮RESUME已分过或跨重启重入时直接跳过,
+// 否则补足差额; 避免故障处理多轮重试重复增加nr_hugepages.
+// 与AllocateHugePagesWithRetry同口径(2M大页, borrowSize单位Byte), 共用同一numa互斥锁
+MpResult MpSmapHelper::IdempotentAllocateHugePages(uint64_t numaId, uint64_t borrowSize)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] IdempotentAllocateHugePages start, numaId=" << numaId << ", borrowSize=" << borrowSize
+        << "Byte.";
+    // 1. 获取或创建该 numa 对应的 mutex（与AllocateHugePagesWithRetry共用, 防并发修改同一numa的nr_hugepages）
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex);
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            auto uptr = std::make_unique<std::mutex>();
+            mtx = uptr.get();
+            numaAllocMutexMap[numaId] = std::move(uptr);
+        } else {
+            mtx = it->second.get();
+        }
+    }
+
+    // 2. 锁定该numa的专用mutex
+    std::lock_guard<std::mutex> lock(*mtx);
+
+    const int MAX_RETRY = 100;
+    int retryCnt = 0;
+
+    std::string filePath;
+    MpResult ret = GetHugePageCanonicalPath(std::to_string(numaId), filePath);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetHugePageCanonicalPath failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    // 页数向上取整: 借用量非2M整倍数时截断会少分大页，尾部数据无法承载导致迁不完
+    constexpr uint64_t HUGE_PAGE_2M_BYTES = 2 * 1024 * 1024;
+    uint64_t requiredPages = (borrowSize + HUGE_PAGE_2M_BYTES - 1) / HUGE_PAGE_2M_BYTES;
+
+    do {
+        // 每轮重读当前值: 已满足借用量所需则跳过（上轮RESUME/其他流程已分过, 防重复分配）
+        uint64_t currentPages = 0;
+        ret = GetOriginalHugePages(filePath, currentPages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetOriginalHugePages failed.";
+            return MEM_POOLING_ERROR;
+        }
+        if (currentPages >= requiredPages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] HugePages already enough, numaId=" << numaId << ", current=" << currentPages
+                << ", required=" << requiredPages << ", skip allocate.";
+            return MEM_POOLING_OK;
+        }
+
+        // 不足则补足差额
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] numaId=" << numaId << ", currentPages=" << currentPages
+            << ", requiredPages=" << requiredPages << ", addPages=" << (requiredPages - currentPages) << ".";
+        ret = TryAllocateHugePagesOnce(filePath, requiredPages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] RewriteHugePages failed at retry=" << retryCnt << ", numaId=" << numaId << ".";
+        }
+
+        retryCnt++;
+    } while (retryCnt < MAX_RETRY);
+
+    // 末轮TryAllocateHugePagesOnce成功时，达标校验只发生在下一轮循环顶部而不会再进入:
+    // 与AllocateHugePagesWithRetry同口径，退出后复核页数，避免把已成功的分配误报为失败
+    if (ret == MEM_POOLING_OK) {
+        uint64_t verifyPages = 0;
+        if (GetOriginalHugePages(filePath, verifyPages) == MEM_POOLING_OK && verifyPages >= requiredPages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] IdempotentAllocateHugePages success at last retry, numaId=" << numaId
+                << ", pages=" << verifyPages << ", retryCnt=" << retryCnt << ".";
+            return MEM_POOLING_OK;
+        }
+    }
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] IdempotentAllocateHugePages final failed after " << MAX_RETRY
+        << " retries, numaId=" << numaId << ", requiredPages=" << requiredPages << ".";
 
     return MEM_POOLING_ERROR;
 }
@@ -1158,12 +1293,12 @@ MpResult MpSmapHelper::GetLocalSmapBackResult(uint64_t taskId)
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetLocalSmapBackResult succeed.";
 
-    return MEM_POOLING_ERROR;
+    return MEM_POOLING_MIGRATE_TIMEOUT;
 }
 
 MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList)
 {
-    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfigFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
         return MEM_POOLING_ERROR;
@@ -1186,7 +1321,7 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
 MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList)
 {
     std::vector<ProcessPayload> processPayloadList;
-    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfigFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
         return MEM_POOLING_ERROR;
@@ -1250,6 +1385,62 @@ MpResult MpSmapHelper::SmapRemovePidsHelper(const std::vector<pid_t>& pids, int1
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper end.";
     return MEM_POOLING_OK;
+}
+
+uint32_t MpSmapHelper::GetSmapMigratePeriodMs(uint32_t fallbackMs, const std::string& configPath)
+{
+    std::ifstream configFile(configPath);
+    if (!configFile.is_open()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Failed to open period config " << configPath << ", fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+
+    bool switchOn = false;
+    uint32_t periodMs = 0;
+    bool hasPeriod = false;
+    std::string line;
+    while (std::getline(configFile, line)) {
+        std::string key;
+        std::string value;
+        if (!SplitConfigLine(line, key, value)) {
+            continue;
+        }
+        if (key == kSmapPeriodSwitchKey) {
+            std::string lowerValue = ToLowerString(value);
+            switchOn = (lowerValue == "on" || lowerValue == "true" || lowerValue == "1");
+        } else if (key == kSmapMigratePeriodKey) {
+            std::istringstream iss(value);
+            uint64_t parsed = 0;
+            if (iss >> parsed && iss.eof()) {
+                periodMs = static_cast<uint32_t>(parsed);
+                hasPeriod = true;
+            }
+        }
+    }
+
+    // 开关关闭时文件中的周期不生效（smap用内部默认值），读到的值不可信，回退兜底值
+    if (!switchOn) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Period config switch off, fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+    if (!hasPeriod || periodMs == 0 || periodMs > kSmapPeriodMaxMs) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Invalid smap.migrate.period (hasPeriod=" << hasPeriod << ", value=" << periodMs
+            << "), fallback " << fallbackMs << "ms.";
+        return fallbackMs;
+    }
+    return periodMs;
+}
+
+void MpSmapHelper::WaitSmapMigrateQuiesce()
+{
+    // 禁用生效于下一周期，在途迁移会执行完: 等一个完整周期+边界buffer即可覆盖最坏情形
+    uint32_t waitMs = GetSmapMigratePeriodMs() + kSmapQuiesceBufferMs;
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] Wait " << waitMs << "ms for in-flight smap migration to converge.";
+    std::this_thread::sleep_for(std::chrono::milliseconds(waitMs));
 }
 
 } // namespace mempooling::smap

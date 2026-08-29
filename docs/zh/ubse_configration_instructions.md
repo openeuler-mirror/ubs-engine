@@ -50,7 +50,7 @@ section取值：[ubse.log]
 
 | 序号 | 参数              | 说明                                                       | 取值                                                                                                                                                                                                            |
 | :--- | :---------------- | :--------------------------------------------------------- |:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1    | log.level         | 日志级别。                                                 | 默认值：INFO <br>取值范围如下：<br>- DEBUG<br>- INFO<br>- WARN<br>- ERROR<br>- CRIT<br>参数配置取值范围之外或错误值都会被重置为默认值。                                                                                                          |
+| 1    | log.level         | 日志级别。                                                 | 默认值：INFO<br>取值范围如下：<br>- DEBUG<br>- INFO<br>- WARN<br>- ERROR<br>- CRIT<br>参数配置取值范围之外或错误值都会被重置为默认值。                                                                                                          |
 | 2    | log.max.fileSize  | 绕接日志文件的大小。                                       | 默认值：20<br>单位：MB<br>取值范围：[2, 20]<br>参数配置取值范围之外或错误值都会被重置为默认值。                                                                                                                                                   |
 | 3    | log.fileNums      | 日志文件最大绕接数量。                                     | 默认值：20<br>取值范围：[1, 200]<br>参数配置取值范围之外或错误值都会被重置为默认值。                                                                                                                                                           |
 | 4    | log.queue.maxItem | 日志缓冲区最大缓存量条数。如果超过该值，则覆盖最初的日志。 | 默认值：4096<br>单位：条<br>取值范围：[64, 4096]<br>参数配置取值范围之外或错误值都会被重置为4096。                                                                                                                                              |
@@ -68,7 +68,7 @@ section取值：[ubse.election]
 | 1  | heartbeat.timeInterval  | 发送心跳间隔时间，单位毫秒。  | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 |
 | 2  | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。    | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。                   |
 | 3  | election.candidate | 节点是否参与选主。       | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
-| 4  | election.candidateNodes | 候选主节点ID列表（逗号分隔）。<br>⚠ 集群内所有节点该配置项必须配置一致。 | 默认值：用#注释（不配置）<br>配置且非空时，仅列表内节点可升主，election.candidate 开关不再生效；<br>未配置/为空/解析非法时，回退到 election.candidate 开关。 |
+| 4  | election.candidateNodes | 候选主节点ID列表（逗号分隔）。<br>⚠ 集群内所有节点该配置项必须配置一致。 | 默认值：用#注释（不配置）<br>配置且非空时，仅列表内节点可升主，election.candidate 开关不再生效；<br>未配置/为空/解析非法时，该配置不生效，election.candidate 生效。 |
 | 5  | election.wait | 节点是否等待最小节点发起选主。 | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
 
 ## rpc通信配置说明
@@ -83,6 +83,8 @@ section取值：[ubse.rpc]
 | 2    | cluster.ipList  | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：用#注释<br>打开此配置时（取消注释），使用tcp通信，此配置注释时使用urma通信。<br>tcp通信参考值：192.168.100.100-192.168.100.103<br>上述参考值等同于配置192.168.100.100,192.168.100.101,192.168.100.102,192.168.100.103。|
 | 3    | cert.use        | rpc安全证书能力开关。           | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。                                |
 
+**证书 otherName OID 传 nodeId 示例：** 开启 `cert.use=true` 后，需导入本节点身份证书；证书 SAN 的 otherName（OID `1.3.6.1.4.1.2011.999.1`，UTF8String）值必须等于**本节点 nodeId**，否则握手被拒。第三方/自建 CA 完整生成示例见 [ubse_security_description.md：证书 otherName OID 传 nodeId 示例](./ubse_security_description.md#证书-othername-oid-传-nodeid-示例)。
+
 ## UBFM对接配置说明
 
 section取值：[ubse.ubfm]
@@ -93,8 +95,8 @@ section取值：[ubse.ubfm]
 | ---- | ---------------- |------------------------------------|-----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1    | ubse.server.port | UBSE暴露给UBM的通信端口，在该端口开启HTTPS服务。     | 默认值：用#注释<br>取值范围：[1024, 65535]<br>如果取值超过范围，则取值为8082。                                    | UBM和UBSE共部署在host主机时，ubm.server.cid用#注释，UBSE与UBM使用UDS通信，此配置项不生效；高安部署模式下，ubm.server.cid配置开启，UBSE与UBM使用HTTPS通信，此配置项生效。                              |
 | 2    | ubm.server.port | UBM暴露的通信端口，UBSE通过该端口与UBM进行HTTPS交互。 | 默认值：用#注释<br>取值范围：[1024, 65535]<br>如果取值超过范围，则取值为8799。                                    | UBM和UBSE共部署在host主机时，ubm.server.cid用#注释，UBSE与UBM使用UDS通信，此配置项不生效；高安部署模式下，ubm.server.cid配置开启，UBSE与UBM使用HTTPS通信，此配置项生效。                                                                  |
-| 3    | ubm.server.cid | 高安场景UBM所在机密虚机的地址。                  | 默认值：用#注释<br>打开此配置时（取消注释），与UBM使用HTTPS通信，此配置注释时与UBM使用UDS通信。<br>取值范围：[0, 2^32-1] <br>如果取值超过范围，则不使能高安模式。 | - UBM和UBSE共部署在host主机时，该配置项关闭，两者之间使用UDS通信；在高安部署模式下，该配置开启，两者之间使用HTTPS通信。<br>- UBSE与UBM所在机密虚机使用vsock通信，参数配置取值应该与虚拟机启动使用的cid一致，配置错误的cid，会导致与虚拟机通信失败。 |
-| 4    | ubm.server.hostname | ubm主机标识，要和ubm侧的服务端证书中主题备用名称（SAN）或通用名称（CN）字段包含的主机标识其中之一一致。如果不一致Ubse启动发生异常，功能不可用。| 默认值：用#注释<br>取值范围：有效的DNS主机名，配置非法值会被重置为默认值localhost|仅高安场景生效。<br>校验失败，Ubse启动发生异常，功能不可用,UBSE与UBM使用HTTPS通信，此配置项生效，需要确保生效的主机名能被DNS解析到ip地址127.0.0.1上
+| 3    | ubm.server.cid | 高安场景UBM所在机密虚机的地址。                  | 默认值：用#注释<br>打开此配置时（取消注释），与UBM使用HTTPS通信，此配置注释时与UBM使用UDS通信。<br>取值范围：[0, 2^32-1]<br>如果取值超过范围，则不使能高安模式。 | - UBM和UBSE共部署在host主机时，该配置项关闭，两者之间使用UDS通信；在高安部署模式下，该配置开启，两者之间使用HTTPS通信。<br>- UBSE与UBM所在机密虚机使用vsock通信，参数配置取值应该与虚拟机启动使用的cid一致，配置错误的cid，会导致与虚拟机通信失败。 |
+| 4    | ubm.server.hostname | ubm主机标识，要和ubm侧的服务端证书中主题备用名称（SAN）或通用名称（CN）字段包含的主机标识其中之一一致。如果不一致Ubse启动发生异常，功能不可用。| 默认值：用#注释<br>取值范围：有效的DNS主机名，配置非法值会被重置为默认值localhost。|仅高安场景生效。<br>校验失败，Ubse启动发生异常，功能不可用,UBSE与UBM使用HTTPS通信，此配置项生效，需要确保生效的主机名能被DNS解析到ip地址127.0.0.1上。
 
 ## 内存池化配置说明
 
@@ -104,7 +106,7 @@ section取值：[ubse.memory]
 
 | 序号 | 参数               | 说明                  | 取值                                                                         | 备注                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 |----|--------------------|---------------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | obmm.memory.block.size   | 芯片表项内存拆分粒度大小。       | 默认值：用#注释<br>单位：MB<br>取值范围：[4, 4096]<br>参数取值必须是2的整数倍。                       | - 管理员可按需修改配置文件，增加该配置，当该配置被定义时以配置文件为准。<br>- 校验规则：<br>1.配置值超范围，取默认值。<br>2.各节点不一致，借用失败。<br>- 当ubse.conf文件不显式配置时，取值规则如下：<br>1.mempool_allocator=buddy_highmem时，obmm.memory.block.size取值为128。<br>2.mempool_allocator=hugetlb_pmd时，obmm.memory.block.size取值为128。<br>3.mempool_allocator=hugetlb_pud时，obmm.memory.block.size取值为1024。 <br>- 当用户借用内存大小不与blocksize对齐时，导出内存会向上取整。<br>- 预上线场景（ubse.preonline.enable配置项为true）建议配置为UB Memory decoder表中entry粒度的整数倍，entry粒度默认为2G。 |
+| 1  | obmm.memory.block.size   | 芯片表项内存拆分粒度大小。       | 默认值：用#注释<br>单位：MB<br>取值范围：[4, 4096]<br>参数取值必须是2的整数倍。                       | - 管理员可按需修改配置文件，增加该配置，当该配置被定义时以配置文件为准。<br>- 校验规则：<br>1.配置值超范围，取默认值。<br>2.各节点不一致，借用失败。<br>- 当ubse.conf文件不显式配置时，取值规则如下：<br>1.mempool_allocator=buddy_highmem时，obmm.memory.block.size取值为128。<br>2.mempool_allocator=hugetlb_pmd时，obmm.memory.block.size取值为128。<br>3.mempool_allocator=hugetlb_pud时，obmm.memory.block.size取值为1024。<br>- 当用户借用内存大小不与blocksize对齐时，导出内存会向上取整。<br>- 预上线场景（ubse.preonline.enable配置项为true）建议配置为UB Memory decoder表中entry粒度的整数倍，entry粒度默认为2G。 |
 | 2  | isLender           | 当前节点是否可以作为内存借出节点。   | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。                       | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 3  | ubse.preonline.enable           | 是否开启预上线能力。          | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值false。                     | - 依赖环境启用预上线能力，需在`/boot/efi/EFI/openEuler/grub.cfg`文件的numa_remote配置项中配置preonline。<br>- 所有节点的配置需保持一致。                                                                                                                                                                                                                                                                                                                                                               |
 | 4  | ubse.preonline.size           | 预上线的内存大小。           | 默认值：4096<br>单位：MB<br>取值范围：[128, 262144]<br>参数取值必须是128的整数倍，取值超过范围则取默认值4096。 | - 依赖环境启用预上线能力，需在`/boot/efi/EFI/openEuler/grub.cfg`文件的numa_remote配置项中配置preonline。<br>- 建议配置为UB Memory decoder表中entry粒度的整数倍，entry粒度默认为2G。<br>- 所有节点的配置需保持一致。                                                                                                                                                                                                                                                                                                        |
@@ -115,9 +117,10 @@ section取值：[ubse.memory]
 | 9  | radius.lender      | 借出节点的内存借用半径。        | 默认值：用#注释（不限制）<br>取值范围：[0, 65535]<br>如果取值超过范围，则取默认值65535（不限制）。        | - 控制借出节点允许借用内存的半径范围。<br>- 所有节点的配置需保持一致。<br>- 仅适用于fd和numa借用场景。                                                                                                                                                                                                                                                            |
 | 10 | radius.borrow      | 借入节点的内存借用半径。        | 默认值：用#注释（不限制）<br>取值范围：[0, 65535]<br>如果取值超过范围，则取默认值65535（不限制）。        | - 控制借入节点请求内存的半径范围。<br>- 所有节点的配置需保持一致。<br>- 仅适用于fd和numa借用场景。                                                                                                                                                                                                                                                            |
 | 11 | obmm.memory.offline.timeout | obmm_unimport操作超时时间。       | 默认值：用#注释<br>单位：秒<br>取值范围：[10, 1800]                                        | - 当显式配置该配置项且值在范围内时，obmm_unimport超时时间固定为该值。<br>- 当不配置、配置值非法或超出范围时，超时时间由内部决策。 |
-| 12 | scheduler.mode | 内存调度模式，控制 socket NUMA 选择策略。 | 默认值：free-priority<br>取值范围：free-priority / reliability-priority / performance-priority<br>如果取值超过范围，则取默认值free-priority。 | - **free-priority**：优先选择剩余内存最多的节点。<br>- **reliability-priority**：优先复用已有借用关系并均衡各节点的借出数。<br>- **performance-priority**：均衡各节点带宽利用率，兼顾时延、内存利用率和可靠性。<br>- 当不配置时，检查已弃用的 `lender.balance`（第 6 项），兼容方式如下：<br>&nbsp;&nbsp;lender.balance=true 时取值 reliability-priority，lender.balance=false 取值 free-priority。 |
-| 13 | bandwidth.tolerance | performance-priority 模式下带宽均衡的容忍度阈值。 | 默认值：2 × block.size（通常 256 MB）<br>单位：MB<br>如果取值小于block.size，则取默认值。 | 候选 socket 的当前借出量低于平均值至少该阈值时得分归零（最优），介于平均值与该阈值之间时得分线性插值在 (0,1] 范围。 |
-| 14 | sei.enable | sei.enable=true时, 发生首次借用内存后,打开SEI降级功能(触发sysctl -w kernel.arm64_sync_sei=1)以抑制OS由于UB断链后,借入方使用Atomic指令或者内存访问指令时,上报SEI异常导致Panic;末次借用归还后关闭SEI降级功能。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围或非法，则取默认值false。 | - 仅在借入节点生效。<br>- 依赖 /etc/sudoers.d/ubse-sei 授予 ubse 用户 sysctl 提权权限。<br>- sei.enable=false时不会触发SEI降级，UB断链导致的内存错误可能触发 OS Panic。 |
+| 12 | scheduler.mode | 内存调度模式，控制 socket NUMA 选择策略。 | 默认值：free-priority<br>取值范围：free-priority / reliability-priority / performance-priority<br>如果取值超过范围，则取默认值free-priority。 | - **free-priority**：优先选择空闲率最高的节点。<br>- **reliability-priority**：优先复用已有借用关系并均衡各节点的借出数。<br>- **performance-priority**：均衡各节点带宽利用率，兼顾时延、内存利用率和可靠性。<br>- 当不配置时，检查已弃用的 `lender.balance`，兼容方式如下：<br>lender.balance=true 时取值 reliability-priority，lender.balance=false 取值 free-priority。 |
+| 13 | bandwidth.tolerance | performance-priority 模式下带宽均衡评分的分带宽度（容忍度）阈值。 | 默认值：2 × block.size <br>单位：MB<br>取值小于block.size视为非法，取默认值2 × block.size。 | 对每个候选借出 socket 模拟本次借用后，计算候选集合借出量 spread（最大借出 − 最小借出）；分带值 D = spread / tolerance（向下取整），D=0 即借入后差值 < tolerance，此时带宽分最优；所有候选按 D 做 min-max 归一化得到带宽分。建议 tolerance 与典型单次借用大小配置为同量级。 |
+| 14 | sei.enable | 控制内存借用时是否启用OS的SEI降级功能。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围或非法，则取默认值false。 | - 仅在借入节点生效。<br>- 依赖 /etc/sudoers.d/ubse-sei 授予 ubse 用户 sysctl 提权权限。<br>- sei.enable=true 时，首次借用内存后自动执行 sysctl -w kernel.arm64_sync_sei=1 开启OS的SEI降级功能；末次归还后自动关闭OS的SEI降级功能。<br>- sei.enable=false时不会触发OS的SEI降级功能，UB断链导致的内存错误可能触发 OS Panic。 |
+| 15 | scheduler.node_lending_limit | 调度器节点最大借出量，即节点作为 lender 的借出总量上限。 | 默认值：用#注释（不限制）<br>单位：GB<br>取值范围：[0, 65535]<br>配置为 0 或不配置时表示不限制，取值超过范围则回退为 0（不限制）。 | - 调度器在选择 lender 前校验 `lender.totalLent + 本次借出量 ≤ node_lending_limit`，超出上限的节点不会被选中。<br>- 所有节点的配置需保持一致。<br>- 默认不限制，按需由部署方显式开启。 |
 
 ## URMA配置说明
 
@@ -141,11 +144,11 @@ A(用户/User)-->B(角色/Role)
 B(角色/Role)-->C(目标对象/Object)
 ```
 
-**用户/User**：表示调用UBSE的接口的客户端，因为UBSE暴露的UDS接口，由UBSE通过OS接口自动获取username或者uid（客户端是容器应用的情况下可能没有username）；单用户/User能且只能绑定一个角色/Role
+**用户/User**：表示调用UBSE的接口的客户端，因为UBSE暴露的UDS接口，由UBSE通过OS接口自动获取username或者uid（客户端是容器应用的情况下可能没有username）；单用户/User能且只能绑定一个角色/Role。
 
-**角色/Role**：表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object
+**角色/Role**：表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object。
 
-**目标对象/Object**：表示能够被操作的资源对象，表示可以对相应对象完成所有操作（简化系统复杂度，不定义基于对象的动作行为）；资源对象的取值范围，由UBSE开发过程确定，在包ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm中可以获取
+**目标对象/Object**：表示能够被操作的资源对象，表示可以对相应对象完成所有操作（简化系统复杂度，不定义基于对象的动作行为）；资源对象的取值范围，由UBSE开发过程确定，在包ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm中可以获取。
 
 ### 配置说明
 
@@ -177,8 +180,8 @@ B(角色/Role)-->C(目标对象/Object)
 
 |序号|所属配置节|参数|说明|取值|配置节点|
 |--|--|--|--|--|--|
-|1|[auth.user]|user|客户端需要自定义配置的用户名禁止与其他自定义文件内容重复，重复会相互覆盖；禁止修改内置用户root,ubse；客户端用户不允许配置为admin角色|客户端需要给该用户配置的角色。|所有节点|
-|2|[auth.role]|default_ubsm|客户端需要自定义配置的角色禁止与其他自定义文件内容重复，重复会相互覆盖；禁止修改内置角色admin；自定义角色不允许引用all对象|客户端需要给该角色配置的权限点。|所有节点|
+|1|[auth.user]|user|客户端需要自定义配置的用户名禁止与其他自定义文件内容重复，重复会相互覆盖；禁止修改内置用户root,ubse；客户端用户不允许配置为admin角色。|客户端需要给该用户配置的角色。|所有节点|
+|2|[auth.role]|default_ubsm|客户端需要自定义配置的角色禁止与其他自定义文件内容重复，重复会相互覆盖；禁止修改内置角色admin；自定义角色不允许引用all对象。|客户端需要给该角色配置的权限点。|所有节点|
 
 **配置示例**
 
@@ -257,20 +260,20 @@ default_k8s = mem.numa,topo
 |--|--|--|--|--|--|
 |1|ubse.plugin.name|VM模块插件名。|固定值为virt\_agent|所有节点|通算虚拟化场景|
 |2|ubse.plugin.pkg|VM模块依赖的so文件名称。|固定值为libvirtagent.so|所有节点|通算虚拟化场景|
-|3|ubse.plugin.vm.export.interval|VM模块数据采集周期。|默认值： 2单位： s取值范围：[1, 60]仿真UB环境，取值建议不少于10参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
+|3|ubse.plugin.vm.export.interval|VM模块数据采集周期。|默认值：2单位：s取值范围：[1, 60]仿真UB环境，取值建议不少于10参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
 |4|borrow.watermark|决策模块第二逃生水线占比配置，高于会触发内存借用。|默认值：92单位：%取值范围：[70,95]且high.watermark <= borrow.watermark - 5参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
 |5|high.watermark|高水线百分比，高触发借用或迁移，低触发归还，且用于决策模块。|默认值：85单位：%取值范围：[65~90]且low.watermark +5 <= high.watermark <= borrow.watermark - 5参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景。|
 |6|low.watermark|低水线百分比，高触发借用或迁移，低触发归还，且用于决策模块。|默认值：80单位：%取值范围：[60~80]low.watermark +5 <= high.watermark参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景。|
-|7|borrow.maxMemPerBorrowSize|单块借用内存的借用量上限。|默认值： 4096单位：MB取值范围：{1024,2048,3072,4096}且borrow.minMemPerBorrowSize <= borrow.maxMemPerBorrowSize参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
-|8|borrow.minMemPerBorrowSize|单块借用内存的借用量下限。|默认值： 1024单位：MB取值范围：{1024,2048,3072,4096}参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
-|9|borrow.maxPerTotalMemBorrowSize|单次决策最多内存借用上限。|默认值： 16384单位：MB取值范围：[4096, 20480]参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
+|7|borrow.maxMemPerBorrowSize|单块借用内存的借用量上限。|默认值：4096单位：MB取值范围：{1024,2048,3072,4096}且borrow.minMemPerBorrowSize <= borrow.maxMemPerBorrowSize参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
+|8|borrow.minMemPerBorrowSize|单块借用内存的借用量下限。|默认值：1024单位：MB取值范围：{1024,2048,3072,4096}参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
+|9|borrow.maxPerTotalMemBorrowSize|单次决策最多内存借用上限。|默认值：16384单位：MB取值范围：[4096, 20480]参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
 |10|borrow.oomBorrowMemSize|oom事件期望借用内存大小。|默认值：1024单位：MB取值范围：[1024,4096]参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
 |11|escape.algorithm.dir|自定义逃生算法so文件的绝对路径，配置中应包含so文件名称。由配置方保证加载so文件的安全可靠性。|默认值：/usr/lib64/libstrategy.so|所有节点|通算虚拟化场景|
 |12|mig.ham.maxTimeout|单个VM确定性热迁移的任务的超时时间。|默认值：60单位：s取值范围：[10, 10800]UB仿真环境建议配成10800。参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
-|13|mig.migrateOneCopyMemoryBound|UB代际下虚拟机热迁移决策OneCopy迁移策略的虚拟机内存阈值。|默认值： 4096单位：MB取值范围：[256,4096]UB仿真环境建议配成256。当目的节点为当前节点的邻居节点，虚拟机使用2M大页，节点间内存借用没有成环，且虚拟机内存规格大于mig.migrateOneCopyMemoryBound配置项的值时，为确定性热迁移。参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
-|14|virt.pageType|虚拟化场景页面类型配置|默认值：1取值范围：01用于设置冷内存迁出时的页面单位，标准设置为0，2M设置为1。|所有节点|通算虚拟化场景|
-|15|mig.isEnableHamMigrate|是否支持确定性热迁移开关|默认值： false取值范围：falsetrue开启确定性热迁移，使用true。|所有节点|通算虚拟化场景|
-|16|virt.sceneType|虚拟化场景类型应用配置|默认值：1取值范围：01容器场景设置为0，虚拟机场景设置为1。|所有节点|通算虚拟化场景|
+|13|mig.migrateOneCopyMemoryBound|UB代际下虚拟机热迁移决策OneCopy迁移策略的虚拟机内存阈值。|默认值：4096单位：MB取值范围：[256,4096]UB仿真环境建议配成256。当目的节点为当前节点的邻居节点，虚拟机使用2M大页，节点间内存借用没有成环，且虚拟机内存规格大于mig.migrateOneCopyMemoryBound配置项的值时，为确定性热迁移。参数配置取值范围之外或错误值都会被重置为默认值。|所有节点|通算虚拟化场景|
+|14|virt.pageType|虚拟化场景页面类型配置。|默认值：1取值范围：01用于设置冷内存迁出时的页面单位，标准设置为0，2M设置为1。|所有节点|通算虚拟化场景|
+|15|mig.isEnableHamMigrate|是否支持确定性热迁移开关。|默认值：false取值范围：falsetrue开启确定性热迁移，使用true。|所有节点|通算虚拟化场景|
+|16|virt.sceneType|虚拟化场景类型应用配置。|默认值：1取值范围：01容器场景设置为0，虚拟机场景设置为1。|所有节点|通算虚拟化场景|
 
 **配置示例**
 
@@ -305,11 +308,11 @@ virt.sceneType=1
 |--|--|--|--|--|--|
 |1|ubse.plugin.name|mempooling模块插件名。|固定值为mempooling|所有节点|通算虚拟化场景|
 |2|ubse.plugin.pkg|mempooling模块依赖的so文件名称。|固定值为libmempooling.so|所有节点|通算虚拟化场景|
-|3|ucache.enable|容器超分场景，是否启用pagecache功能|默认值：false单位： bool|所有节点|容器超分场景|
-|4|rmrs.ipc.timeout|与osturbo进行进程通信的超时时间|默认值：60单位：s|所有节点|通算虚拟化场景|
-|5|rmrs.fragment.mustSamePlane|内存碎片场景，内存借用、迁出策略、迁出执行、故障处理，是否必须同平面(true:必须同平面，false:优先同平面)|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
-|6|rmrs.fragment.enableBorrowSplit|内存碎片场景，借用是否切分为 4G 粒度（true: 切分，false: 不切分）|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
-|7|overcommit.enableMultiNuma|容器超分场景，是否为虚机多numa场景（true: 虚机多numa场景, false: 单numa场景）|默认值：false单位： bool配置范围：false/true|所有节点|容器超分场景|
+|3|ucache.enable|容器超分场景，是否启用pagecache功能。|默认值：false单位：bool|所有节点|容器超分场景|
+|4|rmrs.ipc.timeout|与osturbo进行进程通信的超时时间。|默认值：60单位：s|所有节点|通算虚拟化场景|
+|5|rmrs.fragment.mustSamePlane|内存碎片场景，内存借用、迁出策略、迁出执行、故障处理，是否必须同平面(true:必须同平面，false:优先同平面)。|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
+|6|rmrs.fragment.enableBorrowSplit|内存碎片场景，借用是否切分为 4G 粒度（true: 切分，false: 不切分）。|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
+|7|overcommit.enableMultiNuma|容器超分场景，是否为虚机多numa场景（true: 虚机多numa场景, false: 单numa场景）。|默认值：false单位：bool配置范围：false/true|所有节点|容器超分场景|
 
 **配置示例**
 
@@ -337,7 +340,7 @@ overcommit.enableMultiNuma=false
 |--|--|--|----------------------------------------------------|--|--|
 |1|ubse.plugin.name|UCache模块插件名。| 固定值为ucache                                         |所有节点|通算大数据场景|
 |2|ubse.plugin.pkg|UCache模块依赖的so文件名称。| 固定值为libucache_plugin.so                            |所有节点|通算大数据场景|
-|3|ucache.export.interval|UCache模块数据采集周期。| 默认值： 10单位： s取值范围：[1, 60]仿真UB环境，取值建议不少于10。          |所有节点|通算大数据场景|
+|3|ucache.export.interval|UCache模块数据采集周期。| 默认值：10单位：s取值范围：[1, 60]仿真UB环境，取值建议不少于10。          |所有节点|通算大数据场景|
 |4|strategy.borrow_size|以16进制表示，单次借用或归还动作操作的最小内存大小。参数不在配置范围内，插件初始化失败。| 默认值：1073741824单位：字节配置范围：[134217728,4294967296]     |所有节点|通算大数据场景|
 |5|strategy.maxActionSize|借用策略动作集动作的最大数量，整数型。参数不在配置范围内，插件初始化失败。| 默认值：10配置范围：>=0                                     |所有节点|通算大数据场景|
 |6|strategy.balanceThreshold|借用策略中平衡阈值，节点的平衡状态如果大于平衡阈值将会发生借用调度来平衡系统，浮点型。参数不在配置范围内，插件初始化失败。| 默认值：1.5配置范围：>=1                                    |所有节点|通算大数据场景|

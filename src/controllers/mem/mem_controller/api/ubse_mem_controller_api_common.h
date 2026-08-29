@@ -25,10 +25,10 @@
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
-#include "ubse_mem_debt_ledger.h"
-#include "ubse_mem_decoder_utils.h"
 #include "ubse_mmi_interface.h"
 #include "lock/ubse_lock.h"
+#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_ledger.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::MemOperationType;
@@ -36,6 +36,7 @@ using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
 using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYING;
 using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_RUNNING;
 using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_ABNORMAL;
 using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
 using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYING;
 using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_RUNNING;
@@ -72,11 +73,6 @@ uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp& resp, UbseResult er
                                        MemOperationType type = MemOperationType::FD_BORROW);
 
 std::shared_mutex& GetDecoderImportMutex();
-
-inline std::string GenerateExportObjKey(const std::string& name, const std::string& importNodeId)
-{
-    return name + "_" + importNodeId;
-}
 
 bool IsSdkRequest(uint64_t requestId);
 
@@ -115,6 +111,10 @@ UbseResult GetErrorCodeByObjState(const importType& importObj, const bool& expor
         return UBSE_ERR_EXISTED;
     }
 
+    if (importObj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        return UBSE_ERR_EXISTED;
+    }
+
     if (importObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
         return UBSE_ERR_NOT_EXIST;
     }
@@ -148,6 +148,10 @@ UbseMemStage GetOptStageByObjState(const importType& importObj, const bool& expo
         return UbseMemStage::UBSE_EXIST;
     }
 
+    if (importObj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        return UbseMemStage::UBSE_ERR_ABNORMAL;
+    }
+
     if (importObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
         return UbseMemStage::UBSE_NOT_EXIST;
     }
@@ -169,6 +173,10 @@ UbseMemStage GetMemStageByImportObjState(const importType& importObj, const bool
         return UbseMemStage::UBSE_DELETING;
     }
 
+    if (importObj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        return UbseMemStage::UBSE_ERR_ABNORMAL;
+    }
+
     return UbseMemStage::UBSE_EXIST;
 }
 
@@ -186,6 +194,10 @@ UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType>
     if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYING ||
         importObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
         return UbseMemStage::UBSE_DELETING;
+    }
+
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+        return UbseMemStage::UBSE_ERR_ABNORMAL;
     }
 
     return UbseMemStage::UBSE_EXIST;

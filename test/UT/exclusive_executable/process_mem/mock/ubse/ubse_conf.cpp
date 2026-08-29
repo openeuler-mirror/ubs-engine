@@ -12,6 +12,16 @@
 
 #include "ubse_conf.h"
 namespace ubse::config {
+namespace {
+// 测试期默认保持过滤开启（与真实配置 filter_root_process=true 一致）；
+// 需要以 root 进程作为受管对象时，通过 MockSetFilterRootProcess 临时关闭。
+bool gFilterRootProcess = true;
+} // namespace
+
+void MockSetFilterRootProcess(bool enabled)
+{
+    gFilterRootProcess = enabled;
+}
 
 uint32_t UbseGetUInt(const std::string& section, const std::string& configKey, uint32_t& configValue)
 {
@@ -42,6 +52,9 @@ uint32_t UbseGetStr(const std::string& section, const std::string& configKey, st
 
 uint32_t UbseGetBool(const std::string& section, const std::string& configKey, bool& configValue)
 {
+    if (configKey == "filter_root_process") {
+        configValue = gFilterRootProcess;
+    }
     return 0;
 }
 

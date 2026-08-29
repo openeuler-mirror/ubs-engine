@@ -22,6 +22,7 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_scheduler_request.h"
 #include "ubse_mem_types.h"
 #include "scheduler_cache/ubse_mem_scheduler_node_info.h"
 
@@ -52,6 +53,8 @@ public:
     bool IsFullyConnected() const;
     std::set<std::pair<NodeId, SocketId>> GetReachablePeers(const NodeId& nodeId) const;
     std::set<std::pair<NodeId, SocketId>> GetReachablePeers(const NodeId& nodeId, SocketId socketId) const;
+    // 同平面集合: 请求无 affinitySocketId(或为 -1)时返回空集; 否则为远端 peer 同一 socket + 本节点自身
+    std::set<std::pair<NodeId, SocketId>> GetSamePlaneSockets(const SchedulerRequest& request) const;
     uint64_t GetMaxBorrowSize() const;
     void InitPageSize();
     void InitRadiusConfig();

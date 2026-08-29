@@ -84,6 +84,7 @@ UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string& name, const 
         numaBorrowReq.size += lender.size;
     }
     numaBorrowReq.srcSocket = borrower.affinitySocketId;
+    numaBorrowReq.samePlanePrefer = borrower.samePlanePrefer;
     numaBorrowReq.udsInfo.gid = 0;
     numaBorrowReq.udsInfo.uid = borrower.uid;
     numaBorrowReq.udsInfo.pid = 0;
@@ -122,6 +123,7 @@ UbseResult ConvertUbseMemNumaCreateReq(const std::string& name, const UbseMemBor
     numaBorrowReq.size = opt.size;
     numaBorrowReq.distance = static_cast<ubse::adapter_plugins::mmi::UbseMemDistance>(opt.distance);
     numaBorrowReq.srcSocket = borrower.affinitySocketId;
+    numaBorrowReq.samePlanePrefer = borrower.samePlanePrefer;
     numaBorrowReq.highWatermark = opt.highWatermark;
     numaBorrowReq.udsInfo.gid = 0;
     numaBorrowReq.udsInfo.uid = borrower.uid;
@@ -166,6 +168,7 @@ UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string& name, con
     numaBorrowReq.size = opt.size;
     numaBorrowReq.distance = static_cast<ubse::adapter_plugins::mmi::UbseMemDistance>(opt.distance);
     numaBorrowReq.srcSocket = borrower.affinitySocketId;
+    numaBorrowReq.samePlanePrefer = borrower.samePlanePrefer;
     numaBorrowReq.highWatermark = opt.highWatermark;
     numaBorrowReq.udsInfo.gid = 0;
     numaBorrowReq.udsInfo.uid = borrower.uid;

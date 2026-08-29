@@ -24,7 +24,6 @@ add_executable(ubse
         framework/http/ubse_http_module.cpp
         controllers/node/ubse_node_controller_module.cpp
         controllers/mem/mem_controller/ubse_mem_controller_module.cpp
-        controllers/mem/mem_controller/ubse_mem_controller.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
         controllers/npu/ubse_npu_controller_module.cpp
@@ -42,6 +41,7 @@ add_executable(ubse
         framework/plugin_mgr/ubse_plugin.cpp
         framework/trace_context/trace_context.cpp
         api_server/ubse_api_server.cpp
+        controllers/mem/mem_controller/ubse_mem_controller.cpp
 )
 
 target_include_directories(ubse PRIVATE ${CMAKE_BINARY_DIR}/rpc)
@@ -76,20 +76,6 @@ target_link_libraries(ubse PRIVATE
         ubse_node_controller_register_config
         -Wl,--no-whole-archive
 )
-if (ASAN_BUILD)
-    # 编译选项
-    target_compile_options(ubse PRIVATE
-            -fsanitize=address
-            -fsanitize-recover=address
-            -fno-omit-frame-pointer)
-
-    # 给 ubse 单独设置链接选项
-    target_link_options(ubse PRIVATE
-            -fsanitize=address
-            -fsanitize=leak
-            -static-libasan
-            -fsanitize-recover=address)
-endif ()
 target_compile_options(ubse PRIVATE
         # C 和 C++ 编译选项
         $<$<CONFIG:Debug>: ${DEBUG_FLAGS}>

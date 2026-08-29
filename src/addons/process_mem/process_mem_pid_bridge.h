@@ -12,49 +12,60 @@
 
 #ifndef PROCESS_MEM_PID_BRIDGE_H
 #define PROCESS_MEM_PID_BRIDGE_H
+#include <array>
+#include <mutex>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "ubse_def.h"
 #include "ubse_mem_controller.h"
-#include "ubse_ras.h"
 #include "mp_smap_module.h"
 #include "process_mem_pid_manager_def.h"
 
 namespace process_mem::pid::bridge {
-constexpr const char* MEMPOOLING_PATH = "/usr/lib64/libmempooling.so";
-
+// smap 进程配置查询接口 inLen 上限为 300, 查询时固定传入该大小
+constexpr int kSmapQueryInLen = 300;
 using MigrateOut = std::function<int(const std::vector<mempooling::smap::MigrateOutPayload>&, int)>;
 using Remove = std::function<int(const uint16_t, const std::vector<pid_t>&, int)>;
 using NoMigrateBack = std::function<uint32_t(const std::string&)>;
-
-struct MemoryBorrowRequest {
-    std::string name;
-    uint64_t size;
-    uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN]{};
-};
+using RemoteToRemote = std::function<int(const mempooling::smap::MigrateEscapeMsg&)>;
+using ProcessConfigQuery = std::function<int(int, mempooling::smap::ProcessPayload*, int, int*)>;
 
 class ProcessMemPidBridge {
 public:
+    // 同 pid 的迁出/迁回/归还串行化: smap migrateOut payload 为全量预期迁出声明,
+    // 借出、被动归还、再平衡、对账并发下发会互相覆盖导致账实不符
+    static std::mutex& GetPidOpMutex(pid_t pid)
+    {
+        return pidOpMutexes_[static_cast<size_t>(pid) % kPidOpMutexNum];
+    }
+
     static uint32_t Init();
     static uint32_t UnInit();
-    static uint32_t MemoryBorrow(def::ProcessMemPidInfo& pidInfo,
-                                 const ubse::mem::controller::UbseMemBorrower& borrower,
-                                 const MemoryBorrowRequest& request,
-                                 ubse::mem::controller::UbseMemNumaDesc& borrowInfo);
+
+    static uint32_t RegisterConfigIpcHandlers();
 
     static uint32_t MemoryReturn(const std::string& name);
 
-    static uint32_t GetRemoteNumaSocketInfo(const ubse::mem::controller::UbseMemNumaDesc& desc, uint32_t& socketId,
-                                            uint64_t& numaId);
+    static int MigrateOutToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargetsBytes,
+                                 const std::string& logCtx = {});
+
+    static uint32_t SendReturnRequestToNode(const std::string& nodeId,
+                                            const std::vector<def::ReturnRequestItem>& items);
+
+    static void ProcessMemReturnRequestHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
     inline static MigrateOut rmrsMigrateOut;
     inline static Remove rmrsRemove;
     inline static NoMigrateBack rmrsFreeWithMigrate;
+    inline static RemoteToRemote rmrsRemoteToRemote;
+    inline static ProcessConfigQuery rmrsProcessConfigQuery;
     inline static void* memPoolingHandle = nullptr;
-    static uint32_t FaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
-    static void ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-
-    static uint32_t NotifyBorrowNodesOnFault(const std::string& lentNodeId);
+private:
+    static constexpr uint32_t kPidOpMutexNum = 64;
+    inline static std::array<std::mutex, kPidOpMutexNum> pidOpMutexes_{};
 };
 } // namespace process_mem::pid::bridge
 #endif

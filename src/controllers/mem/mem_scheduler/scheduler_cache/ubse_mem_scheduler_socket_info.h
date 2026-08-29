@@ -132,12 +132,12 @@ public:
         }
         return total;
     }
-    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine, uint64_t blockSize) const
+    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine) const
     {
         uint64_t total = 0;
         for (const auto& [_, numaInfo] : numaInfoMap_) {
             uint64_t result = 0;
-            if (ubse::utils::SafeAdd(total, numaInfo->GetAvailableLendSize(waterLine, blockSize), result)) {
+            if (ubse::utils::SafeAdd(total, numaInfo->GetAvailableLendSize(waterLine), result)) {
                 total = result;
             }
         }

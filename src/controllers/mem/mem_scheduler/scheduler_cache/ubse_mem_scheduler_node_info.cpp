@@ -25,6 +25,7 @@ SchedulerNodeInfo::SchedulerNodeInfo(const UbseNodeInfo& nodeInfo)
     allocator_ = nodeInfo.allocator;
     pmdMapping_ = nodeInfo.pmdMapping;
     blockSize_ = nodeInfo.blockSize;
+    nodeMaxLendGb_ = nodeInfo.nodeMaxLendGb;
     isLender_ = nodeInfo.isLender;
     for (const auto& [_, numaInfo] : nodeInfo.numaInfos) {
         SchedulerSocketInfo* socketInfo;

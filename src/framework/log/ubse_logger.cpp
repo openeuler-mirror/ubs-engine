@@ -452,14 +452,19 @@ void UbseLoggerEntry::DecodeData(std::ostream& os, char* start, const char* end)
 
 bool UbseIsLog(UbseLogLevel level)
 {
-    if (!ubse::log::UbseLoggerManager::gInstance) {
+    auto* loggerManager = ubse::log::UbseLoggerManager::Instance();
+    if (loggerManager == nullptr) {
         return false;
     }
-    return ubse::log::UbseLoggerManager::gInstance->IsLog(level);
+    return loggerManager->IsLog(level);
 }
 bool UbseLog::operator==(UbseLoggerEntry& loggerEntry)
 {
-    ubse::log::UbseLoggerManager::gInstance->Push(std::move(loggerEntry));
+    auto* loggerManager = ubse::log::UbseLoggerManager::gInstance.load(std::memory_order_acquire);
+    if (loggerManager == nullptr) {
+        return false;
+    }
+    loggerManager->Push(std::move(loggerEntry));
     return true;
 }
 } // namespace ubse::log

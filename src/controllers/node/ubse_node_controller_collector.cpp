@@ -73,6 +73,18 @@ UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo)
                       << ", will use default value: true";
         ubseNodeInfo.isLender = true;
     }
+    // Read the per-node lending limit. Each node reports its own value, aggregated on the master scheduler side.
+    // Range [0, 65535] GB, 0 = unlimited; out of range falls back to 0 (unlimited)
+    const std::string nodeMaxLendKey = "scheduler.node_lending_limit";
+    uint32_t nodeMaxLendGb = 0;
+    ret = confModule->GetConf<uint32_t>(IS_LENDER_SECTION, nodeMaxLendKey, nodeMaxLendGb);
+    constexpr uint32_t maxNodeMaxLendGb = 65535;
+    if (ret == UBSE_OK && nodeMaxLendGb <= maxNodeMaxLendGb) {
+        ubseNodeInfo.nodeMaxLendGb = nodeMaxLendGb;
+    } else if (ret == UBSE_OK) {
+        UBSE_LOG_WARN << "config " << nodeMaxLendKey << "=" << nodeMaxLendGb << " out of range [0, " << maxNodeMaxLendGb
+                      << "], fallback to 0 (unlimited)";
+    }
     return UBSE_OK;
 }
 

@@ -12,17 +12,24 @@
 
 #include "ubse_cli_mem_pid.h"
 
+#include <functional>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_constant.h"
+#include "ubse_cli_mem_struct.h"
 #include "ubse_cli_reg.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
+#include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_serial_util.h"
+
+UBSE_DEFINE_THIS_MODULE("ubse_cli");
 
 namespace ubse::cli::reg {
 using namespace ubse::cli::framework;
@@ -30,131 +37,195 @@ using namespace ubse::serial;
 
 namespace {
 constexpr uint16_t PID_MODULE_CODE = UBSE_MEM;
-constexpr uint16_t PID_SET_THRESHOLD_OP = UBSE_MEM_CLI_PID_SET_THRESHOLD;
-constexpr uint16_t PID_PRINT_OP = UBSE_MEM_CLI_PRINT_PID_INFO;
-constexpr uint16_t PID_UNSET_OP = UBSE_MEM_CLI_PID_UNSET;
 
-bool PidInfoDeSerialization(UbseDeSerialization& in, std::vector<process_mem::def::ProcessMemPidInfo>& data)
+std::shared_ptr<UbseCliResultEcho> HandleSimpleIpcResponse(ubse_api_buffer_t& resBuffer, uint32_t invokeRet,
+                                                           const char* successMsg)
 {
-    size_t dataSize{};
-    in >> dataSize;
-    if (!in.Check()) {
-        return false;
+    UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
+    if (invokeRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "IPC invoke failed, ret=" << invokeRet;
+        return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(invokeRet));
     }
-    for (size_t i = 0; i < dataSize; ++i) {
-        process_mem::def::ProcessMemPidInfo tmpInfo{};
-        auto ret = tmpInfo.configInfo.DeserializeConfigInfo(in);
-        if (ret != UBSE_OK) {
-            return false;
-        }
-        data.push_back(tmpInfo);
+    UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
+    int successCode = 0;
+    std::string errMsg;
+    deserial >> successCode >> errMsg;
+    if (deserial.Check() && successCode == 1) {
+        return UbseCliRegModule::UbseCliStringPromptReply(successMsg);
     }
-    return true;
+    if (!deserial.Check()) {
+        return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Invalid response from daemon.");
+    }
+    UBSE_LOG_ERROR << "Daemon error response: successCode=" << successCode << ", errMsg=" << errMsg;
+    return UbseCliRegModule::UbseCliStringPromptReply("ERROR: " + errMsg);
 }
 
-std::shared_ptr<UbseCliResultEcho> BuildPidInfoTable(
-    const std::vector<process_mem::def::ProcessMemPidInfo>& pidInfoDetail)
+std::shared_ptr<UbseCliResultEcho> HandleStructIpcResponse(ubse_api_buffer_t& resBuffer, uint32_t invokeRet,
+                                                           std::function<std::string()> formatSuccess)
 {
-    UbseCliResBuilder variableCellBuilder(UBSE_CLI_NUM_6, UBSE_CLI_NUM_30);
-    size_t row = variableCellBuilder.UbseCliAddRow();
-    variableCellBuilder.UbseCliAddlineSeparate(row);
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "pid");
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "evictThreshold");
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "targetEvictThreshold");
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "reclaimThreshold");
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "totalMemoryUsage");
-    variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "srcNuma");
-    variableCellBuilder.UbseCliAddBottomlineSeparate();
-    for (const auto& pidInfo : pidInfoDetail) {
-        row = variableCellBuilder.UbseCliAddRow();
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, std::to_string(pidInfo.configInfo.pid));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(pidInfo.configInfo.evictThreshold));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_3,
-                                               std::to_string(pidInfo.configInfo.targetEvictThreshold));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_4,
-                                               std::to_string(pidInfo.configInfo.reclaimThreshold));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_5,
-                                               std::to_string(pidInfo.configInfo.expectedMemoryUsage));
-        variableCellBuilder.UbseCliSetCellData(
-            row, UBSE_CLI_NUM_6,
-            pidInfo.configInfo.srcNumaId.has_value() ? std::to_string(pidInfo.configInfo.srcNumaId.value()) : "N/A");
+    UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
+    if (invokeRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "IPC invoke failed, ret=" << invokeRet;
+        return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(invokeRet));
     }
-    variableCellBuilder.UbseCliAddBottomlineSeparate();
-    return UbseCliRegModule::UbseCliVariableCelReply(variableCellBuilder.UbseCliVariableCellBuild());
+    UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
+    int successCode = 0;
+    std::string errMsg;
+    deserial >> successCode >> errMsg;
+    if (deserial.Check() && successCode == 1) {
+        return UbseCliRegModule::UbseCliStringPromptReply(formatSuccess());
+    }
+    if (!deserial.Check()) {
+        return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Invalid response from daemon.");
+    }
+    UBSE_LOG_ERROR << "Daemon error response: successCode=" << successCode << ", errMsg=" << errMsg;
+    return UbseCliRegModule::UbseCliStringPromptReply("ERROR: " + errMsg);
 }
-} // anonymous namespace
+
+static constexpr uint64_t kBytesPerKiB = 1024ULL;
+static constexpr uint64_t kBytesPerMiB = kBytesPerKiB * kBytesPerKiB;
+static constexpr uint64_t kBytesPerGiB = kBytesPerKiB * kBytesPerKiB * kBytesPerKiB;
+
+static std::string FormatMaxMemoryHuman(uint64_t bytes)
+{
+    // 统一以 G 为单位回显: 整除显示整数 G, 否则显示小数 G (去尾零)
+    if (bytes % kBytesPerGiB == 0) {
+        return std::to_string(bytes / kBytesPerGiB) + "G";
+    }
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(5) << (static_cast<double>(bytes) / static_cast<double>(kBytesPerGiB));
+    std::string value = oss.str();
+    size_t end = value.find_last_not_of('0');
+    if (end != std::string::npos) {
+        value.erase(end + 1);
+    }
+    if (!value.empty() && value.back() == '.') {
+        value.pop_back();
+    }
+    return value + "G";
+}
+
+static std::string FormatRatioHuman(double ratio)
+{
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << ratio;
+    return oss.str();
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildProcessMemConfigTable(
+    const std::vector<process_mem::def::ProcessMemDisplayEntry>& entries)
+{
+    if (entries.empty()) {
+        return UbseCliRegModule::UbseCliStringPromptReply("No process is currently managed by process_mem");
+    }
+    constexpr size_t COL_COUNT = 4;
+    constexpr size_t COL_WIDTH = 30;
+    UbseCliResBuilder builder(COL_COUNT, COL_WIDTH);
+    size_t row = builder.UbseCliAddRow();
+    builder.UbseCliAddlineSeparate(row);
+    builder.UbseCliSetCellData(row, 1, "PID");
+    builder.UbseCliSetCellData(row, 2, "Name");
+    builder.UbseCliSetCellData(row, 3, "Size");
+    builder.UbseCliSetCellData(row, 4, "RemoteRatio");
+    builder.UbseCliAddBottomlineSeparate();
+
+    for (const auto& entry : entries) {
+        row = builder.UbseCliAddRow();
+        builder.UbseCliSetCellData(row, 1, entry.pid > 0 ? std::to_string(entry.pid) : "N/A");
+        builder.UbseCliSetCellData(row, 2, entry.name);
+        builder.UbseCliSetCellData(row, 3, FormatMaxMemoryHuman(entry.maxMemory));
+        builder.UbseCliSetCellData(row, 4, FormatRatioHuman(entry.remoteRatio));
+    }
+    builder.UbseCliAddBottomlineSeparate();
+    return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
+}
+
+} // namespace
 
 class UbseCliMemPid::UbseCliMemPidImpl {
 public:
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliSetPidThresholdImpl(
-        const process_mem::def::ProcessMemPidInfo& pidInfo)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliSetProcessMemImpl(
+        const process_mem::def::ProcessMemNewConfigInfo& newConfig)
     {
         UbseSerialization serializer;
-        auto ret = pidInfo.configInfo.SerializeConfigInfo(serializer);
+        auto ret = newConfig.Serialize(serializer);
         if (ret != UBSE_OK) {
             return UbseCliRegModule::UbseCliStringPromptReply(data::error::REQUEST_INFO_SER_FAILED);
         }
         ubse_api_buffer_t reqBuffer{serializer.GetBuffer(), static_cast<uint32_t>(serializer.GetLength())};
         ubse_api_buffer_t resBuffer{};
-        UbseCliWaitIndicator waitIndicator("Setting pidInfo");
-        ret = ubse_invoke_call(PID_MODULE_CODE, PID_SET_THRESHOLD_OP, &reqBuffer, &resBuffer);
-        UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
-        if (ret != UBSE_OK) {
-            return UbseCliRegModule::UbseCliStringPromptReply(
-                std::string("ERROR: Internal error with error code " + std::to_string(ret)));
-        }
-        UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
-        int successCode = 0;
-        std::string errMsg;
-        deserial >> successCode >> errMsg;
-        if (deserial.Check() && successCode == 1) {
-            return UbseCliRegModule::UbseCliStringPromptReply("Set successfully");
-        }
-        return UbseCliRegModule::UbseCliStringPromptReply("ERROR: " + errMsg);
+        UbseCliWaitIndicator waitIndicator("Setting process-mem config");
+        ret = ubse_invoke_call(PID_MODULE_CODE, UBSE_MEM_CLI_PROC_MEM_SET, &reqBuffer, &resBuffer);
+        return HandleStructIpcResponse(resBuffer, ret, [&newConfig]() {
+            std::ostringstream echo;
+            if (newConfig.isPid) {
+                echo << "PID: " << newConfig.identifier << "\n";
+            } else {
+                echo << "Name: " << newConfig.identifier << "\n";
+            }
+            echo << "Size: " << FormatMaxMemoryHuman(newConfig.maxMemory) << "\n";
+            echo << "RemoteRatio: " << std::fixed << std::setprecision(2) << newConfig.remoteRatio << "\n";
+            echo << "Set process-mem config successfully";
+            return echo.str();
+        });
     }
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliPrintPidInfoImpl()
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliRemoveProcessMemImpl(bool isPid, const std::string& identifier)
+    {
+        process_mem::def::ProcessMemNewConfigInfo newConfig{};
+        newConfig.isPid = isPid;
+        newConfig.identifier = identifier;
+        UbseSerialization serializer;
+        auto serRet = newConfig.Serialize(serializer);
+        if (serRet != UBSE_OK || !serializer.Check()) {
+            return UbseCliRegModule::UbseCliStringPromptReply(data::error::REQUEST_INFO_SER_FAILED);
+        }
+        ubse_api_buffer_t reqBuffer{serializer.GetBuffer(), static_cast<uint32_t>(serializer.GetLength())};
+        ubse_api_buffer_t resBuffer{};
+        uint32_t ret = ubse_invoke_call(PID_MODULE_CODE, UBSE_MEM_CLI_PROC_MEM_REMOVE, &reqBuffer, &resBuffer);
+        std::string successMsg = isPid ? ("pid " + identifier + " removed") : ("name '" + identifier + "' removed");
+        return HandleSimpleIpcResponse(resBuffer, ret, successMsg.c_str());
+    }
+
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDisplayProcessMemImpl(uint32_t opcode)
     {
         UbseSerialization serial;
         ubse_api_buffer_t reqBuffer{serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
         ubse_api_buffer_t resBuffer{};
-        uint32_t ret = ubse_invoke_call(PID_MODULE_CODE, PID_PRINT_OP, &reqBuffer, &resBuffer);
+        uint32_t ret = ubse_invoke_call(PID_MODULE_CODE, opcode, &reqBuffer, &resBuffer);
         UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
         if (ret != UBSE_OK) {
-            return UbseCliRegModule::UbseCliStringPromptReply(
-                std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+            UBSE_LOG_ERROR << "DisplayProcessMem IPC invoke failed, ret=" << ret;
+            return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(ret));
         }
-        UbseDeSerialization derial{resBuffer.buffer, resBuffer.length};
-        std::vector<process_mem::def::ProcessMemPidInfo> pidInfo{};
-        if (!PidInfoDeSerialization(derial, pidInfo)) {
-            return UbseCliRegModule::UbseCliStringPromptReply("ERROR");
+
+        UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
+        size_t count = 0;
+        deserial >> count;
+        if (!deserial.Check()) {
+            return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Deserialization failed.");
         }
-        if (pidInfo.empty()) {
-            return UbseCliRegModule::UbseCliStringPromptReply("No process is currently managed by process_mem");
+
+        std::vector<process_mem::def::ProcessMemDisplayEntry> entries;
+        for (size_t i = 0; i < count; ++i) {
+            process_mem::def::ProcessMemDisplayEntry entry;
+            if (entry.Deserialize(deserial) != UBSE_OK) {
+                return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Deserialization failed.");
+            }
+            entries.push_back(std::move(entry));
         }
-        return BuildPidInfoTable(pidInfo);
+
+        return BuildProcessMemConfigTable(entries);
     }
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliUnsetPidImpl(pid_t pid)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDisplayProcessMemConfigImpl()
     {
-        UbseSerialization serial;
-        serial << pid;
-        ubse_api_buffer_t reqBuffer{serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-        ubse_api_buffer_t resBuffer{};
-        uint32_t ret = ubse_invoke_call(PID_MODULE_CODE, PID_UNSET_OP, &reqBuffer, &resBuffer);
-        UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
-        if (ret != UBSE_OK) {
-            return UbseCliRegModule::UbseCliStringPromptReply(
-                std::string("ERROR: Internal error with error code " + std::to_string(ret)));
-        }
-        UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
-        int successCode = 0;
-        std::string errMsg;
-        deserial >> successCode >> errMsg;
-        if (deserial.Check() && successCode == 1) {
-            return UbseCliRegModule::UbseCliStringPromptReply("Unset successfully");
-        }
-        return UbseCliRegModule::UbseCliStringPromptReply("ERROR: " + errMsg);
+        return UbseCliDisplayProcessMemImpl(UBSE_MEM_CLI_PROC_MEM_DISPLAY_CONFIG);
+    }
+
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDisplayProcessMemDetailImpl()
+    {
+        return UbseCliDisplayProcessMemImpl(UBSE_MEM_CLI_PROC_MEM_DISPLAY_DETAIL);
     }
 };
 
@@ -165,28 +236,37 @@ UbseCliMemPid::UbseCliMemPid()
 
 UbseCliMemPid::~UbseCliMemPid() noexcept = default;
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliSetPidThreshold(
-    const process_mem::def::ProcessMemPidInfo& pidInfo)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliSetProcessMem(
+    const process_mem::def::ProcessMemNewConfigInfo& newConfig)
 {
     if (pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
     }
-    return pImpl_->UbseCliSetPidThresholdImpl(pidInfo);
+    return pImpl_->UbseCliSetProcessMemImpl(newConfig);
 }
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliPrintPidInfo()
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliRemoveProcessMem(bool isPid,
+                                                                                     const std::string& identifier)
 {
     if (pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
     }
-    return pImpl_->UbseCliPrintPidInfoImpl();
+    return pImpl_->UbseCliRemoveProcessMemImpl(isPid, identifier);
 }
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliUnsetPid(pid_t pid)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliDisplayProcessMemConfig()
 {
     if (pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
     }
-    return pImpl_->UbseCliUnsetPidImpl(pid);
+    return pImpl_->UbseCliDisplayProcessMemConfigImpl();
+}
+
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemPid::UbseCliDisplayProcessMemDetail()
+{
+    if (pImpl_ == nullptr) {
+        return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
+    }
+    return pImpl_->UbseCliDisplayProcessMemDetailImpl();
 }
 } // namespace ubse::cli::reg

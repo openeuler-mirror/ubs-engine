@@ -18,6 +18,7 @@
 #include <filesystem>
 
 #include "it_console_log.h"
+#include "mock_lcne_port.h"
 #include "mock_lcne_xml.h"
 
 namespace ubse::it::infra {
@@ -142,6 +143,17 @@ void MockLcneServer::RegisterHandlers()
                     res.set_header("Content-Type", "application/yang-data+xml");
                     res.set_content(lcne_xml::FeBindingXml(slotId_), "application/yang-data+xml");
                 });
+}
+
+void MockLcneServer::MarkLinkDown(uint32_t peerSlotId, const std::set<int>& ubpuIds, const std::set<int>& portIds)
+{
+    // 端口判定(链路是否存在、对端端口号)及端口状态均在 lcne_port 内部维护.
+    lcne_port::MarkLinkDown(slotId_, peerSlotId, ubpuIds, portIds, clusterSlotIds_.size());
+}
+
+void MockLcneServer::ClearLinkDowns()
+{
+    lcne_port::ClearLinkDowns(slotId_);
 }
 
 UbseResult MockLcneServer::Start()

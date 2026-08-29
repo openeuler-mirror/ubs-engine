@@ -16,6 +16,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
@@ -44,6 +45,7 @@ std::vector<uint8_t> LoadSysEntryFile(uint32_t& maxLen);
 enum class UbseSmbiosType
 {
     TYPE_1 = 1,
+    TYPE_4 = 4,
     SUPER_POD_BASIC_INFO_T = 131,
     TYPE_INVALID
 };
@@ -94,10 +96,18 @@ protected:
 protected:
     SmbiosStructure() = default;
     UbseResult DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_t flags, UbseSmbiosType type);
+    /*
+     * @brief 根据SMBIOS格式化区域中保存的字符串编号，读取当前结构的字符串
+     * @param stringNumber 从1开始编号，1对应header.length之后的第一个字符串，0表示未指定字符串
+     * @param value 返回编号对应的字符串
+     * @return UBSE_OK 表示读取成功，其他值表示数据不完整或字符串编号无效
+     */
+    UbseResult GetSmbiosString(uint8_t stringNumber, std::string& value) const;
     virtual UbseResult FillSmbiosStructFromBuf()
     {
         return UBSE_ERR_NOT_SUPPORTED;
     }
+    uint32_t availableLength{0};
 };
 
 class SmbiosStructureType1 : public SmbiosStructure {
@@ -106,7 +116,7 @@ public:
     void LogSmbiosStructTypeInfo() override;
 
 public:
-    std::array<char, TYPE_1_MAX_LEN> manufacturer;
+    std::string manufacturer;
     std::array<char, PRODUCT_NAME_MAX_LEN> productName;
     std::array<char, TYPE_1_MAX_LEN> version;
     std::array<char, TYPE_1_MAX_LEN> serialNumber;
@@ -114,6 +124,18 @@ public:
     std::array<char, TYPE_1_MAX_LEN> wakeupType;
     std::array<char, TYPE_1_MAX_LEN> skuNumber;
     std::array<char, TYPE_1_MAX_LEN> family;
+
+protected:
+    UbseResult FillSmbiosStructFromBuf() override;
+};
+
+class SmbiosStructureType4 : public SmbiosStructure {
+public:
+    static constexpr UbseSmbiosType type = UbseSmbiosType::TYPE_4;
+    void LogSmbiosStructTypeInfo() override;
+
+public:
+    std::string version;
 
 protected:
     UbseResult FillSmbiosStructFromBuf() override;
@@ -151,6 +173,14 @@ struct SmbiosTypeMap {
 template <>
 struct SmbiosTypeMap<UbseSmbiosType::TYPE_1> {
     using Type = SmbiosStructureType1;
+};
+
+/**
+ * @brief SmbiosTypeMap的特化，将TYPE_4映射到SmbiosStructureType4
+ */
+template <>
+struct SmbiosTypeMap<UbseSmbiosType::TYPE_4> {
+    using Type = SmbiosStructureType4;
 };
 
 /**

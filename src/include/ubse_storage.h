@@ -62,6 +62,14 @@ uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& k
  */
 uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key);
 
+/**
+ * @brief 列出指定前缀的key列表
+ * @param keyPrefix[in]: key前缀
+ * @param keys[out]: 匹配的key列表（不含前缀）
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseStorageListKeys(const std::string& keyPrefix, std::vector<std::string>& keys);
+
 } // namespace ubse::storage
 
 #endif // UBSE_STORAGE_H

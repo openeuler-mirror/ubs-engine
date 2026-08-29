@@ -19,6 +19,7 @@
  * in ubse_it_daemon.
  *
  * Current overrides:
+ *   gethostname          -> per-node UBSE_IT_HOSTNAME (it-node-<slotId>)
  *   getgrnam("ubm_nuds") -> return fake group (bypass group lookup)
  *   getpwuid/getpwuid_r  -> return fake "ubse" user for IT peer permission checks
  *   connect(2) to election TCP peers -> bind source to this IT node IP first
@@ -59,12 +60,38 @@ constexpr const char* UBSE_IT_UDS_SOCKET_PATH_ENV = "UBSE_IT_UDS_SOCKET_PATH";
 constexpr const char* UBSE_IT_AUTH_USER = "ubse";
 constexpr const char* UBSE_OBMM_DEV_PREFIX = "/dev/obmm_shmdev";
 
+// Early-init guard.
+//
+// When the IT daemon runs under ASAN, libasan calls libc functions (e.g.
+// mkdir) during ITS OWN initialization.  Because libasan is preloaded first,
+// this happens BEFORE this library's constructor runs — i.e. while the
+// dynamic loader is still initializing.  In that window getenv()/std::string
+// are not safe to use (they can fault reading the loader's env area), so the
+// stubs below forward directly to the real libc function without any path
+// redirection until g_runtimeReady is set.
+static volatile bool g_runtimeReady = false;
+__attribute__((constructor)) static void MarkPreloadRuntimeReady()
+{
+    g_runtimeReady = true;
+}
+
 bool IsObmmDevicePath(const char* path)
 {
     if (path == nullptr) {
         return false;
     }
     return strncmp(path, UBSE_OBMM_DEV_PREFIX, strlen(UBSE_OBMM_DEV_PREFIX)) == 0;
+}
+
+bool IsObmmModulePath(const char* path)
+{
+    if (path == nullptr) {
+        return false;
+    }
+    // 生产机中 /sys/module/obmm 是 obmm 内核模块的加载目录，collector 通过
+    // stat() 判断该目录是否存在来决定 obmmState。IT 环境无该内核模块，这里
+    // 模拟目录存在，使在线节点的 check memory 健康状态可判定为 ok。
+    return strcmp(path, "/sys/module/obmm") == 0;
 }
 
 bool CsvContainsIp(const char* csv, in_addr_t ip)
@@ -328,6 +355,42 @@ extern "C" unsigned int sleep(unsigned int seconds)
     usleep(10000); // 10ms
     return 0;
 }
+
+// ============================================================
+// gethostname stub: 每节点通过 UBSE_IT_HOSTNAME 环境变量上报唯一主机名
+// (it-node-<slotId>)，未设置时回落真实主机名。用于满足
+// group/provider 配置要求的主机名唯一性。
+// ============================================================
+
+typedef int (*gethostname_func_t)(char*, size_t);
+static gethostname_func_t real_gethostname_func = nullptr;
+
+static void init_real_gethostname()
+{
+    if (real_gethostname_func == nullptr) {
+        real_gethostname_func = reinterpret_cast<gethostname_func_t>(dlsym(RTLD_NEXT, "gethostname"));
+    }
+}
+
+extern "C" int gethostname(char* name, size_t len)
+{
+    init_real_gethostname();
+    const char* itHostname = getenv("UBSE_IT_HOSTNAME");
+    if (itHostname != nullptr && itHostname[0] != '\0') {
+        size_t required = strlen(itHostname) + 1;
+        if (len < required) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        memcpy(name, itHostname, required);
+        return 0;
+    }
+    if (real_gethostname_func == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real_gethostname_func(name, len);
+}
 typedef int (*open_func_t)(const char*, int, mode_t);
 static open_func_t real_open_func = nullptr;
 
@@ -352,6 +415,10 @@ extern "C" int open(const char* pathname, int flags, ...)
         va_start(args, flags);
         mode = va_arg(args, mode_t);
         va_end(args);
+    }
+
+    if (!g_runtimeReady) {
+        return real_open_func(pathname, flags, mode);
     }
 
     const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
@@ -392,6 +459,10 @@ extern "C" FILE* popen(const char* command, const char* mode)
         return nullptr;
     }
 
+    if (!g_runtimeReady) {
+        return real_popen_func(command, mode);
+    }
+
     const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
     if (seiPath != nullptr && seiPath[0] != '\0' && command != nullptr) {
         const char* key = "arm64_sync_sei=";
@@ -407,6 +478,17 @@ extern "C" FILE* popen(const char* command, const char* mode)
             }
             return real_popen_func("echo ok", "r");
         }
+    }
+
+    // sysSentry IT 模拟：生产机上由 sentryctl 查询/配置 sysSentry 服务，
+    // IT 环境无该命令。这里拦截以保证节点健康状态可判定为 ok：
+    //   - "sentryctl status ..." => 输出 RUNNING，使 isSentryMsgMonitorRunning=true
+    //   - "sentryctl set ..."    => 返回成功（exit 0），使 sysSentry 配置成功
+    if (command != nullptr && strstr(command, "sentryctl") != nullptr) {
+        if (strstr(command, "status") != nullptr) {
+            return real_popen_func("echo status: RUNNING", "r");
+        }
+        return real_popen_func("echo ok", "r");
     }
 
     return real_popen_func(command, mode);
@@ -450,6 +532,9 @@ extern "C" DIR* opendir(const char* name)
         errno = ENOSYS;
         return nullptr;
     }
+    if (!g_runtimeReady) {
+        return real_opendir(name);
+    }
     std::string redirected = RedirectSysfsPath(name);
     redirected = RedirectUbseConfPath(redirected.c_str());
     return real_opendir(redirected.c_str());
@@ -468,10 +553,24 @@ extern "C" int lstat(const char* path, struct stat* buf)
         return 0;
     }
 
+    // 模拟 obmm 内核模块加载目录存在，使 obmmState 判定为 INSERTED
+    if (IsObmmModulePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFDIR | 0755;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
     init_real_conf_funcs();
     if (real_lstat == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_lstat(path, buf);
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
@@ -485,6 +584,9 @@ extern "C" FILE* fopen64(const char* path, const char* mode)
     if (real_fopen64 == nullptr) {
         errno = ENOSYS;
         return nullptr;
+    }
+    if (!g_runtimeReady) {
+        return real_fopen64(path, mode);
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
@@ -507,10 +609,24 @@ extern "C" int stat(const char* path, struct stat* buf)
         return 0;
     }
 
+    // 模拟 obmm 内核模块加载目录存在，使 obmmState 判定为 INSERTED
+    if (IsObmmModulePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFDIR | 0755;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
     init_real_conf_funcs();
     if (real_stat == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_stat(path, buf);
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
@@ -562,6 +678,9 @@ extern "C" int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_bind(sockfd, addr, addrlen);
+    }
 
     sockaddr_un redirected{};
     socklen_t redirectedLen = 0;
@@ -579,6 +698,9 @@ extern "C" char* realpath(const char* path, char* resolvedPath)
         errno = ENOSYS;
         return nullptr;
     }
+    if (!g_runtimeReady) {
+        return real_realpath(path, resolvedPath);
+    }
 
     std::string sysfsRedirected = RedirectSysfsPath(path);
     std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
@@ -592,6 +714,9 @@ extern "C" int mkdir(const char* pathname, mode_t mode)
     if (real_mkdir == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_mkdir(pathname, mode);
     }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
@@ -610,6 +735,9 @@ extern "C" int chmod(const char* pathname, mode_t mode)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_chmod(pathname, mode);
+    }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
     return real_chmod(redirected.c_str(), mode);
@@ -627,6 +755,9 @@ extern "C" int chown(const char* pathname, uid_t owner, gid_t group)
         errno = ENOSYS;
         return -1;
     }
+    if (!g_runtimeReady) {
+        return real_chown(pathname, owner, group);
+    }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
     return real_chown(redirected.c_str(), owner, group);
@@ -638,6 +769,9 @@ extern "C" int unlink(const char* pathname)
     if (real_unlink == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_unlink(pathname);
     }
 
     std::string redirected = RedirectUbseRuntimePath(pathname);
@@ -656,6 +790,9 @@ extern "C" int access(const char* pathname, int mode)
     if (real_access == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_access(pathname, mode);
     }
 
     std::string sysfsRedirected = RedirectSysfsPath(pathname);
@@ -683,6 +820,9 @@ extern "C" int connect(int sockfd, const struct sockaddr* addr, socklen_t addrle
     if (real_connect == nullptr) {
         errno = ENOSYS;
         return -1;
+    }
+    if (!g_runtimeReady) {
+        return real_connect(sockfd, addr, addrlen);
     }
     BindElectionTcpSourceIfNeeded(sockfd, addr, addrlen);
     sockaddr_un redirected{};

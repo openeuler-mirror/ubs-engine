@@ -342,7 +342,7 @@ static UbseResult SendSingleFaultMemBlockMessage(const std::string& handleType, 
     };
     UbseClientInfo clientInfo{.uid = udsInfo.uid, .gid = udsInfo.gid, .pid = udsInfo.pid};
     ret = apiServerPtr->AsyncSendLongLink(longLinkReq, clientInfo, nullptr, respHandler, reqList);
-    SafeDelete(buffer);
+    SafeDeleteArray(buffer);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send " << handleType
                        << " fault long link message, memName=" << faultMem.memName << ", handleId=" << faultMem.handleId
@@ -763,6 +763,9 @@ static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap
             continue;
         }
         auto obj = *objPtr;
+        if (obj.status.state == UBSE_MEM_IMPORT_ABNORMAL) {
+            continue;
+        }
         for (auto& info : obj.status.importResults) {
             if (info.memId == memId) {
                 importMap.PutResource(nodeId, name, obj);

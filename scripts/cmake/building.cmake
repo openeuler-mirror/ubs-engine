@@ -36,6 +36,9 @@ set(BASE_BUILD_FLAGS
 option(ASAN_BUILD "OFF")
 if(ASAN_BUILD STREQUAL "ON")
     message(STATUS "AddressSanitizer (ASAN) is enabled.")
+    # -fsanitize-recover=address: 出错后继续运行，便于一次性收集全部内存问题报告
+    add_compile_options(-fsanitize=address -fsanitize-recover=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
 endif()
 
 set(DEBUG_FLAGS ${BASE_BUILD_FLAGS} ${SECURE_BUILD_FLAGS}

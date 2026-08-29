@@ -32,7 +32,8 @@ uint64_t ConvertSizeToMB(const uint64_t value)
 const std::set<UbseMemState> allowedStates = {
     UbseMemState::UBSE_MEM_IMPORT_RUNNING,    UbseMemState::UBSE_MEM_EXPORT_RUNNING,
     UbseMemState::UBSE_MEM_IMPORT_SUCCESS,    UbseMemState::UBSE_MEM_EXPORT_SUCCESS,
-    UbseMemState::UBSE_MEM_IMPORT_DESTROYING, UbseMemState::UBSE_MEM_EXPORT_DESTROYING};
+    UbseMemState::UBSE_MEM_IMPORT_DESTROYING, UbseMemState::UBSE_MEM_EXPORT_DESTROYING,
+    UbseMemState::UBSE_MEM_IMPORT_ABNORMAL};
 
 enum class AccoutObjType
 {

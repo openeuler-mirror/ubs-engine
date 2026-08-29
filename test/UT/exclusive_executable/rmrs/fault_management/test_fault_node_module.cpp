@@ -596,27 +596,27 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeSuccess3)
     std::string curDealNodeId;
     std::vector<BorrowRecord> borrowRecords;
     std::vector<BorrowExecuteParam> borrowExecuteParamCollectList;
-    MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeIdList,
-               MpResult(*)(std::string curDealNodeId, std::vector<std::string> & borrowAbleNodeIdList))
+    MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeIdList, MpResult(*)(FaultNodeModule*, std::string curDealNodeId,
+                                                                      std::vector<std::string> & borrowAbleNodeIdList))
         .stubs()
-        .will(returnValue(0));
+        .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize,
-               MpResult(*)(std::vector<std::string> borrowAbleNodeIdList,
+               MpResult(*)(FaultNodeModule*, std::vector<std::string> borrowAbleNodeIdList,
                            std::vector<NodeMemoryInfoWithReservedMem> & ableNodeMemInfoList))
         .stubs()
-        .will(returnValue(0));
+        .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::MergeBorrowRecords,
                void (*)(FaultNodeModule * This, std::vector<BorrowRecord> borrowRecordList,
                         std::vector<NodeBorrowRecord> & nodeBorrowRecordList))
         .stubs()
         .will(invoke(TestMergeBorrowRecords1));
-    MOCKER_CPP(
-        &FaultNodeModule::NodeMayBorrowFromOtherNode,
-        MpResult(*)(NodeBorrowRecord nodeBorrowRecord, std::vector<NodeMemoryInfoWithReservedMem> ableNodeMemInfoList,
-                    std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList))
+    MOCKER_CPP(&FaultNodeModule::NodeMayBorrowFromOtherNode,
+               MpResult(*)(FaultNodeModule*, NodeBorrowRecord nodeBorrowRecord,
+                           std::vector<NodeMemoryInfoWithReservedMem> & ableNodeMemInfoList,
+                           std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList))
         .stubs()
-        .will(returnValue(0))
-        .then(returnValue(1));
+        .will(returnValue(MEM_POOLING_OK))
+        .then(returnValue(MEM_POOLING_ERROR));
     std::vector<ForwardMemIdParam> forwardMemIdParamList;
     auto res = FaultNodeModule::Instance().MayBorrowFromOtherNode(curDealNodeId, borrowRecords,
                                                                   borrowExecuteParamCollectList, forwardMemIdParamList);
@@ -633,9 +633,9 @@ TEST_F(TestFaultNodeModule, FillBorrowExecuteParamFail1)
     param.borrowNodeId = "0";
     param.lentNodeId = "1";
     borrowExecuteParamCollectList.push_back(param);
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
-        .will(returnValue(1));
+        .will(returnValue(MEM_POOLING_ERROR));
     auto res = FaultNodeModule::Instance().FillBorrowExecuteParam(borrowExecuteParamCollectList);
     ASSERT_NE(res, MEM_POOLING_OK);
 }
@@ -647,9 +647,9 @@ TEST_F(TestFaultNodeModule, FillBorrowExecuteParamSuccess)
     param.borrowNodeId = "0";
     param.lentNodeId = "1";
     borrowExecuteParamCollectList.push_back(param);
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, uint16_t& socketId))
         .stubs()
-        .will(returnValue(0));
+        .will(returnValue(MEM_POOLING_OK));
     auto res = FaultNodeModule::Instance().FillBorrowExecuteParam(borrowExecuteParamCollectList);
     ASSERT_EQ(res, 0);
 }
@@ -2090,8 +2090,9 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_ResCodeNotOk_SetsError)
 {
     MpResult result = MEM_POOLING_OK;
     UbseByteBuffer respData;
-    respData.data = new uint8_t[sizeof(MpResult)];
-    respData.len = sizeof(MpResult);
+    // payload 长度非法（非 sizeof(MpResult)）时回退到 resCode：resCode 非 OK 应上报错误
+    respData.data = new uint8_t[8];
+    respData.len = 8;
     NumaLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
     delete[] respData.data;
     EXPECT_EQ(result, MEM_POOLING_ERROR);
@@ -2136,8 +2137,9 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteResHandler_ResCodeNotOk_SetsErro
 {
     MpResult result = MEM_POOLING_OK;
     UbseByteBuffer respData;
-    respData.data = new uint8_t[sizeof(MpResult)];
-    respData.len = sizeof(MpResult);
+    // payload 长度非法（非 sizeof(MpResult)）时回退到 resCode：resCode 非 OK 应上报错误
+    respData.data = new uint8_t[8];
+    respData.len = 8;
     BorrowIdLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
     delete[] respData.data;
     EXPECT_EQ(result, MEM_POOLING_ERROR);
@@ -2533,7 +2535,7 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteSuccess_ReturnsOk)
     }
 }
 
-TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWithRpcLen)
+TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsPayloadError)
 {
     BorrowGroupResult group;
     group.borrowNodeId = "Node1";
@@ -2552,7 +2554,10 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWi
     UbseByteBuffer resp;
     uint32_t ret = NumaLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_NE(ret, MEM_POOLING_OK);
+    // 新契约：RPC 传输层返回 OK，具体错误码回填到 payload
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_NE(resp.data, nullptr);
+    EXPECT_EQ(*reinterpret_cast<const MpResult*>(resp.data), MEM_POOLING_ERROR);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -2635,7 +2640,7 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_BorrowedDecision_CallsBo
     }
 }
 
-TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrCountIncremented)
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ReturnsPayloadError)
 {
     BorrowGroupResult group;
     group.borrowNodeId = "Node1";
@@ -2663,7 +2668,10 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrC
     UbseByteBuffer resp;
     uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_NE(ret, MEM_POOLING_OK);
+    // 新契约：RPC 传输层返回 OK，具体错误码回填到 payload
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_NE(resp.data, nullptr);
+    EXPECT_EQ(*reinterpret_cast<const MpResult*>(resp.data), MEM_POOLING_ERROR);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }

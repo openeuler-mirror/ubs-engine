@@ -10,10 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_storage.h"
+#include <filesystem>
+
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_storage.h"
 #include "ubse_storage_module.h"
 
 namespace ubse::storage {
@@ -75,5 +77,27 @@ uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& 
         UBSE_LOG_ERROR << "Failed to delete data, " << FormatRetCode(ret);
     }
     return ret;
+}
+
+uint32_t UbseStorageListKeys(const std::string& keyPrefix, std::vector<std::string>& keys)
+{
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(DB_STORE_DIR)) {
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+            std::string fileName = entry.path().filename().string();
+            if (fileName.size() >= keyPrefix.size() && fileName.compare(0, keyPrefix.size(), keyPrefix) == 0) {
+                if (fileName.size() >= 4 && fileName.compare(fileName.size() - 4, 4, ".tmp") == 0) {
+                    continue; // 跳过原子写残留临时文件
+                }
+                keys.push_back(fileName.substr(keyPrefix.size()));
+            }
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "UbseStorageListKeys failed for prefix=" << keyPrefix << ", error: " << e.what();
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
 }
 } // namespace ubse::storage

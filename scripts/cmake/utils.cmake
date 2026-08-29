@@ -175,6 +175,10 @@ macro(add_ut module)
     set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
     set(RUN_TEST "${CMAKE_BINARY_DIR}/bin/${UT_BINARY} \
 		--gtest_output=xml:${CMAKE_BINARY_DIR}/coverage/${module}_detail.xml")
+    # ASAN 门禁模式下使用统一运行器做签名扫描与精确确认
+    if (ASAN_BUILD)
+        set(RUN_TEST "${CMAKE_SOURCE_DIR}/scripts/run_test.sh ${RUN_TEST}")
+    endif ()
     # 处理透传参数
     set(TRANS_PARAMS $ENV{TRANS_PARAMS})
     if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
@@ -182,6 +186,17 @@ macro(add_ut module)
     endif ()
     if (SKIP_RUN_TESTS)
         set(RUN_TEST "echo 'Skip run test, only build binary ${CMAKE_BINARY_DIR}/bin/${UT_BINARY}'")
+    endif ()
+    # mockcpp 依赖 4K 页对齐（mprotect 修改代码段实现打桩），非 4K 页环境（如鲲鹏 64K 页）不兼容，跳过 UT 执行
+    # MOCKCPP_PAGE_SIZE_OVERRIDE 仅用于在 4K 环境模拟非 4K 页验证跳过逻辑
+    set(UT_PAGE_SIZE "$ENV{MOCKCPP_PAGE_SIZE_OVERRIDE}")
+    if (UT_PAGE_SIZE STREQUAL "")
+        execute_process(COMMAND sh -c "getconf PAGESIZE" OUTPUT_VARIABLE UT_PAGE_SIZE)
+        string(STRIP "${UT_PAGE_SIZE}" UT_PAGE_SIZE)
+    endif ()
+    if (NOT UT_PAGE_SIZE STREQUAL "4096")
+        message(STATUS "Page size is ${UT_PAGE_SIZE} (not 4K), mockcpp incompatible, skip running UT")
+        set(RUN_TEST "echo SKIP_UT: page size ${UT_PAGE_SIZE} is not 4096, mockcpp incompatible, UT skipped, see docs/test")
     endif ()
     add_custom_target(${module}_ut
             COMMAND bash -c "${RUN_TEST}" || true
@@ -384,6 +399,10 @@ macro(add_independent_exec_ut executable_name)
     endif ()
 
     set(RUN_TEST "${CMAKE_BINARY_DIR}/bin/${executable_name} ${GTEST_COLOR} ${GTEST_BRIEF} ${GTEST_OUTPUT}")
+    # ASAN 门禁模式下使用统一运行器做签名扫描与精确确认
+    if (ASAN_BUILD)
+        set(RUN_TEST "${CMAKE_SOURCE_DIR}/scripts/run_test.sh ${RUN_TEST}")
+    endif ()
 
     # 处理透传参数
     set(TRANS_PARAMS $ENV{TRANS_PARAMS})
@@ -395,6 +414,17 @@ macro(add_independent_exec_ut executable_name)
         set(RUN_TEST "echo 'Skip run test, only build binary ${CMAKE_BINARY_DIR}/bin/${executable_name}'")
     endif ()
 
+    # mockcpp 依赖 4K 页对齐（mprotect 修改代码段实现打桩），非 4K 页环境（如鲲鹏 64K 页）不兼容，跳过 UT 执行
+    # MOCKCPP_PAGE_SIZE_OVERRIDE 仅用于在 4K 环境模拟非 4K 页验证跳过逻辑
+    set(UT_PAGE_SIZE "$ENV{MOCKCPP_PAGE_SIZE_OVERRIDE}")
+    if (UT_PAGE_SIZE STREQUAL "")
+        execute_process(COMMAND sh -c "getconf PAGESIZE" OUTPUT_VARIABLE UT_PAGE_SIZE)
+        string(STRIP "${UT_PAGE_SIZE}" UT_PAGE_SIZE)
+    endif ()
+    if (NOT UT_PAGE_SIZE STREQUAL "4096")
+        message(STATUS "Page size is ${UT_PAGE_SIZE} (not 4K), mockcpp incompatible, skip running UT")
+        set(RUN_TEST "echo SKIP_UT: page size ${UT_PAGE_SIZE} is not 4096, mockcpp incompatible, UT skipped, see docs/test")
+    endif ()
     set(preface_target "${executable_name}_independent_ut")
     message(STATUS "new target ${preface_target}")
     add_custom_target(${preface_target}

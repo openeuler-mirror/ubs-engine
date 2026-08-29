@@ -37,6 +37,8 @@ std::string TransState(UbseMemState state)
             return "import_destroyed";
         case UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT:
             return "import_destroying_wait";
+        case UbseMemState::UBSE_MEM_IMPORT_ABNORMAL:
+            return "import_abnormal";
         default:
             return "unknown_state";
     }
