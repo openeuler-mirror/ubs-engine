@@ -184,8 +184,7 @@ private:
 
     uint32_t RecoverSmapProcessConfig();
 
-    bool CorrectSmapConfig(pid_t pid,
-                           const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb);
+    bool CorrectSmapConfig(pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb);
 
     void ReconcileApplyChanges(const std::vector<pid_t>& affectedPids);
 

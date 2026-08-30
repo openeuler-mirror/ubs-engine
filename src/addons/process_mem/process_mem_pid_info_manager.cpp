@@ -856,12 +856,16 @@ uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const
     }
 
     // 按槽位实际迁移量扣减: 归还前 spare 整理可能已把小块并入其他槽, migratedBytes 小于债务容量;
-    // RETURNING 槽在调用迁回接口时已重算排除, 删槽时不再扣, 避免双扣
+    // RETURNING 槽在迁回接口处已重算排除, 删槽时不再扣, 避免双扣;
+    // 统一归还(ACTIVE)路径未提前重算, 删 RETURNING 槽后须全量重算, 否则 currentRemote 残留虚高
+    bool wasReturning = (slotIt->status == def::BorrowSlotStatus::RETURNING);
     uint64_t returnedBytes = slotIt->migratedBytes;
-    if (slotIt->status != def::BorrowSlotStatus::RETURNING) {
+    borrow.slots.erase(slotIt);
+    if (wasReturning) {
+        borrow.currentRemote = RecomputeCurrentRemote(borrow);
+    } else {
         borrow.currentRemote = (borrow.currentRemote >= returnedBytes) ? (borrow.currentRemote - returnedBytes) : 0;
     }
-    borrow.slots.erase(slotIt);
     UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId
                   << " reason=return_free event=remove old_gb=" << BytesToGbDouble(returnedBytes) << " new_gb=0";
 
