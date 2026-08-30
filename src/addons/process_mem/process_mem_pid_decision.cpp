@@ -1652,6 +1652,18 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
             // 批量归还执行中: smap 仍含旧进程残留数据, 回填会污染新槽位, 跳过本轮
             continue;
         }
+        bool hasInFlightSlot = false;
+        for (const auto& s : state.borrow.slots) {
+            if (s.status != def::BorrowSlotStatus::COMPLETED) {
+                hasInFlightSlot = true;
+                break;
+            }
+        }
+        if (hasInFlightSlot) {
+            // 借出在途(BORROWING)/归还迁回中(RETURNING): 账本与 smap 由对应流程维护,
+            // 本周期重算/对齐会覆盖运行态, 跳过
+            continue;
+        }
         // 周期化后与同 pid 的迁出声明(借入/归还/再平衡)串行, 防止回填与下发互相覆盖
         std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
         RecoverPidMigratedBytes(pid, *failedNumas);
@@ -1989,13 +2001,23 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
     for (pid_t pid : affectedPids) {
         // 与同 pid 的借出/归还/再平衡迁出串行, 恢复账本后按最新账本重发迁出
         std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-        RecoverPidMigratedBytes(pid, *failedNumas);
-
         auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
         auto it = snapshot.find(pid);
         if (it == snapshot.end()) {
             continue;
         }
+        bool hasInFlightSlot = false;
+        for (const auto& s : it->second.borrow.slots) {
+            if (s.status != def::BorrowSlotStatus::COMPLETED) {
+                hasInFlightSlot = true;
+                break;
+            }
+        }
+        if (hasInFlightSlot) {
+            // 借出在途/归还迁回中: 账本与 smap 由对应流程维护, 全量重发会清掉在途目标, 跳过本轮
+            continue;
+        }
+        RecoverPidMigratedBytes(pid, *failedNumas);
         std::vector<std::pair<int, uint64_t>> numaTargets;
         BuildMigrateTargets(it->second.borrow, {}, numaTargets, pid, "");
         size_t skippedTargets = 0;
