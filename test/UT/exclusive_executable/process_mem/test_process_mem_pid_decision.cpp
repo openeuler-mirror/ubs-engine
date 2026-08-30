@@ -791,11 +791,11 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
     const auto& borrow = snapshot.at(pid).borrow;
     ASSERT_EQ(borrow.slots.size(), 1u);
     EXPECT_EQ(borrow.slots[0].migratedBytes, 1 * GB);
-    // currentRemote 为账本 COMPLETED 槽权威和, smap 多出的 numa7 实测只回填 remoteNumaMigrated
+    // currentRemote/remoteNumaMigrated 为账本 COMPLETED 槽权威投影, smap 多出的 numa7 无槽不认领
     EXPECT_EQ(borrow.currentRemote, 1 * GB);
-    EXPECT_EQ(borrow.remoteNumaMigrated.size(), 2u);
+    EXPECT_EQ(borrow.remoteNumaMigrated.size(), 1u);
     EXPECT_EQ(borrow.remoteNumaMigrated.at(5), 1 * GB);
-    EXPECT_EQ(borrow.remoteNumaMigrated.at(7), 1 * GB);
+    EXPECT_EQ(borrow.remoteNumaMigrated.count(7), 0u);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
@@ -970,10 +970,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExc
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 1u);
-    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    // COMPLETED 槽 migratedBytes/remoteNumaMigrated 为账本权威值, 实测不覆盖
     EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
     EXPECT_EQ(borrowAfter.currentRemote, 2 * GB);
-    EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 1536 * 1024 * 1024u);
+    EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 2 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigIgnoresHamProcesses)

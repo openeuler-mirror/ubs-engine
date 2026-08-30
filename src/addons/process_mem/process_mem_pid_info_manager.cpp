@@ -823,23 +823,6 @@ void ProcessMemPidInfoManager::UpdateManagedPidBorrowStateAtomic(
     LogBorrowSlotChanges(pid, before, after, reason);
 }
 
-void ProcessMemPidInfoManager::UpdateManagedPidNumaMigrated(pid_t pid,
-                                                            const std::unordered_map<int, uint64_t>& numaBytes)
-{
-    std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
-    auto it = managedPidCache_.find(pid);
-    if (it == managedPidCache_.end()) {
-        return;
-    }
-    for (const auto& [numaId, bytes] : numaBytes) {
-        if (bytes == 0) {
-            it->second.borrow.remoteNumaMigrated.erase(numaId);
-        } else {
-            it->second.borrow.remoteNumaMigrated[numaId] = bytes;
-        }
-    }
-}
-
 uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId)
 {
     std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);

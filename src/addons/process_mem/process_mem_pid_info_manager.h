@@ -66,10 +66,6 @@ public:
                                            const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate,
                                            const char* reason = nullptr);
 
-    // smap 查询成功时以实测确切更新 remoteNumaMigrated: 槽聚合表达不了新增 numa
-    // (数据在远端但无槽认领), 值为 0 表示全迁回, 移除对应条目; 不做槽聚合重建
-    void UpdateManagedPidNumaMigrated(pid_t pid, const std::unordered_map<int, uint64_t>& numaBytes);
-
     // currentRemote 与 smap 下发目标同步的重算口径, 供调用迁移接口前/状态变更时使用
     static uint64_t RecomputeCurrentRemote(const def::BorrowState& borrow);
 

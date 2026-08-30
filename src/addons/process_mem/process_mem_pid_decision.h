@@ -212,9 +212,7 @@ private:
                           uint64_t& freedBytes, uint32_t& failCount);
 
     void RecoverBindDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt);
-    void RecoverPidMigratedBytes(pid_t pid,
-                                 const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
-                                 const std::set<int>& failedNumas, size_t& filled, uint64_t& filledBytes);
+    void RecoverPidMigratedBytes(pid_t pid, const std::set<int>& failedNumas);
     void ReportDirtySmapStates(const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
                                const std::map<pid_t, def::ManagedPidEntry>& snapshot, size_t& dirty,
                                size_t& smapEntries);

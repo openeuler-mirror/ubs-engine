@@ -1646,8 +1646,6 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
         return 0;
     }
 
-    size_t filled = 0;
-    uint64_t filledBytes = 0;
     size_t corrected = 0;
     for (const auto& [pid, state] : snapshot) {
         if (state.borrow.slots.empty() || IsPidReturnInFlight(pid)) {
@@ -1656,8 +1654,8 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
         }
         // 周期化后与同 pid 的迁出声明(借入/归还/再平衡)串行, 防止回填与下发互相覆盖
         std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-        RecoverPidMigratedBytes(pid, smapMemKb, *failedNumas, filled, filledBytes);
-        // 回填后按最新账本判定强行归还: 期望 numa 配置丢失则重新下发恢复
+        RecoverPidMigratedBytes(pid, *failedNumas);
+        // 重算账本后按最新账本全量对齐 smap: 期望配置与实测有差异则重发
         if (CorrectSmapConfig(pid, smapMemKb)) {
             ++corrected;
         }
@@ -1693,14 +1691,14 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
     size_t dirty = 0;
     size_t smapEntries = 0;
     ReportDirtySmapStates(smapMemKb, snapshot, dirty, smapEntries);
-    UBSE_LOG_INFO << "[process_mem] recover config: smap_numa_entries=" << smapEntries << " filled=" << filled
-                  << " filled_gb=" << BytesToGbDouble(filledBytes) << " dirty=" << dirty << " corrected=" << corrected
-                  << " query_fail=" << queryFail;
+    UBSE_LOG_INFO << "[process_mem] recover config: smap_numa_entries=" << smapEntries << " dirty=" << dirty
+                  << " corrected=" << corrected << " query_fail=" << queryFail;
     return static_cast<uint32_t>(dirty);
 }
 
-// 对账周期内 smap 修正: 检测"内存被强行归还"导致的配置丢失/残留, 重新下发 migrateOut
-// 使内核侧配置与账本一致(幂等, 仅差异触发); 调用方已持 pid 锁
+// 对账周期内 smap 修正: 账本期望目标(COMPLETED 槽按 numa 聚合)与 smap 配置逐 numa 比对,
+// 任一差异(缺失/多余/值不同)即全量重发一次账本期望目标, 同时覆盖补发与削减, 幂等(无差异不动作);
+// 调用方已持 pid 锁
 bool ProcessMemPidDecision::CorrectSmapConfig(
     pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb)
 {
@@ -1712,52 +1710,58 @@ bool ProcessMemPidDecision::CorrectSmapConfig(
     }
     const auto& borrow = it->second.borrow;
     bool hasInFlight = false;
-    std::vector<std::pair<int, uint64_t>> expected;
+    std::map<int, uint64_t> expectedBytes;
     for (const auto& s : borrow.slots) {
         if (s.status != def::BorrowSlotStatus::COMPLETED) {
             hasInFlight = true;
             break;
         }
-        if (s.remoteNumaId >= 0 && s.migratedBytes > 0) {
-            expected.emplace_back(s.remoteNumaId, s.migratedBytes);
+        if (s.capacity > 0 && s.remoteNumaId >= 0 && s.migratedBytes > 0) {
+            expectedBytes[s.remoteNumaId] += s.migratedBytes;
         }
     }
-    if (hasInFlight || expected.empty()) {
+    if (hasInFlight || expectedBytes.empty()) {
         // 借出在途/归还迁回中: 配置由对应流程覆盖下发, 在此重发会清掉在途目标; 无期望目标无需修正
         return false;
     }
     auto numaIt = smapMemKb.find(pid);
     static const std::unordered_map<int, uint64_t> kEmptyNumaMap;
     const auto& numaMap = (numaIt != smapMemKb.end()) ? numaIt->second : kEmptyNumaMap;
-    for (const auto& [nid, bytes] : expected) {
-        auto entryIt = numaMap.find(nid);
-        if (entryIt != numaMap.end() && entryIt->second > 0) {
-            continue;
+    // smap 值为下发时的 KB 截断值, 期望以 KB 口径比对, 避免亚 KB 尾数导致每轮误重发
+    bool mismatch = numaMap.size() != expectedBytes.size();
+    if (!mismatch) {
+        for (const auto& [nid, bytes] : expectedBytes) {
+            auto entryIt = numaMap.find(nid);
+            if (entryIt == numaMap.end() || entryIt->second != bytes / 1024) {
+                mismatch = true;
+                break;
+            }
         }
-        // 期望 numa 配置缺失(内存被强行归还): 重新下发期望目标, 内核按目标重新迁移恢复借出
-        int ret = RmrsMigrateToNumas(pid, "", expected);
-        if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
-            // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
-            UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " numa=" << nid
-                          << " smap config restore concurrency conflict, retry next round";
-            return false;
-        }
-        UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " numa=" << nid
-                      << " smap config lost (forcibly returned), migrate reissued targets=" << expected.size()
-                      << " ret=" << ret;
-        return ret == 0;
     }
-    return false;
+    if (!mismatch) {
+        // 配置与账本一致, 幂等收敛
+        return false;
+    }
+    std::vector<std::pair<int, uint64_t>> expected;
+    expected.reserve(expectedBytes.size());
+    for (const auto& [nid, bytes] : expectedBytes) {
+        expected.emplace_back(nid, bytes);
+    }
+    // 差异(缺失/多余/值不同): 全量重发账本期望目标, 内核按新目标补齐缺失并削去多余
+    int ret = RmrsMigrateToNumas(pid, "", expected);
+    if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
+        // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
+        UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
+                      << " smap config align concurrency conflict, retry next round";
+        return false;
+    }
+    UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " smap misaligned, targets=" << expected.size()
+                  << " reissued ret=" << ret;
+    return ret == 0;
 }
 
-void ProcessMemPidDecision::RecoverPidMigratedBytes(
-    pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
-    const std::set<int>& failedNumas, size_t& filled, uint64_t& filledBytes)
+void ProcessMemPidDecision::RecoverPidMigratedBytes(pid_t pid, const std::set<int>& failedNumas)
 {
-    constexpr uint64_t kBytesPerKb = 1024;
-    static const std::unordered_map<int, uint64_t> kEmptyNumaMap;
-    auto numaIt = smapMemKb.find(pid);
-    const auto& numaMap = (numaIt != smapMemKb.end()) ? numaIt->second : kEmptyNumaMap;
     if (!failedNumas.empty()) {
         // 部分 numa 查询失败: 实测不完整, 任何账本修正都会影响后续下发迁移的最终结果
         return;
@@ -1781,17 +1785,8 @@ void ProcessMemPidDecision::RecoverPidMigratedBytes(
             newStatus = def::ProcessStatus::BORROWED;
         },
         "reconcile_smap");
-    std::unordered_map<int, uint64_t> numaBytes{};
-    for (const auto& [nid, kb] : numaMap) {
-        if (failedNumas.count(nid) == 0) {
-            numaBytes[nid] = kb * kBytesPerKb;
-        }
-    }
-    if (!numaBytes.empty()) {
-        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidNumaMigrated(pid, numaBytes);
-    }
     UBSE_LOG_INFO << "[process_mem] recover config: pid=" << pid << " slots=" << slotCount
-                  << " currentRemote_gb=" << BytesToGbDouble(total) << " numa_migrated=" << numaBytes.size();
+                  << " currentRemote_gb=" << BytesToGbDouble(total);
 }
 
 void ProcessMemPidDecision::ReportDirtySmapStates(
@@ -1991,12 +1986,10 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
     }
 
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
-    size_t filled = 0;
-    uint64_t filledBytes = 0;
     for (pid_t pid : affectedPids) {
         // 与同 pid 的借出/归还/再平衡迁出串行, 恢复账本后按最新账本重发迁出
         std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-        RecoverPidMigratedBytes(pid, smapMemKb, *failedNumas, filled, filledBytes);
+        RecoverPidMigratedBytes(pid, *failedNumas);
 
         auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
         auto it = snapshot.find(pid);
@@ -2034,8 +2027,7 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
         UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued targets=" << migrateTargets.size()
                       << " ret=" << ret;
     }
-    UBSE_LOG_INFO << "[process_mem] reconcile: applied affected=" << affectedPids.size()
-                  << " filled_gb=" << BytesToGbDouble(filledBytes) << " query_fail=" << queryFail;
+    UBSE_LOG_INFO << "[process_mem] reconcile: applied affected=" << affectedPids.size() << " query_fail=" << queryFail;
 }
 
 uint64_t ProcessMemPidDecision::ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item)
