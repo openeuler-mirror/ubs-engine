@@ -132,6 +132,7 @@ private:
     std::unordered_map<std::string, uint32_t> connFailedCntByGroup{}; // groupId:丢失次数
     std::unordered_map<std::string, GroupSummaryInfo> groupStates{}; // 查询的得到的其他组的主备信息; k:v -> groupId:主备信息(管理组)
     uint16_t managingGroupCount_ = 0; // 管理组数量缓存
+    bool managingGroupCountInited_ = false; // 管理组数量是否已初始化
     static std::shared_ptr<RoleMgr> instance_;
     std::shared_ptr<ElectionRole> currentRole_;
     std::shared_ptr<ElectionRole> globalCurrentRole_ = nullptr;
