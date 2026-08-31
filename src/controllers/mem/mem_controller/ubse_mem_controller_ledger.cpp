@@ -601,7 +601,8 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
         return UBSE_OK;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    if (node.groupId != curNode.groupId) {
+    if (UbseSmbios::GetInstance().IsClosType() && UbseNodeController::GetInstance().IsHierarchical() &&
+        node.groupId != curNode.groupId) {
         UBSE_LOG_INFO << "skip ledger for node in different cabinet, nodeId=" << node.nodeId
                       << ", nodeGroupId=" << node.groupId << ", currentGroupId=" << curNode.groupId;
         return UBSE_OK;
