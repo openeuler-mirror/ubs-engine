@@ -39,7 +39,7 @@ TEST_F(TestUbseNodeSerialize, Serialize)
     info.slotId = 1;
     info.chipId = "1";
     info.eid = "1";
-    info.cardId = "1";
+    info.dieId = "1";
     info.guid = "1";
     info.busNodeCna = 1;
     ubse::nodeController::UbsePortInfo port{};
@@ -49,7 +49,7 @@ TEST_F(TestUbseNodeSerialize, Serialize)
     port.portStatus = PortStatus::UP;
     port.remoteSlotId = "0";
     port.remoteChipId = "0";
-    port.remoteCardId = "0";
+    port.remoteDieId = "0";
     port.remotePortId = "0";
     port.remoteIfName = "remoteIf";
     info.portInfos["1"] = port;
@@ -81,7 +81,7 @@ TEST_F(TestUbseNodeSerialize, Serialize)
     EXPECT_EQ(1, result.cpuInfos[location].slotId);
     EXPECT_EQ("1", result.cpuInfos[location].chipId);
     EXPECT_EQ("1", result.cpuInfos[location].eid);
-    EXPECT_EQ("1", result.cpuInfos[location].cardId);
+    EXPECT_EQ("1", result.cpuInfos[location].dieId);
     EXPECT_EQ("1", result.cpuInfos[location].guid);
     EXPECT_EQ(1, result.cpuInfos[location].busNodeCna);
     EXPECT_EQ("1", result.cpuInfos[location].portInfos["1"].portId);
@@ -90,7 +90,7 @@ TEST_F(TestUbseNodeSerialize, Serialize)
     EXPECT_EQ(PortStatus::UP, result.cpuInfos[location].portInfos["1"].portStatus);
     EXPECT_EQ("0", result.cpuInfos[location].portInfos["1"].remoteSlotId);
     EXPECT_EQ("0", result.cpuInfos[location].portInfos["1"].remoteChipId);
-    EXPECT_EQ("0", result.cpuInfos[location].portInfos["1"].remoteCardId);
+    EXPECT_EQ("0", result.cpuInfos[location].portInfos["1"].remoteDieId);
     EXPECT_EQ("0", result.cpuInfos[location].portInfos["1"].remotePortId);
     EXPECT_EQ("remoteIf", result.cpuInfos[location].portInfos["1"].remoteIfName);
 

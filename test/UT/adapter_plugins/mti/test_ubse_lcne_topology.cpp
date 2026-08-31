@@ -165,6 +165,7 @@ TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_Success)
     UbseDeviceInfo deviceInfo;
     deviceInfo.slotId = "1";
     deviceInfo.chipId = "1";
+    deviceInfo.dieId = "0";
     UbseMtiCpuTopoPortInfo portInfo;
     portInfo.ifName = interfaceName;
     portInfo.portId = "0";
@@ -200,6 +201,7 @@ TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_PubEventFailed)
     UbseDeviceInfo deviceInfo;
     deviceInfo.slotId = "2";
     deviceInfo.chipId = "2";
+    deviceInfo.dieId = "0";
     UbseMtiCpuTopoPortInfo portInfo;
     portInfo.ifName = interfaceName;
     portInfo.portId = "1";
@@ -253,7 +255,7 @@ TEST_F(TestUbseLcneTopology, UbseDevGetTopology_Success)
     LcneNodeInfo node;
     node.slotId = "1";
     node.chipId = "1";
-    node.cardId = "1";
+    node.dieId = "1";
     node.type = "CPU";
     LcnePortInfo port0;
     port0.portId = "1";
@@ -290,7 +292,7 @@ TEST_F(TestUbseLcneTopology, UbseDevGetTopology_PortsEmpty)
     LcneNodeInfo node;
     node.slotId = "1";
     node.chipId = "1";
-    node.cardId = "1";
+    node.dieId = "1";
     node.type = "CPU";
     lcneNodes.push_back(node);
 

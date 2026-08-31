@@ -108,7 +108,7 @@ void BuildDevTopologyAndMappings(const std::string& nodeId, const UbseNodeInfo& 
         devInfo.devName = devName;
         devInfo.slotId = std::to_string(nodeInfo.slotId);
         devInfo.chipId = cpuInfo.chipId;
-        devInfo.cardId = cpuInfo.cardId;
+        devInfo.dieId = cpuInfo.dieId;
         devInfo.type = UbseDevType::CPU;
         devInfo.eid = cpuInfo.eid;
         devInfo.guid = cpuInfo.guid;
@@ -127,13 +127,13 @@ void BuildDevTopologyAndMappings(const std::string& nodeId, const UbseNodeInfo& 
             port.ifName = portInfo.ifName;
             port.portRole = portInfo.portRole;
             port.portStatus = static_cast<UbseMtiCpuTopoPortStatus>(portInfo.portStatus);
-            UbseDevPortName devPortName(std::to_string(nodeInfo.slotId), cpuInfo.chipId, cpuInfo.cardId,
+            UbseDevPortName devPortName(std::to_string(nodeInfo.slotId), cpuInfo.chipId, cpuInfo.dieId,
                                         portInfo.portId);
             // 对端信息
             UbseDevName peerDevName(portInfo.remoteSlotId, portInfo.remoteChipId);
             port.remoteSlotId = portInfo.remoteSlotId;
             port.remoteChipId = portInfo.remoteChipId;
-            port.remoteCardId = portInfo.remoteCardId;
+            port.remoteDieId = portInfo.remoteDieId;
             port.remoteIfName = portInfo.remoteIfName;
             port.remoteDevName = peerDevName;
             port.remotePortId = portInfo.remotePortId;

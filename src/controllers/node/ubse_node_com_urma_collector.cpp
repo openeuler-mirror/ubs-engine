@@ -297,7 +297,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     iouList.reserve(devTopology.size());
 
     for (const auto& [devName, deviceInfo] : devTopology) {
-        iouList.emplace_back(deviceInfo.first.slotId, deviceInfo.first.chipId, deviceInfo.first.cardId);
+        iouList.emplace_back(deviceInfo.first.slotId, deviceInfo.first.chipId, deviceInfo.first.dieId);
     }
     return UBSE_OK;
 }

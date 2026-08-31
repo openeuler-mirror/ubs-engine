@@ -43,9 +43,9 @@ uint32_t UbseDevName::GetNodeIdAndChipId(std::string& nodeId, std::string& chipI
     chipId = devName.substr(pos + 1);
     return UBSE_OK;
 }
-UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,
+UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& dieId,
                                  const std::string& portId)
-    : name(slotId + ":" + chipId + ":" + cardId + ":" + portId)
+    : name(slotId + ":" + chipId + ":" + dieId + ":" + portId)
 {
 }
 UbseDevPortName::UbseDevPortName(const std::string& name) : name(name) {}

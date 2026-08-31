@@ -28,7 +28,9 @@ struct PortEventInfo {
     std::string status;
     std::string slotId;
     std::string chipId;
+    std::string dieId;
     std::string portId;
+    std::string interfaceName;
 };
 
 class UbseMemFaultManager {

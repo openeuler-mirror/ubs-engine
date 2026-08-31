@@ -43,10 +43,10 @@ UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<u
             isSocketIdExit = true;
             try {
                 chipDiePair.first = stoi(cpuInfo.second.chipId);
-                chipDiePair.second = stoi(cpuInfo.second.cardId);
+                chipDiePair.second = stoi(cpuInfo.second.dieId);
             } catch (...) {
-                UBSE_LOG_ERROR << "stoi throw a exception, chipId is " << cpuInfo.second.chipId << " cardId is "
-                               << cpuInfo.second.cardId;
+                UBSE_LOG_ERROR << "stoi throw a exception, chipId is " << cpuInfo.second.chipId << " dieId is "
+                               << cpuInfo.second.dieId;
                 return UBSE_ERROR;
             }
             break;
@@ -162,7 +162,7 @@ UbseResult MemDecoderUtils::GetCurNodeSocketInfo(
     for (const auto& [cpuLoc, socketInfo] : nodeInfo.cpuInfos) {
         try {
             outSocketInfo[socketInfo.socketId] =
-                std::make_pair(std::stoi(socketInfo.chipId), std::stoi(socketInfo.cardId));
+                std::make_pair(std::stoi(socketInfo.chipId), std::stoi(socketInfo.dieId));
         } catch (...) {
             UBSE_LOG_ERROR << "stoi throw one exception";
             return UBSE_ERROR;

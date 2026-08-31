@@ -249,7 +249,12 @@ uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePai
 void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId);
 
-uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId);
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId,
+                                     adapter_plugins::mti::mami::UbseDecoderState targetState =
+                                         adapter_plugins::mti::mami::UbseDecoderState::DECODER_PERMANENT_INVALID);
+
+bool IsValidDecoderStateTransition(adapter_plugins::mti::mami::UbseDecoderState from,
+                                   adapter_plugins::mti::mami::UbseDecoderState to);
 
 void InitAgentMaxWaitTime(uint32_t timeout);
 

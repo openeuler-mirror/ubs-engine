@@ -390,7 +390,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldNotAddNodeToCurrentAllNodes_Whe
     adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
     cpuTopoInfo.primaryEid = "primaryEid001";
     cpuTopoInfo.chipId = "chip01";
-    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.dieId = "card01";
     cpuTopoInfo.eid = "eid001";
     cpuTopoInfo.guid = "guid001";
     cpuTopoInfo.busNodeCna = 1;
@@ -405,7 +405,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldNotAddNodeToCurrentAllNodes_Whe
     portInfo.urmaEid = "eid001";
     portInfo.remoteSlotId = "-";
     portInfo.remoteChipId = "chip02";
-    portInfo.remoteCardId = "card02";
+    portInfo.remoteDieId = "card02";
     portInfo.remoteIfName = "eth1";
     portInfo.remotePortId = "port002";
     cpuTopoInfo.portInfos[devPortName] = portInfo;
@@ -460,7 +460,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddCurrentNode_WhenNotInTopoLin
     adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
     cpuTopoInfo.primaryEid = "primaryEid001";
     cpuTopoInfo.chipId = "chip01";
-    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.dieId = "card01";
     cpuTopoInfo.eid = "eid001";
     cpuTopoInfo.guid = "guid001";
     cpuTopoInfo.busNodeCna = 1;
@@ -475,7 +475,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddCurrentNode_WhenNotInTopoLin
     portInfo.urmaEid = "eid001";
     portInfo.remoteSlotId = "node03";
     portInfo.remoteChipId = "chip03";
-    portInfo.remoteCardId = "card03";
+    portInfo.remoteDieId = "card03";
     portInfo.remoteIfName = "eth1";
     portInfo.remotePortId = "port002";
     cpuTopoInfo.portInfos[devPortName] = portInfo;

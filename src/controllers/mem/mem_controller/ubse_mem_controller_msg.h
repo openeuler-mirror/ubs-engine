@@ -11,6 +11,7 @@
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mmi_interface.h"
+#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
@@ -34,7 +35,8 @@ void RegUbseMemControllerHandler();
 UbseResult CollectLedge(const std::string& nodeId, NodeMemDebtInfo& info);
 
 UbseResult SendInvalidateSingleImportDebtRpc(const std::string& nodeId, const std::string& debtName,
-                                             UbseMemBorrowType type);
+                                             UbseMemBorrowType type,
+                                             adapter_plugins::mti::mami::UbseDecoderState targetState);
 
 UbseResult CollectLedgeHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
