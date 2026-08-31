@@ -446,13 +446,102 @@ MpResult MempoolMigrateExecute::MigrateExecuteImpl(const std::vector<VMMigrateOu
     return MEM_POOLING_OK;
 }
 
+bool MempoolMigrateModule::NeedSmapMigrateBack(const std::string& borrowId, const std::set<BorrowIdInfo>& pidInfos)
+{
+    // 无关联pid信息时无法判定远端占用，保守维持原smap迁回路径
+    if (pidInfos.empty()) {
+        LOG_WARN << "[MemRollback] Empty pid list of borrowId=" << borrowId << ", keep smap migrate back path.";
+        return true;
+    }
+
+    // 1. 查账本借据获取借用的远端numa（迁回目标）
+    std::vector<BorrowRecord> borrowRecords;
+    if (BorrowRecordHelper::Instance().CollectBorrowRecordsAll(borrowRecords) != MEM_POOLING_OK) {
+        LOG_WARN << "[MemRollback] Collect borrow records failed, keep smap migrate back path, borrowId=" << borrowId
+                 << ".";
+        return true;
+    }
+    int16_t remoteNuma = -1;
+    for (const auto& record : borrowRecords) {
+        if (record.name == borrowId) {
+            remoteNuma = record.borrowRemoteNuma;
+            break;
+        }
+    }
+    if (remoteNuma < 0) {
+        LOG_WARN << "[MemRollback] No valid remote numa for borrowId=" << borrowId << ", keep smap migrate back path.";
+        return true;
+    }
+
+    // 2. 查询该远端numa上被smap纳管的pid及其远端占用；查询失败时保守维持迁回路径，
+    // 宁可回滚失败后重试，不可在有数据时误走直接归还导致数据丢失
+    std::vector<ProcessPayload> processPayloadList;
+    if (MpSmapHelper::SmapQueryProcessConfigHelper(remoteNuma, processPayloadList) != MEM_POOLING_OK) {
+        LOG_WARN << "[MemRollback] Query smap managed pids failed, keep smap migrate back path, remoteNuma="
+                 << remoteNuma << ".";
+        return true;
+    }
+
+    // 3. 任一借据关联的真实pid被纳管且远端占用>0才需要迁回；否则说明迁移失败、
+    // 远端numa上无待迁回数据，直接归还即可，不走smap迁回（避免确定性失败阻塞回滚）
+    bool hasInvalidPid = false;
+    for (const auto& pidInfo : pidInfos) {
+        if (pidInfo.pid <= 0) {
+            // 占位pid（Name2VmInfo映射缺失时填充的-1）无法锚定真实进程：迁移旁路（waitingTime==0
+            // 跳过映射写入但真实迁移）或持久化部分丢失时远端可能仍有数据，不可凭“未命中”直接归还，
+            // 转由下方远端numa全局纳管状态兜底判定，保持fail-closed契约（仅确认远端无数据才直接归还）
+            hasInvalidPid = true;
+            continue;
+        }
+        for (const auto& payload : processPayloadList) {
+            if (payload.pid == pidInfo.pid && payload.memSize > 0) {
+                LOG_INFO << "[MemRollback] borrowId=" << borrowId << " has smap managed pid=" << pidInfo.pid
+                         << " with remote usage on numa=" << remoteNuma << ", need smap migrate back.";
+                return true;
+            }
+        }
+    }
+
+    // 4. 存在占位/非法pid时精确匹配不可信，改用远端numa全局纳管状态兜底：仅当远端完全无纳管进程时，
+    // 才可确认无待迁回数据而直接归还；否则宁可回滚失败重试，不可带数据误走直接归还（fail-closed）
+    if (hasInvalidPid) {
+        if (!processPayloadList.empty()) {
+            LOG_WARN << "[MemRollback] Placeholder pid of borrowId=" << borrowId
+                     << " cannot anchor real process while remote numa=" << remoteNuma << " has "
+                     << processPayloadList.size() << " managed pid(s), keep smap migrate back path.";
+            return true;
+        }
+        LOG_INFO << "[MemRollback] Placeholder pid of borrowId=" << borrowId
+                 << " and no managed pid on remote numa=" << remoteNuma << ", direct return without smap migrate back.";
+        return false;
+    }
+
+    LOG_INFO << "[MemRollback] No smap managed data of borrowId=" << borrowId << " on remote numa=" << remoteNuma
+             << ", direct return without smap migrate back.";
+    return false;
+}
+
 bool MempoolMigrateModule::FreeMemAndPersistent(std::set<std::string>& validBorrowIdSet,
                                                 std::map<std::string, std::set<BorrowIdInfo>>& curBorrowIdsPidsMap,
                                                 RollBackBorrowIdPid& outEntry)
 {
     bool notExistFailed = true;
     for (std::string borrowId : validBorrowIdSet) {
-        if (mempooling::MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true)) {
+        // 归还前动态判定是否需要smap迁回：迁移失败等场景下远端numa无数据且pid未被纳管，
+        // 直接归还；迁移成功但建虚机失败等场景数据在远端，维持迁回路径。判定在
+        // rmrsBorrowRollBack(pid粒度迁回)成功之后执行，快照为最终态，避免与迁回竞争。
+        bool needSmapBack = true;
+        auto itPids = curBorrowIdsPidsMap.find(borrowId);
+        if (itPids != curBorrowIdsPidsMap.end()) {
+            needSmapBack = NeedSmapMigrateBack(borrowId, itPids->second);
+        } else {
+            // 无关联pid信息无法判定远端占用，保守维持迁回路径，留痕便于复现定位
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemRollback] No pid info of borrowId=" << borrowId << ", keep smap migrate back path.";
+        }
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemRollback] BorrowId=" << borrowId << " choose return path, smapBack=" << needSmapBack << ".";
+        if (mempooling::MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, needSmapBack)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemRollback] MemFreeWithOps failed " << borrowId << ".";
             notExistFailed = false;
@@ -506,11 +595,21 @@ MpResult MempoolMigrateExecute::MemBorrowRollbackImpl(std::vector<std::string>& 
 
     MpResult ret = MempoolingMessage::rmrsBorrowRollBack(curBorrowIdsPidsMap);
     if (ret != IPC_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] UBTurboRMRSAgentBorrowRollBack failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemRollback] UBTurboRMRSAgentBorrowRollBack failed, ret=" << ret << ".";
         if (ret == IPC_BAD_CONNECT)
             return MEM_POOLING_TURBO_CONNECT_ERROR;
         return MEM_POOLING_ERROR;
     }
+    // 记录pid粒度迁回入参与成功时点，是区分“迁移失败/迁移成功”场景的关键分界日志，
+    // 后续归还判定与路径选择均基于此时点的远端数据最终态；pid列表可能含大量进程，只记数量
+    uint32_t totalPidCount = 0;
+    for (const auto& entry : curBorrowIdsPidsMap) {
+        totalPidCount += static_cast<uint32_t>(entry.second.size());
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemRollback] Pid-granularity migrate back via ubturbo succeed, borrowIdCount="
+        << curBorrowIdsPidsMap.size() << ", pidCount=" << totalPidCount << ".";
 
     rollBackForOutEntry.validBorrowIdSet = validBorrowIdSet;
     rollBackForOutEntry.curBorrowIdsPidsMap = curBorrowIdsPidsMap;
