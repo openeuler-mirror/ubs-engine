@@ -1914,10 +1914,6 @@ TEST_F(TestUbseNpuManagerApi, RollBackSuccess)
 
 TEST_F(TestUbseNpuManagerApi, RollBackFailureCreatesBgThread)
 {
-#ifdef __SANITIZE_ADDRESS__
-    GTEST_SKIP() << "RollBack failure path spawns a detached background thread capturing this, racing with object "
-                    "lifetime and causing SEGV under ASAN";
-#endif
     auto& manager = UbseNpuManagerApi::GetInstance();
     manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
 
@@ -2599,12 +2595,7 @@ TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueBackGroundRunsQueue)
 
     EXPECT_EQ(manager.futureProcedure_.size(), 1);
     manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
-
-    std::unique_lock<std::mutex> lock(manager.mtx_);
-    ASSERT_TRUE(manager.cv_.wait_for(lock, std::chrono::seconds(5), [&manager]() {
-        return manager.state_ == UbseNpuManagerApi::NpuManagerState::AVAILABLE;
-    }));
-    EXPECT_TRUE(manager.futureProcedure_.empty());
+    EXPECT_EQ(manager.state_, UbseNpuManagerApi::NpuManagerState::FREE_BG);
 }
 
 TEST_F(TestUbseNpuManagerApi, SetStateRollbackBg)

@@ -17,20 +17,50 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_api_server_module.h"
+#include "ubse_com_base.h"
+#include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_logger.h"
+#include "ubse_mem_account.h"
+#include "ubse_mem_advice.h"
 #include "ubse_mem_api.h"
 #include "ubse_mem_buffer_convert.h"
+#include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_debt_info_partial_fetch_req.h"
+#include "ubse_mem_debt_info_partial_fetch_res.h"
+#include "ubse_mem_rpc_processor.h"
+#include "ubse_mem_task_executor.h"
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubse_os_util.h"
+#include "ubse_serial_util.h"
+#include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_mem_api.cpp"
+#include "message/ubse_mem_controller_def_serial.h"
+#include "src/sdk/c/include/ubs_engine.h"
+
+// 前置声明生产 cpp 中的非 static 内部函数，通过链接静态库解析符号，避免直接 include 生产 cpp。
+// 注意：必须放在全局作用域，若嵌套在其他命名空间内会生成错误的子命名空间导致符号无法解析。
+namespace ubse::mem::api {
+uint32_t UbseBorrowDetailsSendRpcAndFetchResponse(
+    const ubse::election::UbseRoleInfo& masterInfo,
+    ubse::mem::controller::message::UbseMemDebtInfoPartialFetchReqPtr ubseRequestPtr,
+    ubse::mem::controller::message::UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr);
+uint32_t UbseBorrowDetailsSendResponseToClient(
+    ubse::mem::controller::message::UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr,
+    const ::api::server::UbseRequestContext& context);
+void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo>& nodeList);
+} // namespace ubse::mem::api
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::api;
@@ -38,6 +68,8 @@ using namespace api::server;
 using namespace context;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::controller;
+using namespace ubse::mem::controller::message;
+using namespace ubse::serial;
 using namespace ubse::nodeController;
 using namespace ubse::election;
 using namespace ubse::task_executor;
@@ -284,7 +316,6 @@ void SetupTestObjects(UbseMemFdBorrowReq& fdBorrowReq, UbseMemNumaBorrowReq& num
         numaExportObj;
     nodeDebtInfoMap[numaBorrowReq.importNodeId].numaImportObjMap[numaBorrowReq.name] = numaImportObj;
 }
-
 TEST_F(TestUbseMemApi, UbseClusterList)
 {
     // 准备节点信息
@@ -325,7 +356,6 @@ void MockUbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo>& nodeLi
     ubse::nodeController::UbseNodeInfo info;
     nodeList.emplace_back(info);
 }
-
 TEST_F(TestUbseMemApi, UbseCheckMemoryStatus)
 {
     UbseIpcMessage req{};
@@ -347,7 +377,6 @@ TEST_F(TestUbseMemApi, UbseCheckMemoryStatus)
         req.buffer = nullptr;
     }
 }
-
 TEST_F(TestUbseMemApi, UbseNodeMemConfigHandle)
 {
     UbseIpcMessage req{};
@@ -398,7 +427,6 @@ TEST_F(TestUbseMemApi, UbseNumaStatusHandler)
     MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemApi::UbseNumaStatusHandler(req, context), UBSE_OK);
 }
-
 TEST_F(TestUbseMemApi, UbseBorrowDetailsFetchDebtHandle)
 {
     // 场景 1: 请求信息为空
@@ -433,7 +461,6 @@ TEST_F(TestUbseMemApi, UbseBorrowDetailsFetchDebtHandle)
     MOCKER_CPP(&UbseBorrowDetailsSendResponseToClient).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemApi::UbseBorrowDetailsFetchDebtHandle(req, context), UBSE_OK);
 }
-
 TEST_F(TestUbseMemApi, TestUbseMemApiUbseCheckMemoryStatus)
 {
     // 场景 1: 请求信息为空
@@ -520,7 +547,6 @@ TEST_F(TestUbseMemApi, TestUbseMemApiUbseNumaStatusHandler)
     delete[] req.buffer;
     req.buffer = nullptr;
 }
-
 TEST_F(TestUbseMemApi, UbseNumaStatusHandlerShowAll)
 {
     UbseSerialization reqSerial;
@@ -723,7 +749,6 @@ mem::def::UbseMemShmDesc BuildShmDesc()
     desc.state = ubse::mem::controller::UbseMemStage::UBSE_EXIST;
     return desc;
 }
-
 TEST_F(TestUbseMemApi, UbseCliShmAttachDispatch_WhenAsyncFailed)
 {
     // apiModule获取失败
@@ -772,7 +797,6 @@ TEST_F(TestUbseMemApi, UbseCliShmAttachDispatch_WhenAsyncFailed)
     sleep(1);
     executor->Stop();
 }
-
 // UbseCliShmCreateDispatch测试
 TEST_F(TestUbseMemApi, UbseCliShmCreateDispatch_WhenInvalidParam)
 {

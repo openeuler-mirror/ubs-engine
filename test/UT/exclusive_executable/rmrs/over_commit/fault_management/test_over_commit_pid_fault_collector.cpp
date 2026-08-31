@@ -15,10 +15,20 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include "ubse_com.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
+#include "mem_borrow_executor.h"
+#include "mempooling_message.h"
 #include "mockcpp/mokc.h"
-#include "over_commit_pid_fault_collector.cpp"
+#include "mp_configuration.h"
 #include "over_commit_pid_fault_collector.h"
 #include "over_commit_pid_fault_error_util.h"
+#include "over_commit_pid_fault_state_store.h"
+#include "over_commit_storage.h"
+#include "rmrs_serialize.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace ubse::mem::controller {

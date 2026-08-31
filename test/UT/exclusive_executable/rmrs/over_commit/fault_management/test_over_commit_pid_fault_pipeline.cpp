@@ -13,9 +13,18 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
+#include "ubse_error.h"
+#include "ubse_logger.h"
+#include "mem_borrow_executor.h"
 #include "mockcpp/mokc.h"
-#include "over_commit_pid_fault_pipeline.cpp"
+#include "mp_configuration.h"
+#include "over_commit_pid_fault_collector.h"
+#include "over_commit_pid_fault_context.h"
+#include "over_commit_pid_fault_decision.h"
+#include "over_commit_pid_fault_executor.h"
 #include "over_commit_pid_fault_pipeline.h"
+#include "over_commit_pid_fault_state_store.h"
+#include "over_commit_pid_fault_task_builder.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling {

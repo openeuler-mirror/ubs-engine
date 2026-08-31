@@ -14,11 +14,17 @@
 
 #include <ubse_timer.h>
 
+#include "ubse_node_api.h"
+#include "ubse_node_controller_agent.h"
+#include "ubse_node_controller_collector.h"
+#include "ubse_node_controller_master.h"
 #include "ubse_node_info_serialize.h"
 #include "src/framework/ha/ubse_election_module.h"
-#include "ubse_node_controller_module.cpp"
 
 namespace ubse::node_controller::ut {
+using namespace ubse::node::api;
+using namespace ubse::common::def;
+
 using namespace ubse::timer;
 using namespace election;
 using namespace ubse::com;
