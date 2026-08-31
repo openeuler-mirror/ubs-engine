@@ -1043,18 +1043,14 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
             reusable += s.capacity - s.migratedBytes;
         }
     }
-    if (hasInFlight || reusable == 0) {
-        return false;
-    }
-
-    constexpr uint64_t pageSizeBytes = 4 * 1024;
-    uint64_t reuse = std::min(need, reusable) / pageSizeBytes * pageSizeBytes;
-    if (reuse == 0) {
+    // 仅空闲容量足以覆盖全部借用需求时复用: 复用后无新债务, bump 与下发锁内原子完成;
+    // 需额外借用(部分复用)整体走新建债务流程, 避免账本 migratedBytes 非 blockSize 整数倍
+    if (hasInFlight || reusable < need) {
         return false;
     }
 
     uint64_t applied = 0;
-    uint64_t rest = reuse;
+    uint64_t rest = need;
     std::map<int, uint64_t> reuseTargets;
     infoMgr.UpdateManagedPidBorrowStateAtomic(
         pid,
@@ -1083,18 +1079,13 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
             }
         },
         "borrow_reuse");
-    if (applied == 0) {
+    if (applied != need) {
+        // 理论不可达(锁内账本不变, reusable >= need 保证填满); pid 恰被移除时防御性跳过
+        need -= applied;
         return false;
     }
 
-    need -= applied;
-    if (need > 0) {
-        // 部分复用: 剩余由新建债务流程下发, 其全量目标自然覆盖复用投影
-        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
-                      << " reused_gb=" << BytesToGbDouble(applied) << " remain_gb=" << BytesToGbDouble(need);
-        return false;
-    }
-
+    need = 0;
     std::vector<std::pair<int, uint64_t>> numaTargets;
     for (const auto& [numaId, bytes] : reuseTargets) {
         numaTargets.emplace_back(numaId, bytes);
