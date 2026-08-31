@@ -511,8 +511,8 @@ bool MempoolMigrateModule::NeedSmapMigrateBack(const std::string& borrowId, cons
                      << processPayloadList.size() << " managed pid(s), keep smap migrate back path.";
             return true;
         }
-        LOG_INFO << "[MemRollback] Placeholder pid of borrowId=" << borrowId << " and no managed pid on remote numa="
-                 << remoteNuma << ", direct return without smap migrate back.";
+        LOG_INFO << "[MemRollback] Placeholder pid of borrowId=" << borrowId
+                 << " and no managed pid on remote numa=" << remoteNuma << ", direct return without smap migrate back.";
         return false;
     }
 
