@@ -91,6 +91,11 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext& ctx)
     if (globalCurrentRole_) {
         globalCurrentRole_->CleanupRoutes();
     }
+    // 分层选举下所有角色都需要管理组数量
+    if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()
+        && !UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+        InitManagingGroupCount();
+    }
     RoleType role;
     bool flag = false;
     switch (roleType) {
@@ -110,11 +115,9 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext& ctx)
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
             if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()
                 && !UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
-                // 初始化管理组数量缓存
                 auto curNodeInfo = nodeMgr::GetCurrentNode();
                 UBSE_ID_TYPE curNodeId = curNodeInfo.nodeId;
                 std::string curNodeGrpId = std::to_string(curNodeInfo.groupId);
-                InitManagingGroupCount();
                 std::unordered_map<uint16_t, std::vector<nodeMgr::UbseNodeStaticInfo>> nodeMap =
                     nodeMgr::GetAllNodesStoredByGroup();
                 auto discoveryTargetMap = ComputeDiscoveryTargets(curNodeId, nodeMap);
@@ -572,6 +575,9 @@ void RoleMgr::UpdateDiscoveryTarget(const UBSE_ID_TYPE &groupId, const UBSE_ID_T
 
 void RoleMgr::InitManagingGroupCount()
 {
+    if (managingGroupCountInited_) {
+        return;
+    }
     auto nodesMap = nodeMgr::GetAllNodesStoredByGroup();
     uint16_t totalGroupCount = nodesMap.size();
     if (totalGroupCount == 0) {
@@ -584,6 +590,7 @@ void RoleMgr::InitManagingGroupCount()
     } else {
         managingGroupCount_ = totalGroupCount / NO_2;
     }
+    managingGroupCountInited_ = true;
     UBSE_LOG_INFO << "[ELECTION] InitManagingGroupCount: managingGroupCount_=" << managingGroupCount_
                   << ", totalGroupCount=" << totalGroupCount;
 }
