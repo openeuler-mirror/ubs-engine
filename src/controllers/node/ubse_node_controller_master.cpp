@@ -32,6 +32,7 @@
 #include "ubse_node_mgr.h"
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
+#include "ubse_str_util.h"
 #include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 
@@ -1493,6 +1494,20 @@ static UbseResult BuildLocalClusterDisplayNodes(std::vector<ClusterDisplayNode>&
         }
 
         displayNodes.push_back({nodeInfo, role});
+    }
+
+    // 补充静态节点信息：配置存在但尚未上报到内存的本组节点（nodeMgr 按 groupId 直接获取，避免全量 static info 再过滤）
+    auto staticNodes = nodeMgr::GetNodesByGroupId(static_cast<uint16_t>(currentGroupId));
+    for (const auto& staticNode : staticNodes) {
+        UBSE_LOG_INFO << "[CLUSTER_QUERY] static node=" << staticNode.nodeId;
+        if (nodeInfos.find(staticNode.nodeId) != nodeInfos.end()) {
+            continue;
+        }
+        UbseNodeInfo nodeInfo{staticNode.nodeId};
+        nodeInfo.groupId = staticNode.groupId;
+        (void)ubse::utils::ConvertStrToUint32(staticNode.nodeId, nodeInfo.slotId);
+        (void)strcpy_s(nodeInfo.bondingEid, sizeof(nodeInfo.bondingEid), staticNode.bonding0Eid.c_str());
+        displayNodes.push_back({nodeInfo, UBSE_ROLE_AGENT});
     }
 
     SortClusterDisplayNodes(displayNodes);
