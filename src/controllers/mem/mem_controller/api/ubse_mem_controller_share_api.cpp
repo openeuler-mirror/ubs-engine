@@ -1946,21 +1946,15 @@ uint32_t DeleteShareImportDebtInfoByNodeId(const std::string &faultNodeId)
 
     UBSE_LOG_INFO << "Hierarchical, forward delete import ledger to cascade master, "
                   << "faultNodeId=" << faultNodeId << ", cascadeMasterNodeId=" << cascadeMasterNodeId;
-    ret = ForwardDeleteImportLedgerToCascade(faultNodeId, cascadeMasterNodeId);
+    if (cascadeMasterNodeId != faultNodeId) {
+        ret = ForwardDeleteImportLedgerToCascade(faultNodeId, cascadeMasterNodeId);
+    }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to forward delete import debt to cascade master"
                        << FormatRetCode(ret);
         return ret;
     }
-    auto &summaryStore = UbseGlobalLedgerSummaryStore::GetInstance();
-    UbseGlobalNodeLedgerSummary summary;
-    if (summaryStore.GetNodeSummary(faultNodeId, summary) == UBSE_OK) {
-        for (const auto &[name, item] : summary.shmSummary.importItems) {
-            summaryStore.RemoveNodeImportItem(faultNodeId, name);
-        }
-    } else {
-        UBSE_LOG_WARN << "No import summary to delete for faultNodeId=" << faultNodeId;
-    }
+    UbseGlobalLedgerSummaryStore::GetInstance().RemoveAllNodeImportItems(faultNodeId);
     UBSE_LOG_INFO << "Share import debt summary deleted from global master, faultNodeId=" << faultNodeId;
     return UBSE_OK;
 }
