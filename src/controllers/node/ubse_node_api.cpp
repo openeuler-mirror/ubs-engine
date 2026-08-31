@@ -224,7 +224,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const Ubse
                         node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
         std::string slotIdStr = std::to_string(node.slotId);
         ubseSerial << ((!isOnline || node.hostName.empty() ? "-" : node.hostName) + "(" + slotIdStr + ")");
-        if (!isOnline) {
+        if (!isOnline || UbseSmbios::GetInstance().IsClosType()) {
             ubseSerial << "-";
         } else {
             auto it = roleMap.find(slotIdStr);
@@ -378,7 +378,7 @@ static void SerializeNodeFoundStrict(UbseSerialization& ubseSerial, const UbseNo
     nodeNameOut = nodeName;
 
     std::string roleStr = "-";
-    if (isOnline) {
+    if (isOnline && !UbseSmbios::GetInstance().IsClosType()) {
         auto it = roleMap.find(slotIdStr);
         roleStr = (it != roleMap.end()) ? it->second : UBSE_ROLE_AGENT;
     }
