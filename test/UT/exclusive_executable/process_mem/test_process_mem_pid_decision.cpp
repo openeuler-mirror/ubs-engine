@@ -534,8 +534,7 @@ TEST_F(TestProcessMemPidDecision, OomRearrangeMigratedBigFirst)
     returning.capacity = 6 * GB;
     returning.migratedBytes = 6 * GB;
     returning.remoteNumaId = 5;
-    returning.status = BorrowSlotStatus::COMPLETED;
-    returning.returnStatus = ReturnStatus::RETURNING;
+    returning.status = BorrowSlotStatus::RETURNING;
     borrow.slots = {big, mid, sml, numa9, inFlight, returning};
     borrow.currentRemote = 16 * GB;
     AddManagedPid(pid, 32, 0.5, 16, borrow);
@@ -632,7 +631,8 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanReleasedWhenPidMissing)
 {
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-orphan", 1 * GB, 5, 1001, 123456)});
 
-    ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache(), UBSE_OK);
+    ASSERT_TRUE(ubse::mem::controller::MockWaitNumaDeleteEntered(5000));
 
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaDeleteName(), "debt-orphan");
 }
@@ -643,9 +643,12 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanRetriedUntilSuccess)
     ubse::mem::controller::MockSetNumaDeleteErrorOnce(UBSE_ERR_TIMEOUT);
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-retry", 1 * GB, 5, 1003, 123456)});
 
-    ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
-
-    EXPECT_GE(ubse::mem::controller::MockGetNumaDeleteCallCount(), 2u);
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache(), UBSE_OK);
+    // 孤儿归还异步执行, 首次失败后 1ms 重试, 轮询等待第二次删除调用
+    for (int i = 0; i < 500 && ubse::mem::controller::MockGetNumaDeleteCallCount() < 2; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_GE(ubse::mem::controller::MockGetNumaDeleteCallCount(), 2u);
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaDeleteName(), "debt-retry");
 }
 
@@ -655,8 +658,10 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanNotExistStopsRetry)
     ubse::mem::controller::MockSetNumaDeleteErrorOnce(UBSE_ERR_NOT_EXIST);
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-gone", 1 * GB, 5, 1004, 123456)});
 
-    ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
-
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache(), UBSE_OK);
+    ASSERT_TRUE(ubse::mem::controller::MockWaitNumaDeleteEntered(5000));
+    // NOT_EXIST 视为完成不重试, 短暂等待异步线程收尾后断言次数
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(ubse::mem::controller::MockGetNumaDeleteCallCount(), 1u);
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaDeleteName(), "debt-gone");
 }
@@ -672,7 +677,8 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanReleasedOnStartTimeMismatch
     ubse::mem::controller::MockSetImportDebtInfos(
         {MakeImportDebt("debt-stale", 1 * GB, 5, pid, static_cast<int64_t>(startTime) + 1)});
 
-    ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache(), UBSE_OK);
+    ASSERT_TRUE(ubse::mem::controller::MockWaitNumaDeleteEntered(5000));
 
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaDeleteName(), "debt-stale");
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
@@ -699,7 +705,7 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowSkipsNonProcessMemUsrInfo)
 
     ubse::mem::controller::MockSetImportDebtInfos({other, badPid});
 
-    ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache(), UBSE_OK);
 
     EXPECT_TRUE(ubse::mem::controller::MockGetLastNumaDeleteName().empty());
 }
@@ -785,9 +791,11 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
     const auto& borrow = snapshot.at(pid).borrow;
     ASSERT_EQ(borrow.slots.size(), 1u);
     EXPECT_EQ(borrow.slots[0].migratedBytes, 1 * GB);
+    // currentRemote/remoteNumaMigrated 为账本 COMPLETED 槽权威投影, smap 多出的 numa7 无槽不认领
     EXPECT_EQ(borrow.currentRemote, 1 * GB);
     EXPECT_EQ(borrow.remoteNumaMigrated.size(), 1u);
     EXPECT_EQ(borrow.remoteNumaMigrated.at(5), 1 * GB);
+    EXPECT_EQ(borrow.remoteNumaMigrated.count(7), 0u);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
@@ -875,9 +883,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 0u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArrayOrder)
@@ -920,10 +929,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArra
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    // 与 oom rearrange 一致: 大容量槽先填满, 不按数组顺序先到先得
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 0u);
-    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1 * GB);
+    EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExceeded)
@@ -961,9 +970,10 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExc
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 1u);
-    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.currentRemote, 1536 * 1024 * 1024u);
-    EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 1536 * 1024 * 1024u);
+    // COMPLETED 槽 migratedBytes/remoteNumaMigrated 为账本权威值, 实测不覆盖
+    EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
+    EXPECT_EQ(borrowAfter.currentRemote, 2 * GB);
+    EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 2 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigIgnoresHamProcesses)
@@ -1196,6 +1206,7 @@ TEST_F(TestProcessMemPidDecision, NextCycleBorrowsFullAmountNoReuse)
     round2Thread.join();
     ASSERT_TRUE(ubse::mem::controller::MockWaitNumaCreateEntered(5000));
 
+    // 空闲容量 0.5GB 不足以覆盖 4.5GB 借用需求, 不部分复用, 全额新建债务
     ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 1u);
     EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), gb2_5 / 1024);
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), 4 * GB + GB / 2);
@@ -1245,8 +1256,7 @@ TEST_F(TestProcessMemPidDecision, ReturningSlotExcludedFromMigrateTargets)
     slot.capacity = 3 * GB;
     slot.migratedBytes = gb2_5;
     slot.remoteNumaId = 3;
-    slot.status = BorrowSlotStatus::COMPLETED;
-    slot.returnStatus = ReturnStatus::RETURNING;
+    slot.status = BorrowSlotStatus::RETURNING;
     borrow.currentRemote = gb2_5;
     borrow.slots.push_back(slot);
     AddManagedPid(pid, maxGb, ratio, 20, borrow);
@@ -1262,7 +1272,7 @@ TEST_F(TestProcessMemPidDecision, ReturningSlotExcludedFromMigrateTargets)
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     ASSERT_EQ(snapshot.at(pid).borrow.slots.size(), 2u);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[0].migratedBytes, gb2_5);
-    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].returnStatus, ReturnStatus::RETURNING);
+    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].status, BorrowSlotStatus::RETURNING);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].migratedBytes, gb2_5);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].status, BorrowSlotStatus::COMPLETED);
 }

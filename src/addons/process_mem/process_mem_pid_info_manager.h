@@ -15,6 +15,7 @@
 #include <map>
 #include <set>
 #include <shared_mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "process_mem_pid_collect.h"
@@ -65,9 +66,15 @@ public:
                                            const std::function<void(def::BorrowState&, def::ProcessStatus&)>& mutate,
                                            const char* reason = nullptr);
 
+    // currentRemote 与 smap 下发目标同步的重算口径, 供调用迁移接口前/状态变更时使用
+    static uint64_t RecomputeCurrentRemote(const def::BorrowState& borrow);
+
     uint32_t UpdateManagedPidSlotReturned(pid_t pid, const std::string& debtId);
-    uint32_t UpdateManagedPidSlotReturnStatus(pid_t pid, const std::string& debtId, def::ReturnStatus status);
+    // returning=true 置 RETURNING(rebuild 排除), false 置回 COMPLETED(先重算 currentRemote, 不 rebuild)
+    uint32_t SetManagedPidSlotReturning(pid_t pid, const std::string& debtId, bool returning);
     void ResetSlotByDebtName(const std::string& debtId);
+    // r2r 旧债删除成功后移除替换映射条目(重播/孤儿归还不再识别该旧债名)
+    void RemoveR2rReplacedDebt(pid_t pid, const std::string& oldDebtId);
 
     std::map<pid_t, def::ManagedPidEntry> GetManagedPidCacheSnapshot() const;
 
