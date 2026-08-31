@@ -141,8 +141,9 @@ MpResult GetRollBackBorrowIdPid(const std::string& nodeId, RollBackBorrowIdPid& 
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Valid borrowId same batch failed.";
         return MEM_POOLING_ERROR;
     }
-    // 2. 如果交集为空则手动填充：说明借用时未持久化pid映射（迁移失败时虚机未建立/未纳管），
-    // 占位pid=-1后续进入纳管判定时不会命中任何真实进程，归还走直接归还路径；留痕便于复现定位
+    // 2. 如果交集为空则手动填充：说明未持久化pid映射，可能是迁移失败未写入，也可能是迁移旁路（
+    // waitingTime==0跳过映射写入但真实迁移）或持久化部分丢失，占位pid=-1仅作“映射缺失”标记，
+    // 后续归还判定据此改用远端numa全局纳管状态兜底，保持fail-closed
     if (validBorrowIdsPidsMap.empty()) {
         // 手动填充borrow映射
         for (const std::string& borrowId : borrowIdsList) {

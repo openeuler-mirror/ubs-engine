@@ -2005,6 +2005,64 @@ TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_ManagedZeroUsage_DirectRetu
 }
 
 /*
+ * 用例描述：占位pid(-1，映射缺失时填充)+远端numa完全无纳管进程，可确认无待迁回数据，直接归还；
+ * 对应迁移失败主场景，保证原修复不回退为迁回确定性失败-9阻塞回滚（fail-closed契约的确认无数据侧）
+ * 预期结果：NeedSmapMigrateBack返回false
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_PlaceholderPid_NoManaged_DirectReturn)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+
+    std::set<BorrowIdInfo> placeholderPids{{-1, 0}};
+    EXPECT_FALSE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", placeholderPids));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：占位pid(-1)+远端numa存在纳管进程（迁移旁路：waitingTime==0跳过映射写入但数据已迁往远端，
+ * 或持久化部分丢失），无法锚定真实进程但不可确认远端无数据，必须维持迁回路径（fail-closed，
+ * 验证S1-01：不得凭“未命中”直接归还导致远端数据未迁回即释放）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_PlaceholderPid_RemoteHasManaged_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload managedPayload{};
+    managedPayload.pid = 555;
+    managedPayload.memSize = 2048;
+    g_needSmapPayloads.push_back(managedPayload);
+
+    std::set<BorrowIdInfo> placeholderPids{{-1, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", placeholderPids));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：真实pid与占位pid混合时，真实pid未命中纳管列表且远端仍有其他纳管进程，
+ * 占位pid使精确匹配不可信，按远端全局纳管状态维持迁回路径（占位-1与真实100同列）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_MixedPidWithPlaceholder_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload otherManaged{};
+    otherManaged.pid = 888;
+    otherManaged.memSize = 1024;
+    g_needSmapPayloads.push_back(otherManaged);
+
+    // BorrowIdInfo按pid升序：{-1,0}在前{100,0}在后，验证混合遍历逻辑与顺序无关；真实100未命中、远端有纳管→迁回
+    std::set<BorrowIdInfo> mixedPids{{-1, 0}, {100, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", mixedPids));
+    GlobalMockObject::reset();
+}
+
+/*
  * 用例描述：回滚归还链路按动态判定传参——未纳管借据以smapBack=false直接归还（修复迁移失败场景），
  * 有远端占用的借据以smapBack=true维持迁回；无pid信息的借据保持默认迁回路径，
  * 且归还成功清理不引入新key（find缺失不插入）

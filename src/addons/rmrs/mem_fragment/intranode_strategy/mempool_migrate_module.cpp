@@ -482,9 +482,17 @@ bool MempoolMigrateModule::NeedSmapMigrateBack(const std::string& borrowId, cons
         return true;
     }
 
-    // 3. 任一借据关联pid被纳管且远端占用>0才需要迁回；否则说明迁移失败、
+    // 3. 任一借据关联的真实pid被纳管且远端占用>0才需要迁回；否则说明迁移失败、
     // 远端numa上无待迁回数据，直接归还即可，不走smap迁回（避免确定性失败阻塞回滚）
+    bool hasInvalidPid = false;
     for (const auto& pidInfo : pidInfos) {
+        if (pidInfo.pid <= 0) {
+            // 占位pid（Name2VmInfo映射缺失时填充的-1）无法锚定真实进程：迁移旁路（waitingTime==0
+            // 跳过映射写入但真实迁移）或持久化部分丢失时远端可能仍有数据，不可凭“未命中”直接归还，
+            // 转由下方远端numa全局纳管状态兜底判定，保持fail-closed契约（仅确认远端无数据才直接归还）
+            hasInvalidPid = true;
+            continue;
+        }
         for (const auto& payload : processPayloadList) {
             if (payload.pid == pidInfo.pid && payload.memSize > 0) {
                 LOG_INFO << "[MemRollback] borrowId=" << borrowId << " has smap managed pid=" << pidInfo.pid
@@ -492,6 +500,20 @@ bool MempoolMigrateModule::NeedSmapMigrateBack(const std::string& borrowId, cons
                 return true;
             }
         }
+    }
+
+    // 4. 存在占位/非法pid时精确匹配不可信，改用远端numa全局纳管状态兜底：仅当远端完全无纳管进程时，
+    // 才可确认无待迁回数据而直接归还；否则宁可回滚失败重试，不可带数据误走直接归还（fail-closed）
+    if (hasInvalidPid) {
+        if (!processPayloadList.empty()) {
+            LOG_WARN << "[MemRollback] Placeholder pid of borrowId=" << borrowId
+                     << " cannot anchor real process while remote numa=" << remoteNuma << " has "
+                     << processPayloadList.size() << " managed pid(s), keep smap migrate back path.";
+            return true;
+        }
+        LOG_INFO << "[MemRollback] Placeholder pid of borrowId=" << borrowId << " and no managed pid on remote numa="
+                 << remoteNuma << ", direct return without smap migrate back.";
+        return false;
     }
 
     LOG_INFO << "[MemRollback] No smap managed data of borrowId=" << borrowId << " on remote numa=" << remoteNuma
