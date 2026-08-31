@@ -11,7 +11,12 @@
  */
 
 #include "test_ubse_npu_controller_process.h"
-#include "ubse_npu_controller_process.cpp"
+#include "ubse_common_def.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_npu_resource_collection.h"
+#include "ubse_npu_resource_collection_def.h"
+#include "ubse_npu_source_def.h"
 
 namespace ubse::npu::controller::ut {
 

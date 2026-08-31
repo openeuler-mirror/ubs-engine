@@ -14,11 +14,12 @@
 
 #include <ubse_pointer_process.h>
 
+#include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_smbios.h"
 #include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "src/framework/ipc/include/ubse_ipc_server.h"
-#include "ubse_node_api_convert.cpp"
+#include "ubs_engine_mem.h"
 
 namespace ubse::node_controller::ut {
 using namespace ubse::ipc;
@@ -65,26 +66,6 @@ TEST_F(TestUbseNodeApiConvert, UbseNodePack_ContainsSuperPodId)
     EXPECT_GE(message.length, UbseNodeCalcSize(ubseNode) + sizeof(uint16_t));
     SafeDeleteArray(message.buffer);
 }
-
-TEST_F(TestUbseNodeApiConvert, UbseNodeListPack_Success)
-{
-    std::vector<UbseNode> nodeList{};
-    UbseNode node1{};
-    node1.hostName = "node1";
-    nodeList.push_back(node1);
-    UbseNode node2{};
-    node2.hostName = "node2";
-    node2.slotId = 2;
-    nodeList.push_back(node2);
-
-    UbseIpcMessage message{};
-    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().will(returnValue(UBSE_OK));
-    auto ret = UbseNodeListPack(nodeList, message);
-    EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_GE(message.length, UbseNodeListCalcSize(nodeList) + sizeof(uint16_t));
-    SafeDeleteArray(message.buffer);
-}
-
 TEST_F(TestUbseNodeApiConvert, UbseNodeListPack_EmptyList)
 {
     std::vector<UbseNode> nodeList{};

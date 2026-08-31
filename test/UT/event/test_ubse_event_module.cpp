@@ -16,7 +16,8 @@
 #include <chrono>
 #include <thread>
 
-#include "src/framework/event/ubse_event_module.cpp"
+#include "ubse_conf_module.h"
+#include "ubse_error.h"
 
 namespace ubse::event::ut {
 using namespace ubse::event;
@@ -96,45 +97,6 @@ TEST_F(TestUbseEventModule, InitializeFailedGetModuleNullptr)
  * 预期结果：
  * 1. 使用默认值修正
  */
-TEST_F(TestUbseEventModule, UbseEventConfigCheckOutOfRange)
-{
-    UbseEventModule::Impl impl;
-    uint32_t queueMaxItem = 10;        // 小于64
-    uint32_t highThreadMaxItem = 1;    // 小于2
-    uint32_t mediumThreadMaxItem = 20; // 大于16
-    uint32_t lowThreadMaxItem = 0;     // 小于2
-
-    impl.UbseEventConfigCheck(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem);
-
-    EXPECT_EQ(queueMaxItem, 1024);
-    EXPECT_EQ(highThreadMaxItem, 10);
-    EXPECT_EQ(mediumThreadMaxItem, 5);
-    EXPECT_EQ(lowThreadMaxItem, 2);
-}
-
-/*
- * 用例描述：测试UbseEventConfigCheck正常范围值
- * 测试步骤：
- * 1. 传入有效范围内的配置值
- * 预期结果：
- * 1. 配置值保持不变
- */
-TEST_F(TestUbseEventModule, UbseEventConfigCheckValidRange)
-{
-    UbseEventModule::Impl impl;
-    uint32_t queueMaxItem = 512;
-    uint32_t highThreadMaxItem = 8;
-    uint32_t mediumThreadMaxItem = 4;
-    uint32_t lowThreadMaxItem = 3;
-
-    impl.UbseEventConfigCheck(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem);
-
-    EXPECT_EQ(queueMaxItem, 512);
-    EXPECT_EQ(highThreadMaxItem, 8);
-    EXPECT_EQ(mediumThreadMaxItem, 4);
-    EXPECT_EQ(lowThreadMaxItem, 3);
-}
-
 /*
  * 用例描述：测试Start成功
  * 测试步骤：

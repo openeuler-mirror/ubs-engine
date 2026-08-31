@@ -11,13 +11,21 @@
  */
 
 #include "test_ubse_election_node_mgr.h"
+#include "ubse_common_def.h"
+#include "ubse_conf.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_lcne_module.h"
 #include "ubse_mti_interface_default.h"
+#include "ubse_node_controller.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "ubse_election_node_mgr.cpp"
 
 namespace ubse::ut::election {
+using namespace ubse::nodeController;
+using namespace ubse::com;
+
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::config;
