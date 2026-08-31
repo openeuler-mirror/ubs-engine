@@ -45,8 +45,8 @@ constexpr uint64_t MB_128 = 128;
 constexpr uint32_t kBorrowHighWatermark = 100;
 constexpr uint32_t kMaxReturnRetry = 100;
 constexpr int64_t kEmergencyBroadcastIntervalMs = 2000;
-constexpr int kMaxConflictRetry = 3;       // rmrs 并发冲突放锁重试次数上限
-constexpr int kConflictRetryDelayMs = 100; // 放锁等待间隔, 让同 numa 冲突操作完成
+constexpr int kMaxConflictRetry = 10;       // rmrs 并发冲突放锁重试次数上限
+constexpr int kConflictRetryDelayMs = 1000; // 放锁等待间隔, 让同 numa 冲突操作完成
 
 bool IsFaultHandling(uint32_t ret)
 {
