@@ -1171,7 +1171,7 @@ TEST_F(TestProcessMemPidDecision, BorrowAmountRoundedUpToBlockSize)
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), expectedBytes);
 }
 
-TEST_F(TestProcessMemPidDecision, NextCycleBorrowsFullAmountNoReuse)
+TEST_F(TestProcessMemPidDecision, NextCycleReusesIdleCapacityBeforeNewDebt)
 {
     const pid_t pid = 15970;
     constexpr uint64_t maxGb = 32;
@@ -1206,14 +1206,15 @@ TEST_F(TestProcessMemPidDecision, NextCycleBorrowsFullAmountNoReuse)
     round2Thread.join();
     ASSERT_TRUE(ubse::mem::controller::MockWaitNumaCreateEntered(5000));
 
+    // 第二轮先复用首轮槽 0.5GB 空闲容量(capacity 3GB - migrated 2.5GB), 剩余 4GB 新建债务
     ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 1u);
     EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), gb2_5 / 1024);
-    EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), 4 * GB + GB / 2);
+    EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), 4 * GB);
     snapshot = infoMgr.GetManagedPidCacheSnapshot();
     ASSERT_EQ(snapshot.at(pid).borrow.slots.size(), 2u);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[0].status, BorrowSlotStatus::COMPLETED);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[0].capacity, 3 * GB);
-    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].migratedBytes, gb2_5);
+    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].migratedBytes, 3 * GB);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].status, BorrowSlotStatus::BORROWING);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].migratedBytes, 4 * GB + GB / 2);
     EXPECT_FALSE(snapshot.at(pid).borrow.slots[1].debtId.empty());
@@ -1224,17 +1225,17 @@ TEST_F(TestProcessMemPidDecision, NextCycleBorrowsFullAmountNoReuse)
     ubse::mem::controller::MockReleaseNumaCreate();
     ubse::task_executor::MockWaitExecutorIdle();
     ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 2u);
-    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), gb2_5 / 1024);
-    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 9), (4 * GB + GB / 2) / 1024);
+    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), 3 * GB / 1024);
+    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 9), 4 * GB / 1024);
     snapshot = infoMgr.GetManagedPidCacheSnapshot();
     ASSERT_EQ(snapshot.at(pid).borrow.slots.size(), 2u);
-    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].migratedBytes, gb2_5);
+    EXPECT_EQ(snapshot.at(pid).borrow.slots[0].migratedBytes, 3 * GB);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[0].status, BorrowSlotStatus::COMPLETED);
-    EXPECT_EQ(snapshot.at(pid).borrow.slots[1].capacity, 4 * GB + GB / 2);
-    EXPECT_EQ(snapshot.at(pid).borrow.slots[1].migratedBytes, 4 * GB + GB / 2);
+    EXPECT_EQ(snapshot.at(pid).borrow.slots[1].capacity, 4 * GB);
+    EXPECT_EQ(snapshot.at(pid).borrow.slots[1].migratedBytes, 4 * GB);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].remoteNumaId, 9);
     EXPECT_EQ(snapshot.at(pid).borrow.slots[1].status, BorrowSlotStatus::COMPLETED);
-    EXPECT_EQ(snapshot.at(pid).borrow.currentRemote, gb2_5 + 4 * GB + GB / 2);
+    EXPECT_EQ(snapshot.at(pid).borrow.currentRemote, 3 * GB + 4 * GB);
     EXPECT_EQ(decision.GetPendingMigrateTotal(), 0u);
     EXPECT_EQ(snapshot.at(pid).processStatus, ProcessStatus::BORROWED);
 

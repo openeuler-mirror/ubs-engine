@@ -59,10 +59,12 @@ void TestProcessMemPidBorrowReuse::AddPidWithBorrow(pid_t pid, const def::Borrow
     infoMgr.UpdateManagedPidBorrowState(pid, borrow, status);
 }
 
-TEST_F(TestProcessMemPidBorrowReuse, NewBorrowAllTargetsOneCallMigrateFailWholeAbort)
+TEST_F(TestProcessMemPidBorrowReuse, PartialReuseMigrateFailAbortsNewDebtOnly)
 {
     const pid_t pid = 15964;
     constexpr uint64_t need = 2 * BYTES_PER_GB;
+    constexpr uint64_t reuse = BYTES_PER_GB / 2;
+    constexpr uint64_t remain = need - reuse;
 
     def::BorrowSlot slot;
     slot.capacity = 4 * BYTES_PER_GB;
@@ -82,24 +84,26 @@ TEST_F(TestProcessMemPidBorrowReuse, NewBorrowAllTargetsOneCallMigrateFailWholeA
     ASSERT_FALSE(debtId.empty());
     ProcessMemPidDecision::GetInstance().AsyncBorrowAndMigrate(debtId, pid, need, 0, 1);
 
+    // 部分复用: 槽 d1 空闲 0.5GB 被复用 bump 到 capacity, 剩余 1.5GB 走新建债务, 单次全量下发
     ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 1u);
     auto calls = ubse::smap::MockGetMigrateCalls();
     ASSERT_EQ(calls.size(), 2u);
     EXPECT_EQ(calls[0].first, 3);
-    EXPECT_EQ(calls[0].second, GB3_5 / 1024);
+    EXPECT_EQ(calls[0].second, 4 * BYTES_PER_GB / 1024);
     EXPECT_EQ(calls[1].first, 5);
-    EXPECT_EQ(calls[1].second, need / 1024);
+    EXPECT_EQ(calls[1].second, remain / 1024);
     EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), 0u);
     EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 5), 0u);
 
+    // 下发失败仅作废新债务: 复用 bump 是独立持久意图, 留在账本由对账全量对齐 smap 自愈
     EXPECT_EQ(ubse::mem::controller::MockGetNumaDeleteCallCount(), 1u);
     EXPECT_EQ(ubse::mem::controller::MockGetLastNumaDeleteName(), debtId);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     auto it = snapshot.find(pid);
     ASSERT_NE(it, snapshot.end());
     ASSERT_EQ(it->second.borrow.slots.size(), 1u);
-    EXPECT_EQ(it->second.borrow.slots[0].migratedBytes, GB3_5);
-    EXPECT_EQ(it->second.borrow.currentRemote, GB3_5);
+    EXPECT_EQ(it->second.borrow.slots[0].migratedBytes, 4 * BYTES_PER_GB);
+    EXPECT_EQ(it->second.borrow.currentRemote, 4 * BYTES_PER_GB);
     EXPECT_EQ(it->second.processStatus, def::ProcessStatus::BORROWED);
 }
 

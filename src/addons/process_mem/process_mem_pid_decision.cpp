@@ -1017,7 +1017,8 @@ void ProcessMemPidDecision::FailBorrowAbort(pid_t pid, const std::string& debtId
     RemoveSlotFinalize(pid, debtId);
 }
 
-bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, uint64_t& need, uint64_t roundNum)
+bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need,
+                                                  uint64_t roundNum)
 {
     // 超分比下调迁回后 COMPLETED 槽 capacity 保留而 migratedBytes 归 0, 远端债务块空闲;
     // 进程内存上涨时优先复用老块, 避免新建债务. 与归还/再平衡/对账迁出持同一 pid 锁串行
@@ -1032,8 +1033,9 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, uint64_t& need, uin
     bool hasInFlight = false;
     uint64_t reusable = 0;
     for (const auto& s : it->second.borrow.slots) {
-        if (s.status == def::BorrowSlotStatus::BORROWING) {
-            // 借用在途: 复用下发会覆盖在途借用目标, 跳过由下轮重试
+        if (s.status == def::BorrowSlotStatus::BORROWING && s.debtId != debtId) {
+            // 其他借用在途: 复用下发会覆盖在途借用目标, 跳过由下轮重试;
+            // own 槽(本次借用预记录)排除, 否则复用永不生效
             hasInFlight = true;
             break;
         }
@@ -1115,7 +1117,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     std::map<int, uint64_t> increments;
 
     // 复用超分比下调迁回后空闲的 COMPLETED 债务块容量, 覆盖借用需求时不新建债务
-    if (ReuseIdleSlotCapacity(pid, need, roundNum)) {
+    if (ReuseIdleSlotCapacity(pid, debtId, need, roundNum)) {
         RemoveSlotFinalize(pid, debtId);
         ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
         return;

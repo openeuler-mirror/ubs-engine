@@ -112,7 +112,7 @@ private:
 
     void AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
-    bool ReuseIdleSlotCapacity(pid_t pid, uint64_t& need, uint64_t roundNum);
+    bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum);
 
     void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
                              std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
