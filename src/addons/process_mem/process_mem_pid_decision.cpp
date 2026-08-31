@@ -1017,11 +1017,109 @@ void ProcessMemPidDecision::FailBorrowAbort(pid_t pid, const std::string& debtId
     RemoveSlotFinalize(pid, debtId);
 }
 
+bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, uint64_t& need, uint64_t roundNum)
+{
+    // 超分比下调迁回后 COMPLETED 槽 capacity 保留而 migratedBytes 归 0, 远端债务块空闲;
+    // 进程内存上涨时优先复用老块, 避免新建债务. 与归还/再平衡/对账迁出持同一 pid 锁串行
+    auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
+    std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+    auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(pid);
+    if (it == snapshot.end() || need == 0) {
+        return false;
+    }
+
+    bool hasInFlight = false;
+    uint64_t reusable = 0;
+    for (const auto& s : it->second.borrow.slots) {
+        if (s.status == def::BorrowSlotStatus::BORROWING) {
+            // 借用在途: 复用下发会覆盖在途借用目标, 跳过由下轮重试
+            hasInFlight = true;
+            break;
+        }
+        if (s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0 && s.capacity > s.migratedBytes) {
+            reusable += s.capacity - s.migratedBytes;
+        }
+    }
+    if (hasInFlight || reusable == 0) {
+        return false;
+    }
+
+    constexpr uint64_t pageSizeBytes = 4 * 1024;
+    uint64_t reuse = std::min(need, reusable) / pageSizeBytes * pageSizeBytes;
+    if (reuse == 0) {
+        return false;
+    }
+
+    uint64_t applied = 0;
+    uint64_t rest = reuse;
+    std::map<int, uint64_t> reuseTargets;
+    infoMgr.UpdateManagedPidBorrowStateAtomic(
+        pid,
+        [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
+            for (auto& s : newBorrow.slots) {
+                if (s.status != def::BorrowSlotStatus::COMPLETED || s.remoteNumaId < 0 || rest == 0) {
+                    continue;
+                }
+                uint64_t idle = s.capacity - s.migratedBytes;
+                if (idle == 0) {
+                    continue;
+                }
+                uint64_t fill = std::min(idle, rest);
+                s.migratedBytes += fill;
+                rest -= fill;
+                applied += fill;
+            }
+            if (applied > 0) {
+                newBorrow.currentRemote += applied;
+            }
+            // BORROWING 在途已排除, 复用后 COMPLETED 槽投影即全量目标
+            for (const auto& s : newBorrow.slots) {
+                if (s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0 && s.migratedBytes > 0) {
+                    reuseTargets[s.remoteNumaId] += s.migratedBytes;
+                }
+            }
+        },
+        "borrow_reuse");
+    if (applied == 0) {
+        return false;
+    }
+
+    need -= applied;
+    if (need > 0) {
+        // 部分复用: 剩余由新建债务流程下发, 其全量目标自然覆盖复用投影
+        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
+                      << " reused_gb=" << BytesToGbDouble(applied) << " remain_gb=" << BytesToGbDouble(need);
+        return false;
+    }
+
+    std::vector<std::pair<int, uint64_t>> numaTargets;
+    for (const auto& [numaId, bytes] : reuseTargets) {
+        numaTargets.emplace_back(numaId, bytes);
+    }
+    int ret = RmrsMigrateToNumas(pid, "", numaTargets);
+    if (ret != 0) {
+        // 下发失败: 账本已 bump, smap 未生效, 由 CorrectSmapConfig 全量对齐自愈
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
+                      << " migrate_failed ret=" << ret << " (ledger bumped, smap reconcile will heal)";
+    }
+    UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
+                  << " fully_reused_gb=" << BytesToGbDouble(applied) << " no_new_debt";
+    return true;
+}
+
 void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId,
                                                   uint64_t roundNum)
 {
     uint64_t need = amount;
     std::map<int, uint64_t> increments;
+
+    // 复用超分比下调迁回后空闲的 COMPLETED 债务块容量, 覆盖借用需求时不新建债务
+    if (ReuseIdleSlotCapacity(pid, need, roundNum)) {
+        RemoveSlotFinalize(pid, debtId);
+        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
+        return;
+    }
 
     CreatedDebtInfo created;
     if (!CreateNumaDebt(pid, need, srcNumaId, debtId, roundNum, created)) {
