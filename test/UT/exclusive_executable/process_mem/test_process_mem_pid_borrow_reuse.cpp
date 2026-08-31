@@ -105,6 +105,48 @@ TEST_F(TestProcessMemPidBorrowReuse, NewBorrowAllTargetsOneCallMigrateFailWholeA
     EXPECT_EQ(it->second.processStatus, def::ProcessStatus::BORROWED);
 }
 
+TEST_F(TestProcessMemPidBorrowReuse, FullReuseCoversNeedNoNewDebt)
+{
+    const pid_t pid = 15964;
+    constexpr uint64_t need = 2 * BYTES_PER_GB;
+
+    // 超分比下调迁回后: 槽 d1 全空闲(capacity 保留, migratedBytes 归 0)
+    def::BorrowSlot slot;
+    slot.capacity = 4 * BYTES_PER_GB;
+    slot.migratedBytes = 0;
+    slot.debtId = "d1";
+    slot.remoteNumaId = 3;
+    slot.status = def::BorrowSlotStatus::COMPLETED;
+    def::BorrowState borrow;
+    borrow.currentRemote = 0;
+    borrow.slots.push_back(slot);
+    AddPidWithBorrow(pid, borrow, def::ProcessStatus::BORROWED);
+
+    auto debtId = ProcessMemPidDecision::GetInstance().RecordPendingBorrow(pid, need, 0, 1);
+    ASSERT_FALSE(debtId.empty());
+    ProcessMemPidDecision::GetInstance().AsyncBorrowAndMigrate(debtId, pid, need, 0, 1);
+
+    // 空闲 4GB 完全覆盖 2GB 需求: 复用生效, 无新建/归还债务, 单次全量下发
+    EXPECT_TRUE(ubse::mem::controller::MockGetLastNumaCreateName().empty());
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaDeleteCallCount(), 0u);
+    ASSERT_EQ(ubse::smap::MockGetMigrateCallCount(), 1u);
+    auto calls = ubse::smap::MockGetMigrateCalls();
+    ASSERT_EQ(calls.size(), 1u);
+    EXPECT_EQ(calls[0].first, 3);
+    EXPECT_EQ(calls[0].second, need / 1024);
+    EXPECT_EQ(ubse::smap::MockGetMigrateTargetKb(pid, 3), need / 1024);
+
+    // 预记录槽作废, 槽 d1 bump 到 need, currentRemote 同步
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(pid);
+    ASSERT_NE(it, snapshot.end());
+    ASSERT_EQ(it->second.borrow.slots.size(), 1u);
+    EXPECT_EQ(it->second.borrow.slots[0].debtId, "d1");
+    EXPECT_EQ(it->second.borrow.slots[0].migratedBytes, need);
+    EXPECT_EQ(it->second.borrow.currentRemote, need);
+    EXPECT_EQ(it->second.processStatus, def::ProcessStatus::BORROWED);
+}
+
 TEST_F(TestProcessMemPidBorrowReuse, VanishedSlotAfterCreateReturnsUbseDebt)
 {
     const pid_t pid = 15964;
