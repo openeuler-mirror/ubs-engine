@@ -82,6 +82,18 @@ void TestUbseNodeController::TearDown()
     GlobalMockObject::verify();
 }
 
+void ResetSubHealthTestData()
+{
+    auto& controller = UbseNodeController::GetInstance();
+
+    controller.subHealthEnabled_.store(false);
+    controller.subHealthRefreshPending_.store(false);
+
+    std::unique_lock<std::shared_mutex> lock(controller.subHealthMutex_);
+    controller.subHealthSocketPairCache_.clear();
+    controller.subHealthHostExportCache_.clear();
+}
+
 TEST_F(TestUbseNodeController, GetStaticNodeInfo)
 {
     EXPECT_EQ(UbseNodeController::GetInstance().GetStaticNodeInfo().size(), 0);
@@ -886,4 +898,177 @@ TEST_F(TestUbseNodeController, CanUpdateClusterStateForReport_DiffGroupWorkingFi
     EXPECT_TRUE(needRecovery);
 }
 
+TEST_F(TestUbseNodeController, UpdateSubHealthCacheAndQuery)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+    controller.subHealthEnabled_.store(true);
+
+    UbseSubHealthFlagMap subHealthFlags;
+    subHealthFlags[{{"1", 0}, {"2", 0}}] = true;
+    subHealthFlags[{{"2", 0}, {"1", 0}}] = true;
+    subHealthFlags[{{"1", 1}, {"2", 1}}] = false;
+
+    auto ret = controller.UpdateSubHealthCache(subHealthFlags);
+
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(controller.subHealthSocketPairCache_.size(), 2);
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("1", "2", 0, 0));
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("2", "1", 0, 0));
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("1", "2", 1, 1));
+
+    EXPECT_TRUE(controller.IsHostExportSubHealthy("1", "2", 0));
+    EXPECT_TRUE(controller.IsHostExportSubHealthy("2", "1", 0));
+}
+
+TEST_F(TestUbseNodeController, UpdateSubHealthCacheWhenNodeIdEmpty)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+    controller.subHealthEnabled_.store(true);
+
+    UbseSubHealthFlagMap subHealthFlags;
+    subHealthFlags[{{"1", 0}, {"2", 0}}] = true;
+    ASSERT_EQ(controller.UpdateSubHealthCache(subHealthFlags), UBSE_OK);
+
+    UbseSubHealthFlagMap invalidFlags;
+    invalidFlags[{{"", 0}, {"2", 0}}] = true;
+
+    EXPECT_EQ(controller.UpdateSubHealthCache(invalidFlags), UBSE_ERROR_INVAL);
+
+    // 更新失败后旧缓存仍然保留
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("1", "2", 0, 0));
+    EXPECT_EQ(controller.subHealthSocketPairCache_.size(), 1);
+}
+
+TEST_F(TestUbseNodeController, QuerySubHealthWhenDisabled)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+
+    UbseSubHealthFlagMap subHealthFlags;
+    subHealthFlags[{{"1", 0}, {"2", 0}}] = true;
+    ASSERT_EQ(controller.UpdateSubHealthCache(subHealthFlags), UBSE_OK);
+
+    controller.subHealthEnabled_.store(false);
+
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("1", "2", 0, 0));
+    EXPECT_FALSE(controller.IsHostExportSubHealthy("1", "2", 0));
+}
+
+TEST_F(TestUbseNodeController, ClearSubHealthCacheForSocketPair)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+    controller.subHealthEnabled_.store(true);
+
+    UbseSubHealthFlagMap subHealthFlags;
+    subHealthFlags[{{"1", 0}, {"2", 0}}] = true;
+    subHealthFlags[{{"2", 0}, {"1", 0}}] = true;
+    subHealthFlags[{{"1", 1}, {"2", 1}}] = true;
+    subHealthFlags[{{"2", 1}, {"1", 1}}] = true;
+
+    ASSERT_EQ(controller.UpdateSubHealthCache(subHealthFlags), UBSE_OK);
+    ASSERT_EQ(controller.subHealthSocketPairCache_.size(), 4);
+
+    UbseNodeController::SubHealthSocketPair socketPair{
+        "1",
+        "2",
+        0,
+        0,
+    };
+
+    controller.ClearSubHealthCacheForSocketPair(socketPair);
+
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("1", "2", 0, 0));
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("2", "1", 0, 0));
+
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("1", "2", 1, 1));
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("2", "1", 1, 1));
+
+    EXPECT_EQ(controller.subHealthSocketPairCache_.size(), 2);
+}
+
+TEST_F(TestUbseNodeController, ClearSubHealthCacheForNode)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+    controller.subHealthEnabled_.store(true);
+
+    UbseSubHealthFlagMap subHealthFlags;
+
+    // node2相关
+    subHealthFlags[{{"1", 0}, {"2", 0}}] = true;
+    subHealthFlags[{{"2", 0}, {"1", 0}}] = true;
+
+    // 与node2无关
+    subHealthFlags[{{"3", 0}, {"4", 0}}] = true;
+    subHealthFlags[{{"4", 0}, {"3", 0}}] = true;
+
+    ASSERT_EQ(controller.UpdateSubHealthCache(subHealthFlags), UBSE_OK);
+    ASSERT_EQ(controller.subHealthSocketPairCache_.size(), 4);
+
+    controller.ClearSubHealthCacheForNode("2");
+
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("1", "2", 0, 0));
+    EXPECT_FALSE(controller.IsSocketPairSubHealthy("2", "1", 0, 0));
+
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("3", "4", 0, 0));
+    EXPECT_TRUE(controller.IsSocketPairSubHealthy("4", "3", 0, 0));
+
+    EXPECT_EQ(controller.subHealthSocketPairCache_.size(), 2);
+}
+
+TEST_F(TestUbseNodeController, GetSubHealthSocketPairByPort)
+{
+    ResetSubHealthTestData();
+    auto& controller = UbseNodeController::GetInstance();
+
+    UbseNodeInfo node1{};
+    node1.nodeId = "1";
+    node1.slotId = 1;
+
+    UbseCpuLocation location1{"1", 1};
+    UbseCpuInfo cpuInfo1{};
+    cpuInfo1.slotId = 1;
+    cpuInfo1.socketId = 0;
+    cpuInfo1.chipId = "1";
+
+    UbsePortInfo portInfo{};
+    portInfo.portId = "1";
+    portInfo.remoteSlotId = "2";
+    portInfo.remoteChipId = "1";
+    portInfo.remotePortId = "1";
+    cpuInfo1.portInfos["1"] = portInfo;
+
+    node1.cpuInfos[location1] = cpuInfo1;
+
+    UbseNodeInfo node2{};
+    node2.nodeId = "2";
+    node2.slotId = 2;
+
+    UbseCpuLocation location2{"2", 1};
+    UbseCpuInfo cpuInfo2{};
+    cpuInfo2.slotId = 2;
+    cpuInfo2.socketId = 1;
+    cpuInfo2.chipId = "1";
+
+    node2.cpuInfos[location2] = cpuInfo2;
+
+    controller.nodeInfos = {
+        {"1", node1},
+        {"2", node2},
+    };
+
+    UbseNodeController::SubHealthSocketPair socketPair{};
+
+    auto ret = controller.GetSubHealthSocketPairByPort(
+        "1", "1", "1", socketPair);
+
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(socketPair.importNodeId, "1");
+    EXPECT_EQ(socketPair.importSocketId, 0);
+    EXPECT_EQ(socketPair.exportNodeId, "2");
+    EXPECT_EQ(socketPair.exportSocketId, 1);
+}
 } // namespace ubse::node_controller::ut
