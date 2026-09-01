@@ -38,6 +38,13 @@ UBSE_DEFINE_THIS_MODULE("process_mem");
 using namespace ubse::timer;
 using namespace process_mem::manager;
 
+// 归还完成判定: 债务已不存在视为完成, 保证归还幂等; unimport 成功仅 unexport 失败时, 内存
+// 已实际归还借出方, 剩余记账残留由 ubse 对账自动回收, 同样视为归还完成
+bool IsReturnDone(uint32_t ret)
+{
+    return ret == UBSE_OK || ret == UBSE_ERR_NOT_EXIST || ret == UBSE_ERR_UNIMPORT_SUCCESS;
+}
+
 namespace {
 constexpr uint64_t BYTES_PER_GB = 1073741824;
 constexpr uint64_t BYTES_PER_MB = 1048576;
@@ -57,12 +64,6 @@ bool IsFaultHandling(uint32_t ret)
 bool IsConcurrencyConflict(uint32_t ret)
 {
     return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
-}
-
-// 归还完成判定: 债务已不存在视为完成, 保证归还幂等
-bool IsReturnDone(uint32_t ret)
-{
-    return ret == UBSE_OK || ret == UBSE_ERR_NOT_EXIST;
 }
 
 const char* ReturnSceneToString(ReturnScene scene)
@@ -111,12 +112,6 @@ std::string GenerateBorrowName(pid_t pid)
     }
     return name;
 }
-
-enum class CandidateSkip
-{
-    NONE,
-    CAN_MIGRATE
-};
 
 def::ProcessStatus ComputeSlotStatus(const std::vector<def::BorrowSlot>& slots)
 {
@@ -585,14 +580,22 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
 
     bool hasActiveBorrow = false;
     uint64_t pendingBorrow = 0;
+    uint64_t inFlightReturn = 0;
     for (const auto& s : entry.borrow.slots) {
         if (s.status == def::BorrowSlotStatus::BORROWING) {
             hasActiveBorrow = true;
             pendingBorrow += s.migratedBytes;
         }
+        // 归还迁回中的 RETURNING 槽: 数据仍占用远端旧 numa, currentRemote 已被归还重试
+        // 重算排除, 不扣减会被当可借额度触发新借用, 与归还迁回并行下发互相干扰;
+        // r2r 替换旧债双槽切换时已清零(数据迁至替换债), 此处自然不计, 判定为双保险
+        if (s.status == def::BorrowSlotStatus::RETURNING && entry.borrow.r2rReplacedDebts.count(s.debtId) == 0) {
+            inFlightReturn += s.migratedBytes;
+        }
     }
     uint64_t targetRemote = static_cast<uint64_t>(entry.vmRss * entry.remoteRatio);
-    uint64_t canMigrate = (targetRemote > entry.borrow.currentRemote) ? (targetRemote - entry.borrow.currentRemote) : 0;
+    uint64_t occupied = entry.borrow.currentRemote + inFlightReturn;
+    uint64_t canMigrate = (targetRemote > occupied) ? (targetRemote - occupied) : 0;
     canMigrate = (canMigrate > pendingBorrow) ? (canMigrate - pendingBorrow) : 0;
     // 分配量按 ubse blockSize 粒度向下取整; ==0 保护用于满足 G.INT.03 静态检查(检查器不做跨函数分析)
     canMigrate = (blockSizeBytes == 0) ? canMigrate : (canMigrate / blockSizeBytes) * blockSizeBytes;
@@ -1757,6 +1760,7 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
         }
         // 周期化后与同 pid 的迁出声明(借入/归还/再平衡)串行, 防止回填与下发互相覆盖
         std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+        ZeroMigratedBytesWithoutSmap(pid, smapMemKb);
         RecoverPidMigratedBytes(pid, *failedNumas);
         // 重算账本后按最新账本全量对齐 smap: 期望配置与实测有差异则重发
         if (CorrectSmapConfig(pid, smapMemKb)) {
@@ -1861,6 +1865,42 @@ bool ProcessMemPidDecision::CorrectSmapConfig(
     UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid << " smap misaligned, targets=" << expected.size()
                   << " reissued ret=" << ret;
     return ret == 0;
+}
+
+// 恢复槽 migratedBytes 对齐 smap 下发配置: 槽的远端 numa 在 smap 中无任何配置时
+// (数据已迁走/被释放, 如 r2r 切换后旧债重启复活), 恢复值置 0, 避免僵尸槽虚高
+// currentRemote 并每轮触发 CorrectSmapConfig 重发迁出目标; 调用方已持 pid 锁
+void ProcessMemPidDecision::ZeroMigratedBytesWithoutSmap(
+    pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb)
+{
+    bool zeroed = false;
+    ProcessMemPidInfoManager::GetInstance().UpdateManagedPidBorrowStateAtomic(
+        pid,
+        [&](def::BorrowState& newBorrow, def::ProcessStatus&) {
+            auto numaIt = smapMemKb.find(pid);
+            for (auto& slot : newBorrow.slots) {
+                if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.migratedBytes == 0 ||
+                    slot.remoteNumaId < 0) {
+                    continue;
+                }
+                uint64_t smapKb = 0;
+                if (numaIt != smapMemKb.end()) {
+                    auto entryIt = numaIt->second.find(slot.remoteNumaId);
+                    if (entryIt != numaIt->second.end()) {
+                        smapKb = entryIt->second;
+                    }
+                }
+                if (smapKb == 0) {
+                    slot.migratedBytes = 0;
+                    zeroed = true;
+                }
+            }
+        },
+        "reconcile_smap_zero");
+    if (zeroed) {
+        UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
+                      << " slot migratedBytes zeroed (no smap config on remote numa)";
+    }
 }
 
 void ProcessMemPidDecision::RecoverPidMigratedBytes(pid_t pid, const std::set<int>& failedNumas)
@@ -2332,7 +2372,11 @@ uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRe
         }
         constexpr uint64_t pageSizeBytes = 4 * 1024;
         for (const auto& [numaId, target] : targets) {
-            numaTargets.emplace_back(numaId, target / pageSizeBytes * pageSizeBytes);
+            // 迁出量为 0 的 numa 已全迁回(插件记录): 不下发目标, 避免为未纳管 numa 新建迁出配置
+            uint64_t aligned = target / pageSizeBytes * pageSizeBytes;
+            if (aligned > 0) {
+                numaTargets.emplace_back(numaId, aligned);
+            }
         }
     }
     if (!numaTargets.empty()) {
@@ -2455,7 +2499,12 @@ std::vector<std::pair<int, uint64_t>> ProcessMemPidDecision::BuildRestoreTargets
     }
     constexpr uint64_t pageSizeBytes = 4 * 1024;
     for (const auto& [numaId, target] : targets) {
-        restoreTargets.emplace_back(numaId, target / pageSizeBytes * pageSizeBytes);
+        // 清零槽(ZeroMigratedBytesWithoutSmap)会产生 0 值目标, 与 ReturnDebtToLocal/
+        // CorrectSmapConfig 的 0 值不下发约定一致, 避免为未纳管 numa 下发 0 值迁出声明
+        uint64_t aligned = target / pageSizeBytes * pageSizeBytes;
+        if (aligned > 0) {
+            restoreTargets.emplace_back(numaId, aligned);
+        }
     }
     return restoreTargets;
 }
@@ -2499,12 +2548,17 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
 {
     auto createRet = CreateReplacementDebt(item, pid, ctx, out.debtId, out.remoteNuma);
     if (createRet != UBSE_OK) {
+        // r2r 借新债失败: 数据仍完整在远端 A, 旧槽恢复 COMPLETED 正常占用(currentRemote 重算计入,
+        // 投影按既有约定不重建, 由对账周期 CorrectSmapConfig 按槽全量对齐兜底),
+        // 等 lender 下次重播重新尝试; 与归还中(RETURNING)不同, 失败后无任何在途操作
+        std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+        ProcessMemPidInfoManager::GetInstance().SetManagedPidSlotReturning(pid, item.name, false);
         return createRet;
     }
 
-    // 同步迁移与账本更新原子: 迁移完成(数据已到远端 B)后必须立即更新槽 remoteNumaId 并置 COMPLETED,
-    // 否则并发 migrateOut 下发会在迁移完成瞬间读到旧投影(仍含远端 A), 下发错误的迁出目标;
-    // rmrs 并发冲突时放锁等待后重试(迁移未发生, 重试幂等)
+    // 同步迁移与账本更新原子: 迁移完成(数据已到远端 B)后必须立即做双槽原子切换(旧债置 RETURNING +
+    // 新债 COMPLETED 槽入账), 否则并发 migrateOut 下发会在迁移完成瞬间读到旧投影(仍含远端 A),
+    // 下发错误的迁出目标; rmrs 并发冲突时放锁等待后重试(迁移未发生, 重试幂等)
     std::unique_lock<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
     int migrateRet = UBSE_ERROR;
     for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
@@ -2519,9 +2573,15 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
                        << " remote_to_remote concurrency conflict, retry attempt=" << attempt + 1;
     }
     if (migrateRet != 0) {
-        // 迁移失败数据仍在远端 A, 账本未变更, 释放锁后回滚(删新债), 异常路径不持锁做 RPC
+        // 迁移失败数据仍在远端 A, 账本未变更, 释放锁后回滚(删新债), 异常路径不持锁做 RPC;
+        // 回滚后旧槽恢复 COMPLETED 正常占用, 等 lender 下次重播重新尝试(数据完整, 无在途操作)
         pidLock.unlock();
-        return RollbackReplacementDebt(pid, ctx, out.debtId, migrateRet, migrateBytes);
+        auto rollbackRet = RollbackReplacementDebt(pid, ctx, out.debtId, migrateRet, migrateBytes);
+        {
+            std::lock_guard<std::mutex> relock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+            ProcessMemPidInfoManager::GetInstance().SetManagedPidSlotReturning(pid, item.name, false);
+        }
+        return rollbackRet;
     }
     UBSE_LOG_INFO << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
                   << " remote_to_remote migrated ok old_remote_numa=" << ctx.oldRemoteNuma
@@ -2531,18 +2591,25 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidBorrowStateAtomic(
         pid,
         [&](def::BorrowState& borrow, def::ProcessStatus&) {
+            // 双槽原子切换: 旧债(item.name)进入 RETURNING 保持归还语义(旧债删除成功前被
+            // 对账/再平衡跳过, 期间数据已迁至新债), 新债独立 COMPLETED 槽接管正常占用
             borrow.r2rReplacedDebts.insert(item.name);
             auto slotIt = std::find_if(borrow.slots.begin(), borrow.slots.end(),
                                        [&item](const def::BorrowSlot& s) { return s.debtId == item.name; });
             if (slotIt != borrow.slots.end()) {
-                slotIt->debtId = out.debtId;
-                slotIt->remoteNumaId = out.remoteNuma;
-                slotIt->capacity = item.size;
-                slotIt->migratedBytes = migrateBytes;
-                // 远端迁远端为同步接口, 迁移返回时数据已在远端 B 落地: 替换槽直接置 COMPLETED
-                // 视为正常占用, 计入 currentRemote/投影, 无需 RETURNING 屏障
-                slotIt->status = def::BorrowSlotStatus::COMPLETED;
+                // 数据已迁至替换债: 旧债不再代表任何远端占用, 置 RETURNING 同时清零,
+                // currentRemote/借出额度/归还决策统一按新债记账, 旧债仅剩账本条目待删
+                slotIt->status = def::BorrowSlotStatus::RETURNING;
+                slotIt->migratedBytes = 0;
             }
+            def::BorrowSlot newSlot{};
+            newSlot.debtId = out.debtId;
+            newSlot.remoteNumaId = out.remoteNuma;
+            newSlot.capacity = item.size;
+            newSlot.migratedBytes = migrateBytes;
+            newSlot.status = def::BorrowSlotStatus::COMPLETED;
+            borrow.slots.push_back(newSlot);
+            // 旧债迁移量转入新债: currentRemote 口径不变(仅 COMPLETED 计入), 投影同步重建
             borrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(borrow);
         },
         "r2r_replace");

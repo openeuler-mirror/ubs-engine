@@ -64,6 +64,19 @@ struct ReplacementDebtCtx {
     std::string oldLenderNodeId{};
 };
 
+// 归还完成判定: 债务已不存在/已实际归还(仅 unexport 失败)均视为完成, 保证归还幂等
+bool IsReturnDone(uint32_t ret);
+
+// 借用候选判定结果: NONE 参与本轮候选, CAN_MIGRATE 跳过(无可迁移额度)
+enum class CandidateSkip : uint8_t
+{
+    NONE,
+    CAN_MIGRATE
+};
+
+CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
+                                    std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes);
+
 class ProcessMemPidDecision {
 public:
     static ProcessMemPidDecision& GetInstance()
@@ -214,6 +227,8 @@ private:
                           uint64_t& freedBytes, uint32_t& failCount);
 
     void RecoverBindDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt);
+    void ZeroMigratedBytesWithoutSmap(pid_t pid,
+                                      const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb);
     void RecoverPidMigratedBytes(pid_t pid, const std::set<int>& failedNumas);
     void ReportDirtySmapStates(const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
                                const std::map<pid_t, def::ManagedPidEntry>& snapshot, size_t& dirty,

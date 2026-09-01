@@ -1433,4 +1433,13 @@ TEST_F(TestProcessMemPidDecision, ShortageDeductsPendingBorrow)
     EXPECT_EQ(snapshot.at(pidA).borrow.slots[0].status, BorrowSlotStatus::BORROWING);
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().GetPendingMigrateTotal(), 15 * GB);
 }
+
+TEST_F(TestProcessMemPidDecision, IsReturnDoneTreatsUnimportSuccessAsDone)
+{
+    // unimport 成功仅 unexport 失败: 内存已实际归还借出方, 债务已解除, 均视为归还完成
+    EXPECT_TRUE(IsReturnDone(UBSE_OK));
+    EXPECT_TRUE(IsReturnDone(UBSE_ERR_NOT_EXIST));
+    EXPECT_TRUE(IsReturnDone(UBSE_ERR_UNIMPORT_SUCCESS));
+    EXPECT_FALSE(IsReturnDone(UBSE_ERROR));
+}
 } // namespace ubse::ut::process_mem
