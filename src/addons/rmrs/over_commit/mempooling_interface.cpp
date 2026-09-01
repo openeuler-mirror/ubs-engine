@@ -27,6 +27,7 @@
 #include "mp_configuration.h"
 #include "mp_default_struct.h"
 #include "mp_error.h"
+#include "mp_smap_helper.h"
 #include "mp_smap_module.h"
 #include "mp_string_util.h"
 #include "mp_vector_util.h"
@@ -585,6 +586,36 @@ void DeletePersistenceRemovePid(const int16_t presentRemoteNumaId, const std::ve
     }
 }
 
+/**
+ * 归还前判定借据是否需要smap迁回：查询该远端numa上被smap纳管的进程及其远端占用，
+ * 仅当存在纳管进程且远端占用>0（比例模式看ratio、大小模式看memSize）时才需要迁回；
+ * 无纳管进程或占用均为0说明远端无待迁回数据（如借而未迁场景），直接走纯UBSE归还即可；
+ * 查询失败时保守维持迁回路径（fail-closed），宁可归还失败重试，不可带数据误走直接归还
+ */
+bool NeedSmapMigrateBackOnReturn(const std::string& borrowId, const uint16_t& presentNumaId)
+{
+    std::vector<smap::ProcessPayload> processPayloadList;
+    if (smap::MpSmapHelper::SmapQueryProcessConfigHelper(static_cast<int>(presentNumaId), processPayloadList) !=
+        MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemReturn] Query smap managed pids failed, keep smap migrate back path, borrowId=" << borrowId
+            << ", remoteNuma=" << presentNumaId << ".";
+        return true;
+    }
+    for (const auto& payload : processPayloadList) {
+        if ((payload.migrateMode == 0 && payload.ratio > 0) || (payload.migrateMode == 1 && payload.memSize > 0)) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemReturn] Remote numa=" << presentNumaId << " has managed pid=" << payload.pid
+                << " with remote usage, need smap migrate back, borrowId=" << borrowId << ".";
+            return true;
+        }
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemReturn] No managed data on remote numa=" << presentNumaId
+        << ", direct return without smap migrate back, borrowId=" << borrowId << ".";
+    return false;
+}
+
 uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<pid_t>& pids,
                         const std::string& borrowId, const uint16_t& presentNumaId, ReturnNeedMaps& returnNeedMaps)
 {
@@ -611,7 +642,12 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<
     if (ret != MEM_POOLING_OK) {
         return ret;
     }
-    ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true);
+    // 归还前动态判定是否需要smap迁回：借而未迁等场景下远端numa无纳管数据，
+    // 强行走迁回路径会确定性失败阻塞归还，此时应直接走纯UBSE归还
+    bool needSmapBack = NeedSmapMigrateBackOnReturn(borrowId, presentNumaId);
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemReturn] BorrowId=" << borrowId << " choose return path, smapBack=" << needSmapBack << ".";
+    ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, needSmapBack);
     if (ret != MEM_POOLING_OK) {
         UbseMemResult result;
         if (UbseQueryResult(borrowId, result) != 0) {
