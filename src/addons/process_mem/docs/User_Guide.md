@@ -136,10 +136,10 @@ ProcessMem 提供以下 CLI 命令用于进程调度配置。
 
 ```bash
 # 按 PID 配置
-ubse-cli change process-mem -p <pid> -s <size> -r <remote-ratio>
+ubsectl change process-mem -p <pid> -s <size> -r <remote-ratio>
 
 # 按进程名配置
-ubse-cli change process-mem -n <name> -s <size> -r <remote-ratio>
+ubsectl change process-mem -n <name> -s <size> -r <remote-ratio>
 ```
 
 参数说明：
@@ -161,18 +161,18 @@ ubse-cli change process-mem -n <name> -s <size> -r <remote-ratio>
 示例：
 
 ```bash
-ubse-cli change process-mem -p 12345 -s 2G -r 0.3
-ubse-cli change process-mem -n test_proc -s 1.5G -r 0.5
+ubsectl change process-mem -p 12345 -s 2G -r 0.3
+ubsectl change process-mem -n test_proc -s 1.5G -r 0.5
 ```
 
 ## 3.2 查询已纳管进程
 
 ```bash
 # 查询已配置的纳管配置（PID/进程名、Size、RemoteRatio）
-ubse-cli display process-mem -t config
+ubsectl display process-mem -t config
 
 # 查询当前实际纳管（匹配到）的进程明细
-ubse-cli display process-mem -t proc_detail
+ubsectl display process-mem -t proc_detail
 ```
 
 输出以表格回显，列为 PID、Name、Size、RemoteRatio。`config` 回显所有持久化的纳管配置（按 PID 配置的 Name 显示为 N/A）；`proc_detail` 回显当前真正纳管的进程（按 PID 配置命中时 Name 固定为 N/A，否则显示实际匹配的配置名）。
@@ -180,8 +180,8 @@ ubse-cli display process-mem -t proc_detail
 ## 3.3 取消进程纳管
 
 ```bash
-ubse-cli remove process-mem -p <pid>
-ubse-cli remove process-mem -n <name>
+ubsectl remove process-mem -p <pid>
+ubsectl remove process-mem -n <name>
 ```
 
 取消前会自动执行迁回与归还，清理借用内存。
