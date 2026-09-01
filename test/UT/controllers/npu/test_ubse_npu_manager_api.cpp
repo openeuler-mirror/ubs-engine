@@ -11,7 +11,10 @@
  */
 
 #include "test_ubse_npu_manager_api.h"
+#include "ubse_os_util.h"
 #include "out_of_band/ubse_mti_bus_instance_out_of_band.h"
+// 缩短 CheckNicH2NLinkStatus 的 sleep 与重试次数，避免 UT 长耗时
+#define UBSE_UT_FAST_RETRY
 #include "ubse_npu_manager_api.cpp"
 
 namespace ubse::npu::controller::ut {
@@ -61,6 +64,8 @@ DeviceTopology TestUbseNpuManagerApi::BuildTopology()
     topo.nicPfeLoc.chipId = 2;
     topo.nicPfeLoc.pfeId = 3;
     topo.nicPfeLoc.guid = "01234567abcdef01234567abcdef0600";
+    topo.nicPfeLoc.eid = UbseMtiEid{};
+    topo.nicPfeLoc.eid[3] = 1; // 非零EID，模拟已采集
 
     topo.nicVfeLoc.slotId = 1;
     topo.nicVfeLoc.chipId = 2;
@@ -914,6 +919,7 @@ TEST_F(TestUbseNpuManagerApi, FilterDeviceVMBusiNicVfeDiff)
 
 TEST_F(TestUbseNpuManagerApi, FilterDeviceVMBusiNpuDiff)
 {
+    UbseNpuManagerApi::GetInstance().retryTime_ = 1;
     CollectDeviceLoc busiLoc;
     busiLoc.guid = "vm-busi-guid-1234567890123456789012";
     busiLoc.upi = "1";
@@ -1079,7 +1085,7 @@ TEST_F(TestUbseNpuManagerApi, QueryNicVfeDevicesSuccess)
 TEST_F(TestUbseNpuManagerApi, QueryAllDevicesImplSuccess)
 {
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
 
     PopulateCollection(topo_);
@@ -1281,15 +1287,15 @@ TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListMixedDevices)
 /*
  * ============================================================================
  * AllocDevicesImpl 相关函数测试
+ * ============================================================================
+ */
 
 TEST_F(TestUbseNpuManagerApi, AllocDevicesImplCollectionNotReady)
 {
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = false;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::WAIT_INIT));
 
-    MOCKER_CPP(&ResourceCollection::CollectStaticResource)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&ResourceCollection::CollectStaticResource).stubs().will(returnValue(UBSE_ERROR));
 
     UbseAllocRequest requestInfo;
     std::vector<std::shared_ptr<IResource>> devList;
@@ -1302,7 +1308,7 @@ TEST_F(TestUbseNpuManagerApi, AllocDevicesImplCollectionNotReady)
 TEST_F(TestUbseNpuManagerApi, AllocDevicesImplInvalidBusInstanceGuid)
 {
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
     manager.cv_.notify_all();
 
@@ -1363,8 +1369,7 @@ TEST_F(TestUbseNpuManagerApi, AllocNicPfeNoHostBusi)
 
 TEST_F(TestUbseNpuManagerApi, CheckCollectionReady)
 {
-    auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
 
     UbseResult result = CheckCollection("test action");
     EXPECT_EQ(result, UBSE_OK);
@@ -1373,25 +1378,138 @@ TEST_F(TestUbseNpuManagerApi, CheckCollectionReady)
 TEST_F(TestUbseNpuManagerApi, CheckCollectionNotReadyRetrySuccess)
 {
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = false;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::WAIT_INIT));
 
     MOCKER_CPP(&ResourceCollection::CollectStaticResource).stubs().will(returnValue(UBSE_OK));
 
     UbseResult result = CheckCollection("test action");
     EXPECT_EQ(result, UBSE_OK);
-    EXPECT_EQ(manager.collectionReady_, true);
     EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
 }
 
 TEST_F(TestUbseNpuManagerApi, CheckCollectionNotReadyRetryFailed)
 {
-    auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = false;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::WAIT_INIT));
 
     MOCKER_CPP(&ResourceCollection::CollectStaticResource).stubs().will(returnValue(UBSE_ERROR));
 
     UbseResult result = CheckCollection("test action");
     EXPECT_EQ(result, UBSE_ERROR);
+}
+
+/*
+ * ============================================================================
+ * CheckNicPfeH2NLinkStatus 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, CheckNicPfeH2NLinkStatusWithNullptr)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    uint32_t budget = H2N_RETRY_TIME;
+    EXPECT_FALSE(manager.CheckNicPfeH2NLinkStatus(nullptr, budget));
+}
+
+/*
+ * S3-04: EID未采集（全零）时直接失败，不做无效重试
+ */
+TEST_F(TestUbseNpuManagerApi, CheckNicPfeH2NLinkStatusWithZeroEid)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    // EID保持默认全零（未采集），即使H2N查询可用也应直接失败
+    CollectDeviceLoc zeroEidLoc;
+    auto zeroEidPfe = std::make_shared<CollectionDeviceNicPfe>(zeroEidLoc);
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Check1825PfeH2NLinkStatus)
+        .stubs()
+        .will(returnValue(true));
+    uint32_t budget = H2N_RETRY_TIME;
+    EXPECT_FALSE(manager.CheckNicPfeH2NLinkStatus(zeroEidPfe, budget));
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckNicPfeH2NLinkStatusSuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Check1825PfeH2NLinkStatus)
+        .stubs()
+        .will(returnValue(true));
+    uint32_t budget = H2N_RETRY_TIME;
+    EXPECT_TRUE(manager.CheckNicPfeH2NLinkStatus(topo_.nicPfe, budget));
+}
+
+/*
+ * ============================================================================
+ * CheckNicH2NLinkStatus 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, CheckNicH2NLinkStatusNotServer)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    MOCKER_CPP(&ResourceCollection::GetProductType)
+        .stubs()
+        .with(outBound(ProductType::POD_16_1825))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList), UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckNicH2NLinkStatusGetProductTypeFailed)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    MOCKER_CPP(&ResourceCollection::GetProductType)
+        .stubs()
+        .with(outBound(ProductType::SERVER))
+        .will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList), UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckNicH2NLinkStatusEmptyList)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    MOCKER_CPP(&ResourceCollection::GetProductType)
+        .stubs()
+        .with(outBound(ProductType::SERVER))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList), UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckNicH2NLinkStatusPfeSuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    MOCKER_CPP(&ResourceCollection::GetProductType)
+        .stubs()
+        .with(outBound(ProductType::SERVER))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Check1825PfeH2NLinkStatus)
+        .stubs()
+        .will(returnValue(true));
+    EXPECT_EQ(manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList), UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckNicH2NLinkStatusPfeFailed)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    MOCKER_CPP(&ResourceCollection::GetProductType)
+        .stubs()
+        .with(outBound(ProductType::SERVER))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Check1825PfeH2NLinkStatus)
+        .stubs()
+        .will(returnValue(false));
+    EXPECT_EQ(manager.CheckNicH2NLinkStatus(nicPfeList, nicVfeList), UBSE_ERROR);
 }
 
 /*
@@ -1415,7 +1533,7 @@ TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplInvalidUpi)
     collection.SetDevice(baseBusi);
 
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
 
     UbseAllocRequest requestInfo;
@@ -1451,7 +1569,7 @@ TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplNullBondingDavid)
     collection.SetDevice(baseBusi);
 
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
 
     UbseAllocRequest requestInfo;
@@ -1487,7 +1605,7 @@ TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplSharedFeOnlySkip)
     collection.SetDevice(baseBusi);
 
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
 
     UbseAllocRequest requestInfo;
@@ -1504,7 +1622,7 @@ TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplSuccess)
     PopulateCollection(topo_);
 
     auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = true;
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
     manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
 
     UbseAllocRequest requestInfo;
@@ -2115,6 +2233,7 @@ TEST_F(TestUbseNpuManagerApi, CreateVMBusiSuccess)
 
 TEST_F(TestUbseNpuManagerApi, CreateVMBusiFailure)
 {
+    UbseNpuManagerApi::GetInstance().retryTime_ = 1;
     auto& busInstance = UbseMtiBusInstance::GetInstance();
     MOCKER_CPP_VIRTUAL(busInstance, &UbseMtiBusInstance::CreateVmBusInstance).stubs().will(returnValue(UBSE_ERROR));
 
@@ -2145,6 +2264,7 @@ TEST_F(TestUbseNpuManagerApi, DestroyVMBusiSuccess)
 
 TEST_F(TestUbseNpuManagerApi, DestroyVMBusiFailure)
 {
+    UbseNpuManagerApi::GetInstance().retryTime_ = 1;
     PopulateCollection(topo_);
 
     auto& busInstance = UbseMtiBusInstance::GetInstance();
@@ -2208,16 +2328,6 @@ TEST_F(TestUbseNpuManagerApi, UnRegisterNicFromBusiVfeBusiNotFound)
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> devList = {topo_.nicVfe};
     UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterNicFromBusi(devList, "nonexistent-guid");
     EXPECT_EQ(result, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNpuManagerApi, GetCollectionReadyDefaultFalse)
-{
-    auto& manager = UbseNpuManagerApi::GetInstance();
-    manager.collectionReady_ = false;
-    EXPECT_FALSE(manager.GetCollectionReady());
-
-    manager.SetCollectionReady(true);
-    EXPECT_TRUE(manager.GetCollectionReady());
 }
 
 TEST_F(TestUbseNpuManagerApi, AllocNicWithNicPfeSuccess)
@@ -2365,7 +2475,7 @@ TEST_F(TestUbseNpuManagerApi, FreeQueueBuildsFutureProcedures)
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfes = {topo_.nicVfe};
 
     manager.FreeQueue(req, topo_.vmBusiLoc.guid, npus, nicPfes, nicVfes);
-    EXPECT_EQ(manager.futureProcedure_.size(), 7);
+    EXPECT_EQ(manager.futureProcedure_.size(), 8);
 }
 
 TEST_F(TestUbseNpuManagerApi, SendUnbindRequestEmpty)
@@ -2596,6 +2706,41 @@ TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueBackGroundRunsQueue)
     EXPECT_EQ(manager.futureProcedure_.size(), 1);
     manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
     EXPECT_EQ(manager.state_, UbseNpuManagerApi::NpuManagerState::FREE_BG);
+}
+
+TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueBackGroundStopsOnFailure)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    while (!manager.futureProcedure_.empty()) {
+        manager.futureProcedure_.pop();
+    }
+
+    auto failOp = std::make_shared<OperationHistory>();
+    failOp->operation = []() -> UbseResult {
+        return UBSE_ERROR;
+    };
+    auto okOp = std::make_shared<OperationHistory>();
+    okOp->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.futureProcedure_.push(failOp);
+    manager.futureProcedure_.push(okOp);
+
+    EXPECT_EQ(manager.futureProcedure_.size(), 2);
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
+
+    std::unique_lock<std::mutex> lock(manager.mtx_);
+    ASSERT_TRUE(manager.cv_.wait_for(lock, std::chrono::seconds(5), [&manager]() {
+        return manager.state_ == UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+    }));
+    // 与ExecuteFreeQueue语义一致：失败操作不弹出并中断队列，剩余操作保留
+    EXPECT_EQ(manager.futureProcedure_.size(), 2);
+    while (!manager.futureProcedure_.empty()) {
+        manager.futureProcedure_.pop();
+    }
 }
 
 TEST_F(TestUbseNpuManagerApi, SetStateRollbackBg)

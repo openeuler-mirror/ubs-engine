@@ -10,6 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_npu_resource_collection.h"
+#include <mutex>
 #include <utility>
 
 #include "ubse_error.h"
@@ -37,6 +38,11 @@ ResourceCollection& ResourceCollection::GetInstance()
     return instance;
 }
 
+CollectionState ResourceCollection::GetState() const
+{
+    return state_.load();
+}
+
 CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid& guid)
 {
     // UbseMtiGuid内存布局位小端序，与字符串表示相反，字符串用大端序存储
@@ -55,12 +61,16 @@ CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid& guid)
 
 void ResourceCollection::ClearAllDevices()
 {
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard<std::shared_mutex> guard(mutex_);
     for (auto& devVec : devIdToDevice_) {
         devVec.clear();
     }
     guidToDevice_.clear();
     state_ = CollectionState::WAIT_INIT;
+    {
+        std::lock_guard<std::mutex> ptLock(productTypeMutex_);
+        productTypeCached_ = false;
+    }
 }
 
 bool ValidateGuid(const std::string& guid)
@@ -129,6 +139,7 @@ UbseResult ResourceCollection::SetDevice(std::shared_ptr<CollectionDevice>& dev)
         UBSE_LOG_ERROR << "Validate device failed";
         return ret;
     }
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     auto type = dev->GetType();
     auto& devIdToDeviceMap = devIdToDevice_[DeviceTypeToUint8(type)];
     if (auto ret = SetDeviceWithDevId(dev, devIdToDeviceMap); ret != UBSE_OK) {
@@ -429,9 +440,9 @@ UbseResult ResourceCollection::CollectStaticResource()
 {
     UBSE_LOG_INFO << "Start to collect static resource";
     {
-        std::lock_guard<std::mutex> guard(mutex_);
+        std::lock_guard<std::shared_mutex> guard(mutex_);
         if (state_ != CollectionState::WAIT_INIT) {
-            UBSE_LOG_ERROR << "Collection has been already started, state_: " << static_cast<uint8_t>(state_);
+            UBSE_LOG_ERROR << "Collection has been already started, state_: " << static_cast<uint8_t>(state_.load());
             return UBSE_ERROR;
         }
         state_ = CollectionState::RUNNING;
@@ -479,6 +490,7 @@ bool IsBusInstanceType(const CollectionDeviceType& type)
 }
 UbseResult ResourceCollection::BindVfeToNpu()
 {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     // 遍历businstance
     for (auto& [devId, device] : guidToDevice_) {
         if (!IsBusInstanceType(device->GetType())) {
@@ -514,6 +526,7 @@ std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByDevId(const Col
                        << " type: " << static_cast<uint8_t>(type);
         return nullptr;
     }
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     if (devIdToDevice_.size() != static_cast<uint32_t>(CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT)) {
         UBSE_LOG_ERROR << "devIdToDevice_ map is incomplete";
         return nullptr;
@@ -532,6 +545,7 @@ std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByGuid(const Coll
         UBSE_LOG_ERROR << "Guid is invalid, guid: " << guid;
         return nullptr;
     }
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     if (guidToDevice_.find(guid) == guidToDevice_.end()) {
         UBSE_LOG_WARN << "Can not find device by guid, guid: " << guid;
         return nullptr;
@@ -545,12 +559,14 @@ UbseResult ResourceCollection::GetDevicesByType(const CollectionDeviceType& type
         UBSE_LOG_ERROR << "Type is invalid";
         return UBSE_ERROR_INVAL;
     }
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     sameTypeDevs = devIdToDevice_[static_cast<uint8_t>(type)];
     return UBSE_OK;
 }
 
 std::shared_ptr<CollectionDeviceBusi> ResourceCollection::GetDeviceHostBusInstance()
 {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     if (devIdToDevice_.size() < static_cast<uint32_t>(CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT)) {
         UBSE_LOG_ERROR << "devIdToDevice_ map is incomplete";
         return nullptr;
@@ -566,6 +582,7 @@ std::shared_ptr<CollectionDeviceBusi> ResourceCollection::GetDeviceHostBusInstan
 
 std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> ResourceCollection::GetDeviceAllComSharedIdevVfe()
 {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devComSharedIdevVfes{};
     for (auto& kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
         auto devVfeBase = kv.second;
@@ -584,17 +601,18 @@ UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<Col
         UBSE_LOG_ERROR << "dev is nullptr";
         return UBSE_ERROR_INVAL;
     }
-    auto& subDevNicPfes = dev->GetSubDevNicPfe();
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    auto subDevNicPfes = dev->GetSubDevNicPfe();
     if (!subDevNicPfes.empty()) {
         UBSE_LOG_ERROR << "Sub nic pfe device is not empty";
         return UBSE_ERROR;
     }
-    auto& subDevNicVfes = dev->GetSubDevNicVfe();
+    auto subDevNicVfes = dev->GetSubDevNicVfe();
     if (!subDevNicVfes.empty()) {
         UBSE_LOG_ERROR << "Sub nic vfe device is not empty";
         return UBSE_ERROR;
     }
-    auto& subDevIdevs = dev->GetSubDevIdev();
+    auto subDevIdevs = dev->GetSubDevIdev();
     if (!subDevIdevs.empty()) {
         UBSE_LOG_ERROR << "Sub idev device is not empty";
         return UBSE_ERROR;
@@ -867,6 +885,7 @@ UbseResult ResourceCollection::GetDavidSlotId(uint8_t& slotId)
 }
 std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(const std::string& guid)
 {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     for (auto& kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
         auto& vfe = kv.second;
         if (vfe->GetGuid() == guid) {
@@ -877,11 +896,11 @@ std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(co
     return nullptr;
 }
 
-UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid>& guids,
+UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiBusInstSubDevice>& subDevices,
                                                    std::shared_ptr<CollectionDeviceBusi>& devBusi)
 {
-    for (const auto& mtiGuid : guids) {
-        CollectionGuid guid = CollectionStringUtil::GuidToStr(mtiGuid);
+    for (const auto& subDevice : subDevices) {
+        CollectionGuid guid = CollectionStringUtil::GuidToStr(subDevice.guid);
         if (!ValidateGuid(guid)) {
             UBSE_LOG_ERROR << "Invalid guid: " << guid;
             return UBSE_ERROR;
@@ -890,6 +909,7 @@ UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid
         if (auto devNicBase = GetDeviceByGuid(guid);
             devNicBase != nullptr && (devNicBase->GetType() == CollectionDeviceType::NIC_PFE ||
                                       devNicBase->GetType() == CollectionDeviceType::NIC_VFE)) {
+            devNicBase->SetEid(subDevice.eid);
             BindDevice(devBusi, devNicBase);
         } else if (auto devVfe = GetIdevVfeByGuid(guid);
                    devVfe != nullptr && devVfe->GetType() == CollectionDeviceType::V_IDEV) {
@@ -938,7 +958,7 @@ UbseResult ResourceCollection::CollectBusInstance()
             UBSE_LOG_ERROR << "Bus instance is null";
             return UBSE_ERROR;
         }
-        if (ret = QueryBusiSubDevices(busInstanceInfo.subDeviceGuids, devBusi); ret != UBSE_OK) {
+        if (ret = QueryBusiSubDevices(busInstanceInfo.subDevices, devBusi); ret != UBSE_OK) {
             return ret;
         }
     }
@@ -1094,6 +1114,14 @@ std::vector<std::string> ResourceCollection::SplitFields(std::vector<std::string
  */
 UbseResult ResourceCollection::GetProductType(ProductType& productType)
 {
+    // 产品类型在单次运行期间不会变化，成功查询后缓存结果，避免重复执行ipmitool命令
+    {
+        std::lock_guard<std::mutex> lock(productTypeMutex_);
+        if (productTypeCached_) {
+            productType = productTypeCache_;
+            return UBSE_OK;
+        }
+    }
     constexpr char realCmd[] = "ipmitool raw 0x30 0x94 0xdb 0x07 0x00 0x6a 0x08 0x00 0x00 0x00 0xff";
     std::string result;
     UbseResult ret = ubse::utils::UbseOsUtil::Exec(realCmd, result);
@@ -1114,6 +1142,7 @@ UbseResult ResourceCollection::GetProductType(ProductType& productType)
     const std::string eleventhField = fields[10];
     if (eleventhField == "ff") {
         productType = ProductType::SERVER;
+        CacheProductType(productType);
         return UBSE_OK;
     } else if (eleventhField == "00") {
         if (lines.size() < 2) { // 2: pod类型此命令两行输出
@@ -1133,6 +1162,14 @@ UbseResult ResourceCollection::GetProductType(ProductType& productType)
         UBSE_LOG_ERROR << "Unknown product type";
         return UBSE_ERROR;
     }
+    CacheProductType(productType);
     return UBSE_OK;
+}
+
+void ResourceCollection::CacheProductType(ProductType productType)
+{
+    std::lock_guard<std::mutex> lock(productTypeMutex_);
+    productTypeCache_ = productType;
+    productTypeCached_ = true;
 }
 } // namespace ubse::npu::controller
