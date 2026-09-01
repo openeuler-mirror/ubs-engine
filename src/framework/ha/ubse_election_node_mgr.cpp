@@ -12,6 +12,7 @@
 
 #include "ubse_election_node_mgr.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "role/ubse_election_role.h"
 #include "ubse_common_def.h"
 #include "ubse_conf.h"
@@ -405,6 +406,12 @@ bool UbseElectionNodeMgr::IsRootEnable() const
 
 uint32_t UbseElectionNodeMgr::GetCapability()
 {
+    // 与 UbseNodeStaticInfoMgr::GetPodCapability 保持口径一致：
+    // 非 CLOS 组网默认调高机柜容量，避免配置节点数超过默认容量时被误判为多层
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "not clos, set pod capability=" << MAX_CLUSTER_SIZE;
+        return MAX_CLUSTER_SIZE;
+    }
     auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (confModule == nullptr) {
         UBSE_LOG_WARN << "confModule nullptr, use default pod capability=" << DEFAULT_POD_CAPABILITY;

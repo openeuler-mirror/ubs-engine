@@ -1533,14 +1533,9 @@ bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterSta
     }
 }
 
-void UbseNodeController::InitHierarchical()
-{
-    this->isHierarchical = nodeMgr::GetRootIpList().size() == 0 && nodeMgr::GetGroupSize() > 1;
-}
-
 bool UbseNodeController::IsHierarchical() const
 {
-    return this->isHierarchical;
+    return IsHierarchicalElection();
 }
 
 bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo& reportNodeInfo,
@@ -1587,7 +1582,7 @@ bool UbseNodeController::CanUpdateClusterStateForReport(const UbseNodeInfo& repo
 uint32_t UbseNodeController::UpdateNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
 {
     std::string nodeIdStr = nodeId;
-    if (isHierarchical) {
+    if (IsHierarchical()) {
         return UpdateClosHierarchicalNodeInfo(nodeIdStr, info);
     }
     UbseResult ret = UBSE_OK;

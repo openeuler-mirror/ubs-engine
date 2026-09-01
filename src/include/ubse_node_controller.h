@@ -361,9 +361,6 @@ public:
     // 若节点信息不存在，添加元素；若节点信息已存在，刷新 numa, cpu, ipList等拓扑字段
     uint32_t UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
-    // 初始化当前集群是分组还是单组场景
-    void InitHierarchical();
-
     bool IsHierarchical() const;
 
     // 利用numaInfos的OS socketId，更新cpuInfos的值
@@ -518,7 +515,6 @@ private:
     ubse::task_executor::UbseTaskExecutorPtr subHealthExecutor_{};
     std::atomic<bool> subHealthEnabled_{false};
     std::atomic<bool> subHealthRefreshPending_{false};
-    bool isHierarchical{false};
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

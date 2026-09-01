@@ -13,9 +13,12 @@
 #include "test_ubse_node_controller_util.h"
 
 #include "ubse_node_controller_collector.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "src/framework/node_mgr/ubse_node_static_info_mgr.h"
 #include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "src/framework/config/ubse_conf_module.h"
 #include "src/framework/context/ubse_context.h"
+#include "ubse_node_mgr.h"
 
 #include <functional> // 用于 std::function
 #include <map>        // 用于 std::map
@@ -460,6 +463,41 @@ TEST_F(TestUbseNodeControllerUtil, BoundaryAndExceptionTest)
     EXPECT_EQ(GetBlockSize_Test(UbseAllocator::BUDDY_HIGHMEM), TEST_BLOCK_2M);
 
     ClearTestCallbacks();
+}
+
+// S3-01 补充用例：非 CLOS 组网下，即使存在多个逻辑机柜分组，也不判定为双层选举
+TEST_F(TestUbseNodeControllerUtil, IsHierarchicalElection_NonClosMultiGroup_NotHierarchical)
+{
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    MOCKER_CPP(ubse::nodeMgr::GetRootIpList).stubs().will(returnValue(std::vector<std::string>{}));
+
+    // 构造分布在两个逻辑机柜的节点，走真实的分组统计路径
+    ubse::nodeMgr::UbseNodeStaticInfo node1;
+    node1.nodeId = "1";
+    node1.groupId = 1;
+    ubse::nodeMgr::UbseNodeStaticInfo node2;
+    node2.nodeId = "2";
+    node2.groupId = 2;
+    ubse::nodeMgr::UbseNodeStaticInfoMgr::GetInstance().SetNodes({node1, node2});
+
+    EXPECT_FALSE(IsHierarchicalElection());
+}
+
+// S3-01 补充用例：CLOS 组网且存在多个逻辑机柜分组时，判定为双层选举
+TEST_F(TestUbseNodeControllerUtil, IsHierarchicalElection_ClosMultiGroup_Hierarchical)
+{
+    MOCKER_CPP(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    MOCKER_CPP(ubse::nodeMgr::GetRootIpList).stubs().will(returnValue(std::vector<std::string>{}));
+
+    ubse::nodeMgr::UbseNodeStaticInfo node1;
+    node1.nodeId = "1";
+    node1.groupId = 1;
+    ubse::nodeMgr::UbseNodeStaticInfo node2;
+    node2.nodeId = "2";
+    node2.groupId = 2;
+    ubse::nodeMgr::UbseNodeStaticInfoMgr::GetInstance().SetNodes({node1, node2});
+
+    EXPECT_TRUE(IsHierarchicalElection());
 }
 
 // 在SetUp和TearDown中管理资源

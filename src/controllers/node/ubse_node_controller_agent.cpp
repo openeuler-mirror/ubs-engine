@@ -285,7 +285,6 @@ void UbseNodeControllerAgent::StartExec()
 UbseResult UbseNodeControllerAgent::Start()
 {
     // 注册消息处理器
-    UbseNodeController::GetInstance().InitHierarchical();
     auto ret = RegAgentMsgHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);

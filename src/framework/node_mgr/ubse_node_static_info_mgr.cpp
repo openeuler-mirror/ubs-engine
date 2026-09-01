@@ -192,6 +192,10 @@ UbseResult UbseNodeStaticInfoMgr::InitClusterMode()
 
 uint32_t UbseNodeStaticInfoMgr::GetPodCapability()
 {
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "not clos, set pod capability=" << MAX_CLUSTER_SIZE;
+        return MAX_CLUSTER_SIZE;
+    }
     auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (confModule == nullptr) {
         UBSE_LOG_WARN << "confModule nullptr, use default pod capability=" << DEFAULT_POD_CAPABILITY;
@@ -200,8 +204,8 @@ uint32_t UbseNodeStaticInfoMgr::GetPodCapability()
     uint32_t podCapability = 0;
     auto ret = confModule->GetConf<uint32_t>("ubse.rpc", "cluster.pod.capability", podCapability);
     if (ret != UBSE_OK || podCapability < MIN_POD_CAPABILITY || podCapability > MAX_CLUSTER_SIZE) {
-        UBSE_LOG_WARN << "pod capability=" << podCapability << " invalid, will use default pod capability="
-            << DEFAULT_POD_CAPABILITY;
+        UBSE_LOG_WARN << "pod capability=" << podCapability
+                      << " invalid, will use default pod capability=" << DEFAULT_POD_CAPABILITY;
         return DEFAULT_POD_CAPABILITY;
     }
     return podCapability;
