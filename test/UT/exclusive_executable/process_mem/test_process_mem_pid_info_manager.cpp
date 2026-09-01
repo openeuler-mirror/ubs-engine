@@ -1040,4 +1040,55 @@ TEST_F(TestProcessMemPidInfoManager, RebuildManagedPidCacheWithPidConfig)
     EXPECT_DOUBLE_EQ(it->second.remoteRatio, 0.8);
 }
 
+TEST_F(TestProcessMemPidInfoManager, R2rReplaceKeepsOldSlotReturningAndZeroed)
+{
+    constexpr uint64_t gb = 1024ull * 1024ull * 1024ull;
+    // 双槽切换后: 旧债 RETURNING + r2rReplacedDebts 标记(借出额度判定排除),
+    // 新债 COMPLETED 接管占用; currentRemote 仅按 COMPLETED 汇总
+    def::BorrowState borrow;
+    def::BorrowSlot oldSlot;
+    oldSlot.debtId = "old-debt";
+    oldSlot.status = def::BorrowSlotStatus::RETURNING;
+    oldSlot.migratedBytes = gb;
+    oldSlot.capacity = gb;
+    oldSlot.remoteNumaId = 5;
+    borrow.slots.push_back(oldSlot);
+    borrow.r2rReplacedDebts.insert("old-debt");
+
+    def::BorrowSlot migrateBackSlot;
+    migrateBackSlot.debtId = "migrate-back-debt";
+    migrateBackSlot.status = def::BorrowSlotStatus::RETURNING;
+    migrateBackSlot.migratedBytes = gb;
+    migrateBackSlot.capacity = gb;
+    migrateBackSlot.remoteNumaId = 6;
+    borrow.slots.push_back(migrateBackSlot);
+
+    def::BorrowSlot newSlot;
+    newSlot.debtId = "new-debt";
+    newSlot.status = def::BorrowSlotStatus::COMPLETED;
+    newSlot.migratedBytes = gb;
+    newSlot.capacity = gb;
+    newSlot.remoteNumaId = 7;
+    borrow.slots.push_back(newSlot);
+
+    // currentRemote 仅汇总 COMPLETED: 归还中(含 r2r 旧债)不计入; 字段与重算口径一致
+    borrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(borrow);
+    EXPECT_EQ(borrow.currentRemote, gb);
+
+    // 借出额度: occupied = currentRemote + inFlightReturn(仅非 r2r 的 RETURNING 计入),
+    // r2r 旧债不重复占用, canMigrate 不为双扣
+    def::ManagedPidEntry entry;
+    entry.pid = 41111;
+    entry.maxMemory = 6 * gb;
+    entry.remoteRatio = 0.5;
+    entry.vmRss = 6 * gb; // targetRemote = 3G
+    entry.borrow = borrow;
+    std::vector<def::BorrowCandidate> candidates;
+    auto skip = AppendBorrowCandidate(entry.pid, entry, candidates, gb);
+    EXPECT_EQ(skip, CandidateSkip::NONE);
+    ASSERT_EQ(candidates.size(), 1u);
+    // occupied = 1G(新债) + 1G(迁回在途) = 2G, canMigrate = 3G - 2G = 1G; r2r 旧债排除不双扣
+    EXPECT_EQ(candidates[0].canMigrate, gb);
+}
+
 } // namespace ubse::ut::process_mem

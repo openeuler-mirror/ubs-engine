@@ -877,13 +877,14 @@ uint32_t ProcessMemPidInfoManager::SetManagedPidSlotReturning(pid_t pid, const s
         return UBSE_OK;
     }
 
-    // currentRemote 与 smap 下发目标同步: 置 RETURNING 只改状态并重建投影(排除归还槽供目标构建),
-    // 计数在调用迁回接口时重算; 置回 COMPLETED 仅发生在债务消失(数据已释放)/归还失败回滚,
+    // currentRemote 与 smap 下发目标同步: 置 RETURNING 改状态、重建投影(排除归还槽供目标构建)
+    // 并同步重算 currentRemote(排除归还槽), 保证借出额度(占用=currentRemote+在途归还)口径一致,
+    // 否则 ReturnDebtUnified 失败路径不经过迁回接口的重算, currentRemote 仍含归还槽量被双倍扣减;
+    // 置回 COMPLETED 仅发生在债务消失(数据已释放)/归还失败回滚,
     // 槽仍 RETURNING 时重算移出占用, 置回后不重建投影, 幽灵槽不进投影
     slotIt->status = returning ? def::BorrowSlotStatus::RETURNING : def::BorrowSlotStatus::COMPLETED;
     if (returning) {
         RebuildRemoteNumaMigrated(borrow);
-        return UBSE_OK;
     }
     borrow.currentRemote = RecomputeCurrentRemote(borrow);
     return UBSE_OK;
@@ -1030,6 +1031,14 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
         return false;
     }
     const auto& borrow = it->second.borrow;
+    // 借出在途(BORROWING)/归还迁回中(RETURNING): 在途槽的迁出目标由借出/归还/对账对应流程
+    // 维护, 削减聚合无法表达在途槽, 与对账保护一致跳过本轮(每周期重试, 在途完成后自然恢复);
+    // currentRemote 本身已按 COMPLETED 口径重算不含在途量, 无需在此重算
+    for (const auto& s : borrow.slots) {
+        if (s.status != def::BorrowSlotStatus::COMPLETED) {
+            return false;
+        }
+    }
     uint64_t expectedRemote = static_cast<uint64_t>(it->second.vmRss * it->second.remoteRatio);
     if (borrow.currentRemote <= expectedRemote) {
         return false;
