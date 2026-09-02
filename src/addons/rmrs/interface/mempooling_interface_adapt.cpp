@@ -669,43 +669,7 @@ uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& 
         return MEM_POOLING_ERROR;
     }
 
-    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos;
-    if (MemBorrowExecutor::GetDebtInfosWithRetry(debtInfos) != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeBase] GetDebtInfosWithRetry failed, borrowId=" << borrowId << ".";
-        return MEM_POOLING_ERROR;
-    }
-    FaultNumaLockGuard lockGuard;
-    std::unordered_set<uint16_t> seenNumas;
-    for (const auto& debt : debtInfos) {
-        if (debt.name == borrowId && debt.remoteNumaId >= 0) {
-            auto numaId = static_cast<uint16_t>(debt.remoteNumaId);
-            if (seenNumas.count(numaId) > 0) {
-                continue;
-            }
-            seenNumas.insert(numaId);
-            MpResult lockRet = FaultNumaLock::Instance().TryAcquireSelf(numaId);
-            if (lockRet != MEM_POOLING_OK) {
-                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[MemFree][MemFreeBase] Fault NUMA locked, numaId=" << numaId << ", borrowId=" << borrowId
-                    << ".";
-                return lockRet;
-            }
-            lockGuard.selfNumaIds.push_back(numaId);
-        }
-    }
-
-    uint32_t ret = MEM_POOLING_ERROR;
-    MempoolingInterfaceAdapt guard;
-
-    auto& mgr = ApiConcurrencyManager::getInstance();
-    if (!mgr.TryEnterMemReturnFunc()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeBase] Concurrency is not supported, the current function cannot be entered.";
-        return MEM_POOLING_ERROR;
-    }
-    ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(borrowId, true, false);
-    mgr.ExitMemReturnFunc();
+    uint32_t ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(borrowId, true, false);
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeBase] MemFreeWithOps return code=" << ret << ", borrowId=" << borrowId << ".";
@@ -1151,7 +1115,7 @@ int mempooling::outinterface::UBSRMRSRemoteNumaMigrate(const MigrateEscapeMsg& m
             MpResult lockRet = FaultNumaLock::Instance().TryAcquireShared(nid);
             if (lockRet != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "RemoteNumaMigrate fault NUMA locked, nid=" << nid << ".";
+                    << "RemoteNumaMigrate fault NUMA locked, nid=" << nid << ", ret=" << lockRet << ".";
                 return lockRet;
             }
             lockGuard.sharedNumaIds.push_back(nid);
@@ -1290,7 +1254,7 @@ int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayl
             MpResult lockRet = FaultNumaLock::Instance().TryAcquireShared(destNid);
             if (lockRet != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "MigrateOut fault NUMA locked, destNid=" << destNid << ".";
+                    << "MigrateOut fault NUMA locked, destNid=" << destNid << ", ret=" << lockRet << ".";
                 return lockRet;
             }
             lockGuard.sharedNumaIds.push_back(destNid);

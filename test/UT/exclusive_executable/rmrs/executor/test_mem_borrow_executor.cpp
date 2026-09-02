@@ -553,10 +553,13 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_Success)
 
 static int g_smapEnableNumaProcessCallCount = 0;
 
-MpResult MockGenerateSmapParamsForProcessMem(MemBorrowExecutor* This, const std::string& name,
-                                             std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg,
-                                             std::string& importNodeId, bool isFault)
+using DebtQueryByNameResult = mempooling::DebtQueryResult;
+
+MpResult MockGenerateSmapParamsForProcessMem(MemBorrowExecutor* This, const UbseNumaMemoryDebtInfo& matchedDebtInfo,
+                                             std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg)
 {
+    (void)This;
+    (void)matchedDebtInfo;
     MigrateBackMsg msg;
     msg.count = 1;
     msg.payload[0].srcNid = 1;
@@ -568,7 +571,6 @@ MpResult MockGenerateSmapParamsForProcessMem(MemBorrowExecutor* This, const std:
     enableMsg.nid = 1;
     enableMsg.enable = 1;
 
-    importNodeId = "1";
     return MEM_POOLING_OK;
 }
 
@@ -582,14 +584,20 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_En
 {
     g_smapEnableNumaProcessCallCount = 0;
 
-    MOCKER_CPP(&MemBorrowExecutor::GenerateSmapParamsForProcessMem,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, std::vector<MigrateBackMsg>&, EnableNodeMsg&,
-                           std::string&, bool))
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(DebtQueryByNameResult{MEM_POOLING_OK, MEM_POOLING_ERROR}));
+
+    MOCKER_CPP(
+        &MemBorrowExecutor::GenerateSmapParamsForProcessMem,
+        MpResult(*)(MemBorrowExecutor*, const UbseNumaMemoryDebtInfo&, std::vector<MigrateBackMsg>&, EnableNodeMsg&))
         .stubs()
         .will(invoke(MockGenerateSmapParamsForProcessMem));
 
     MOCKER_CPP(&MemBorrowExecutor::UpdateSmapRemoteNumaInfoBeforeMigrateBack,
-               MpResult(*)(const std::string&, const std::string&, bool))
+               MpResult(*)(const UbseNumaMemoryDebtInfo&, const std::vector<UbseNumaMemoryDebtInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -612,11 +620,85 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_En
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    std::string name = "test";
-    std::string deleteName = "test";
-    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmapForProcessMem(name, deleteName, true);
+    UbseNumaMemoryDebtInfo matchedDebtInfo;
+    matchedDebtInfo.name = "test";
+    matchedDebtInfo.remoteNumaId = 1;
+    std::vector<UbseNumaMemoryDebtInfo> debtInfos{matchedDebtInfo};
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmapForProcessMem(matchedDebtInfo, debtInfos, true);
     EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(g_smapEnableNumaProcessCallCount, 1);
+}
+
+// ==================== MemFreeWithOpsForProcessMem smap分支新增检查 ====================
+
+/*
+ * 用例描述：账本中该borrowId已存在remoteNumaId<0条目（导入方已释放）
+ * 预期：跳过本轮释放，返回MEM_POOLING_OK，不进入smap释放流程
+ */
+TEST_F(TestMemBorrowExecutor, MemFreeWithOpsForProcessMem_Released_SkipFreeReturnOk)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(DebtQueryByNameResult{MEM_POOLING_ERROR, MEM_POOLING_OK}));
+    // 反向证明：若流程误入smap释放将返回ERROR，使断言失败
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const UbseNumaMemoryDebtInfo&,
+                           const std::vector<UbseNumaMemoryDebtInfo>&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem("test-released", true, false);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+/*
+ * 用例描述：账本查询失败/无有效条目（重试耗尽仍未找到）
+ * 预期：返回MEM_POOLING_ERROR，不进入smap释放流程
+ */
+TEST_F(TestMemBorrowExecutor, MemFreeWithOpsForProcessMem_DebtQueryFail_ReturnError)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(DebtQueryByNameResult{MEM_POOLING_ERROR, MEM_POOLING_ERROR}));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const UbseNumaMemoryDebtInfo&,
+                           const std::vector<UbseNumaMemoryDebtInfo>&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem("test-notfound", true, false);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+/*
+ * 用例描述：远端NUMA本机锁被占用（TryAcquireSelf返回故障码）
+ * 预期：返回锁错误码MEM_POOLING_HANDLING_FAULT，不进入smap释放流程
+ */
+TEST_F(TestMemBorrowExecutor, MemFreeWithOpsForProcessMem_FaultNumaLockFail_ReturnLockRet)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
+        .stubs()
+        .will(returnValue(DebtQueryByNameResult{MEM_POOLING_OK, MEM_POOLING_ERROR}));
+    MOCKER_CPP(&FaultNumaLock::TryAcquireSelf, MpResult(*)(FaultNumaLock*, uint16_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_HANDLING_FAULT));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const UbseNumaMemoryDebtInfo&,
+                           const std::vector<UbseNumaMemoryDebtInfo>&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem("test-lockfail", true, false);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_HANDLING_FAULT);
 }
 
 } // namespace mempooling
