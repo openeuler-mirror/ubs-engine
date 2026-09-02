@@ -1820,4 +1820,296 @@ TEST_F(TestMempoolMigrateModule, BatchBorrow_SingleCandidateMultipleAllocations)
     EXPECT_EQ(totalAllocated, 3 * GB);
 }
 
+// ---------------- NeedSmapMigrateBack / FreeMemAndPersistent 回滚动态判定 ----------------
+// mockcpp对同一函数重复注册不生效，故同一依赖只注册一次，行为由全局开关变量切换；
+// 用例开始先清零全局量，结束显式reset解除hook，防止跨用例污染
+static std::vector<BorrowRecord> g_needSmapRecords;
+static MpResult g_needSmapCollectRet = MEM_POOLING_OK;
+static bool g_needSmapQueryValid = true;
+static std::vector<smap::ProcessPayload> g_needSmapPayloads;
+static std::vector<std::tuple<std::string, bool, bool>> g_freeOpsCaptured;
+
+static void ResetNeedSmapGlobalState()
+{
+    g_needSmapRecords.clear();
+    g_needSmapCollectRet = MEM_POOLING_OK;
+    g_needSmapQueryValid = true;
+    g_needSmapPayloads.clear();
+    g_freeOpsCaptured.clear();
+}
+
+static BorrowRecord MakeBorrowRecordWithRemoteNuma(const std::string& name, int16_t remoteNuma)
+{
+    BorrowRecord record;
+    record.name = name;
+    record.borrowRemoteNuma = remoteNuma;
+    return record;
+}
+
+MpResult MockCollectRecordsForNeedSmap(BorrowRecordHelper* This, std::vector<BorrowRecord>& records, bool isFault,
+                                       bool isFilter)
+{
+    if (g_needSmapCollectRet != MEM_POOLING_OK) {
+        return g_needSmapCollectRet;
+    }
+    records = g_needSmapRecords;
+    return MEM_POOLING_OK;
+}
+
+MpResult MockSmapQueryForNeedSmap(int nid, std::vector<smap::ProcessPayload>& payloadList)
+{
+    if (!g_needSmapQueryValid) {
+        return MEM_POOLING_ERROR;
+    }
+    payloadList = g_needSmapPayloads;
+    return MEM_POOLING_OK;
+}
+
+MpResult MockMemFreeForRollbackCapture(MemBorrowExecutor* This, const std::string& name, bool isForceDelete,
+                                       bool smapBack, bool isFault)
+{
+    g_freeOpsCaptured.emplace_back(name, isForceDelete, smapBack);
+    return MEM_POOLING_OK;
+}
+
+static void SetupNeedSmapRollbackMocks()
+{
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(MockCollectRecordsForNeedSmap));
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(MockSmapQueryForNeedSmap));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(invoke(MockMemFreeForRollbackCapture));
+}
+
+/*
+ * 用例描述：借据无关联pid时无法判定远端占用，保守维持smap迁回路径（fail-closed）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_EmptyPids_KeepMigrateBack)
+{
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", {}));
+}
+
+/*
+ * 用例描述：账本采集失败时保守维持smap迁回路径（fail-closed）
+ * 测试步骤：1. mock CollectBorrowRecordsAll返回错误 2. 传入非空pid集合调用判定
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_CollectRecordsFailed_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(MockCollectRecordsForNeedSmap));
+    g_needSmapCollectRet = MEM_POOLING_ERROR;
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：账本中无该借据的有效远端numa（未匹配/非remote借用）时保守维持迁回路径（fail-closed）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_NoRemoteNuma_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    // 账本仅含其他借据，目标借据未匹配到，等价于远端numa=-1
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("other-borrow", 2));
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：纳管状态查询失败时保守维持迁回路径，宁可回滚失败重试不可带数据误走直接归还（fail-closed）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_SmapQueryFailed_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    g_needSmapQueryValid = false;
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：迁移失败场景——远端numa上无纳管pid（查询返回空列表），应直接归还不走smap迁回
+ * 预期结果：NeedSmapMigrateBack返回false
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_NotManaged_DirectReturn)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_FALSE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：迁移成功场景——借据关联pid被纳管且远端占用大于0，需要smap迁回；
+ * 另有纳管但远端占用为0的pid（数据已迁回/无占用）不影响判定为不需要迁回的反例见下一用例。
+ * 用例1预期：返回true；用例2（占用0且另有不匹配pid）预期：返回false，直接归还。
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_ManagedWithUsage_NeedMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload payload{};
+    payload.pid = 123;
+    payload.memSize = 1024;
+    g_needSmapPayloads.push_back(payload);
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：pid虽被纳管但远端占用为0（且另有纳管pid与借据无关），远端无待迁回数据，直接归还
+ * 预期结果：NeedSmapMigrateBack返回false
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_ManagedZeroUsage_DirectReturn)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload zeroUsage{};
+    zeroUsage.pid = 123;
+    zeroUsage.memSize = 0;
+    g_needSmapPayloads.push_back(zeroUsage);
+    smap::ProcessPayload unrelated{};
+    unrelated.pid = 999;
+    unrelated.memSize = 2048;
+    g_needSmapPayloads.push_back(unrelated);
+
+    std::set<BorrowIdInfo> pidInfos{{123, 0}};
+    EXPECT_FALSE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", pidInfos));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：占位pid(-1，映射缺失时填充)+远端numa完全无纳管进程，可确认无待迁回数据，直接归还；
+ * 对应迁移失败主场景，保证原修复不回退为迁回确定性失败-9阻塞回滚（fail-closed契约的确认无数据侧）
+ * 预期结果：NeedSmapMigrateBack返回false
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_PlaceholderPid_NoManaged_DirectReturn)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+
+    std::set<BorrowIdInfo> placeholderPids{{-1, 0}};
+    EXPECT_FALSE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", placeholderPids));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：占位pid(-1)+远端numa存在纳管进程（迁移旁路：waitingTime==0跳过映射写入但数据已迁往远端，
+ * 或持久化部分丢失），无法锚定真实进程但不可确认远端无数据，必须维持迁回路径（fail-closed，
+ * 验证S1-01：不得凭“未命中”直接归还导致远端数据未迁回即释放）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_PlaceholderPid_RemoteHasManaged_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload managedPayload{};
+    managedPayload.pid = 555;
+    managedPayload.memSize = 2048;
+    g_needSmapPayloads.push_back(managedPayload);
+
+    std::set<BorrowIdInfo> placeholderPids{{-1, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", placeholderPids));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：真实pid与占位pid混合时，真实pid未命中纳管列表且远端仍有其他纳管进程，
+ * 占位pid使精确匹配不可信，按远端全局纳管状态维持迁回路径（占位-1与真实100同列）
+ * 预期结果：NeedSmapMigrateBack返回true
+ */
+TEST_F(TestMempoolMigrateModule, NeedSmapMigrateBack_MixedPidWithPlaceholder_KeepMigrateBack)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("borrowId-1", 2));
+    smap::ProcessPayload otherManaged{};
+    otherManaged.pid = 888;
+    otherManaged.memSize = 1024;
+    g_needSmapPayloads.push_back(otherManaged);
+
+    // BorrowIdInfo按pid升序：{-1,0}在前{100,0}在后，验证混合遍历逻辑与顺序无关；真实100未命中、远端有纳管→迁回
+    std::set<BorrowIdInfo> mixedPids{{-1, 0}, {100, 0}};
+    EXPECT_TRUE(MempoolMigrateModule::NeedSmapMigrateBack("borrowId-1", mixedPids));
+    GlobalMockObject::reset();
+}
+
+/*
+ * 用例描述：回滚归还链路按动态判定传参——未纳管借据以smapBack=false直接归还（修复迁移失败场景），
+ * 有远端占用的借据以smapBack=true维持迁回；无pid信息的借据保持默认迁回路径，
+ * 且归还成功清理不引入新key（find缺失不插入）
+ * 测试步骤：
+ * 1. 账本含bid_a(远端numa2)与bid_b(远端numa2)，纳管列表仅含pid=200且占用>0（属bid_b）
+ * 2. validBorrowIdSet含bid_a/bid_b/bid_missing，pid映射仅bid_a(100)/bid_b(200)
+ * 3. 调用FreeMemAndPersistent并捕获MemFreeWithOps入参
+ * 预期结果：
+ * 1. bid_a以smapBack=false归还，bid_b以smapBack=true归还，无pid的bid_missing保持默认smapBack=true
+ * 2. 返回true，map清理后仅补录空集，不含bid_missing新key，outEntry正确
+ */
+TEST_F(TestMempoolMigrateModule, FreeMemAndPersistent_MigrationFailed_DirectReturnWithoutSmap)
+{
+    ResetNeedSmapGlobalState();
+    SetupNeedSmapRollbackMocks();
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("bid_a", 2));
+    g_needSmapRecords.push_back(MakeBorrowRecordWithRemoteNuma("bid_b", 2));
+    smap::ProcessPayload payload{};
+    payload.pid = 200;
+    payload.memSize = 512;
+    g_needSmapPayloads.push_back(payload);
+
+    std::set<std::string> validBorrowIdSet = {"bid_a", "bid_b", "bid_missing"};
+    std::map<std::string, std::set<BorrowIdInfo>> curBorrowIdsPidsMap;
+    curBorrowIdsPidsMap["bid_a"] = {BorrowIdInfo{100, 0}};
+    curBorrowIdsPidsMap["bid_b"] = {BorrowIdInfo{200, 0}};
+    RollBackBorrowIdPid outEntry;
+
+    bool ret = MempoolMigrateModule::FreeMemAndPersistent(validBorrowIdSet, curBorrowIdsPidsMap, outEntry);
+
+    ASSERT_TRUE(ret);
+    ASSERT_EQ(g_freeOpsCaptured.size(), 3U);
+    // set按字典序遍历：先bid_a后bid_b；bid_missing无pid信息，保持默认迁回路径
+    EXPECT_EQ(std::get<0>(g_freeOpsCaptured[0]), "bid_a");
+    EXPECT_EQ(std::get<1>(g_freeOpsCaptured[0]), false);
+    EXPECT_EQ(std::get<2>(g_freeOpsCaptured[0]), false); // 未纳管直接归还，不走smap迁回
+    EXPECT_EQ(std::get<0>(g_freeOpsCaptured[1]), "bid_b");
+    EXPECT_EQ(std::get<2>(g_freeOpsCaptured[1]), true); // 远端有占用，维持迁回路径
+    EXPECT_EQ(std::get<0>(g_freeOpsCaptured[2]), "bid_missing");
+    EXPECT_EQ(std::get<2>(g_freeOpsCaptured[2]), true); // 无关联pid信息，保守维持迁回路径
+    // 归还成功后map被清理，find缺失的bid_missing不会被插入新key；全成功时补录一条空集记录
+    EXPECT_EQ(curBorrowIdsPidsMap.count("bid_missing"), 0U);
+    EXPECT_EQ(curBorrowIdsPidsMap.size(), 1U);
+    ASSERT_EQ(outEntry.borrowIdList.size(), 1U);
+    EXPECT_EQ(outEntry.borrowIdList[0], "bid_a"); // map清理后补录的首个借据（字典序）
+    EXPECT_TRUE(outEntry.pidList.empty());
+    GlobalMockObject::reset();
+}
+
 } // namespace mempooling::migrate

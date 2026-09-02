@@ -211,4 +211,34 @@ TEST_F(TestUbseMtiEidInterface, OverwriteEid_ServerIdx_InvalidBaseEid)
     auto ret = OverwriteEid(0, baseEid, result);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
+
+/*
+ * 用例描述
+ * 测试设置EidCnaRule后OverwriteEid的输出
+ * 测试步骤
+ * 1. 调用SetEidCnaRule(7, 19, 0)设置规则
+ * 2. 调用OverwriteEid覆盖serverIdx
+ * 3. 恢复原始CnaRule配置
+ * 预期结果
+ * 1. 返回UBSE_OK
+ * 2. 覆盖后的EID符合新规则
+ */
+TEST_F(TestUbseMtiEidInterface, OverwriteEid_WithCnaRule)
+{
+    std::string baseEid = "0000:0000:003f:0200:0010:0000:1039:0b00";
+    std::string result;
+
+    // 设置新的CnaRule
+    SetEidCnaRule({std::make_tuple(static_cast<uint8_t>(7), static_cast<uint8_t>(19), static_cast<uint8_t>(0))});
+
+    // 执行覆盖操作
+    auto ret = OverwriteEid(114, baseEid, result);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(result, baseEid);
+
+    // 恢复原始规则配置
+    SetEidCnaRule({std::make_tuple(static_cast<uint8_t>(7), static_cast<uint8_t>(15), static_cast<uint8_t>(0)),
+                   std::make_tuple(static_cast<uint8_t>(20), static_cast<uint8_t>(23), static_cast<uint8_t>(1))});
+}
+
 } // namespace ubse::utils

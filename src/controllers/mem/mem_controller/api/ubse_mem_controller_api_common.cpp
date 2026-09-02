@@ -415,7 +415,23 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair,
     status.decoderResult = failedDecoderResult;
 }
 
-uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId)
+bool IsValidDecoderStateTransition(UbseDecoderState from, UbseDecoderState to)
+{
+    switch (from) {
+        case UbseDecoderState::DECODER_NONE:
+            return true;
+        case UbseDecoderState::DECODER_TEMP_INVALID:
+            return to == UbseDecoderState::DECODER_VALID || to == UbseDecoderState::DECODER_PERMANENT_INVALID;
+        case UbseDecoderState::DECODER_VALID:
+            return to == UbseDecoderState::DECODER_TEMP_INVALID || to == UbseDecoderState::DECODER_PERMANENT_INVALID;
+        case UbseDecoderState::DECODER_PERMANENT_INVALID:
+        default:
+            return false;
+    }
+}
+
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId,
+                                     UbseDecoderState targetState)
 {
     std::pair<uint32_t, uint32_t> chipDiePair{attachSocketId, attachSocketId};
     auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(attachSocketId, chipDiePair);
@@ -424,18 +440,21 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
         return res;
     }
     for (auto& decoderVal : status.decoderResult) {
-        if (decoderVal.valid) {
+        if (!IsValidDecoderStateTransition(decoderVal.state, targetState)) {
+            UBSE_LOG_WARN << "Invalid decoder state transition, skip. state=" << int(decoderVal.state)
+                          << ", targetState=" << int(targetState) << ", handle=" << decoderVal.handle
+                          << ", hpa=" << decoderVal.hpa << ", marId=" << decoderVal.marId;
             continue;
         }
-        UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second, decoderVal.marId, decoderId,
-                                        decoderVal.handle};
-        auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().InvalidateDecoderEntry(mamiDelInfo);
+        UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second, decoderVal.marId,
+                                        decoderId,         decoderVal.handle,  targetState};
+        res = adapter_plugins::mti::UbseMtiInterface::GetInstance().InvalidateDecoderEntry(mamiDelInfo);
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle=" << decoderVal.handle
                            << ", hpa=" << decoderVal.hpa << ", marId=" << decoderVal.marId;
             return res;
         }
-        decoderVal.valid = true;
+        decoderVal.state = targetState;
     }
     return res;
 }

@@ -132,6 +132,13 @@ using UbseMemOptReqSimpo =
 using UbseMemOptReqSimpoPtr =
     ubse::simpo::util::UbseAutoSimpoTuplePtr<std::string, ::ubse::mem::controller::UbseMemBorrowType, std::string>;
 
+using UbseMemInvalidateReqSimpo =
+    ubse::simpo::util::UbseAutoSimpoTuple<std::string, ::ubse::mem::controller::UbseMemBorrowType, std::string,
+                                          uint8_t>;
+using UbseMemInvalidateReqSimpoPtr =
+    ubse::simpo::util::UbseAutoSimpoTuplePtr<std::string, ::ubse::mem::controller::UbseMemBorrowType, std::string,
+                                             uint8_t>;
+
 using UbseMemOptResultSimpo = ubse::simpo::util::UbseAutoSimpoTuple<::ubse::mem::controller::UbseMemResult, uint32_t>;
 using UbseMemOptResultSimpoPtr =
     ubse::simpo::util::UbseAutoSimpoTuplePtr<::ubse::mem::controller::UbseMemResult, uint32_t>;

@@ -14,10 +14,17 @@
 #include <set>
 #include <string>
 #include <vector>
+#include "ubse_com.h"
+#include "ubse_logger.h"
+#include "mempool_borrow_module.h"
+#include "mempooling_message.h"
 #include "mockcpp/mokc.h"
+#include "over_commit_fault_memid_module.h"
+#include "over_commit_pid_fault_common.h"
 #include "over_commit_pid_fault_error_util.h"
-#include "over_commit_pid_fault_executor.cpp"
 #include "over_commit_pid_fault_executor.h"
+#include "over_commit_pid_fault_state_store.h"
+#include "rmrs_serialize.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling {

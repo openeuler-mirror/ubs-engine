@@ -18,6 +18,16 @@
 #include <vector>
 
 namespace ubse::adapter_plugins::mti::mami {
+
+enum class UbseDecoderState : uint8_t
+{
+    DECODER_PERMANENT_INVALID = 0, // 永久无效（最终态，不可再改变）
+    DECODER_TEMP_INVALID = 1,      // 暂时无效（Link-DOWN 导致，Link-UP 后可恢复）
+    DECODER_VALID = 2,             // 有效（可正常访问）
+    DECODER_NONE =
+        3, // 初始态，可转换为任意状态, 一个对账周期后确定具体状态; 主要用于无法修改持久化状态背景下, 进程重启等初始化对账时的状态转换
+};
+
 #define UB_MEMORY_IMPORT_MEMORY 0            // 普通内存借入/共享
 #define UB_MEMORY_PREIMPORT_MEMORY_STATIC 1  // 静态预引入
 #define UB_MEMORY_PREIMPORT_MEMORY_DYNAMIC 2 // 动态预引入
@@ -82,15 +92,16 @@ struct UbseMamiMemWithdraw {
     uint32_t marId{};
     uint8_t decoderIdx{};
     uint64_t handle{};
+    UbseDecoderState state{UbseDecoderState::DECODER_NONE};
 };
 
 /* decoder 表项操作结果 */
 struct UbseMamiMemImportResult {
-    uint32_t marId;
-    uint64_t hpa;    // HPA起始地址
-    uint64_t handle; // 内存handle, handle值用于标识分配的PA范围和decoder表项，删除decoder表项时需要传入相应的handle。
-    uint64_t staticHandle; // 使用的静态表项handle，为0则表示非预引入的handle
-    bool valid;            // 是否有效
+    uint32_t marId{};
+    uint64_t hpa{};    // HPA起始地址
+    uint64_t handle{}; // 内存handle, handle值用于标识分配的PA范围和decoder表项，删除decoder表项时需要传入相应的handle。
+    uint64_t staticHandle{}; // 使用的静态表项handle，为0则表示非预引入的handle
+    UbseDecoderState state{UbseDecoderState::DECODER_NONE};
 };
 
 /* 查询所有handle */

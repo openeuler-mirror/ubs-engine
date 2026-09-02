@@ -11,13 +11,21 @@
  */
 
 #include "test_ubse_election_node_mgr.h"
+#include "ubse_common_def.h"
+#include "ubse_conf.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_lcne_module.h"
 #include "ubse_mti_interface_default.h"
+#include "ubse_node_controller.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "ubse_election_node_mgr.cpp"
 
 namespace ubse::ut::election {
+using namespace ubse::nodeController;
+using namespace ubse::com;
+
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::config;
@@ -382,7 +390,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldNotAddNodeToCurrentAllNodes_Whe
     adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
     cpuTopoInfo.primaryEid = "primaryEid001";
     cpuTopoInfo.chipId = "chip01";
-    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.dieId = "card01";
     cpuTopoInfo.eid = "eid001";
     cpuTopoInfo.guid = "guid001";
     cpuTopoInfo.busNodeCna = 1;
@@ -397,7 +405,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldNotAddNodeToCurrentAllNodes_Whe
     portInfo.urmaEid = "eid001";
     portInfo.remoteSlotId = "-";
     portInfo.remoteChipId = "chip02";
-    portInfo.remoteCardId = "card02";
+    portInfo.remoteDieId = "card02";
     portInfo.remoteIfName = "eth1";
     portInfo.remotePortId = "port002";
     cpuTopoInfo.portInfos[devPortName] = portInfo;
@@ -452,7 +460,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddCurrentNode_WhenNotInTopoLin
     adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
     cpuTopoInfo.primaryEid = "primaryEid001";
     cpuTopoInfo.chipId = "chip01";
-    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.dieId = "card01";
     cpuTopoInfo.eid = "eid001";
     cpuTopoInfo.guid = "guid001";
     cpuTopoInfo.busNodeCna = 1;
@@ -467,7 +475,7 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddCurrentNode_WhenNotInTopoLin
     portInfo.urmaEid = "eid001";
     portInfo.remoteSlotId = "node03";
     portInfo.remoteChipId = "chip03";
-    portInfo.remoteCardId = "card03";
+    portInfo.remoteDieId = "card03";
     portInfo.remoteIfName = "eth1";
     portInfo.remotePortId = "port002";
     cpuTopoInfo.portInfos[devPortName] = portInfo;

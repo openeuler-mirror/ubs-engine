@@ -64,6 +64,19 @@ struct ReplacementDebtCtx {
     std::string oldLenderNodeId{};
 };
 
+// 归还完成判定: 债务已不存在/已实际归还(仅 unexport 失败)均视为完成, 保证归还幂等
+bool IsReturnDone(uint32_t ret);
+
+// 借用候选判定结果: NONE 参与本轮候选, CAN_MIGRATE 跳过(无可迁移额度)
+enum class CandidateSkip : uint8_t
+{
+    NONE,
+    CAN_MIGRATE
+};
+
+CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
+                                    std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes);
+
 class ProcessMemPidDecision {
 public:
     static ProcessMemPidDecision& GetInstance()
@@ -84,9 +97,6 @@ public:
     uint32_t OomPollOnce();
 
     uint32_t ReconcileLedgerWithCache();
-
-    // 周期恢复入口: 补录 ubse 有而账本无的债务 + smap 实测回填 migratedBytes (幂等)
-    void RecoverBorrowFromObmm();
 
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
@@ -115,6 +125,8 @@ private:
 
     void AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
+    bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum);
+
     void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
                              std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
 
@@ -135,6 +147,13 @@ private:
 
     bool EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
 
+    // 归还执行流去重: 同债务/同 pid 只允许一个归还流在飞(lender 重播/重试/主动扫描可能重复入队)
+    bool AcquireDebtReturnInFlight(const std::string& debtId);
+    void ReleaseDebtReturnInFlight(const std::string& debtId);
+    bool AcquirePidReturnInFlight(pid_t pid);
+    void ReleasePidReturnInFlight(pid_t pid);
+    bool IsPidReturnInFlight(pid_t pid);
+
     void RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene);
 
     void RunPidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
@@ -144,7 +163,8 @@ private:
 
     uint32_t DoPidReturnByUbseQuery(pid_t pid, ReturnScene scene);
 
-    bool ResolveReturnDebtOrFree(const def::ReturnRequestItem& item, ReturnScene scene, ResolvedReturnDebt& resolved);
+    bool ResolveReturnDebtOrFree(const def::ReturnRequestItem& item, ReturnScene scene, ResolvedReturnDebt& resolved,
+                                 bool& scheduleRetry);
 
     void BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency);
 
@@ -179,6 +199,8 @@ private:
 
     uint32_t RecoverSmapProcessConfig();
 
+    bool CorrectSmapConfig(pid_t pid, const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb);
+
     void ReconcileApplyChanges(const std::vector<pid_t>& affectedPids);
 
     void LoadConfig();
@@ -205,9 +227,9 @@ private:
                           uint64_t& freedBytes, uint32_t& failCount);
 
     void RecoverBindDebt(pid_t pid, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt);
-    void RecoverPidMigratedBytes(pid_t pid,
-                                 const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
-                                 const std::set<int>& failedNumas, size_t& filled, uint64_t& filledBytes);
+    void ZeroMigratedBytesWithoutSmap(pid_t pid,
+                                      const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb);
+    void RecoverPidMigratedBytes(pid_t pid, const std::set<int>& failedNumas);
     void ReportDirtySmapStates(const std::unordered_map<pid_t, std::unordered_map<int, uint64_t>>& smapMemKb,
                                const std::map<pid_t, def::ManagedPidEntry>& snapshot, size_t& dirty,
                                size_t& smapEntries);
@@ -251,6 +273,10 @@ private:
     // remote-to-remote 归还中旧 debt 删除失败的 debt 名；重试时跳过 create+migrate 只重删旧 debt
     std::set<std::string> pendingOldDebtDeletes_{};
     std::mutex pendingOldDebtDeletesMutex_{};
+
+    std::set<std::string> inFlightDebtReturns_{};
+    std::set<pid_t> inFlightPidReturns_{};
+    std::mutex inFlightReturnsMutex_{};
 
     std::atomic<uint64_t> roundNumber_{0};
     std::atomic<bool> cycleRunning_{false};

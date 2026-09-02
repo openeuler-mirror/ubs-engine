@@ -13,14 +13,24 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 
+#include "ubse_election.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_mem_controller.h"
 #include "ubse_node.h"
+#include "ubse_node_controller.h"
 #include "ubse_storage.h"
 #include "iostream"
-#include "mem_borrow_executor.cpp"
 #include "mem_json_def.h"
 #include "mem_manager.h"
 #include "mempool_migrate_module.h"
+#include "mempooling_return_module.h"
+#include "mp_configuration.h"
 #include "mp_error.h"
+#include "mp_smap_controller.h"
+#include "mp_string_util.h"
+#include "over_commit_fault_memid_module.h"
+#include "process_mem_pid_manager_def.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 

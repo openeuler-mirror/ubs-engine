@@ -13,9 +13,9 @@
 #include "test_ubse_com_base.h"
 #include "ubse_com_module.h"
 #include "test_ubse_com_mock.h"
-#include "ubse_com_base.cpp"
 
 using namespace ubse::com;
+using namespace ubse::common::def;
 
 namespace ubse::ut::com {
 std::string g_msg = "data";
@@ -236,39 +236,7 @@ TEST_F(TestUbseComBase, TestLog)
 
 /*
  * 用例描述：
- * 获取channel类型失败
- * 测试步骤：
- * 1.channel指针设为空
- * 2.调用接口获取channel类型
- * 预期结果：
- * 1.返回NoChannel
- */
-TEST_F(TestUbseComBase, TestGetChannelTypeFailed)
-{
-    UBSHcomChannelPtr chPtr = nullptr;
-    std::string type = GetChannelType(chPtr);
-    EXPECT_EQ("NoChannel", type);
-}
-
-/*
- * 用例描述：
- * 获取channel类型成功
- * 测试步骤：
- * 1.创建一个channel
- * 2.调用接口获取channel类型
- * 预期结果：
- * 1.返回Normal
- */
-TEST_F(TestUbseComBase, TestGetChannelTypeSuccess)
-{
-    UBSHcomChannelPtr chPtr = new TestChannel();
-    std::string type = GetChannelType(chPtr);
-    EXPECT_EQ("Normal", type);
-}
-
-/*
- * 用例描述：
- * 测试获取链接信息
+ * 获取链接信息
  * 测试步骤：
  * 1.获取全部链接个数
  * 预期结果：

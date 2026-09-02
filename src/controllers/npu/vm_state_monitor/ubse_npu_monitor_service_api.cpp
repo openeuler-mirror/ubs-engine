@@ -162,8 +162,7 @@ UbseResult StartVMMonitor()
 
 void ResetNpuOfBusInstance(const std::string& busInstance, VirDomainEventType event)
 {
-    static const std::unordered_set handleEvents = {VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
-                                                    VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
+    static const std::unordered_set handleEvents = {VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
                                                     VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT};
     if (handleEvents.find(event) == handleEvents.end()) {
         return;

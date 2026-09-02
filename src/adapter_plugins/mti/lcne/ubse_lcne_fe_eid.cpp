@@ -391,11 +391,11 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
 
 std::string UbseLcneFeEid::GetEidGroupId(std::string eid)
 {
-    // EID 128位bit字符串，第121位到第125位为EID组ID
+    // EID 128位bit字符串，第37位到第40位&第121位到第125位为EID实例号，即EID组ID
     std::string bitStr;
     if (ParseBaseEid(eid, bitStr) != UBSE_OK) {
         return "";
     }
-    return bitStr.substr(NO_128 - NO_8, NO_5);
+    return bitStr.substr(NO_32 + NO_4, NO_4) + bitStr.substr(NO_128 - NO_8, NO_5);
 }
 } // namespace ubse::lcne

@@ -24,11 +24,13 @@
 #include "ubse_http_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_mti_eid_interface.h"
+#include "ubse_mti_eid_internal.h"
 #include "ubse_net_util.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_busInstance.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_cna_seg_rule.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_fe_eid.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_host_info.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_node_info.h"
@@ -215,8 +217,57 @@ UbseResult UbseLcneModule::GetComUrmaEid()
             UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << dev.first.ubpuId << ", entity=" << fe.entityId
                           << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();
         }
+        if (SetAndVerifyEidRule() != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MTI] Failed to set and verify EID rule.";
+            return UBSE_ERROR;
+        }
     }
     return UBSE_OK;
+}
+
+UbseResult VerifyEids(uint32_t serverIdx, const UbseMtiEidGroup& eidGroup)
+{
+    // 验证primaryEid
+    std::string validPrimaryStr{};
+    if (utils::OverwriteEid(serverIdx, eidGroup.primaryEid, validPrimaryStr) != UBSE_OK ||
+        validPrimaryStr != eidGroup.primaryEid) {
+        UBSE_LOG_ERROR << "[MTI] Failed to verify primary eid, before=" << eidGroup.primaryEid
+                       << ", after=" << validPrimaryStr;
+        return UBSE_ERROR;
+    }
+
+    // 验证所有portEids
+    for (const auto& portEidPair : eidGroup.portEids) {
+        const std::string& portEid = portEidPair.second;
+        std::string validPortStr{};
+        if (utils::OverwriteEid(serverIdx, portEid, validPortStr) != UBSE_OK || validPortStr != portEid) {
+            UBSE_LOG_ERROR << "[MTI] Failed to verify port eid[" << portEidPair.first << "], before=" << portEid
+                           << ", after=" << validPortStr;
+            return UBSE_ERROR;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneModule::SetAndVerifyEidRule()
+{
+    std::vector<CnaBitRange> cnaRules;
+    if (UbseLcneCnaSegRule::GetInstance().QueryCnaRule(cnaRules) == UBSE_OK) {
+        utils::SetEidCnaRule(cnaRules);
+    } else {
+        UBSE_LOG_WARN << "[MTI] Failed to get address segment rule, use default.";
+    }
+
+    if (allSocketComEid.empty()) {
+        UBSE_LOG_ERROR << "[MTI] allSocketComEid is empty, cannot verify EID";
+        return UBSE_ERROR;
+    }
+    uint32_t serverIdx = 0;
+    if (adapter_plugins::smbios::UbseSmbios::GetInstance().GetServerIdx(serverIdx) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MTI] Failed to get server index.";
+        return UBSE_ERROR;
+    }
+    return VerifyEids(serverIdx, allSocketComEid.begin()->second);
 }
 
 UbseResult UbseLcneModule::FillNodeComInfo()

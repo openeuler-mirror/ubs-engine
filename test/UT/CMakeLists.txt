@@ -23,7 +23,9 @@ list(FILTER TEST_SOURCES EXCLUDE REGEX ".*/adapter_plugins/bandbridge/.*")
 
 add_executable(${UT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES})
 # 打破控制权限
-target_compile_options(${UT_BINARY} PRIVATE -fno-access-control ${DEBUG_FLAGS} -w)
+# 末尾追加 -g1（GCC 后者生效）：UT 只需行号即可，降低编译时间与 .o 体积（实测 -7~10%），覆盖率不受影响
+# -pipe：编译中间文件走管道不落盘，省临时文件 I/O；-gsplit-dwarf：调试信息拆分到 .dwo，.o 更小、链接更快
+target_compile_options(${UT_BINARY} PRIVATE -fno-access-control ${DEBUG_FLAGS} -w -g1 -pipe -gsplit-dwarf)
 target_link_libraries(${UT_BINARY} PUBLIC
         GTest::gmock_main
         mockcpp
@@ -89,7 +91,15 @@ include_directories(
 )
 
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
-target_link_options(${UT_BINARY} PRIVATE -rdynamic)
+# 仅 UT 使用 gold 链接器（bfd 下 1.2GB 单体链接约 1~2 分钟，gold 约 11.5s），生产构建不受影响
+target_link_options(${UT_BINARY} PRIVATE -rdynamic -fuse-ld=gold)
+
+# 预编译 gtest/gmock/mockcpp 头文件，消除每个测试翻译单元重复解析头文件的开销
+target_precompile_headers(${UT_BINARY} PRIVATE
+        <gtest/gtest.h>
+        <gmock/gmock.h>
+        <mockcpp/mockcpp.hpp>
+)
 
 add_subdirectory(exclusive_executable)
 add_subdirectory(cert)

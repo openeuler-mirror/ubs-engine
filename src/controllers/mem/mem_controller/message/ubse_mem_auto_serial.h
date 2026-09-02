@@ -132,7 +132,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult, void
                &::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult::hpa,
                &::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult::handle,
                &::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult::staticHandle,
-               &::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult::valid)
+               &::ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult::state)
 
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemLenderLinkInfo, void,
                &::ubse::adapter_plugins::mmi::UbseMemLenderLinkInfo::lenderNode,

@@ -11,6 +11,8 @@
  */
 #include "ubse_mti_util.h"
 #include <algorithm>
+#include <cctype>
+#include <iterator>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_str_util.h"
@@ -30,10 +32,14 @@ bool IsValidHexString(const std::string& str, bool allowDashes = false)
                        [allowDashes](char c) { return (allowDashes && c == '-') || std::isxdigit(c); });
 }
 
-bool EidStrToArray(const std::string& eidStr, std::array<uint8_t, 16>& eid)
+bool EidStrToArray(const std::string& eidStrIn, std::array<uint8_t, 16>& eid)
 {
+    // 序列化侧仅输出小写，解析侧统一规范化为小写，保证往返一致
+    std::string eidStr;
+    std::transform(eidStrIn.begin(), eidStrIn.end(), std::back_inserter(eidStr),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (eidStr.size() != LSUB_EID_LEN || !IsValidHexString(eidStr)) {
-        UBSE_LOG_ERROR << "Lsub output eid invalid, eid is : " << eidStr;
+        UBSE_LOG_ERROR << "Lsub output eid invalid, eid is : " << eidStrIn;
         return false;
     }
     try {
@@ -75,10 +81,14 @@ bool EidArrayToStr(const std::array<uint8_t, 16>& eid, std::string& eidStr)
     return true;
 }
 
-bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid)
+bool GuidStrToArray(const std::string& guidStrIn, std::array<uint8_t, 16>& guid)
 {
+    // 序列化侧仅输出小写，解析侧统一规范化为小写，保证往返一致
+    std::string guidStr;
+    std::transform(guidStrIn.begin(), guidStrIn.end(), std::back_inserter(guidStr),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (guidStr.size() != LSUB_GUID_LEN || !IsValidHexString(guidStr)) {
-        UBSE_LOG_ERROR << "Lsub output guid invalid, guid is : " << guidStr;
+        UBSE_LOG_ERROR << "Lsub output guid invalid, guid is : " << guidStrIn;
         return false;
     }
     // 高效转换：避免字符串拷贝和stringstream开销
@@ -96,10 +106,14 @@ bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid)
     return true;
 }
 
-bool UpiStrToUint16(const std::string& upiStr, uint16_t& upi)
+bool UpiStrToUint16(const std::string& upiStrIn, uint16_t& upi)
 {
+    // 序列化侧仅输出小写，解析侧统一规范化为小写，保证往返一致
+    std::string upiStr;
+    std::transform(upiStrIn.begin(), upiStrIn.end(), std::back_inserter(upiStr),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (upiStr.size() != LSUB_UPI_LEN || !IsValidHexString(upiStr)) {
-        UBSE_LOG_ERROR << "Lsub output upi invalid, upi is : " << upiStr;
+        UBSE_LOG_ERROR << "Lsub output upi invalid, upi is : " << upiStrIn;
         return false;
     }
     try {

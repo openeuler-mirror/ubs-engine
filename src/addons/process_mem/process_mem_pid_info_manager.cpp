@@ -722,12 +722,24 @@ void RebuildRemoteNumaMigrated(def::BorrowState& borrow)
 {
     borrow.remoteNumaMigrated.clear();
     for (const auto& s : borrow.slots) {
-        if (s.capacity == 0 || s.status != def::BorrowSlotStatus::COMPLETED ||
-            s.returnStatus == def::ReturnStatus::RETURNING || s.remoteNumaId < 0) {
+        if (s.capacity == 0 || s.status != def::BorrowSlotStatus::COMPLETED || s.remoteNumaId < 0) {
             continue;
         }
         borrow.remoteNumaMigrated[s.remoteNumaId] += s.migratedBytes;
     }
+}
+
+// currentRemote 与 smap 下发目标同步的重算口径: 仅 COMPLETED 槽(已落地占用)计入;
+// RETURNING 槽(数据在途)与 BORROWING(在途预期)排除; r2r 替换槽已置 COMPLETED 自动计入
+uint64_t ProcessMemPidInfoManager::RecomputeCurrentRemote(const def::BorrowState& borrow)
+{
+    uint64_t total = 0;
+    for (const auto& s : borrow.slots) {
+        if (s.status == def::BorrowSlotStatus::COMPLETED) {
+            total += s.migratedBytes;
+        }
+    }
+    return total;
 }
 
 void ProcessMemPidInfoManager::UpdateManagedPidBorrowState(pid_t pid, const def::BorrowState& borrow,
@@ -826,10 +838,17 @@ uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const
         return UBSE_ERR_NOT_EXIST;
     }
 
-    // 按槽位实际迁移量扣减: 归还前 spare 整理可能已把小块并入其他槽, migratedBytes 小于债务容量
+    // 按槽位实际迁移量扣减: 归还前 spare 整理可能已把小块并入其他槽, migratedBytes 小于债务容量;
+    // RETURNING 槽在迁回接口处已重算排除, 删槽时不再扣, 避免双扣;
+    // 统一归还(ACTIVE)路径未提前重算, 删 RETURNING 槽后须全量重算, 否则 currentRemote 残留虚高
+    bool wasReturning = (slotIt->status == def::BorrowSlotStatus::RETURNING);
     uint64_t returnedBytes = slotIt->migratedBytes;
-    borrow.currentRemote = (borrow.currentRemote >= returnedBytes) ? (borrow.currentRemote - returnedBytes) : 0;
     borrow.slots.erase(slotIt);
+    if (wasReturning) {
+        borrow.currentRemote = RecomputeCurrentRemote(borrow);
+    } else {
+        borrow.currentRemote = (borrow.currentRemote >= returnedBytes) ? (borrow.currentRemote - returnedBytes) : 0;
+    }
     UBSE_LOG_INFO << "[process_mem] slot_change pid=" << pid << " debt_id=" << debtId
                   << " reason=return_free event=remove old_gb=" << BytesToGbDouble(returnedBytes) << " new_gb=0";
 
@@ -839,8 +858,7 @@ uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturned(pid_t pid, const
     return UBSE_OK;
 }
 
-uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturnStatus(pid_t pid, const std::string& debtId,
-                                                                    def::ReturnStatus status)
+uint32_t ProcessMemPidInfoManager::SetManagedPidSlotReturning(pid_t pid, const std::string& debtId, bool returning)
 {
     std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
     auto it = managedPidCache_.find(pid);
@@ -848,14 +866,38 @@ uint32_t ProcessMemPidInfoManager::UpdateManagedPidSlotReturnStatus(pid_t pid, c
         return UBSE_ERR_NOT_EXIST;
     }
 
-    auto slotIt = std::find_if(it->second.borrow.slots.begin(), it->second.borrow.slots.end(),
+    auto& borrow = it->second.borrow;
+    auto slotIt = std::find_if(borrow.slots.begin(), borrow.slots.end(),
                                [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
-    if (slotIt == it->second.borrow.slots.end()) {
+    if (slotIt == borrow.slots.end()) {
         return UBSE_ERR_NOT_EXIST;
     }
+    bool isReturning = (slotIt->status == def::BorrowSlotStatus::RETURNING);
+    if (isReturning == returning) {
+        return UBSE_OK;
+    }
 
-    slotIt->returnStatus = status;
+    // currentRemote 与 smap 下发目标同步: 置 RETURNING 改状态、重建投影(排除归还槽供目标构建)
+    // 并同步重算 currentRemote(排除归还槽), 保证借出额度(占用=currentRemote+在途归还)口径一致,
+    // 否则 ReturnDebtUnified 失败路径不经过迁回接口的重算, currentRemote 仍含归还槽量被双倍扣减;
+    // 置回 COMPLETED 仅发生在债务消失(数据已释放)/归还失败回滚,
+    // 槽仍 RETURNING 时重算移出占用, 置回后不重建投影, 幽灵槽不进投影
+    slotIt->status = returning ? def::BorrowSlotStatus::RETURNING : def::BorrowSlotStatus::COMPLETED;
+    if (returning) {
+        RebuildRemoteNumaMigrated(borrow);
+    }
+    borrow.currentRemote = RecomputeCurrentRemote(borrow);
     return UBSE_OK;
+}
+
+void ProcessMemPidInfoManager::RemoveR2rReplacedDebt(pid_t pid, const std::string& oldDebtId)
+{
+    std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
+    auto it = managedPidCache_.find(pid);
+    if (it == managedPidCache_.end()) {
+        return;
+    }
+    it->second.borrow.r2rReplacedDebts.erase(oldDebtId);
 }
 
 void ProcessMemPidInfoManager::ResetSlotByDebtName(const std::string& debtId)
@@ -865,7 +907,9 @@ void ProcessMemPidInfoManager::ResetSlotByDebtName(const std::string& debtId)
         auto slotIt = std::find_if(entry.borrow.slots.begin(), entry.borrow.slots.end(),
                                    [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
         if (slotIt != entry.borrow.slots.end()) {
-            slotIt->returnStatus = def::ReturnStatus::NONE;
+            // 债务消失(数据已释放): 槽仍 RETURNING 时重算移出占用, 置回 COMPLETED 后幽灵槽不进投影(不 rebuild)
+            entry.borrow.currentRemote = RecomputeCurrentRemote(entry.borrow);
+            slotIt->status = def::BorrowSlotStatus::COMPLETED;
             UBSE_LOG_INFO << "[process_mem] reset slot pid=" << pid << " debt_id=" << debtId
                           << " (debt vanished, clear RETURNING)";
         }
@@ -916,7 +960,7 @@ void ProcessMemPidInfoManager::RebalanceRemoteCheck()
 
 uint64_t RebalanceSlotTargetBytes(const def::BorrowSlot& slot, uint64_t overage)
 {
-    if (slot.returnStatus == def::ReturnStatus::RETURNING || slot.remoteNumaId < 0) {
+    if (slot.status == def::BorrowSlotStatus::RETURNING || slot.remoteNumaId < 0) {
         return 0;
     }
     uint64_t newSize = (slot.migratedBytes > overage) ? (slot.migratedBytes - overage) : 0;
@@ -931,8 +975,7 @@ uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t over
     uint64_t settled = 0;
     uint64_t rest = overage;
     for (const auto& slot : borrow.slots) {
-        if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.returnStatus == def::ReturnStatus::RETURNING ||
-            slot.remoteNumaId < 0) {
+        if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.remoteNumaId < 0) {
             continue;
         }
         uint64_t targetBytes = RebalanceSlotTargetBytes(slot, rest);
@@ -947,8 +990,7 @@ uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t over
         }
     }
     for (const auto& slot : borrow.slots) {
-        if (slot.status == def::BorrowSlotStatus::BORROWING && slot.capacity > 0 &&
-            slot.returnStatus != def::ReturnStatus::RETURNING && slot.remoteNumaId >= 0) {
+        if (slot.status == def::BorrowSlotStatus::BORROWING && slot.capacity > 0 && slot.remoteNumaId >= 0) {
             numaTargets[slot.remoteNumaId] += slot.capacity;
         }
     }
@@ -960,8 +1002,7 @@ uint64_t RebalanceApplyTargets(def::BorrowState& borrow, uint64_t overage)
     uint64_t settled = 0;
     uint64_t rest = overage;
     for (auto& slot : borrow.slots) {
-        if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.returnStatus == def::ReturnStatus::RETURNING ||
-            slot.remoteNumaId < 0) {
+        if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.remoteNumaId < 0) {
             continue;
         }
         uint64_t targetBytes = RebalanceSlotTargetBytes(slot, rest);
@@ -990,6 +1031,14 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
         return false;
     }
     const auto& borrow = it->second.borrow;
+    // 借出在途(BORROWING)/归还迁回中(RETURNING): 在途槽的迁出目标由借出/归还/对账对应流程
+    // 维护, 削减聚合无法表达在途槽, 与对账保护一致跳过本轮(每周期重试, 在途完成后自然恢复);
+    // currentRemote 本身已按 COMPLETED 口径重算不含在途量, 无需在此重算
+    for (const auto& s : borrow.slots) {
+        if (s.status != def::BorrowSlotStatus::COMPLETED) {
+            return false;
+        }
+    }
     uint64_t expectedRemote = static_cast<uint64_t>(it->second.vmRss * it->second.remoteRatio);
     if (borrow.currentRemote <= expectedRemote) {
         return false;

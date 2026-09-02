@@ -97,7 +97,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
     std::map<UbseMtiIouInfo, UbseMtiEidGroup> allSocketComEid = module->GetMtiComEid();
     std::map<UbseMtiIouInfo, UbseLcneIODieInfo> localBoardIOInfo = module->GetLocalBoardIOInfo();
     for (const auto& [devName, devicInfoPair] : devTopology) {
-        UbseMtiIouInfo iouInfo(devicInfoPair.first.slotId, devicInfoPair.first.chipId, devicInfoPair.first.cardId);
+        UbseMtiIouInfo iouInfo(devicInfoPair.first.slotId, devicInfoPair.first.chipId, devicInfoPair.first.dieId);
         UbseMtiCpuTopoInfo info{};
         if (utils::ConvertStrToUint32(iouInfo.slotId, info.nodeId) != UBSE_OK) {
             UBSE_LOG_ERROR << "convert str failed, slotId = " << iouInfo.slotId;
@@ -105,7 +105,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
         }
         info.primaryEid = allSocketComEid[iouInfo].primaryEid;
         info.chipId = devicInfoPair.first.chipId;
-        info.cardId = devicInfoPair.first.cardId;
+        info.dieId = devicInfoPair.first.dieId;
         info.busNodeCna = devicInfoPair.first.busNodeCna;
         info.eid = localBoardIOInfo[iouInfo].ubControllerEid; // LCNE获取时能保证key存在
         info.guid = localBoardIOInfo[iouInfo].guid;           // LCNE获取时能保证key存在

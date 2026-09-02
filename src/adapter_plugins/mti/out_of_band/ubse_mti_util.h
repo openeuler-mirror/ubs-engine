@@ -25,5 +25,7 @@ bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid);
 bool UpiStrToUint16(const std::string& upiStr, uint16_t& upi);
 
 std::string UpiUint16ToStr(uint16_t upi);
+
+inline const std::string UB_DEVICES_PATH = "/sys/bus/ub/devices/";
 } // namespace ubse::mti
 #endif // UBSE_MTI_UTIL_H

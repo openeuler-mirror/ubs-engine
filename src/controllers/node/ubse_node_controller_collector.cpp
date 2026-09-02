@@ -501,7 +501,7 @@ void AddEdgeInfo(
     portInfo.urmaEid = port.second.urmaEid;
     portInfo.remoteSlotId = port.second.remoteSlotId;
     portInfo.remoteChipId = port.second.remoteChipId;
-    portInfo.remoteCardId = port.second.remoteCardId;
+    portInfo.remoteDieId = port.second.remoteDieId;
     portInfo.remoteIfName = port.second.remoteIfName;
     portInfo.remotePortId = port.second.remotePortId;
 }
@@ -535,7 +535,7 @@ UbseResult CollectCpuInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId)
             UBSE_LOG_ERROR << "copy primaryEid failed, ErrorCode=" << cpyRet;
             return cpyRet;
         }
-        info.cardId = cpuTopoInfo.cardId;
+        info.dieId = cpuTopoInfo.dieId;
         info.busNodeCna = cpuTopoInfo.busNodeCna;
         info.eid = cpuTopoInfo.eid;   // LCNE获取时能保证key存在
         info.guid = cpuTopoInfo.guid; // LCNE获取时能保证key存在

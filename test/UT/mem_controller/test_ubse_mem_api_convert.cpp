@@ -20,13 +20,13 @@
 #include "ubse_mem_account.h"
 #include "ubse_mem_buffer_convert.h"
 #include "ubse_mem_controller_def.h"
-#include "ubse_mem_buffer_convert.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace api::server;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::def;
 using namespace ubse::adapter_plugins::mmi;
+constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 48;
 
 void TestUbseMemApiConvert::SetUp()
 {

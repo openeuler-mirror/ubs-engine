@@ -13,6 +13,7 @@
 #include "it_cluster.h"
 
 #include <algorithm>
+#include <fstream>
 #include <future>
 #include <set>
 #include <stdexcept>
@@ -200,6 +201,27 @@ ItCliInvoker& ItCluster::GetCliInvoker(const std::string& nodeId)
         throw std::runtime_error("Node not found: " + nodeId);
     }
     return it->second->GetCliInvoker();
+}
+
+bool ItCluster::HasLogLine(const std::string& nodeId, const std::string& substring, const std::string& logType) const
+{
+    // 基于拓扑定位节点日志路径 (baseWorkDir/<nodeId>/log/...), 不依赖节点是否已启动
+    if (clusterSpec_.FindNode(nodeId) == nullptr) {
+        return false;
+    }
+    const std::string logDir = clusterSpec_.baseWorkDir + "/" + nodeId + "/log";
+    const std::string logPath = (logType == "fault") ? logDir + "/ubse_fault.log" : logDir + "/ubse.log";
+    std::ifstream ifs(logPath);
+    if (!ifs.is_open()) {
+        return false;
+    }
+    std::string line;
+    while (std::getline(ifs, line)) {
+        if (line.find(substring) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
 }
 
 ItLcneClient& ItCluster::GetLcneClient(const std::string& nodeId)

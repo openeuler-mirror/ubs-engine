@@ -14,7 +14,8 @@
 #include <climits>
 #include <string>
 #include <vector>
-#include "over_commit_pid_fault_context.cpp"
+#include "mp_error.h"
+#include "over_commit_pid_fault_context.h"
 
 namespace mempooling {
 

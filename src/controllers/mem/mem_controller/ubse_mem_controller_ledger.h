@@ -10,6 +10,7 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
+#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::mem::controller {
 
@@ -219,7 +220,8 @@ std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjs
 std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
     const std::string& name);
 
-UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type);
+UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type,
+                                     adapter_plugins::mti::mami::UbseDecoderState targetState);
 
 // 获取最大引用计数的导出对象
 UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name);
