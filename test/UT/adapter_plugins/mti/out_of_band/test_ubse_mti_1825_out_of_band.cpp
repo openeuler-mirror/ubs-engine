@@ -16,12 +16,14 @@
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_fe_opt_msg.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_get_1825_fe_msg.h"
 #include "src/adapter_plugins/mti/out_of_band/proxy/ubse_ctrl_q_msg_proxy.h"
+#include "src/framework/misc/ubse_os_util.h"
 
 namespace ubse::ut::mti::_1825 {
 
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::mti::bus_instance;
 using namespace ubse::mti::_1825;
+using namespace ubse::utils;
 
 void TestUbseMti1825OutOfBand::SetUp()
 {
@@ -202,6 +204,67 @@ TEST(UbseMti1825OutOfBandInheritanceTest, InheritsFromUbseMti1825)
 {
     static_assert(std::is_base_of<UbseMti1825, UbseMti1825OutOfBand>::value,
                   "UbseMti1825OutOfBand should inherit from UbseMti1825");
+}
+
+// ==================== Check1825PfeH2NLinkStatus 测试 ====================
+
+static std::string g_faultMgrState;
+
+static UbseResult MockReadFaultMgrStateSuccess(const std::string& filePath, std::string& res)
+{
+    res = g_faultMgrState;
+    return UBSE_OK;
+}
+
+static UbseResult MockReadFaultMgrStateFail(const std::string& filePath, std::string& res)
+{
+    return UBSE_ERROR;
+}
+
+TEST_F(TestUbseMti1825OutOfBand, Check1825PfeH2NLinkStatus_PpfIdleSuccess)
+{
+    g_faultMgrState = "PPF/IDLE\n";
+    const auto readFileFunc = &UbseOsUtil::ReadFileContent;
+    MOCKER_CPP(readFileFunc).stubs().will(invoke(MockReadFaultMgrStateSuccess));
+
+    UbseMtiEid eid{};
+    eid[0] = 0x12;
+    eid[1] = 0x34;
+    eid[2] = 0x56;
+    eid[3] = 0x78;
+    EXPECT_TRUE(outOfBand_.Check1825PfeH2NLinkStatus(eid));
+}
+
+TEST_F(TestUbseMti1825OutOfBand, Check1825PfeH2NLinkStatus_PfIdleSuccess)
+{
+    g_faultMgrState = "PF/IDLE\n";
+    const auto readFileFunc = &UbseOsUtil::ReadFileContent;
+    MOCKER_CPP(readFileFunc).stubs().will(invoke(MockReadFaultMgrStateSuccess));
+
+    UbseMtiEid eid{};
+    eid[0] = 0xAB;
+    EXPECT_TRUE(outOfBand_.Check1825PfeH2NLinkStatus(eid));
+}
+
+TEST_F(TestUbseMti1825OutOfBand, Check1825PfeH2NLinkStatus_OtherStateFail)
+{
+    g_faultMgrState = "FAULT\n";
+    const auto readFileFunc = &UbseOsUtil::ReadFileContent;
+    MOCKER_CPP(readFileFunc).stubs().will(invoke(MockReadFaultMgrStateSuccess));
+
+    UbseMtiEid eid{};
+    eid[0] = 0x01;
+    EXPECT_FALSE(outOfBand_.Check1825PfeH2NLinkStatus(eid));
+}
+
+TEST_F(TestUbseMti1825OutOfBand, Check1825PfeH2NLinkStatus_ReadFileFail)
+{
+    const auto readFileFunc = &UbseOsUtil::ReadFileContent;
+    MOCKER_CPP(readFileFunc).stubs().will(invoke(MockReadFaultMgrStateFail));
+
+    UbseMtiEid eid{};
+    eid[0] = 0x01;
+    EXPECT_FALSE(outOfBand_.Check1825PfeH2NLinkStatus(eid));
 }
 
 } // namespace ubse::ut::mti::_1825

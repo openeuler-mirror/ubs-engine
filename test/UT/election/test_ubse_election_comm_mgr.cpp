@@ -12,17 +12,24 @@
 
 #include "test_ubse_election_comm_mgr.h"
 #include <unordered_map>
+#include "ubse_com_module.h"
 #include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_election_comm_mgr.h"
 #include "ubse_election_node_mgr.h"
+#include "ubse_election_pkt_simpo.h"
+#include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_utils.h"
 #include "ubse_error.h"
-#include "ubse_election_comm_mgr.cpp"
+#include "ubse_event_module.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::event;
+using namespace ubse::com;
 using namespace ubse::election::utils;
 std::string nodeId = "1";
 std::string name = "UbseElection";

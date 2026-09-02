@@ -207,6 +207,30 @@ public:
     }
 
     /**
+     * @brief 原子修改资源对象（读-改-写全程持写锁）
+     * @param[in] resId 资源ID
+     * @param[in] modify 修改函数对象，接收最新资源对象的引用作为参数
+     *                   返回false表示取消本次写回（如资源生命周期已变化）
+     * @return 资源存在返回true，资源不存在返回false
+     * @note 与Modify不同，本接口在锁内完成"读-改-写"，避免并发修改者之间
+     *       的丢失更新；调用方不应在modify中执行耗时或阻塞操作
+     */
+    bool Update(const std::string& resId, const std::function<bool(T&)>& modify)
+    {
+        std::unique_lock<std::shared_mutex> lock(mutex_);
+        auto it = map_.find(resId);
+        if (it == map_.end()) {
+            return false;
+        }
+        auto newObj = std::make_shared<T>(*it->second);
+        if (!modify || !modify(*newObj)) {
+            return true;
+        }
+        map_[resId] = std::const_pointer_cast<const T>(newObj);
+        return true;
+    }
+
+    /**
      * @brief 获取所有资源对象的映射副本
      * @return 包含所有资源对象的映射副本，键为资源ID，值为资源对象的共享指针
      * @note 线程安全，使用读锁保护
@@ -436,6 +460,25 @@ public:
             auto nodePtr = GetOrCreateNodeMap(nodeId);
             nodePtr->Put(resId, std::make_shared<T>(obj));
         }
+    }
+
+    /**
+     * @brief 原子修改某个节点的某个资源
+     * @param[in] nodeId 节点ID
+     * @param[in] resId 资源ID
+     * @param[in] modify 修改函数对象，接收最新资源对象引用作为参数
+     *                   返回false表示取消本次写回
+     * @return 资源存在返回true，资源不存在返回false
+     * @note 线程安全，在锁内完成"读-改-写"，避免并发写路径（如故障无效化
+     *       与RPC无效化回写）之间的丢失更新
+     */
+    bool UpdateResource(const std::string& nodeId, const std::string& resId, const std::function<bool(T&)>& modify)
+    {
+        auto nodePtr = FindNodeMap(nodeId);
+        if (!nodePtr) {
+            return false;
+        }
+        return nodePtr->Update(resId, modify);
     }
 
     /**

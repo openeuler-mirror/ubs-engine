@@ -23,12 +23,29 @@
 #include "over_commit_fault_node_module.h"
 #undef private
 
+#include "ubse_error.h"
 #include "ubse_storage.h"
+#include "OsHelper/OsHelper.h"
+#include "collect_util.h"
+#include "common_delete_func.h"
 #include "fault_node_module.h"
+#include "mem_borrow_executor.h"
+#include "mempool_borrow_module.h"
 #include "mempooling_interface.h"
+#include "mp_configuration.h"
 #include "mp_mem_json_util.h"
-#include "over_commit_fault_node_module.cpp"
+#include "mp_memory_info.h"
+#include "over_commit_pid_fault_pipeline.h"
+#include "over_commit_storage.h"
+#include "process_mem_pid_manager_def.h"
+#include "rmrs_resource_query.h"
+#include "securec.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
+
+namespace mempooling {
+// 由 over_commit_fault_node_module.cpp 提供，声明以便链接（非 static）
+bool CanDirectlyReturnRemoteNumas(const std::vector<uint16_t>& remoteNumaIds);
+} // namespace mempooling
 
 namespace mempooling::over_commit {
 using std::cout;
@@ -1627,35 +1644,6 @@ TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_SocketAffinity_Multi
     EXPECT_TRUE(unallocatedPids.empty());
 }
 
-TEST_F(TestOverCommitFaultNodeModule, BuildPidSocketSizes_AggregatesPerFaultNumaWithSocket)
-{
-    std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap;
-    BorrowRecord rec1;
-    rec1.borrowRemoteNuma = 2;
-    rec1.lentSocketId = 0;
-    rec1.size = 1024 * 1024;
-    BorrowRecord rec2;
-    rec2.borrowRemoteNuma = 2;
-    rec2.lentSocketId = 0;
-    rec2.size = 1024 * 1024;
-    BorrowRecord rec3;
-    rec3.borrowRemoteNuma = 3;
-    rec3.lentSocketId = 1;
-    rec3.size = 1024 * 1024;
-    pidBorrowMap[1] = {rec1, rec2, rec3};
-
-    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes;
-    BuildPidSocketSizes(pidBorrowMap, pidSocketSizes);
-
-    // pid=1 在故障 NUMA2(socket0) 上共 2MB → 2048KB，在 NUMA3(socket1) 上 1MB → 1024KB
-    ASSERT_EQ(pidSocketSizes.size(), 1u);
-    ASSERT_EQ(pidSocketSizes[1].size(), 2u);
-    EXPECT_EQ(pidSocketSizes[1][0].first, 2048u);
-    EXPECT_EQ(pidSocketSizes[1][0].second, 0);
-    EXPECT_EQ(pidSocketSizes[1][1].first, 1024u);
-    EXPECT_EQ(pidSocketSizes[1][1].second, 1);
-}
-
 TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_GetDebtFailed_ResourceCollectError)
 {
     MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
@@ -1830,34 +1818,6 @@ TEST_F(TestOverCommitFaultNodeModule, FinalizePidProcessing_ReleasesOnlyMigrated
     ASSERT_EQ(freedOldBorrowIds.size(), 1u);
     EXPECT_TRUE(freedOldBorrowIds.count("old_bid_1") > 0);
     EXPECT_TRUE(freedOldBorrowIds.count("old_bid_2") == 0);
-}
-
-TEST_F(TestOverCommitFaultNodeModule, BuildBorrowerData_FiltersUnallocatedAndEmptyEntries)
-{
-    BorrowRecord rec;
-    rec.borrowNode = "borrowNodeA";
-    rec.size = 1024;
-
-    std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap{{100, {rec}}, {200, {rec}}};
-    std::unordered_map<pid_t, int64_t> pidStartTimeMap{{100, 1}, {200, 2}};
-
-    // pid=100 已分配，pid=200 未分配
-    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
-    pidAllocMap[100] = {SimplifiedFaultPidAllocTarget{"node4", 0}};
-
-    std::unordered_map<std::string, SimplifiedFaultRecordsInNode> borrowerData;
-    BuildBorrowerData("node1", pidBorrowMap, pidStartTimeMap, pidAllocMap, borrowerData);
-
-    // 仅保留已分配的 pid=100
-    ASSERT_EQ(borrowerData.size(), 1u);
-    ASSERT_TRUE(borrowerData.count("borrowNodeA") > 0);
-    auto& data = borrowerData["borrowNodeA"];
-    ASSERT_EQ(data.pidBorrowMap.size(), 1u);
-    EXPECT_TRUE(data.pidBorrowMap.count(100) > 0);
-    ASSERT_EQ(data.pidAllocMap[100].size(), 1u);
-    EXPECT_EQ(data.pidAllocMap[100][0].lendNodeId, "node4");
-    // 未分配的 pid=200 从 pidStartTimeMap 移除
-    EXPECT_TRUE(data.pidStartTimeMap.count(200) == 0);
 }
 
 } // namespace mempooling::over_commit

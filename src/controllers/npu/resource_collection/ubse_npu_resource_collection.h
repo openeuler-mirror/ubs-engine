@@ -12,6 +12,7 @@
 #ifndef UBSE_NPU_RESOURCE_COLLECTION_H
 #define UBSE_NPU_RESOURCE_COLLECTION_H
 #include <array>
+#include <atomic>
 #include <map>
 #include <regex>
 #include <shared_mutex>
@@ -35,6 +36,12 @@ public:
      * @return 采集结果， UBSE_OK代表采集成功，其它代表采集失败
      */
     UbseResult CollectStaticResource();
+
+    /**
+     * 查询采集状态，FINISH代表采集完成，可进行使能/去使能等操作
+     */
+    CollectionState GetState() const;
+
     // 数据查询
     /**
      * 通过devId和type来获取对应类型的设备
@@ -78,6 +85,8 @@ public:
     static UbseResult UnbindDevice(const std::shared_ptr<CollectionDevice>& dev1,
                                    const std::shared_ptr<CollectionDevice>& dev2);
 
+    UbseResult GetProductType(ProductType& productType);
+
 private:
     UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice>& dev);
     ResourceCollection();
@@ -91,7 +100,7 @@ private:
     UbseResult CollectIdevPfeDavid();
     UbseResult CollectNic();
     std::shared_ptr<CollectionDeviceIdevVfe> GetIdevVfeByGuid(const std::string& guid);
-    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiGuid>& guids,
+    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiBusInstSubDevice>& subDevices,
                                    std::shared_ptr<CollectionDeviceBusi>& devBusi);
     UbseResult CollectBusInstance();
     void ClearAllDevices();
@@ -107,15 +116,20 @@ private:
 
     std::vector<std::string> SplitFields(std::vector<std::string> lines);
 
-    UbseResult GetProductType(ProductType& productType);
-
     UbseResult GetDavidSlotId(uint8_t& slotId);
 
 private:
+    void CacheProductType(ProductType productType);
+
     std::vector<CollectionDevIdToDevice> devIdToDevice_;
     CollectionGuidToDevice guidToDevice_;
-    std::mutex mutex_;
-    CollectionState state_;
+    // 读写锁保护设备容器：查询线程(IPC线程池)并发读、采集/分配/释放线程写
+    std::shared_mutex mutex_;
+    // 采集状态：StartCollect线程写、请求线程读，用atomic保证无锁并发安全
+    std::atomic<CollectionState> state_;
+    mutable std::mutex productTypeMutex_;
+    ProductType productTypeCache_ = ProductType::SERVER;
+    bool productTypeCached_ = false;
 };
 
 } // namespace ubse::npu::controller

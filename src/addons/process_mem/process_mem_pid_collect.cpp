@@ -602,11 +602,9 @@ void ProcessMemPidCollect::DoCollectRound(uint64_t roundNum)
     size_t callbackEntries = DispatchVmRssCallbacks(handlerCopy, results);
     UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " step=callback entries=" << callbackEntries;
 
+    // 对账: 补录 ubse 有而账本无的债务 + 清理账本有而 ubse 无的槽 +
+    // smap 实测回填 migratedBytes + 变更 pid 重发迁出; 幂等, 每周期收敛
     decision::ProcessMemPidDecision::GetInstance().ReconcileLedgerWithCache();
-
-    // 故障恢复兜底: 补录 ubse 有而账本无的债务(rmrs 故障处理借的新债, usrInfo 全量复制),
-    // 并随后以 smap 实测回填 migratedBytes; 幂等, 每周期收敛
-    decision::ProcessMemPidDecision::GetInstance().RecoverBorrowFromObmm();
 
     // 对账(含 smap 回填修正 currentRemote)之后再做回迁判断, 保证基于本周期实测值
     ProcessMemPidInfoManager::GetInstance().RebalanceRemoteCheck();

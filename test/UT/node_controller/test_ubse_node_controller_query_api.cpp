@@ -14,12 +14,18 @@
 
 #include <ubse_node.h>
 
+#include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
+#include "ubse_error.h"
+#include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
-#include "ubse_node_controller_query_api.cpp"
+#include "ubse_node_controller_def.h"
+#include "ubs_engine.h"
 
 namespace ubse::node_controller::ut {
+using namespace ubse::common::def;
+
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::mem::account;
@@ -107,17 +113,6 @@ TEST_F(TestUbseNodeControllerQueryApi, UbseNodeCpuTopoList)
     EXPECT_EQ(linkList[0].peerSlotId, 2);
     EXPECT_EQ(linkList[0].peerSocketId, 2);
 }
-
-TEST_F(TestUbseNodeControllerQueryApi, GetSocketIndexBySocketId)
-{
-    uint32_t socketId[UBS_TOPO_SOCKET_NUM];
-    for (int i = 0; i < UBS_TOPO_SOCKET_NUM; i++) {
-        socketId[i] = i;
-    }
-    EXPECT_EQ(GetSocketIndexBySocketId(socketId, 0), 0);
-    EXPECT_EQ(GetSocketIndexBySocketId(socketId, 1), 1);
-}
-
 TEST_F(TestUbseNodeControllerQueryApi, UbseNodeListSuccess)
 {
     UbseNodeInfo nodeInfo1{};

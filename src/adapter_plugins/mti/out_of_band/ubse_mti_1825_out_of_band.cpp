@@ -12,6 +12,9 @@
 #include "ubse_mti_1825_out_of_band.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mti_util.h"
+#include "ubse_os_util.h"
+#include "ubse_str_util.h"
 #include "./message/ubse_ctrl_q_fe_opt_msg.h"
 #include "./message/ubse_ctrl_q_get_1825_fe_msg.h"
 #include "./proxy/ubse_ctrl_q_msg_proxy.h"
@@ -95,5 +98,24 @@ UbseResult UbseMti1825OutOfBand::UnReg1825FeFromVmBusInstance(const UbseMtiBusIn
                                                               std::vector<bool>& resList)
 {
     return UnReg1825FeFromBusInstance(busInstance, UbseMtiBusInstanceType::VM, vfList, resList);
+}
+
+bool UbseMti1825OutOfBand::Check1825PfeH2NLinkStatus(const UbseMtiEid& eid)
+{
+    std::string eidStr;
+    if (!EidArrayToStr(eid, eidStr)) {
+        UBSE_LOG_ERROR << "Failed to convert eid to string";
+        return false;
+    }
+    // 1825驱动提供此接口
+    auto filePath = UB_DEVICES_PATH + eidStr + "/fault_mgr_state";
+    std::string cmdResult{};
+    UbseResult ret = utils::UbseOsUtil::ReadFileContent(filePath, cmdResult);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to read file content, eid :" << eidStr << ", ret :" << FormatRetCode(ret);
+        return false;
+    }
+    const auto faultMgrState = utils::Trim(cmdResult);
+    return faultMgrState == "PPF/IDLE" || faultMgrState == "PF/IDLE";
 }
 } // namespace ubse::mti::_1825

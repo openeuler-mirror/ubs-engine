@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <cmath>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <vector>
 #include "exporter.h"
@@ -101,6 +102,12 @@ public:
     static bool FreeMemAndPersistent(std::set<std::string>& validBorrowIdSet,
                                      std::map<std::string, std::set<BorrowIdInfo>>& curBorrowIdsPidsMap,
                                      RollBackBorrowIdPid& outEntry);
+
+    // 回滚归还前判定该借据是否需要smap迁回：仅当借据关联的真实pid仍被smap纳管
+    // 且在借用的远端numa上有实际占用时才需要迁回；仅确认远端无纳管进程时才直接归还；
+    // 占位/非法pid（映射缺失填充的-1）无法锚定真实进程，改用远端numa全局纳管状态兜底；
+    // 查询失败时保守返回true，维持原smap迁回路径，避免带数据误走直接归还（fail-closed）
+    static bool NeedSmapMigrateBack(const std::string& borrowId, const std::set<BorrowIdInfo>& pidInfos);
 
     static MpResult ValidateSamePlane(const VMMigrateOutParam& perVmParam,
                                       const std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos,

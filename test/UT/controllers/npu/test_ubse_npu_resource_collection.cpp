@@ -1772,16 +1772,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
     rc.ClearAllDevices();
     rc.state_ = CollectionState::WAIT_INIT;
     UbseMtiEid eid{};
-    CollectDeviceLoc nicPfeLoc;
-    nicPfeLoc.slotId = 1;
-    nicPfeLoc.chipId = 2;
-    nicPfeLoc.pfeId = 3;
-    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
-    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
-    auto nicPfeDev = CollectionDevice::CollectionToBase(nicPfe);
-    rc.SetDevice(nicPfeDev);
-    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    UbseMtiEid subDeviceEid{};
+    subDeviceEid[0] = 0xAA;
+    subDeviceEid[1] = 0xBB;
     UbseMtiGuid mtiGuid{};
     mtiGuid[0] = 0xef;
     mtiGuid[1] = 0xab;
@@ -1793,9 +1786,20 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 2;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = CollectionStringUtil::GuidToStr(mtiGuid);
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicPfeDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicPfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, subDeviceEid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
+    EXPECT_EQ(nicPfe->GetEid(), subDeviceEid);
     rc.ClearAllDevices();
 }
 
@@ -1827,9 +1831,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundVmBusiTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 
@@ -1861,9 +1865,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundHostBusiTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 
@@ -1880,9 +1884,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesDeviceNotFoundTest)
     for (size_t i = 1; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 

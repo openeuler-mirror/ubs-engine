@@ -88,7 +88,7 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<Lcn
         }
         lcneNodeInfo.slotId = nodeId;
         lcneNodeInfo.chipId = ubseXml->Child("ubpu")->Text();
-        lcneNodeInfo.cardId = ubseXml->Child("iou")->Text();
+        lcneNodeInfo.dieId = ubseXml->Child("iou")->Text();
         lcneNodeInfo.type = ubseXml->Child("ubpu-type")->Text();
         ubseXml = ubseXml->Next("physical-ports");
         if (ubseXml == nullptr) {
@@ -121,7 +121,7 @@ LcnePortInfo UbseLcneTopologyClient::ParsePortInfo(std::shared_ptr<UbseXml>& ubs
     lcnePortInfo.portStatus = ubseXml->Child("physical-port-status")->Text();
     lcnePortInfo.remoteSlotId = ubseXml->Child("remote-slot")->Text();
     lcnePortInfo.remoteChipId = ubseXml->Child("remote-ubpu")->Text();
-    lcnePortInfo.remoteCardId = ubseXml->Child("remote-iou")->Text();
+    lcnePortInfo.remoteDieId = ubseXml->Child("remote-iou")->Text();
     lcnePortInfo.remotePortId = ubseXml->Child("remote-physical-port-id")->Text();
     return lcnePortInfo;
 }
@@ -131,7 +131,7 @@ std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo& no
     std::ostringstream oss;
     oss << "slot_id=" << node.slotId << ", ";
     oss << "chip_id=" << node.chipId << ", ";
-    oss << "iou_id=" << node.cardId << ", ";
+    oss << "iou_id=" << node.dieId << ", ";
     oss << "type=" << node.type << ", ";
     oss << "ports_info="
         << "\n";
@@ -142,7 +142,7 @@ std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo& no
         oss << "  port_status=" << port.portStatus << ", ";
         oss << "  remote_slot_id=" << port.remoteSlotId << ", ";
         oss << "  remote_chip_id=" << port.remoteChipId << ", ";
-        oss << "  remote_iou_id=" << port.remoteCardId << "\n";
+        oss << "  remote_iou_id=" << port.remoteDieId << "\n";
     }
     return oss.str();
 }

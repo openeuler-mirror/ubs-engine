@@ -34,7 +34,7 @@ void TestUbseNodeTopology::SetUp()
     info.slotId = 1;
     info.chipId = "1";
     info.eid = "1";
-    info.cardId = "1";
+    info.dieId = "1";
     info.eid = "1";
     info.guid = "1";
     info.busNodeCna = 1;
@@ -45,7 +45,7 @@ void TestUbseNodeTopology::SetUp()
     port.portStatus = PortStatus::UP;
     port.remoteSlotId = "0";
     port.remoteChipId = "0";
-    port.remoteCardId = "0";
+    port.remoteDieId = "0";
     port.remotePortId = "0";
     port.remoteIfName = "remoteIf";
     info.portInfos["1"] = port;
@@ -231,7 +231,7 @@ TEST_F(TestUbseNodeTopology, BuildDevTopologyAndMappings)
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.devName.devName, "1-1");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.slotId, "1");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.chipId, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.cardId, "1");
+    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.dieId, "1");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.type, UbseDevType::CPU);
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.eid, "1");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].first.guid, "1");
@@ -240,7 +240,7 @@ TEST_F(TestUbseNodeTopology, BuildDevTopologyAndMappings)
     UbseDevPortName devPortName("1", "1", "1", "1");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteSlotId, "0");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteChipId, "0");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteCardId, "0");
+    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteDieId, "0");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteIfName, "remoteIf");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteDevName.devName, "0-0");
     EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remotePortId, "0");

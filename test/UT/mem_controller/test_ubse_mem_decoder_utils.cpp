@@ -61,7 +61,7 @@ TEST_F(TestUbseMemDecoderUtils, GetChipAndDieIdSuccess)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "1";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     uint32_t socketId = 1;
@@ -78,7 +78,7 @@ TEST_F(TestUbseMemDecoderUtils, GetChipAndDieIdEmpty)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "1";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     uint32_t socketId = 0;
@@ -93,7 +93,7 @@ TEST_F(TestUbseMemDecoderUtils, GetChipAndDieIdCastFailed)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "id";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     uint32_t socketId = 1;
@@ -108,7 +108,7 @@ TEST_F(TestUbseMemDecoderUtils, GetAllHandlesSuccess)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "1";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     std::vector<UbseMamiMemHandleValue> memHandleValues{};
@@ -128,7 +128,7 @@ TEST_F(TestUbseMemDecoderUtils, GetAllHandlesFailed)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "1";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     MOCKER_CPP(&lcne::UbseLcneDecoderHandle::GetAllMemHandles).stubs().will(returnValue(UBSE_ERROR));
@@ -144,7 +144,7 @@ TEST_F(TestUbseMemDecoderUtils, GetCurNodeSocketInfoFailed)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "id";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> outSocketInfo;
     auto ret = MemDecoderUtils::GetCurNodeSocketInfo(outSocketInfo);
@@ -165,7 +165,7 @@ TEST_F(TestUbseMemDecoderUtils, GetAllHandleFromImportObjSuccess)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "1";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     DecoderLocTohandleMap handleMap{};
@@ -186,7 +186,7 @@ TEST_F(TestUbseMemDecoderUtils, GetAllHandleFromImportObjGetSocketFailed)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "id";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     DecoderLocTohandleMap handleMap{};
@@ -289,7 +289,7 @@ TEST_F(TestUbseMemDecoderUtils, GetCurNodeSocketInfoSuccess)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "10";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "20";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "20";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> outSocketInfo;
@@ -342,7 +342,7 @@ TEST_F(TestUbseMemDecoderUtils, GetAllHandleFromNumaImportObjSocketFailed)
     nodeController::UbseCpuLocation cpuLocation = {"1", 1};
     curNodeInfo.cpuInfos[cpuLocation].socketId = 1;
     curNodeInfo.cpuInfos[cpuLocation].chipId = "id";
-    curNodeInfo.cpuInfos[cpuLocation].cardId = "1";
+    curNodeInfo.cpuInfos[cpuLocation].dieId = "1";
     MOCKER_CPP(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(curNodeInfo));
 
     DecoderLocTohandleDcnaMap handleMap{};
@@ -355,7 +355,7 @@ TEST_F(TestUbseMemDecoderUtils, FillHandleMapNumaObjPopulatesMap)
     ubse::mem::controller::UbseMemNumaBorrowImportObj numaImportObj;
     numaImportObj.exportObmmInfo.resize(1);
     numaImportObj.exportObmmInfo[0].desc.dcna = 42;
-    UbseMamiMemImportResult importResult;
+    UbseMamiMemImportResult importResult{};
     importResult.marId = 0;
     importResult.handle = 0x1234;
     numaImportObj.status.decoderResult.push_back(importResult);
@@ -388,7 +388,7 @@ TEST_F(TestUbseMemDecoderUtils, FillHandleMapNumaObjEmptyDecoderResult)
 
 TEST_F(TestUbseMemDecoderUtils, FillHandleMapVectorPopulatesMap)
 {
-    UbseMamiMemImportResult importResult;
+    UbseMamiMemImportResult importResult{};
     importResult.marId = 0;
     importResult.handle = 0x1234;
     std::vector<UbseMamiMemImportResult> decoderResult = {importResult};

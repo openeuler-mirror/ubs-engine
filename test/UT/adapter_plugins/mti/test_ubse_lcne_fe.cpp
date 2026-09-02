@@ -327,4 +327,27 @@ TEST_F(TestUbseLcneFe, FindVfeInVector)
     EXPECT_EQ(nullptr, ret);
     GlobalMockObject::verify();
 }
+
+TEST_F(TestUbseLcneFe, GetEidGroupId)
+{
+    // 测试正常解析EID组ID
+    std::string eid = "0000:0000:003f:0200:0010:0000:1039:0b00";
+    std::string eid2 = "0000:0000:0004:0200:0010:0000:1439:0504";
+    auto groupId = UbseLcneFeEid::GetInstance().GetEidGroupId(eid);
+    auto groupId2 = UbseLcneFeEid::GetInstance().GetEidGroupId(eid2);
+    EXPECT_EQ(groupId, groupId2);
+
+    // 测试正常解析EID组ID(老版本兼容)
+    std::string eid3 = "0000:0000:003f:0200:0010:0000:df00:0b00";
+    std::string eid4 = "0000:0000:0001:0200:0010:0000:df00:0200";
+    auto groupId3 = UbseLcneFeEid::GetInstance().GetEidGroupId(eid);
+    auto groupId4 = UbseLcneFeEid::GetInstance().GetEidGroupId(eid2);
+    EXPECT_EQ(groupId3, groupId4);
+
+    // 测试EID解析失败场景
+    std::string invalidEid = "invalid_eid";
+    groupId = UbseLcneFeEid::GetInstance().GetEidGroupId(invalidEid);
+    EXPECT_TRUE(groupId.empty());
+}
+
 } // namespace ubse::lcne

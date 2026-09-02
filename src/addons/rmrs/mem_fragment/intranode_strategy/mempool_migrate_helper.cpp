@@ -141,7 +141,9 @@ MpResult GetRollBackBorrowIdPid(const std::string& nodeId, RollBackBorrowIdPid& 
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Valid borrowId same batch failed.";
         return MEM_POOLING_ERROR;
     }
-    // 2. 如果交集为空则手动填充
+    // 2. 如果交集为空则手动填充：说明未持久化pid映射，可能是迁移失败未写入，也可能是迁移旁路（
+    // waitingTime==0跳过映射写入但真实迁移）或持久化部分丢失，占位pid=-1仅作“映射缺失”标记，
+    // 后续归还判定据此改用远端numa全局纳管状态兜底，保持fail-closed
     if (validBorrowIdsPidsMap.empty()) {
         // 手动填充borrow映射
         for (const std::string& borrowId : borrowIdsList) {
@@ -207,7 +209,14 @@ MpResult PersistentBorrowIdPid(std::string& nodeId, RollBackBorrowIdPid& entry)
 
 MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string>& borrowIdsList)
 {
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Master to invoke the slave MemBorrow Rollback.";
+    // 记录回滚整体入参，便于复现时定位是哪次借用回滚、哪个借入节点
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemRollback] Master to invoke the slave MemBorrow Rollback, nodeId=" << nodeId
+        << ", borrowIdCount=" << borrowIdsList.size() << ".";
+    for (const auto& borrowId : borrowIdsList) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemRollback] Rollback input borrowId=" << borrowId << ".";
+    }
     RollBackBorrowIdPid inEntry;
     bool inputBorrowIdsAllNotExist;
     if (GetRollBackBorrowIdPid(nodeId, inEntry, borrowIdsList, inputBorrowIdsAllNotExist)) {

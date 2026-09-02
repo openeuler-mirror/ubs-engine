@@ -13,10 +13,15 @@
 #include <gmock/gmock.h>
 #include <cstring>
 #include <iostream>
+#include "ubse_com.h"
 #include "gtest/gtest.h"
+#include "mempool_migrate_helper.h"
+#include "mempool_migrate_module.h"
+#include "mempooling_message.h"
 #include "mockcpp/mokc.h"
-
-#include "mempool_migrate_helper.cpp"
+#include "mp_mem_json_util.h"
+#include "rmrs_serialize.h"
+#include "turbo_def.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -24,6 +29,9 @@ namespace mempooling {
 using namespace ubse::com;
 using namespace std;
 using namespace mempooling::migrate;
+
+// 前置声明：mempool_migrate_helper.cpp 内部符号（未在头文件声明）
+MpResult PersistentBorrowIdPid(std::string& nodeId, RollBackBorrowIdPid& entry);
 
 // 测试类
 class TestMemPoolMigrateHelper : public ::testing::Test {

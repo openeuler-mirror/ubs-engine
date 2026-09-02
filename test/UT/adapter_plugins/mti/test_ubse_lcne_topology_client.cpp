@@ -73,7 +73,7 @@ TEST_F(TestUbseLcneTopologyClient, ParseXmlData)
     ASSERT_EQ(lcneNodes.size(), 1); // node数量为1
     EXPECT_EQ(lcneNodes[ZERO].ports.size(), 2);
     EXPECT_EQ(lcneNodes[ZERO].slotId, "1");
-    EXPECT_EQ(lcneNodes[ZERO].cardId, "1");
+    EXPECT_EQ(lcneNodes[ZERO].dieId, "1");
     EXPECT_EQ(lcneNodes[ZERO].type, "CPU");
     EXPECT_EQ(lcneNodes[ZERO].ports[ZERO].portId, "1");
     EXPECT_EQ(lcneNodes[ZERO].ports[ZERO].remotePortId, "1");
@@ -125,7 +125,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_Success)
     std::vector<LcneNodeInfo> nodes;
     LcneNodeInfo node;
     node.slotId = "1";
-    node.cardId = "1";
+    node.dieId = "1";
     node.type = "CPU";
     LcnePortInfo port0;
     port0.portId = "1";
@@ -152,7 +152,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_Success)
     ASSERT_EQ(lcneNodes.size(), 1); // node数量为1
     EXPECT_EQ(lcneNodes[ZERO].ports.size(), 2);
     EXPECT_EQ(lcneNodes[ZERO].slotId, "1");
-    EXPECT_EQ(lcneNodes[ZERO].cardId, "1");
+    EXPECT_EQ(lcneNodes[ZERO].dieId, "1");
     EXPECT_EQ(lcneNodes[ZERO].type, "CPU");
     EXPECT_EQ(lcneNodes[ZERO].ports[ZERO].portId, "1");
     EXPECT_EQ(lcneNodes[ZERO].ports[ZERO].remotePortId, "1");

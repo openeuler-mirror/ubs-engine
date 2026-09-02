@@ -37,7 +37,7 @@ void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
     std::ostringstream oss;
     for (auto& item : lcneNodeCnaInfos) {
-        oss << "SlotId=" << item.slotId << ", ChipId=" << item.chipId << ", IODieId=" << item.cardId;
+        oss << "SlotId=" << item.slotId << ", ChipId=" << item.chipId << ", IODieId=" << item.dieId;
         oss << ", busNodeCna=" << item.busNodeCna << "\n";
         for (auto& portInfo : item.ports) {
             oss << " port_id=" << portInfo.portId << ", bus_port_cna=" << portInfo.portCna << "\n";
@@ -133,7 +133,7 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNo
         }
         lcneNodeCnaInfo.slotId = nodeId;
         lcneNodeCnaInfo.chipId = ubseXml->Child("ubpu")->Text();
-        lcneNodeCnaInfo.cardId = ubseXml->Child("iou")->Text();
+        lcneNodeCnaInfo.dieId = ubseXml->Child("iou")->Text();
         lcneNodeCnaInfo.busNodeCna = ubseXml->Child("bus-primary-cna")->Text();
         ubseXml = ubseXml->Next("physical-ports");
         if (ubseXml == nullptr) {

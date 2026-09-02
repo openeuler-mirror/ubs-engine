@@ -127,6 +127,7 @@ UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw& drawInfo, const std::strin
     innerObj.AddMember("mar-id", drawInfo.marId, allocator);
     innerObj.AddMember("decoder-id", drawInfo.decoderIdx, allocator);
     innerObj.AddMember("handle", drawInfo.handle, allocator);
+    innerObj.AddMember("invalid-type", static_cast<uint8_t>(drawInfo.state), allocator);
     Value keyRoot(key.c_str(), allocator);
     doc.AddMember(keyRoot, innerObj, allocator);
     StringBuffer buffer;

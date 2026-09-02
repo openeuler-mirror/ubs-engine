@@ -105,6 +105,20 @@ public:
     ItCliInvoker& GetCliInvoker(const std::string& nodeId);
 
     /**
+     * @brief 判断指定节点日志文件中是否存在包含指定子串的行.
+     *
+     * 通过 nodeId 在拓扑中定位节点, 同步检查其日志文件, 不等待.
+     * 节点未启动 / 日志文件不存在时返回 false (幂等).
+     * 需要"等待某行日志出现"时, 可结合 ItWaitHelper::WaitForCondition 轮询本方法.
+     *
+     * @param nodeId    节点 ID
+     * @param substring 要查找的子串
+     * @param logType   日志类型: "ubse" (默认, ubse.log) / "fault" (ubse_fault.log)
+     * @return true 日志中存在包含 substring 的行; false 文件不存在或未匹配
+     */
+    bool HasLogLine(const std::string& nodeId, const std::string& substring, const std::string& logType = "ubse") const;
+
+    /**
      * @brief Get a LCNE client for a specific node.
      *
      * Delegates to ItNode::GetLcneClient().
