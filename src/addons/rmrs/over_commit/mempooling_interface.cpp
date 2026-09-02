@@ -590,7 +590,12 @@ void DeletePersistenceRemovePid(const int16_t presentRemoteNumaId, const std::ve
  * 归还前判定借据是否需要smap迁回：查询该远端numa上被smap纳管的进程及其远端占用，
  * 仅当存在纳管进程且远端占用>0（比例模式看ratio、大小模式看memSize）时才需要迁回；
  * 无纳管进程或占用均为0说明远端无待迁回数据（如借而未迁场景），直接走纯UBSE归还即可；
- * 查询失败时保守维持迁回路径（fail-closed），宁可归还失败重试，不可带数据误走直接归还
+ * 查询失败时保守维持迁回路径（fail-closed），宁可归还失败重试，不可带数据误走直接归还。
+ *
+ * 与mem_fragment模块MempoolMigrateModule::NeedSmapMigrateBack（本借据pid锚定+占位pid全局兜底）的差异：
+ * 超分借据是numa级配额实体，归还链路仅有numa→pid聚合（borrowNumaId2Pids）而无borrowId→pid映射，
+ * pidsOnNuma无法锚定到具体借据；且其采集为尽力而为（失败仅告警），若作锚会把“锚缺失”误判为
+ * “远端无数据”（fail-open），故此处统一采用numa级全局纳管状态判定，共享numa多借据场景保守走迁回路径
  */
 bool NeedSmapMigrateBackOnReturn(const std::string& borrowId, const uint16_t& presentNumaId)
 {
@@ -603,7 +608,9 @@ bool NeedSmapMigrateBackOnReturn(const std::string& borrowId, const uint16_t& pr
         return true;
     }
     for (const auto& payload : processPayloadList) {
-        if ((payload.migrateMode == 0 && payload.ratio > 0) || (payload.migrateMode == 1 && payload.memSize > 0)) {
+        bool validQuota = (payload.migrateMode == static_cast<uint8_t>(smap::MIG_RATIO_MODE) && payload.ratio > 0) ||
+                          (payload.migrateMode == static_cast<uint8_t>(smap::MIG_MEMSIZE_MODE) && payload.memSize > 0);
+        if (validQuota) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemReturn] Remote numa=" << presentNumaId << " has managed pid=" << payload.pid
                 << " with remote usage, need smap migrate back, borrowId=" << borrowId << ".";

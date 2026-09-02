@@ -668,6 +668,76 @@ TEST_F(TestMempoolingInterface, ReturnBorrowId_BorrowedWithoutMigrate_DirectRetu
     GlobalMockObject::reset();
 }
 
+// 端到端：远端numa存在纳管占用时，归还必须维持smap迁回路径（smapBack=true），验证路径选择的另一半
+TEST_F(TestMempoolingInterface, ReturnBorrowId_ManagedUsage_KeepSmapBackPath)
+{
+    ResetReturnNeedSmapState();
+    g_returnNeedSmapPayloads.push_back(MakeReturnPayload(123, 0, 25, 0));
+    outinterface::SrcMemoryBorrowParam srcParam{};
+    std::vector<pid_t> pids;
+    std::string borrowId = "2-000001272a76fdca000000002a76fced";
+    uint16_t presentNumaId = 6;
+    std::unordered_map<std::uint16_t, std::vector<pid_t>> borrowNumaId2Pids;
+    ReturnNeedMaps returnNeedMaps{.borrowId2Size = {{borrowId, 1048576}},
+                                  .borrowIdNuma2Size = {{6, 1048576}},
+                                  .borrowNumaId2Pids = borrowNumaId2Pids,
+                                  .borrowId2NumaId = {{borrowId, 6}}};
+
+    MOCKER_CPP(&OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<MemBorrowInfo>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&smap::MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(MockSmapQueryForReturnNeedSmap));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(invoke(MockMemFreeForReturnCapture));
+
+    uint32_t ret = ReturnBorrowId(srcParam, pids, borrowId, presentNumaId, returnNeedMaps);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(g_returnFreeSmapBackCaptured.size(), 1u);
+    EXPECT_TRUE(g_returnFreeSmapBackCaptured[0]);
+    GlobalMockObject::reset();
+}
+
+// 端到端（S2-01场景回归）：共享numa上存在其他借据的纳管占用、本借据无关联pid时，
+// numa级全局判定保守维持迁回路径（fail-closed），不得误判为直接归还
+TEST_F(TestMempoolingInterface, ReturnBorrowId_SharedNumaOtherUsage_FailClosedKeepSmapBack)
+{
+    ResetReturnNeedSmapState();
+    // 同numa其他借据的纳管进程（大小模式占用>0），与本借据无关
+    g_returnNeedSmapPayloads.push_back(MakeReturnPayload(456, 1, 0, 1024));
+    outinterface::SrcMemoryBorrowParam srcParam{};
+    std::vector<pid_t> pids; // 本借据无关联pid（借而未迁）
+    std::string borrowId = "2-000001272a76fdca000000002a76fcee";
+    uint16_t presentNumaId = 6;
+    std::unordered_map<std::uint16_t, std::vector<pid_t>> borrowNumaId2Pids;
+    ReturnNeedMaps returnNeedMaps{.borrowId2Size = {{borrowId, 1048576}},
+                                  .borrowIdNuma2Size = {{6, 1048576}},
+                                  .borrowNumaId2Pids = borrowNumaId2Pids,
+                                  .borrowId2NumaId = {{borrowId, 6}}};
+
+    MOCKER_CPP(&OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<MemBorrowInfo>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&smap::MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(MockSmapQueryForReturnNeedSmap));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(invoke(MockMemFreeForReturnCapture));
+
+    uint32_t ret = ReturnBorrowId(srcParam, pids, borrowId, presentNumaId, returnNeedMaps);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(g_returnFreeSmapBackCaptured.size(), 1u);
+    EXPECT_TRUE(g_returnFreeSmapBackCaptured[0]);
+    GlobalMockObject::reset();
+}
+
 TEST_F(TestMempoolingInterface, CallUpdateUcacheUsageRatioTEST)
 {
     std::vector<outinterface::VMPresetParam> vmPresetParams = {{0, 0}};
