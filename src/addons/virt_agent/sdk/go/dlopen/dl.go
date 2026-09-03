@@ -23,7 +23,7 @@ import (
 	"unsafe"
 )
 
-var soPath = "/usr/lib64/libubs-virt-agent.so.1"
+var soPath = "/usr/lib64/libubs-virt-agent.so.1.0.1"
 var libHandle unsafe.Pointer
 
 // GetLibHandle Obtain dynamic library handle
