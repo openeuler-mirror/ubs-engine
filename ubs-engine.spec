@@ -110,6 +110,15 @@ Package for virt_agent plugin
 /sbin/ldconfig
 
 # ========================================================
+#                   SUBPACKAGE: ubs-engine-virtagent-devel
+# ========================================================
+%package virtagent-devel
+Summary: Development package for virt_agent SDK
+Requires: %{name}-virtagent = %{version}-%{release}
+%description virtagent-devel
+Header files and development symlink for developing applications that use the virt_agent SDK.
+
+# ========================================================
 #                   SUBPACKAGE: ubs-engine-ucache
 # ========================================================
 %package ucache
@@ -503,6 +512,9 @@ fi
 /usr/lib64/libubs-virt-agent.so.%{version}
 %defattr(-,root,root,-)
 /usr/lib64/libubs-virt-agent.so.1
+
+%files virtagent-devel
+%defattr(-,root,root,-)
 /usr/lib64/libubs-virt-agent.so
 %defattr(644,root,root,755)
 /usr/include/virt_agent/

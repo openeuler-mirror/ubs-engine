@@ -25,7 +25,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
 - 数据结构说明
 
 ```c
-constexpr uint32_t MAX_BORROW_ID_COUNT = 2000;
+constexpr uint32_t MAX_BORROW_ID_COUNT = 100;
 constexpr uint32_t MAX_BORROW_ID_LENGTH = 128;
 constexpr uint32_t MAX_DEST_NUMA_NUM = 1;
 constexpr uint32_t MAX_VM_NUM = 300;
