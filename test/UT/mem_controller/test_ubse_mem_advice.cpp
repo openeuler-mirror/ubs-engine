@@ -275,7 +275,7 @@ TEST_F(TestUbseMemAdvice, BorrowImportInMaintenance_Fd)
     req.requestNodeId = "2";
     UbseMemOperationResp resp;
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemFdBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemFdBorrow(req, resp), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("Import failed", "test", "WATER_BORROW", 0, "", "2", "2", "masterNode1",
                                             "ubse_borrow_0012", "the import node is in maintenance", 7,
@@ -298,7 +298,7 @@ TEST_F(TestUbseMemAdvice, BorrowImportInMaintenance_Numa)
     req.requestNodeId = "2";
     UbseMemOperationResp resp;
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemNumaBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("Import failed", "test", "APP_NUMA_BORROW", 512, "", "2", "2",
                                             "masterNode1", "ubse_borrow_0012", "the import node is in maintenance", 7,
@@ -321,7 +321,7 @@ TEST_F(TestUbseMemAdvice, BorrowImportInMaintenance_SharedAttach)
     req.size = 512;
     UbseMemOperationResp resp;
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemShareAttach(req, resp), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemShareAttach(req, resp), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("Import failed", "test", "SHARE_BORROW", 512, "", "2", "2", "masterNode1",
                                             "ubse_borrow_0012", "the import node is in maintenance", 7,
@@ -346,7 +346,7 @@ TEST_F(TestUbseMemAdvice, BorrowImportInMaintenance_Addr)
     req.exportAddrList.push_back(addrInfo);
     UbseMemOperationResp resp;
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemAddrBorrow(req, resp), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("Import failed", "test", "APP_PRI_BORROW", 512, "", "2", "2", "masterNode1",
                                             "ubse_borrow_0012", "the import node is in maintenance", 7,
@@ -426,7 +426,7 @@ TEST_F(TestUbseMemAdvice, ReturnImportInMaintenance)
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_ERROR));
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemNumaReturn(req, resp, req.requestNodeId), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemNumaReturn(req, resp, req.requestNodeId), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("UnImport failed", "test", "APP_NUMA_BORROW", 0, "", "2", "2",
                                             "masterNode1", "ubse_borrow_0032", "the import node is in maintenance", 7,
@@ -434,7 +434,7 @@ TEST_F(TestUbseMemAdvice, ReturnImportInMaintenance)
                                             "stats.");
     EXPECT_EQ(g_capturedAdviceMsg, expected);
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemFdReturn(req, resp, req.requestNodeId), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemFdReturn(req, resp, req.requestNodeId), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     expected = BuildExpectedMsg("UnImport failed", "test", "WATER_BORROW", 0, "", "2", "2", "masterNode1",
                                 "ubse_borrow_0032", "the import node is in maintenance", 7,
@@ -442,7 +442,7 @@ TEST_F(TestUbseMemAdvice, ReturnImportInMaintenance)
                                 "stats.");
     EXPECT_EQ(g_capturedAdviceMsg, expected);
 
-    EXPECT_EQ(ubse::mem::controller::UbseMemAddrReturn(req, resp, req.requestNodeId), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemAddrReturn(req, resp, req.requestNodeId), UBSE_ENGINE_ERR_IMPORT_LEDGERING);
     EXPECT_TRUE(g_logCaptured);
     expected = BuildExpectedMsg("UnImport failed", "test", "APP_PRI_BORROW", 0, "", "2", "2", "masterNode1",
                                 "ubse_borrow_0032", "the import node is in maintenance", 7,
@@ -463,7 +463,8 @@ TEST_F(TestUbseMemAdvice, ShareDetach_ImportInMaintenance)
     req.unImportNodeId = "2";
     req.requestNodeId = "2";
     UbseMemOperationResp resp;
-    EXPECT_EQ(ubse::mem::controller::UbseMemShareDetach(req, resp, req.requestNodeId), UBSE_OK);
+    EXPECT_EQ(ubse::mem::controller::UbseMemShareDetach(req, resp, req.requestNodeId),
+              UBSE_ENGINE_ERR_IMPORT_LEDGERING);
 
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("UnImport failed", "test", "SHARE_BORROW", 0, "", "2", "2", "masterNode1",
@@ -504,7 +505,7 @@ TEST_F(TestUbseMemAdvice, ReturnExportInMaintenance_Fd)
     MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemFdBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto func2 = &UbseComModule::RpcSend<UbseMemFdBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func2).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(ubse::mem::controller::UbseMemFdBorrowImportObjCallback(importObj), UBSE_ERROR);
+    EXPECT_EQ(ubse::mem::controller::UbseMemFdBorrowImportObjCallback(importObj), UBSE_ERR_UNIMPORT_SUCCESS);
 
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("UnExport failed", "test", "WATER_BORROW", 0, "1", "2", "2", "masterNode1",
@@ -545,7 +546,7 @@ TEST_F(TestUbseMemAdvice, ReturnExportInMaintenance_Numa)
     MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemNumaBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto func2 = &UbseComModule::RpcSend<UbseMemNumaBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func2).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(ubse::mem::controller::UbseMemNumaBorrowImportObjCallback(importObj), UBSE_ERROR);
+    EXPECT_EQ(ubse::mem::controller::UbseMemNumaBorrowImportObjCallback(importObj), UBSE_ERR_UNIMPORT_SUCCESS);
 
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("UnExport failed", "test", "APP_NUMA_BORROW", 0, "1", "2", "2",
@@ -587,7 +588,7 @@ TEST_F(TestUbseMemAdvice, ReturnExportInMaintenance_Addr)
     MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto func2 = &UbseComModule::RpcSend<UbseMemAddrBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func2).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(ubse::mem::controller::UbseMemAddrBorrowImportObjCallback(importObj), UBSE_ERROR);
+    EXPECT_EQ(ubse::mem::controller::UbseMemAddrBorrowImportObjCallback(importObj), UBSE_ERR_UNIMPORT_SUCCESS);
 
     EXPECT_TRUE(g_logCaptured);
     std::string expected = BuildExpectedMsg("UnExport failed", "test", "APP_PRI_BORROW", 0, "1", "2", "2",

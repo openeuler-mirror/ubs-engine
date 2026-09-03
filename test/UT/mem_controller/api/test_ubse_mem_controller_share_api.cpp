@@ -217,7 +217,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowResourceExists)
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
     auto ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_EXISTED);
     EXPECT_EQ(UBSE_ERR_EXISTED, resp.errorCode);
 }
 
@@ -655,7 +655,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareReturnTest)
     UbseMemOperationResp resp;
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemShareReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, UbseMemShareReturn(req, resp, NODE_ONE));
 
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
@@ -674,7 +674,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareReturnSendFailedTest)
     BuildOperationSuccessMock(module);
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
-    EXPECT_EQ(UBSE_OK, UbseMemShareReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_AUTH_FAILED, UbseMemShareReturn(req, resp, NODE_ONE));
 }
 
 TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
@@ -703,25 +703,25 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
     UbseMemOperationResp resp{};
     // createNodeId为空
     auto ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
     // GetNodeById获取为空
     req.withAffinity.createReqNodeId = NODE_ONE;
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
 
     // 当前的socketId不在nodeId里面
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
     req.withAffinity.affinitySocketId = 100;
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
 
     // 校验通过
     req.withAffinity.affinitySocketId = numaInfo.socketId;
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_ALLOCATE);
 }
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
@@ -736,11 +736,11 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
     UbseMemShareDetachReq req;
     UbseMemOperationResp resp;
     req.name = SHM_NAME;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_SHM_NODE_EMPTY, UbseMemShareDetach(req, resp, NODE_ONE));
     EXPECT_EQ(UBSE_ERR_SHM_NODE_EMPTY, resp.errorCode);
 
     req.unImportNodeId = NODE_ONE;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_SHM_NO_ATTACH, UbseMemShareDetach(req, resp, NODE_ONE));
     EXPECT_EQ(UBSE_ERR_SHM_NO_ATTACH, resp.errorCode);
 
     UbseMemShareBorrowExportObj exportObj{};
@@ -752,12 +752,12 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
     PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
     UbseUdsInfo invalidUdsInfo{.uid = 1000, .gid = 1000, .pid = 1000, .username = "ubsmd"};
     req.udsInfo = invalidUdsInfo;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_AUTH_FAILED, UbseMemShareDetach(req, resp, NODE_ONE));
     EXPECT_EQ(UBSE_ERR_AUTH_FAILED, resp.errorCode);
 
     UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
     req.udsInfo = udsInfo;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_INTERNAL, UbseMemShareDetach(req, resp, NODE_ONE));
     EXPECT_EQ(UBSE_ERR_INTERNAL, resp.errorCode);
 
     MasterExportCallbackMockSet();

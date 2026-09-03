@@ -26,6 +26,7 @@
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_scheduler_impl.h"
 
@@ -62,6 +63,7 @@ void TestUbseMemControllerApi::SetUp()
 {
     Test::SetUp();
     GlobalMockObject::reset();
+    ubse::mem::controller::debt::UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
 }
 void TestUbseMemControllerApi::TearDown()
@@ -196,7 +198,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowSendFdExportFail)
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    EXPECT_TRUE(UBSE_ERROR_NULLPTR == mem::controller::UbseMemFdBorrow(req, resp));
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, mem::controller::UbseMemFdBorrow(req, resp));
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemFdBorrow)
@@ -221,7 +223,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrow)
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(module));
     const auto func1 = &UbseComModule::RpcSend<UbseMemOperationRespSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func1).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == mem::controller::UbseMemFdBorrow(req, resp));
+    EXPECT_EQ(UBSE_ERROR, mem::controller::UbseMemFdBorrow(req, resp));
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowImportObjFail)
@@ -245,7 +247,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowImportObjFail)
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    EXPECT_TRUE(UBSE_ERROR_NULLPTR == mem::controller::UbseMemNumaBorrow(req, resp));
+    EXPECT_EQ(UBSE_ENGINE_ERR_IMPORT_LEDGERING, mem::controller::UbseMemNumaBorrow(req, resp));
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowSendNumaExportObjFail)
@@ -268,7 +270,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowSendNumaExportObjFail)
         .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(module));
-    EXPECT_TRUE(UBSE_ERROR == mem::controller::UbseMemNumaBorrow(req, resp));
+    EXPECT_EQ(UBSE_ERR_INTERNAL, mem::controller::UbseMemNumaBorrow(req, resp));
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrow)
