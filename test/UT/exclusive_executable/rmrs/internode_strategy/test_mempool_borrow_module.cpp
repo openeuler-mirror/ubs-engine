@@ -2930,25 +2930,43 @@ UbseResult MockUbseMemNumaCreateWithCandidateOk(const std::string& name, const U
 }
 
 // 账本查询mock: 按name回填实际借用量（账本Σ exportNumaInfos[].size口径）
+using DebtQueryByNameResult = mempooling::DebtQueryResult;
 static uint64_t gPidDebtMockActualSizeBytes = 0;
-MpResult MockGetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+// 全量账本查询mock: 回填与MockProcessSingleBorrowForFault一致的borrowId（bid-fault）及实际借用量
+MpResult MockGetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     UbseNumaMemoryDebtInfo info{};
-    info.name = name;
+    info.name = "bid-fault";
     info.size = gPidDebtMockActualSizeBytes;
     info.remoteNumaId = 2;
     debtInfos = {info};
     return MEM_POOLING_OK;
 }
-
-// 账本查询失败mock: 验证兜底请求值路径（同时供只关注其他协议的用例避免真实查询阻塞）
-MpResult MockGetDebtInfoByNameWithRetryFail(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+DebtQueryByNameResult MockGetDebtInfoByNameWithRetry(const std::string& name, const std::string& nodeId,
+                                                     std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                     UbseNumaMemoryDebtInfo& matchedDebtInfo)
 {
-    (void)name;
-    debtInfos.clear();
-    return MEM_POOLING_ERROR;
+    (void)nodeId;
+    UbseNumaMemoryDebtInfo info{};
+    info.name = name;
+    info.size = gPidDebtMockActualSizeBytes;
+    info.remoteNumaId = 2;
+    debtInfos = {info};
+    matchedDebtInfo = info;
+    return {MEM_POOLING_OK, MEM_POOLING_ERROR};
 }
 
+// 账本查询失败mock: 验证兜底请求值路径（同时供只关注其他协议的用例避免真实查询阻塞）
+DebtQueryByNameResult MockGetDebtInfoByNameWithRetryFail(const std::string& name, const std::string& nodeId,
+                                                         std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                         UbseNumaMemoryDebtInfo& matchedDebtInfo)
+{
+    (void)name;
+    (void)nodeId;
+    (void)matchedDebtInfo;
+    debtInfos.clear();
+    return {MEM_POOLING_ERROR, MEM_POOLING_ERROR};
+}
 /*
  * 用例描述：PID专用借用usrInfo按正常借用协议写借入方本地numaId（int16前2字节），
  *           不写裸机process_mem的ProcessMemUsrInfo（virt_agent水线归还可见性前提）
@@ -2974,7 +2992,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_UsrInfoWriteSrcNumaI
         .will(invoke(MockUbseMemNumaCreateWithCandidateOk));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注usrInfo协议
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
@@ -3012,7 +3031,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_LiftSmallSizeToMin4M
         .will(invoke(MockProcessSingleBorrowForFault));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注KB取整与换算口径
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
@@ -3050,9 +3070,13 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_ActualBorrowSizeFrom
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetry));
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfosWithRetry, MpResult(*)(std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfosWithRetry));
 
     MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
                                                                                 borrowExecuteResult, {"Node1"});
@@ -3083,7 +3107,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbac
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
