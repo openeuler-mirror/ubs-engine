@@ -49,7 +49,7 @@ uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg& resp)
     }
     // 封装回复数据
     ret = QueryDeviceRespPack(devList, resp);
-    UBSE_LOG_INFO << "[NPU] pack query dev request";
+    UBSE_LOG_DEBUG << "[NPU] pack query dev request";
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseNode pack failed, " << FormatRetCode(ret);
         return ret;
@@ -169,7 +169,7 @@ uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>
         return UBSE_ERROR_NULLPTR;
     }
     buffer.length = size + HEAD_SIZE;
-    UBSE_LOG_INFO << "[NPU] buffer before pack size = " << buffer.length;
+    UBSE_LOG_DEBUG << "[NPU] buffer before pack size = " << buffer.length;
     return UBSE_OK;
 }
 

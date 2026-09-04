@@ -10,7 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_npu_resource_collection.h"
+#include <algorithm>
 #include <mutex>
+#include <set>
 #include <utility>
 
 #include "ubse_error.h"
@@ -1171,5 +1173,84 @@ void ResourceCollection::CacheProductType(ProductType productType)
     std::lock_guard<std::mutex> lock(productTypeMutex_);
     productTypeCache_ = productType;
     productTypeCached_ = true;
+}
+
+UbseResult ResourceCollection::ValidateAndRefreshNic()
+{
+    UBSE_LOG_DEBUG << "Start to validate and refresh nic devices";
+
+    // 1. 查ctrlq最新1825 fe list（锁外执行IO）
+    std::vector<UbseMti1825Pf> latestPfList;
+    auto ret = UbseMti1825::GetInstance().Get1825FeList(latestPfList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get latest 1825 fe list, " << FormatRetCode(ret);
+        return ret; // 透传真实错误码：非致命策略由调用方落实（记WARN后沿用本地数据）
+    }
+
+    // 2. 差异分析：找出ctrlq有而本地未采集的nic设备
+    auto missingGuids = DiffMissingNicGuids(latestPfList);
+    if (missingGuids.empty()) {
+        UBSE_LOG_DEBUG << "No missing nic devices, refresh skipped";
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_INFO << "Found " << missingGuids.size() << " missing nic devices, refreshing...";
+
+    // 3. 增量合并新增设备并重跑依赖绑定（幂等安全，失败仅记WARN不阻断）
+    MergeMissingNicDevices(latestPfList);
+
+    UBSE_LOG_DEBUG << "Validate and refresh nic devices completed";
+    return UBSE_OK;
+}
+
+std::vector<std::string> ResourceCollection::DiffMissingNicGuids(const std::vector<UbseMti1825Pf>& latestPfList)
+{
+    // 提取ctrlq最新nic guid集合（pf+vf）
+    std::set<std::string> latestGuids;
+    for (const auto& pf : latestPfList) {
+        latestGuids.insert(CollectionStringUtil::GuidToStr(pf.guid));
+        for (const auto& vf : pf.vfList) {
+            latestGuids.insert(CollectionStringUtil::GuidToStr(vf.guid));
+        }
+    }
+
+    // 获取本地已采集的NIC_PFE/VFE guid集合（读锁，直接访问容器避免与GetDevicesByType锁重入）
+    std::set<std::string> collectedGuids;
+    {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        const auto& nicPfeMap = devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_PFE)];
+        for (const auto& [id, dev] : nicPfeMap) {
+            collectedGuids.insert(dev->GetGuid());
+        }
+        const auto& nicVfeMap = devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_VFE)];
+        for (const auto& [id, dev] : nicVfeMap) {
+            collectedGuids.insert(dev->GetGuid());
+        }
+    }
+
+    // 差集：只处理新增设备（不删除，避免影响已分配资源）
+    std::vector<std::string> missingGuids;
+    std::set_difference(latestGuids.begin(), latestGuids.end(), collectedGuids.begin(), collectedGuids.end(),
+                        std::back_inserter(missingGuids));
+    return missingGuids;
+}
+
+void ResourceCollection::MergeMissingNicDevices(const std::vector<UbseMti1825Pf>& latestPfList)
+{
+    // 增量合并新增设备（全量调用AddNicFe，幂等：已存在的设备会复用）
+    for (const auto& pf : latestPfList) {
+        if (auto ret = AddNicFe(pf); ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to add nic fe during refresh, guid: " << CollectionStringUtil::GuidToStr(pf.guid);
+            // 不中断，继续处理其他设备
+        }
+    }
+
+    // 重跑依赖绑定逻辑（幂等安全：已存在的busi只做Set，不会清空重建）
+    if (auto ret = CollectBusInstance(); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to refresh bus instance bindings, " << FormatRetCode(ret);
+    }
+    if (auto ret = CollectDavidAffinityNic(); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to refresh david affinity nic, " << FormatRetCode(ret);
+    }
 }
 } // namespace ubse::npu::controller
