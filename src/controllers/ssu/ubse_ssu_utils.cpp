@@ -11,6 +11,7 @@
  */
 
 #include "ubse_ssu_utils.h"
+#include "ubse_ssu_def.h"
 
 #include <dlfcn.h>
 #include <securec.h>
@@ -169,6 +170,119 @@ std::string GenerateHostNqn()
     return oss.str();
 }
 
+bool IsValidHostNqn(const std::string &hostNqn)
+{
+    // NVMe 规范 NQN 格式：nqn.YYYY-MM.<reverse-domain>[:subdomain...]
+    // 其中 reverse-domain 为反向域名，仅含 [a-zA-Z0-9.-]
+    // 若子域中包含 :uuid:，则后续部分须为 8-4-4-4-12 UUID 十六进制格式
+    static const std::string PREFIX = "nqn.";
+    static const size_t DATE_SEG_LEN = 7; // YYYY-MM
+    static constexpr size_t YEAR_LEN = 4;
+    static constexpr size_t MONTH_LEN = 2;
+    static constexpr int YEAR_MIN = 2010; // NVMe 规范于 2010 年发布
+    static constexpr int MONTH_MIN = 1;
+    static constexpr int MONTH_MAX = 12;
+    static const std::string UUID_SUBDOMAIN = ":uuid:";
+    static const size_t UUID_TOTAL = 36;  // 32 hex + 4 '-'
+    static const size_t UUID_GROUP_NUM = 5;
+    static const size_t UUID_GROUP_SIZES[] = {8, 4, 4, 4, 12};
+
+    if (hostNqn.empty()) {
+        return false;
+    }
+
+    // 长度上限校验：NQN 总长度不得超过序列化层上限 UBSE_SSU_MAX_NQN_LENGTH（含 \0），
+    // 有效字符上限为 UBSE_SSU_MAX_NQN_LENGTH - 1，超出会在 IPC 序列化层被截断或失败
+    if (hostNqn.size() >= ubse::adapter_plugins::ssu::def::UBSE_SSU_MAX_NQN_LENGTH) {
+        return false;
+    }
+
+    // 校验前缀 nqn.
+    if (hostNqn.size() < PREFIX.size() || hostNqn.compare(0, PREFIX.size(), PREFIX) != 0) {
+        return false;
+    }
+
+    size_t pos = PREFIX.size();
+    if (hostNqn.size() <= pos + DATE_SEG_LEN) {
+        return false;
+    }
+
+    // 校验年份 YYYY
+    for (size_t i = 0; i < YEAR_LEN; ++i) {
+        char c = hostNqn[pos + i];
+        if (c < '0' || c > '9') {
+            return false;
+        }
+    }
+    // 年份 ≥ YEAR_MIN（NVMe 规范于 2010 年发布）
+    int year = (hostNqn[pos + 0] - '0') * 1000 + (hostNqn[pos + 1] - '0') * 100 + (hostNqn[pos + 2] - '0') * 10 +
+               (hostNqn[pos + 3] - '0');
+    if (year < YEAR_MIN) {
+        return false;
+    }
+    
+    if (hostNqn[pos + YEAR_LEN] != '-') {
+        return false;
+    }
+
+    // 校验月份段 MM
+    for (size_t i = 0; i < MONTH_LEN; ++i) {
+        char c = hostNqn[pos + YEAR_LEN + 1 + i];
+        if (c < '0' || c > '9') {
+            return false;
+        }
+    }
+    // 月份范围 MONTH_MIN-MONTH_MAX
+    int month = (hostNqn[pos + YEAR_LEN + 1 + 0] - '0') * 10
+              + (hostNqn[pos + YEAR_LEN + 1 + 1] - '0');
+    if (month < MONTH_MIN || month > MONTH_MAX) {
+        return false;
+    }
+    pos += DATE_SEG_LEN;
+
+    // 校验 . 分隔符
+    if (hostNqn[pos] != '.') {
+        return false;
+    }
+    ++pos;
+
+    // 通用 reverse-domain 校验：允许 [a-zA-Z0-9.-:]
+    for (size_t i = pos; i < hostNqn.size(); ++i) {
+        char c = hostNqn[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '.' || c == '-' || c == ':')) {
+            return false;
+        }
+    }
+
+    // 若包含 :uuid: 子域，额外校验 UUID 格式
+    auto uuidPos = hostNqn.find(UUID_SUBDOMAIN, pos);
+    if (uuidPos != std::string::npos) {
+        uuidPos += UUID_SUBDOMAIN.size();
+        if (hostNqn.size() != uuidPos + UUID_TOTAL) {
+            return false;
+        }
+        auto isHex = [](char c) {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        };
+        for (size_t g = 0; g < UUID_GROUP_NUM; ++g) {
+            for (size_t i = 0; i < UUID_GROUP_SIZES[g]; ++i) {
+                if (!isHex(hostNqn[uuidPos])) {
+                    return false;
+                }
+                ++uuidPos;
+            }
+            if (g < UUID_GROUP_NUM - 1) {
+                if (hostNqn[uuidPos] != '-') {
+                    return false;
+                }
+                ++uuidPos;
+            }
+        }
+    }
+    return true;
+}
+
 bool IsValidDevName(const std::string &devName)
 {
     constexpr size_t MAX_DEV_NAME_LEN = 33; // 与ubse_ssu_obj_message.h中协议上限保持一致，含结尾'\0'
@@ -183,6 +297,11 @@ bool IsValidDevName(const std::string &devName)
         }
     }
     return true;
+}
+
+bool IsOptionalNqnValid(const std::string &nqn)
+{
+    return nqn.empty() || IsValidHostNqn(nqn);
 }
 
 } // namespace ubse::ssu::utils
