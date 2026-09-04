@@ -149,7 +149,10 @@ int ControllableAcquireDevInfo(const char *adminNqn, const DevAddrT *devList, in
             devNs.namespaceId = ns.namespaceId;
             devNs.baseAttr.nsze = ns.nsze;
             devNs.baseAttr.ncap = ns.ncap;
-            devNs.usedBytes = ns.nuse;
+            // ns.nuse为LBA数量，DevNamespaceInfoT.usedBytes为字节，需乘LBA Size换算
+            // flbas=1对应4K，否则512B
+            uint64_t lbaSize = (ns.nsOptions.flbas == 1) ? 4096 : 512;
+            devNs.usedBytes = ns.nuse * lbaSize;
             devNs.state = DevStatusT::DEV_ONLINE;
             std::memcpy(devNs.guid, ns.guid.data(), std::min(ns.guid.size(), sizeof(devNs.guid)));
             std::memcpy(devNs.uuid, ns.uuid.data(), std::min(ns.uuid.size(), sizeof(devNs.uuid)));

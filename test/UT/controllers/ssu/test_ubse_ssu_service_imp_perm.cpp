@@ -307,6 +307,11 @@ TEST_F(TestUbseSsuServiceImpPerm, GetNsStats_Success)
     AddNsToCollectorCache(ns1);
     AddNsToCollectorCache(ns2);
 
+    // ExecuteGetNsStats 会实时刷新设备缓存，需让 acquireDevInfo_ 返回与缓存一致的 ns
+    g_acquireDevInfoNsList.push_back(ns1);
+    g_acquireDevInfoNsList.push_back(ns2);
+    UbseSsuAdapterImpl::GetInstance().acquireDevInfo_ = ControllableAcquireDevInfo;
+
     // nsSize for MakeNameSpaceInfo needs to match the total size
     UbseSsuAllocResult result;
     result.name = "test_stats_success";
@@ -320,8 +325,9 @@ TEST_F(TestUbseSsuServiceImpPerm, GetNsStats_Success)
 
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(statsList.size(), 2u);
-    EXPECT_EQ(statsList[0].usedSize, 1024u);
-    EXPECT_EQ(statsList[1].usedSize, 2048u);
+    // nuse单位为LBA数量，usedSize = nuse * lbaSize(512) = 1024 * 512 = 524288 字节
+    EXPECT_EQ(statsList[0].usedSize, 1024u * 512);
+    EXPECT_EQ(statsList[1].usedSize, 2048u * 512);
     EXPECT_EQ(statsList[0].totalSize, 4096u * 512);
     EXPECT_EQ(statsList[1].totalSize, 8192u * 512);
 }
@@ -345,6 +351,10 @@ TEST_F(TestUbseSsuServiceImpPerm, GetNsStats_IdentityNotMatch)
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     AddNsToCollectorCache(ns1);
     SetupStatsLedger("test_stats_identity", {ns1});
+
+    // ExecuteGetNsStats 会实时刷新设备缓存，需让 acquireDevInfo_ 返回与缓存一致的 ns
+    g_acquireDevInfoNsList.push_back(ns1);
+    UbseSsuAdapterImpl::GetInstance().acquireDevInfo_ = ControllableAcquireDevInfo;
 
     auto differentIdentity = MakeIdentity("other_user", 999);
     std::vector<UbseSsuNsStats> statsList;
@@ -395,7 +405,8 @@ TEST_F(TestUbseSsuServiceImpPerm, GetNsStats_CacheMissRefreshSuccess)
 
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(statsList.size(), 1u);
-    EXPECT_EQ(statsList[0].usedSize, 1024u);
+    // nuse单位为LBA数量，usedSize = nuse * lbaSize(512) = 1024 * 512 = 524288 字节
+    EXPECT_EQ(statsList[0].usedSize, 1024u * 512);
 }
 
 /*
