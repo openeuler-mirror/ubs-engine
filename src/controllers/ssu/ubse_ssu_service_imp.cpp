@@ -2227,7 +2227,7 @@ static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsS
     return UBSE_OK;
 }
 
-// master端：查询命名空间统计信息，校验identity后从设备缓存获取usedSize
+// master端：查询命名空间统计信息，实时从硬件刷新设备信息获取usedSize
 uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
                                               const UbseSsuAllocIdentityInfo &identity)
 {
@@ -2248,11 +2248,9 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
     statsList.clear();
     statsList.reserve(entryPtr->allocResult.nameSpaceList.size());
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        // 实时从硬件刷新设备缓存，确保usedSize为最新值
+        RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
         const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
-        if (targetNs == nullptr) {
-            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
-            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
-        }
         if (targetNs == nullptr) {
             UBSE_LOG_ERROR << "ExecuteGetNsStats: namespace not found, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
@@ -2269,7 +2267,9 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
         stats.nsUuid = nsInfo.nsUuid;
         stats.nsId = nsInfo.namespaceId;
         stats.totalSize = nsInfo.nsSize;
-        stats.usedSize = targetNs->nuse;
+        // targetNs->nuse按NVMe规范为LBA数量，需乘LBA Size换算为字节，与API契约(单位字节)保持一致
+        uint64_t lbaSize = (targetNs->nsOptions.flbas == 1) ? 4096ULL : 512ULL;
+        stats.usedSize = targetNs->nuse * lbaSize;
         statsList.push_back(std::move(stats));
     }
     UBSE_LOG_INFO << "ExecuteGetNsStats success: name=" << name << ", count=" << statsList.size();

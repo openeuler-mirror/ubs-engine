@@ -426,7 +426,8 @@ TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_WithNamespaces)
     ns0.namespaceId = 1;
     ns0.baseAttr.nsze = 100;
     ns0.baseAttr.ncap = 80;
-    ns0.usedBytes = 50;
+    // usedBytes为字节，flbas=1对应4K LBA，nuse应换算为LBA数量：8192/4096=2
+    ns0.usedBytes = 8192;
     strncpy_s(ns0.devPath, DEV_PATH_SIZE, "/dev/nvme0n1", strlen("/dev/nvme0n1"));
     memset(ns0.guid, 0xAA, GUID_SIZE);
     memset(ns0.uuid, 0xBB, UUID_SIZE);
@@ -440,7 +441,8 @@ TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_WithNamespaces)
     ns1.namespaceId = 2;
     ns1.baseAttr.nsze = 200;
     ns1.baseAttr.ncap = 160;
-    ns1.usedBytes = 100;
+    // usedBytes为字节，flbas默认0对应512B LBA，nuse应换算为LBA数量：51200/512=100
+    ns1.usedBytes = 51200;
     strncpy_s(ns1.devPath, DEV_PATH_SIZE, "/dev/nvme0n2", strlen("/dev/nvme0n2"));
     ns1.baseAttr.nmic = false;
 
@@ -451,7 +453,8 @@ TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_WithNamespaces)
     EXPECT_EQ(info.nameSpaces[0].namespaceId, 1u);
     EXPECT_EQ(info.nameSpaces[0].nsze, 100u);
     EXPECT_EQ(info.nameSpaces[0].ncap, 80u);
-    EXPECT_EQ(info.nameSpaces[0].nuse, 50u);
+    // 8192字节 / 4096 LBA Size = 2 LBA
+    EXPECT_EQ(info.nameSpaces[0].nuse, 2u);
     EXPECT_EQ(info.nameSpaces[0].nsDevPath, "/dev/nvme0n1");
     EXPECT_EQ(info.nameSpaces[0].nsOptions.flbas, 1u);
     EXPECT_EQ(info.nameSpaces[0].nsOptions.dps, 0u);
@@ -463,6 +466,7 @@ TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_WithNamespaces)
     EXPECT_EQ(info.nameSpaces[1].namespaceId, 2u);
     EXPECT_EQ(info.nameSpaces[1].nsze, 200u);
     EXPECT_EQ(info.nameSpaces[1].ncap, 160u);
+    // 51200字节 / 512 LBA Size = 100 LBA
     EXPECT_EQ(info.nameSpaces[1].nuse, 100u);
     EXPECT_EQ(info.nameSpaces[1].nsDevPath, "/dev/nvme0n2");
     EXPECT_EQ(info.nameSpaces[1].nsOptions.nmic, 0u);

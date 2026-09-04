@@ -42,6 +42,14 @@ struct GStrFreevDeleter {
 using GStrvGuard = std::unique_ptr<gchar*, GStrFreevDeleter>;
 
 constexpr int NQN_MASK_SUFFIX_LEN = 4;
+// LBA Size by flbas: flbas=0对应512B，flbas=1对应4K（与UbseSsuLBAFormat一致）
+constexpr uint64_t LBA_SIZE_512 = 512;
+constexpr uint64_t LBA_SIZE_4K = 4096;
+
+uint64_t GetLbaSize(uint32_t flbas)
+{
+    return (flbas == 1) ? 4096ULL : 512ULL;
+}
 
 std::string MaskNqn(const std::string &nqn)
 {
@@ -492,7 +500,8 @@ void UbseSsuAdapterImpl::ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo&
         nsInfo.nsDevPath = std::string(ns.devPath);
         nsInfo.nsze = ns.baseAttr.nsze;
         nsInfo.ncap = ns.baseAttr.ncap;
-        nsInfo.nuse = ns.usedBytes;
+        // nuse按NVMe规范为LBA数量，ns.usedBytes为字节，需除以LBA Size
+        nsInfo.nuse = ns.usedBytes / GetLbaSize(ns.baseAttr.flbas);
         
         // 填充nsOptions
         nsInfo.nsOptions.flbas = ns.baseAttr.flbas;
@@ -751,7 +760,8 @@ uint32_t UbseSsuAdapterImpl::CreateDevNameSpace(UbseSsuDevNameSpace &nameSpace)
 
     nameSpace.namespaceId = nsInfo.namespaceId;
     nameSpace.nsDevPath = std::string(nsInfo.devPath);
-    nameSpace.nuse = nsInfo.usedBytes;
+    // nsInfo.usedBytes为字节（C库返回），nameSpace.nuse按NVMe规范为LBA数量，需除以LBA Size
+    nameSpace.nuse = nsInfo.usedBytes / GetLbaSize(nsInfo.baseAttr.flbas);
     nameSpace.guid = std::string(reinterpret_cast<const char*>(nsInfo.guid), GUID_SIZE);
     nameSpace.uuid = std::string(reinterpret_cast<const char*>(nsInfo.uuid), UUID_SIZE);
 

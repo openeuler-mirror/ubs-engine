@@ -73,7 +73,7 @@ typedef struct {
 
 typedef struct {
     uint32_t namespaceId;
-    uint64_t usedBytes;
+    uint64_t usedBytes; // 已用容量（字节）
     char devPath[DEV_PATH_SIZE];
     unsigned char guid[GUID_SIZE];
     unsigned char uuid[UUID_SIZE];
