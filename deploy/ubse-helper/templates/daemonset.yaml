@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "ubse-helper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ubse-helper.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ubse-helper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ubse-helper.selectorLabels" . | nindent 8 }}
+    spec:
+      hostNetwork: true                    # 共享宿主网络命名空间,定位宿主网卡
+      dnsPolicy: ClusterFirstWithHostNet   # hostNetwork 下仍解析集群 DNS
+      serviceAccountName: {{ include "ubse-helper.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.helper.terminationGracePeriodSeconds }}
+      containers:
+        - name: helper
+          image: "{{ .Values.helper.image.repository }}:{{ .Values.helper.image.tag }}"
+          imagePullPolicy: {{ .Values.helper.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            runAsUser: {{ .Values.helper.uid }}            # 必须与宿主 ubse 用户 uid 对齐(socket 0660 属主校验)
+            runAsGroup: {{ .Values.helper.gid }}           # 必须与宿主 ubse 组 gid 对齐(socket 0660 组可写)
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP          # downward API: 定位网卡
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace     # downward API: 定位 Endpoints 命名空间
+            - name: ENDPOINTS_NAME
+              value: {{ .Values.helper.endpointsName | quote }}   # env 指定,默认 ubse-helper
+            - name: UDS_SOCKET_PATH
+              value: {{ printf "%s/ubse.sock" .Values.helper.udsDir | quote }}
+          volumeMounts:
+            - name: ubse-run
+              mountPath: {{ .Values.helper.udsDir }}   # hostPath 挂载 socket 目录
+              readOnly: false
+          resources:
+            {{- toYaml .Values.helper.resources | nindent 12 }}
+      volumes:
+        - name: ubse-run
+          hostPath:
+            path: {{ .Values.helper.udsDir }}          # /var/run/ubse
+            type: DirectoryOrCreate

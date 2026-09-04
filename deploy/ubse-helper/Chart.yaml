@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ubse-helper
+description: 容器化 VIP 访问 helper DaemonSet,经 UDS 将 VIP 配置注入宿主 ubse
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

@@ -34,6 +34,7 @@
 ###                                 all             build all target in source code
 ###                                 3rdparty        build 3rdparty libs
 ###                                 test            build all tests in test/ directory
+###                                 container       package Helm chart and container image of ubse-helper into output/container
 ###     -T | --type             Build type
 ###                             Supported targets:
 ###                                 Debug           Provides detailed debugging information with no optimizations
@@ -426,6 +427,45 @@ function build_cmake() {
     fi
 }
 
+# 打包 Helm Chart 与容器镜像到 output/container/
+function package_container() {
+    if ! command -v helm >/dev/null 2>&1; then
+        echo "Error: helm is not installed. Please install helm first."
+        exit 1
+    fi
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "Error: docker is not installed. Please install docker first."
+        exit 1
+    fi
+    local chart_dir="${PROJECT_ROOT_DIR}/deploy/ubse-helper"
+    local dockerfile="${PROJECT_ROOT_DIR}/src/container/ubse_helper/Dockerfile"
+    local image_repo="${IMAGE_REPO:-ubse-helper}"
+    local image_tag="${IMAGE_TAG:-1.0.0}"
+    local image_platform="${IMAGE_PLATFORM:-linux/arm64}"
+    local container_output_dir="${output_dir}/container"
+    if [ ! -f "${chart_dir}/Chart.yaml" ]; then
+        echo "Error: Chart.yaml not found at ${chart_dir}"
+        exit 1
+    fi
+    if [ ! -f "${dockerfile}" ]; then
+        echo "Error: Dockerfile not found at ${dockerfile}"
+        exit 1
+    fi
+    # 清理旧的容器交付产物，避免残留旧版本包
+    if [ -d "${container_output_dir}" ]; then
+        rm -rf "${container_output_dir}"
+    fi
+    mkdir -p "${container_output_dir}"
+    echo "***** start package_container *****"
+    helm package "${chart_dir}" --destination "${container_output_dir}"
+    echo "Helm chart packaged to ${container_output_dir}"
+    echo "Building image ${image_repo}:${image_tag} (platform ${image_platform}) ..."
+    docker build --platform "${image_platform}" -t "${image_repo}:${image_tag}" -f "${dockerfile}" "${PROJECT_ROOT_DIR}"
+    echo "Saving image to ${container_output_dir}/$(basename "${image_repo}")-${image_tag}.tar ..."
+    docker save -o "${container_output_dir}/$(basename "${image_repo}")-${image_tag}.tar" "${image_repo}:${image_tag}"
+    echo "Image packaged to ${container_output_dir}"
+}
+
 echo $(date +"[%Y-%m-%d %H:%M]"): "$0" "$@"
 START_TIME=$(date +%s.%N)
 
@@ -439,6 +479,11 @@ if [[ "$build_target" == 'package' ]]; then
     else
         bash "$PROJECT_ROOT_DIR"/scripts/rpm/package.sh
     fi
+    exit $?
+fi
+
+if [[ "$build_target" == 'container' ]]; then
+    package_container
     exit $?
 fi
 
