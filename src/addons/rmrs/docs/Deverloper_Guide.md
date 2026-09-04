@@ -22,7 +22,6 @@ sh build.sh
 | `-C`, `--coverage`         | 无                         | 开关参数     | 启用代码覆盖率功能 (`enable_coverage='ON'`)                  |
 | `-H`, `--http-server`      | 无                         | 开关参数     | 启用 HTTP 服务功能 (`enable_http_server='ON'`)               |
 | `-c`, `--clean`            | 无                         | 开关参数     | 清理构建结果 (`enable_clean='ON'`)                           |
-| `-S`, `--source-compiling` | 无                         | 开关参数     | 启用源代码编译模式 (`enable_source_compiling='ON'`)          |
 | `-j`, `--jobs`             | 必须指定线程数值           | 并行参数     | 指定构建时的并行 job 数量                                    |
 | `--std`                    | 必须指定标准版本值         | 编译参数     | 设置 C++ 标准版本（如 11、14、17）                           |
 | `-v`, `--verbose`          | 无                         | 日志参数     | 启用详细输出（设置环境变量 `VERBOSE=1`）                     |

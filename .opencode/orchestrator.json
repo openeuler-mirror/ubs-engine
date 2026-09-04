@@ -43,7 +43,7 @@
           "id": "code-review",
           "title": "C/C++ Code Review",
           "workerId": "code-review-c-cpp",
-          "prompt": "Perform a comprehensive code review following the code-review-c-cpp skill guidelines. Examine all code under src/ (excluding cmake-build-*, 3rdparty, test directories). Generate a detailed review report covering architecture, security (referencing SecureCoding.md and SecureCompile.md), performance, and maintainability. Save the report to the code_review_report/ directory as codereview_<repo>_<date><timestamp>.md. The report must categorize issues as: 严重问题 (must fix), 建议改进 (recommended), and 风格问题 (optional).",
+          "prompt": "Perform a comprehensive code review following the code-review-c-cpp skill guidelines. Examine all code under src/ (excluding cmake-build-*, test directories). Generate a detailed review report covering architecture, security (referencing SecureCoding.md and SecureCompile.md), performance, and maintainability. Save the report to the code_review_report/ directory as codereview_<repo>_<date><timestamp>.md. The report must categorize issues as: 严重问题 (must fix), 建议改进 (recommended), and 风格问题 (optional).",
           "carry": true
         },
         {

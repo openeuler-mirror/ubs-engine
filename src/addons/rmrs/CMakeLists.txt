@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 file(GLOB_RECURSE RMRS_SRCS *.cpp *.h)
 add_library(mempooling SHARED ${RMRS_SRCS})
 add_library(mempooling_static EXCLUDE_FROM_ALL STATIC ${RMRS_SRCS})
@@ -50,7 +52,7 @@ target_include_directories(
 
 target_include_directories(rmrs_deps PRIVATE ${LIBVIRT_INCLUDE_DIRS})
 target_link_libraries(rmrs_deps PRIVATE ${LIBVIRT_LIBRARIES})
-target_link_libraries(rmrs_deps INTERFACE rapidjson ubse_utils)
+target_link_libraries(rmrs_deps INTERFACE ubse_utils)
 
 target_link_libraries(mempooling PUBLIC rmrs_deps)
 target_link_libraries(mempooling_static PUBLIC rmrs_deps)

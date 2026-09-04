@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 file(GLOB_RECURSE UCACHE_SRCS *.cpp *.h)
 add_library(ucache_plugin SHARED ${UCACHE_SRCS})
 add_library(ucache_plugin_static EXCLUDE_FROM_ALL STATIC ${UCACHE_SRCS})
@@ -25,7 +27,7 @@ target_include_directories(ucache_deps INTERFACE
          ${CMAKE_CURRENT_SOURCE_DIR}/ucache_agent/agent_task_processor
 )
 
-target_link_libraries(ucache_deps INTERFACE rapidjson ubse_utils)
+target_link_libraries(ucache_deps INTERFACE ubse_utils)
 
 target_link_libraries(ucache_plugin PUBLIC ucache_deps)
 target_link_libraries(ucache_plugin_static PUBLIC ucache_deps)

@@ -123,7 +123,7 @@ if (ENABLE_UB)
     add_definitions(-DUB_ENVIRONMENT)
 endif ()
 
-add_subdirectory(3rdparty)
+include(check_requirements)
 add_subdirectory(src)
 
 set(ENABLE_UBSE_TESTING 0)

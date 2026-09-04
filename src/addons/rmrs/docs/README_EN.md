@@ -8,7 +8,6 @@ UBS RMRS is an intra-node resource management service plugin designed for virtua
 
 ```sh
 UBS RMRS/
-├── 3rdparty                    // Third-party source code library
 ├── benchmark                   // CLI tool
 ├── conf                        // Configuration file
 ├── doc                         // Document
