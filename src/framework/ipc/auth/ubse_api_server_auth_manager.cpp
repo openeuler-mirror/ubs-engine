@@ -198,7 +198,7 @@ bool UbseApiServerAuthManager::IsValidRoleConfig(const std::string& role, const 
 
 bool UbseApiServerAuthManager::CheckPermission(const std::string& username, const std::string& targetObject)
 {
-    UBSE_LOG_INFO << "Starting permission check, user=" << username << ", target object=" << targetObject;
+    UBSE_LOG_DEBUG << "Starting permission check, user=" << username << ", target object=" << targetObject;
     // 查找用户角色
     auto userIt = userToRole_.find(username);
     if (userIt == userToRole_.end()) {
@@ -234,8 +234,8 @@ void UbseApiServerAuthManager::clear()
 
 bool UbseApiServerAuthManager::CheckPermission(const std::string& username, uint16_t moduleCode, uint16_t opCode)
 {
-    UBSE_LOG_INFO << "Attempting to check permissions for user=" << username << ", moduleCode=" << moduleCode
-                  << ", opCode=" << opCode;
+    UBSE_LOG_DEBUG << "Attempting to check permissions for user=" << username << ", moduleCode=" << moduleCode
+                   << ", opCode=" << opCode;
     // 首先检查是否是内置用户
     if (std::find(BUILTIN_USERS.begin(), BUILTIN_USERS.end(), username) != BUILTIN_USERS.end()) {
         UBSE_LOG_DEBUG << "User " << username << " is built-in user, automatically granted all permissions";
