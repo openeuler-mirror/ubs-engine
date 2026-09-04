@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ubse-helper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ubse-helper.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  # 无 selector:由同名 Endpoints 手动承载真实 VIP,DNS 解析经 Endpoints 指向 VIP
+  ports:
+    - name: vip
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      protocol: TCP

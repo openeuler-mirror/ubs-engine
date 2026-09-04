@@ -1,0 +1,45 @@
+# --- 命名 ---
+nameOverride: ""
+fullnameOverride: "ubse-helper"      # 强制 Service/Endpoints/DS 同名
+
+# --- RBAC ---
+serviceAccount:
+  create: true
+  name: "ubse-helper"
+rbac:
+  create: true
+
+# --- Service ---
+service:
+  type: ClusterIP
+  port: 10002                        # VIP HTTP server 监听端口(与注入 payload.port 对齐)
+
+# --- helper 容器 ---
+helper:
+  # 运行 uid/gid 必须与宿主 ubse 用户的 uid/gid 对齐(socket 0660 ubse:ubse),
+  # 否则容器进程 connect(2) 将得到 EACCES。宿主侧 ubse 用户由 rpm 安装脚本
+  # groupadd -r/useradd -r 动态分配,建议安装时固定:
+  #   UBSE_USER_UID=983 UBSE_USER_GID=983 rpm -ivh ubs-engine-*.rpm
+  # 或部署时按节点实际值覆盖:--set helper.uid=$(id -u ubse) --set helper.gid=$(id -g ubse)
+  uid: 983
+  gid: 983
+  image:
+    repository: ubse-helper           # 无中心仓库,镜像本地导入,不带 registry 前缀
+    tag: 1.0.0
+    pullPolicy: Never                 # 仅使用节点本地已导入的镜像,不联网拉取
+  endpointsName: ubse-helper         # env: Endpoints name(与 Service 同名)
+  udsDir: /var/run/ubse              # hostPath 挂载目录 + socket 路径前缀
+  terminationGracePeriodSeconds: 30
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  # nodeSelector: {}                 # 可选,按需调度约束
+  # tolerations: []                  # 可选,污点容忍
+
+# --- Endpoints(真源,必选;addresses 为空时 helm install 模板渲染直接失败) ---
+endpoints:
+  addresses: []                      # 必填 e.g. --set-json 'endpoints.addresses=["192.168.100.200"]'

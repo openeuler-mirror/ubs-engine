@@ -1,0 +1,19 @@
+{{- if not .Values.endpoints.addresses }}
+{{- fail "endpoints.addresses is required (VIP real source), e.g. --set-json 'endpoints.addresses=[\"192.168.100.200\"]'" }}
+{{- end }}
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: {{ include "ubse-helper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ubse-helper.labels" . | nindent 4 }}
+subsets:
+  - addresses:
+      {{- range .Values.endpoints.addresses }}
+      - ip: {{ . | quote }}
+      {{- end }}
+    ports:
+      - name: vip
+        port: {{ .Values.service.port }}   # 复用 service.port 作为唯一端口真源,消除双处配置漂移
+        protocol: TCP
