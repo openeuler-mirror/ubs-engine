@@ -12,6 +12,10 @@
 
 #include "ubse_vip_module.h"
 
+#include <memory>
+
+#include "ubse_api_server.h"
+#include "ubse_ipc_common.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
 #include "ubse_conf_module.h"
@@ -54,12 +58,22 @@ UbseResult UbseVipModule::Initialize()
         return ret;
     }
 
+    // 容器模式:注册 UDS 注入 handler
+    if (config_.containerMode) {
+        ret = RegisterContainerInjectionHandler();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[VIP] RegisterContainerInjectionHandler failed";
+            return ret;
+        }
+    }
+
     UBSE_LOG_INFO << "[VIP] Module Initialize success";
     return UBSE_OK;
 }
 
 void UbseVipModule::UnInitialize()
 {
+    UnregisterContainerInjectionHandler();
     UbseVipManager::GetInstance().Deinit();
     UBSE_LOG_INFO << "[VIP] Module UnInitialize completed";
 }
@@ -73,6 +87,7 @@ UbseResult UbseVipModule::Start()
 void UbseVipModule::Stop()
 {
     UnregisterElectionHandlers();
+    UnregisterContainerInjectionHandler();
     UBSE_LOG_INFO << "[VIP] Module Stop completed";
 }
 
@@ -101,18 +116,7 @@ UbseResult UbseVipModule::LoadConfig()
         return UBSE_OK;
     }
 
-    ret = confModule->GetConf(section, "vip.httpServer.listen.ip", config_.listenIp);
-    if (ret != UBSE_OK || config_.listenIp.empty()) {
-        UBSE_LOG_ERROR << "[VIP] vip.httpServer.listen.ip is required but not configured";
-        return UBSE_ERROR;
-    }
-
-    uint32_t listenPort = 10002;
-    ret = confModule->GetConf(section, "vip.httpServer.listen.port", listenPort);
-    if (ret == UBSE_OK && listenPort >= 1024 && listenPort <= 65535) {
-        config_.listenPort = listenPort;
-    }
-
+    // arpCount/arpInterval 与 listenIp 无依赖,须在容器模式提前 return 之前读取,保证容器模式同样可调优
     uint32_t arpCount = 5;
     ret = confModule->GetConf(section, "vip.arpCount", arpCount);
     if (ret == UBSE_OK) {
@@ -133,6 +137,23 @@ UbseResult UbseVipModule::LoadConfig()
             UBSE_LOG_WARN << "[VIP] vip.arpInterval=" << arpInterval << " is out of range [100, 5000], using default: "
                           << config_.arpInterval;
         }
+    }
+
+    ret = confModule->GetConf(section, "vip.httpServer.listen.ip", config_.listenIp);
+    if (ret != UBSE_OK || config_.listenIp.empty()) {
+        // 容器模式:enable=true 且缺省 listenIp,配置经 UDS 由 helper 注入,不在此处报错。
+        // 用 WARN 而非 INFO,避免"配置丢失"被误看成正常启动;并提示仅 helper 托管部署应走此分支。
+        config_.containerMode = true;
+        UBSE_LOG_WARN << "[VIP] listenIp not configured, entering container mode; VIP will bind only after UDS"
+                      << " injection (expected for helper-managed container deployment; verify ubse-helper DaemonSet"
+                      << " if this is a host deployment)";
+        return UBSE_OK;
+    }
+
+    uint32_t listenPort = 10002;
+    ret = confModule->GetConf(section, "vip.httpServer.listen.port", listenPort);
+    if (ret == UBSE_OK && listenPort >= 1024 && listenPort <= 65535) {
+        config_.listenPort = listenPort;
     }
 
     UBSE_LOG_INFO << "[VIP] Config loaded: listenIp=" << config_.listenIp
@@ -229,6 +250,44 @@ void UbseVipModule::UnregisterElectionHandlers()
     UbseElectionChangeDeAttachHandler(builder.Build());
 
     UBSE_LOG_INFO << "[VIP] Election handlers unregistered";
+}
+
+UbseResult UbseVipModule::RegisterContainerInjectionHandler()
+{
+    injectionHandler_ = std::make_shared<UbseVipInjectionHandler>();
+    // 以 weak_ptr 捕获:注销时 reset shared_ptr,回调内 lock 成 shared_ptr 保证 Handle 执行期间对象存活,
+    // 消除"判空通过后、解引用前被 reset"的 check-then-use 竞态(use-after-free)。
+    std::weak_ptr<UbseVipInjectionHandler> weakHandler = injectionHandler_;
+
+    // 注册 IPC handler
+    auto ret = api::server::RegisterIpcHandler(
+        UBSE_VIP, UBSE_VIP_CFG_PUSH,
+        [weakHandler](const api::server::UbseIpcMessage &msg, const api::server::UbseRequestContext &ctx) {
+            auto handler = weakHandler.lock();
+            if (!handler) {
+                UBSE_LOG_WARN << "[VIP] injection handler already unregistered, reject late push";
+                return UBSE_ERR_IPC_SERVICE_UNAVAILABLE;
+            }
+            return handler->Handle(msg, ctx);
+        },
+        "vip.cfg.push");
+
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[VIP] RegisterIpcHandler failed, ret=" << ret;
+        injectionHandler_.reset();
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "[VIP] Container injection handler registered (UBSE_VIP, UBSE_VIP_CFG_PUSH)";
+    return UBSE_OK;
+}
+
+void UbseVipModule::UnregisterContainerInjectionHandler()
+{
+    if (injectionHandler_) {
+        UBSE_LOG_INFO << "[VIP] Container injection handler unregistered";
+        injectionHandler_.reset();
+    }
 }
 
 uint32_t UbseVipModule::HandleChangeToMaster(UbseElectionEventType &, UBSE_ID_TYPE &nodeId)
