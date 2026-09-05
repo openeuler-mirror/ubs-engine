@@ -35,6 +35,7 @@
 #include "mp_configuration.h"
 #include "mp_json_util.h"
 #include "over_commit_fault_memid_module.h"
+#include "over_commit_pid_fault_error_util.h"
 #include "rmrs_serialize.h"
 
 namespace mempooling {
@@ -789,10 +790,15 @@ MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId)
             << "[EventHandler] nodeId=" << nId << " in state of " << static_cast<int>(nodeInfo.clusterState) << ".";
         if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
             nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] Detect " << nId << " in state of " << static_cast<int>(nodeInfo.clusterState)
-                << " instead of working or fault.";
-            return MEM_POOLING_FAULT_PARTIAL_SUCCESS;
+            // 账本不可靠: 存在状态未定(非working/fault)的其他节点，故障处理可能实际已成功;
+            // 明细入带关键字[OvercommitFaultErr]的日志供grep检索，并按统一机制透传部分成功码(ret=8)
+            std::vector<FaultErrorRecord> errRecords = {
+                {MEM_POOLING_FAULT_PARTIAL_SUCCESS,
+                 "detect node=" + nId + " in state=" + std::to_string(static_cast<int>(nodeInfo.clusterState)) +
+                     " instead of working or fault; ledger unreliable(other nodes state uncertain), "
+                     "fault handling may have actually succeeded, return partial success(ret=8)"}};
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] " << JoinFaultErrorRecords(errRecords);
+            return EarliestFaultErrorCode(errRecords);
         }
     }
     return MEM_POOLING_OK;
