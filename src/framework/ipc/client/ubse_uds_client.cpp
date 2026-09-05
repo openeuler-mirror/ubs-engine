@@ -73,8 +73,7 @@ uint32_t UbseUDSClient::Connect()
     // Set non-blocking mode for connection timeout
     SetNonBlocking(true);
 
-    struct sockaddr_un addr {
-    };
+    struct sockaddr_un addr = {};
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         IPC_LOG_ERROR << "Failed to initialize address structure, err=" << ret;
@@ -369,8 +368,7 @@ uint32_t UbseUDSClient::WaitAndReceive(UbseResponseMessage& response, std::chron
 void UbseUDSClient::SetSocketOptions() const
 {
     // Set receive timeout
-    struct timeval tv {
-    };
+    struct timeval tv = {};
     tv.tv_sec = DEFAULT_RECEIVE_TIMEOUT / MILLISECOND_TO_SECOND;
     tv.tv_usec = (DEFAULT_RECEIVE_TIMEOUT % MILLISECOND_TO_SECOND) * MILLISECOND_TO_SECOND;
     setsockopt(sockFd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
@@ -782,8 +780,7 @@ uint32_t UbseUDSClient::LongLinkConnect()
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
     SetNonBlocking(true);
-    struct sockaddr_un addr {
-    };
+    struct sockaddr_un addr = {};
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         Disconnect();

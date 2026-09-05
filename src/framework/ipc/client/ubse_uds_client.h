@@ -26,10 +26,10 @@
 
 namespace ubse::ipc {
 using ubse::task_executor::UbseTaskExecutorPtr;
-const uint32_t DEFAULT_TOTAL_TIMEOUT = 1800000; // Default global timeout in milliseconds (ms)
-const uint32_t DEFAULT_CONNECT_TIMEOUT = 5000;  // Default connection establishment timeout in ms
-const uint32_t DEFAULT_SEND_TIMEOUT = 5000;     // Default data sending timeout in ms
-const uint32_t DEFAULT_RECEIVE_TIMEOUT = 5000;  // Default data receiving timeout in ms
+const uint32_t DEFAULT_TOTAL_TIMEOUT = 1800000;
+const uint32_t DEFAULT_CONNECT_TIMEOUT = 5000;
+const uint32_t DEFAULT_SEND_TIMEOUT = 5000;
+const uint32_t DEFAULT_RECEIVE_TIMEOUT = 5000;
 
 using UbseClientRequestHandler = std::function<void(const UbseRequestMessage&, UbseResponseMessage& resp)>;
 
@@ -50,9 +50,9 @@ public:
 
     explicit UbseUDSClient(const std::string& socketPath);
 
-    ~UbseUDSClient() noexcept;
+    virtual ~UbseUDSClient() noexcept;
 
-    uint32_t Connect();
+    virtual uint32_t Connect();
 
     void Disconnect();
 
@@ -61,7 +61,7 @@ public:
     uint32_t Send(const UbseRequestMessage& request, UbseResponseMessage& response,
                   uint32_t totalTimeout = DEFAULT_TOTAL_TIMEOUT);
 
-    uint32_t PerSistentConnect();
+    virtual uint32_t PerSistentConnect();
 
     void RegisterClientRequestHandler(UbseClientRequestHandler handler);
 
@@ -71,20 +71,20 @@ public:
 
     uint32_t SendWithoutWait(UbseRequestMessage request);
 
-    void Stop();
+    virtual void Stop();
 
-private:
+protected:
     std::string socketPath_;
 
     int sockFd_ = -1;
     int epollFd_ = -1;
-    std::thread eventLoopThread_{}; // epoll监听线程
-    std::thread reconnectThread_{}; // 重连线程
+    std::thread eventLoopThread_{};
+    std::thread reconnectThread_{};
     std::atomic<bool> running_{false};
-    std::atomic<bool> isReConnect_{false}; // 是否需要断线重连
+    std::atomic<bool> isReConnect_{false};
     std::atomic<bool> reconnecting_;
     UbseClientRequestHandler requestHandler_{};
-    UbseTaskExecutorPtr taskExecutor_{}; // 执行线程池
+    UbseTaskExecutorPtr taskExecutor_{};
     std::vector<std::pair<uint16_t, uint16_t>> longlinkNotifyList_{};
     std::mutex longlinkNotifyMapMutex_;
 
@@ -92,6 +92,13 @@ private:
 
     void SetNonBlocking(bool nonblocking) const;
 
+    uint32_t CreateEpoll();
+
+    uint32_t HandleInProgressConnection();
+
+    virtual uint32_t LongLinkConnect();
+
+private:
     static bool CheckTimeout(std::chrono::steady_clock::time_point startTime, uint32_t timeoutMs = 0);
 
     uint32_t WaitAndReceive(UbseResponseMessage& response, std::chrono::time_point<std::chrono::steady_clock> startTime,
@@ -119,13 +126,7 @@ private:
 
     uint32_t SendResponse(UbseResponseMessage resp);
 
-    uint32_t LongLinkConnect();
-
     void ReconnectAfterBroken();
-
-    uint32_t CreateEpoll();
-
-    uint32_t HandleInProgressConnection();
 
     void StopEpoll();
 
