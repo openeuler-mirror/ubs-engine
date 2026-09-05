@@ -1354,6 +1354,10 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         UBSE_LOG_ERROR << "AttachSpace: name is empty";
         return UBSE_ERR_INVALID_ARG;
     }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "AttachSpace: invalid nqn format, nqn=" << req.nqn;
+        return UBSE_ERR_INVALID_ARG;
+    }
 
     UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << req.nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
@@ -1437,6 +1441,10 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 {
     if (req.name.empty()) {
         UBSE_LOG_ERROR << "DetachSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "DetachSpace: invalid nqn format, nqn=" << req.nqn;
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -1563,6 +1571,10 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         UBSE_LOG_ERROR << "AttachLinearSpace: name is empty";
         return UBSE_ERR_INVALID_ARG;
     }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "AttachLinearSpace: invalid nqn format, nqn=" << req.nqn;
+        return UBSE_ERR_INVALID_ARG;
+    }
 
     UBSE_LOG_INFO << "AttachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
@@ -1649,6 +1661,10 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 {
     if (req.name.empty()) {
         UBSE_LOG_ERROR << "AttachStripedSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "AttachStripedSpace: invalid nqn format, nqn=" << req.nqn;
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -1799,6 +1815,10 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         UBSE_LOG_ERROR << "DetachLinearSpace: name is empty";
         return UBSE_ERR_INVALID_ARG;
     }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "DetachLinearSpace: invalid nqn format, nqn=" << req.nqn;
+        return UBSE_ERR_INVALID_ARG;
+    }
 
     UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
@@ -1858,6 +1878,10 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
 {
     if (req.name.empty()) {
         UBSE_LOG_ERROR << "DetachStripedSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (!IsOptionalNqnValid(req.nqn)) {
+        UBSE_LOG_ERROR << "DetachStripedSpace: invalid nqn format, nqn=" << req.nqn;
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -2124,6 +2148,12 @@ uint32_t UbseSsuServiceImp::AddAccessPermission(const std::string &name, const s
 {
     UBSE_LOG_INFO << "AddAccessPermission: name=" << name << ", nqn=" << nqn;
 
+    // 空nqn表示使用defaultNqn（内部由ResolveNqn处理，为defaultNqn时跳过），不校验；非空则须为合法HostNqn格式
+    if (!IsOptionalNqnValid(nqn)) {
+        UBSE_LOG_ERROR << "AddAccessPermission: invalid nqn format, nqn=" << nqn;
+        return UBSE_ERR_INVALID_ARG;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -2147,6 +2177,12 @@ uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, cons
                                                    const UbseSsuAllocIdentityInfo &identity)
 {
     UBSE_LOG_INFO << "RemoveAccessPermission: name=" << name << ", nqn=" << nqn;
+
+    // 空nqn表示使用defaultNqn（内部由ResolveNqn处理，为defaultNqn时跳过），不校验；非空则须为合法HostNqn格式
+    if (!IsOptionalNqnValid(nqn)) {
+        UBSE_LOG_ERROR << "RemoveAccessPermission: invalid nqn format, nqn=" << nqn;
+        return UBSE_ERR_INVALID_ARG;
+    }
 
     std::string role;
     auto ret = UbseGetRole(role);

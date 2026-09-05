@@ -130,7 +130,10 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_Success)
     SetupPermLedger("test_add_perm_success", UbseSsuNsState::CREATED, {ns1, ns2});
 
     auto identity = MakeIdentity();
-    EXPECT_EQ(service_.AddAccessPermission("test_add_perm_success", "nqn.test.host", identity), UBSE_OK);
+    EXPECT_EQ(
+        service_.AddAccessPermission("test_add_perm_success",
+                                     "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111", identity),
+        UBSE_OK);
 }
 
 /*
@@ -139,8 +142,10 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_Success)
  */
 TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_RecordNotFound)
 {
-    EXPECT_EQ(service_.AddAccessPermission("test_not_found", "nqn.test.host", MakeIdentity()),
-              UBSE_SSU_ERROR_SPACE_NOT_FOUND);
+    EXPECT_EQ(
+        service_.AddAccessPermission(
+            "test_not_found", "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111", MakeIdentity()),
+        UBSE_SSU_ERROR_SPACE_NOT_FOUND);
 }
 
 /*
@@ -153,7 +158,9 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_InvalidState)
     AddNsToCollectorCache(ns1);
     SetupPermLedger("test_invalid_state", UbseSsuNsState::IDLE, {ns1});
 
-    EXPECT_EQ(service_.AddAccessPermission("test_invalid_state", "nqn.test.host", MakeIdentity()),
+    EXPECT_EQ(service_.AddAccessPermission("test_invalid_state",
+                                           "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                           MakeIdentity()),
               UBSE_SSU_ERROR_STATE_INVALID);
 }
 
@@ -169,7 +176,9 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_IdentityNotMatch)
 
     // Use a different identity (uid mismatch)
     auto differentIdentity = MakeIdentity("other_user", 999);
-    EXPECT_EQ(service_.AddAccessPermission("test_identity_mismatch", "nqn.test.host", differentIdentity),
+    EXPECT_EQ(service_.AddAccessPermission("test_identity_mismatch",
+                                           "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                           differentIdentity),
               UBSE_ERR_ACCESS_DENIED);
 }
 
@@ -187,7 +196,10 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_PartialFailAndRollback)
 
     g_addPermFailAfter.store(1); // 2nd call fails
 
-    EXPECT_NE(service_.AddAccessPermission("test_partial_fail", "nqn.test.host", MakeIdentity()), UBSE_OK);
+    EXPECT_NE(service_.AddAccessPermission("test_partial_fail",
+                                           "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                           MakeIdentity()),
+              UBSE_OK);
     // 验证 rollback: 第一个 NS 会被 RemoveNameSpaceAllowHost 回滚
     // 接口返回错误即表示回滚已执行
 }
@@ -198,14 +210,17 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_PartialFailAndRollback)
  */
 TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_DefaultNqnSkip)
 {
-    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 4096,
-                              std::string(GUID_SIZE, '\xAB'), std::string(UUID_SIZE, '\xAB'),
-                              100, "test_user", "nqn.default.test");
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 4096, std::string(GUID_SIZE, '\xAB'),
+                              std::string(UUID_SIZE, '\xAB'), 100, "test_user",
+                              "nqn.2024-01.org.nvmexpress:uuid:22222222-2222-2222-2222-222222222222");
     AddNsToCollectorCache(ns1);
     SetupPermLedger("test_default_nqn_skip", UbseSsuNsState::CREATED, {ns1});
 
     // Use the same nqn as defaultNqn → should skip
-    EXPECT_EQ(service_.AddAccessPermission("test_default_nqn_skip", "nqn.default.test", MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(service_.AddAccessPermission("test_default_nqn_skip",
+                                           "nqn.2024-01.org.nvmexpress:uuid:22222222-2222-2222-2222-222222222222",
+                                           MakeIdentity()),
+              UBSE_OK);
 }
 
 /*
@@ -218,7 +233,10 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_NsNotFound)
     // Deliberately NOT adding ns1 to collector cache
     SetupPermLedger("test_ns_not_found", UbseSsuNsState::CREATED, {ns1});
 
-    EXPECT_NE(service_.AddAccessPermission("test_ns_not_found", "nqn.test.host", MakeIdentity()), UBSE_OK);
+    EXPECT_NE(service_.AddAccessPermission("test_ns_not_found",
+                                           "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                           MakeIdentity()),
+              UBSE_OK);
 }
 
 // ============================================================================
@@ -236,7 +254,10 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_AgentViaRpc)
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
 
-    EXPECT_EQ(service_.AddAccessPermission("test_agent_rpc", "nqn.test.host", MakeIdentity()), UBSE_ERROR);
+    EXPECT_EQ(
+        service_.AddAccessPermission(
+            "test_agent_rpc", "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111", MakeIdentity()),
+        UBSE_ERROR);
 }
 
 // ============================================================================
@@ -256,7 +277,10 @@ TEST_F(TestUbseSsuServiceImpPerm, RemoveAccessPermission_Success)
     SetupPermLedger("test_remove_perm_success", UbseSsuNsState::CREATED, {ns1, ns2});
 
     auto identity = MakeIdentity();
-    EXPECT_EQ(service_.RemoveAccessPermission("test_remove_perm_success", "nqn.test.host", identity), UBSE_OK);
+    EXPECT_EQ(service_.RemoveAccessPermission("test_remove_perm_success",
+                                              "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                              identity),
+              UBSE_OK);
 }
 
 /*
@@ -269,7 +293,10 @@ TEST_F(TestUbseSsuServiceImpPerm, RemoveAccessPermission_NsNotFoundSkip)
     // Deliberately NOT adding ns1 to collector cache
     SetupPermLedger("test_remove_ns_not_found", UbseSsuNsState::CREATED, {ns1});
 
-    EXPECT_EQ(service_.RemoveAccessPermission("test_remove_ns_not_found", "nqn.test.host", MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(service_.RemoveAccessPermission("test_remove_ns_not_found",
+                                              "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                              MakeIdentity()),
+              UBSE_OK);
 }
 
 // ============================================================================
@@ -287,7 +314,10 @@ TEST_F(TestUbseSsuServiceImpPerm, RemoveAccessPermission_AgentViaRpc)
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
 
-    EXPECT_EQ(service_.RemoveAccessPermission("test_agent_rpc", "nqn.test.host", MakeIdentity()), UBSE_ERROR);
+    EXPECT_EQ(
+        service_.RemoveAccessPermission(
+            "test_agent_rpc", "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111", MakeIdentity()),
+        UBSE_ERROR);
 }
 
 // ============================================================================
@@ -439,12 +469,12 @@ TEST_F(TestUbseSsuServiceImpPerm, GetNsStats_CacheMissRefreshFailed)
  */
 TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_Success)
 {
-    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 4096,
-                              std::string(GUID_SIZE, '\xAA'), std::string(UUID_SIZE, '\xAB'),
-                              100, "test_user", "nqn.default.test");
-    auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 2, 4096,
-                              std::string(GUID_SIZE, '\xBB'), std::string(UUID_SIZE, '\xBC'),
-                              100, "test_user", "nqn.default.test2");
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 4096, std::string(GUID_SIZE, '\xAA'),
+                              std::string(UUID_SIZE, '\xAB'), 100, "test_user",
+                              "nqn.2024-01.org.nvmexpress:uuid:22222222-2222-2222-2222-222222222222");
+    auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 2, 4096, std::string(GUID_SIZE, '\xBB'),
+                              std::string(UUID_SIZE, '\xBC'), 100, "test_user",
+                              "nqn.2024-01.org.nvmexpress:uuid:33333333-3333-3333-3333-333333333333");
     AddNsToCollectorCache(ns1);
     AddNsToCollectorCache(ns2);
     SetupPermLedger("test_verify_success", UbseSsuNsState::CREATED, {ns1, ns2});
@@ -456,9 +486,11 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_Success)
 
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(verifyResp.nsVerifyList.size(), 2u);
-    EXPECT_EQ(verifyResp.nsVerifyList[0].defaultNqn, "nqn.default.test");
+    EXPECT_EQ(verifyResp.nsVerifyList[0].defaultNqn,
+              "nqn.2024-01.org.nvmexpress:uuid:22222222-2222-2222-2222-222222222222");
     EXPECT_EQ(verifyResp.nsVerifyList[0].guid, std::string(GUID_SIZE, '\xAA'));
-    EXPECT_EQ(verifyResp.nsVerifyList[1].defaultNqn, "nqn.default.test2");
+    EXPECT_EQ(verifyResp.nsVerifyList[1].defaultNqn,
+              "nqn.2024-01.org.nvmexpress:uuid:33333333-3333-3333-3333-333333333333");
     EXPECT_EQ(verifyResp.nsVerifyList[1].guid, std::string(GUID_SIZE, '\xBB'));
 }
 

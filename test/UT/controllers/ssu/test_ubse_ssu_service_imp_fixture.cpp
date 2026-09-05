@@ -375,7 +375,8 @@ UbseSsuSpaceReq UbseSsuServiceImpTestBase::MakeSpaceReq(const std::string &name,
 {
     UbseSsuSpaceReq req;
     req.name = name;
-    req.nqn = nqn;
+    // 空nqn填充合法默认值，适配IsValidHostNqn校验
+    req.nqn = nqn.empty() ? "nqn.2024-01.org.nvmexpress:uuid:00000000-0000-0000-0000-000000000000" : nqn;
     req.identity = identity;
     return req;
 }
@@ -462,7 +463,9 @@ UbseSsuDevNameSpace UbseSsuServiceImpTestBase::MakeNsForCache(const std::string 
     ns.nsOptions.flbas = 0;
     ns.customData.uid = uid;
     std::strncpy(ns.customData.userName, userName.c_str(), sizeof(ns.customData.userName) - 1);
+    ns.customData.userName[sizeof(ns.customData.userName) - 1] = '\0';
     std::strncpy(ns.customData.defaultNqn, defaultNqn.c_str(), sizeof(ns.customData.defaultNqn) - 1);
+    ns.customData.defaultNqn[sizeof(ns.customData.defaultNqn) - 1] = '\0';
     ns.subSystem.jettyId = 1;
     return ns;
 }

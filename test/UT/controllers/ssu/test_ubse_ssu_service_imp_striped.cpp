@@ -48,7 +48,8 @@ UbseSsuStripedSpaceReq TestUbseSsuServiceImpStriped::MakeStripedReq(const std::s
     req.devName = devName;
     req.level = level;
     req.chunkSize = chunkSize;
-    req.nqn = nqn;
+    // 空nqn填充合法默认值，适配IsValidHostNqn校验
+    req.nqn = nqn.empty() ? "nqn.2024-01.org.nvmexpress:uuid:00000000-0000-0000-0000-000000000000" : nqn;
     req.identity = identity;
     return req;
 }
