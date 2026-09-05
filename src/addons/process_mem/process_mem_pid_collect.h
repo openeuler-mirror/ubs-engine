@@ -29,6 +29,10 @@
 
 namespace process_mem::collect {
 
+// move_pages 采样默认每进程样本数: 精度 ±5% 级 (p=0.3 时 s.e.≈1.5%), 每样本成本
+// 冷页表 ~0.4us / 热页表 ~0.06us, 256 页对大进程一轮 <0.2ms
+inline constexpr size_t kDefaultSamplePages = 256;
+
 struct PidCollectEntry {
     uint64_t vmRssKb{0};
     bool rootFiltered{false};
@@ -59,6 +63,13 @@ public:
     void UnRegisterVmRssCollectHandler(const std::string& name);
 
     uint32_t CollectProcessNumaMemDistribution(pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution);
+
+    // move_pages 采样版分布采集: 均匀抽样查询每页所在节点, 以"驻留样本占比 × VmRSS"估计各节点
+    // 字节数(近似值); 开销与进程内存大小弱相关(冷/热两档), 适合大进程/周期采集; 精确场景
+    // (如迁回收敛判定)仍用 CollectProcessNumaMemDistribution
+    uint32_t CollectProcessNumaMemDistributionBySample(pid_t pid,
+                                                       std::unordered_map<uint32_t, size_t>& numaMemDistribution,
+                                                       size_t samplePages = kDefaultSamplePages);
 
     std::optional<uint64_t> GetLocalNumaFreeKb();
 

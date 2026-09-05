@@ -35,6 +35,7 @@
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_decision.h"
 #include "process_mem_pid_info_manager.h"
+#include "process_mem_pid_migrate_ledger.h"
 namespace process_mem::pid::bridge {
 UBSE_DEFINE_THIS_MODULE("process_mem");
 // 具名权限对象, 便于在 [auth.role.default] 中按角色授权; 未授权时非内置用户 fail-closed
@@ -523,6 +524,8 @@ uint32_t ProcessMemPidBridge::Init()
 
     process_mem::manager::ProcessMemPidInfoManager::GetInstance().Init();
 
+    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().Init();
+
     auto decisionRet = process_mem::decision::ProcessMemPidDecision::GetInstance().Init();
     if (decisionRet != UBSE_OK) {
         UBSE_LOG_ERROR << "ProcessMemPidDecision Init failed, " << ubse::log::FormatRetCode(decisionRet);
@@ -538,6 +541,7 @@ uint32_t ProcessMemPidBridge::UnInit()
         dlclose(memPoolingHandle);
     }
     process_mem::decision::ProcessMemPidDecision::GetInstance().UnInit();
+    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().UnInit();
     process_mem::manager::ProcessMemPidInfoManager::GetInstance().UnInit();
     return UBSE_OK;
 }

@@ -30,6 +30,7 @@
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_info_manager.h"
+#include "process_mem_pid_migrate_ledger.h"
 #include "trace_context.h"
 
 namespace process_mem::decision {
@@ -1266,8 +1267,20 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
                                               const std::vector<std::pair<int, uint64_t>>& numaTargets)
 {
-    return pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets,
-                                                               debtId.empty() ? "" : "debt_id=" + debtId);
+    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets,
+                                                                  debtId.empty() ? "" : "debt_id=" + debtId);
+    if (ret != 0) {
+        return ret;
+    }
+    // migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
+    // 镜像, 不依赖 smap 查询; 当前声明不带源节点, 暂记 src=0; 空声明(清残留配置)清空该 pid
+    auto& migrateLedger = process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance();
+    if (numaTargets.empty()) {
+        migrateLedger.ClearPid(pid);
+    } else {
+        migrateLedger.ReplacePidRows(pid, 0, numaTargets);
+    }
+    return ret;
 }
 
 void ProcessMemPidDecision::CheckTimeouts(uint64_t roundNum)
@@ -2712,6 +2725,11 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
                   << " remote_to_remote migrated ok old_remote_numa=" << ctx.oldRemoteNuma
                   << " new_remote_numa=" << out.remoteNuma << " new_debt_id=" << out.debtId
                   << " migrate_gb=" << BytesToGbDouble(migrateBytes);
+
+    // r2r 同步迁移成功即数据到位: 台账按迁移量增减(旧 numa 减、新 numa 加), 部分迁移时
+    // 不整行替换, 保留旧 numa 上其余债务的声明量
+    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().MoveRowBytes(pid, 0, ctx.oldRemoteNuma,
+                                                                                out.remoteNuma, migrateBytes);
 
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidBorrowStateAtomic(
         pid,

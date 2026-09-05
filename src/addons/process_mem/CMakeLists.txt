@@ -5,6 +5,7 @@ set(PROCESS_MEM_SOURCES
     process_mem_pid_collect.cpp
     process_mem_pid_config_manager.cpp
     process_mem_pid_decision.cpp
+    process_mem_pid_migrate_ledger.cpp
     process_mem_plugin.cpp
 )
 add_library(process_mem SHARED ${PROCESS_MEM_SOURCES})
