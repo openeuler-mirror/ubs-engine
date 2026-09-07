@@ -37,6 +37,12 @@ constexpr const char *VIP_CRL_FILE = "/var/lib/ubse/vip_server_cert/ca.crl";
 constexpr const char *VIP_SERVER_KEY_FILE = "/var/lib/ubse/vip_server_cert/server_key.pem";
 constexpr const char *VIP_PASSWORD_FILE = "/var/lib/ubse/vip_server_cert/key_pwd.txt";
 
+// 容器模式 master 持续未收到注入时的延迟绑定次数阈值,超过后升级为 ERROR 告警
+constexpr uint32_t kInjectionTimeoutDeferThreshold = 10;
+
+// 网卡名合法字符白名单,InjectConfig 与 ReadIfaceFromFile 共用,避免热路径重复编译 NFA
+const std::regex kIfacePattern("^[a-zA-Z0-9._-]+$");
+
 UbseCertPaths MakeVipCertPaths()
 {
     UbseCertPaths paths;
@@ -75,8 +81,21 @@ UbseResult UbseVipManager::Init(const UbseVipConfig &config)
     std::lock_guard<std::mutex> lock(mutex_);
     config_ = config;
 
+    // Init 是完整重新初始化:重置运行期状态,避免重复 Init(如进程内重载/测试)时
+    // 残留的 configured_/active_ 等标志引发误绑定或误跳过延迟绑定分支
+    configured_ = false;
+    active_ = false;
+    deferBindCount_ = 0;
+
     if (!config_.enable) {
         UBSE_LOG_INFO << "[VIP] VIP management is disabled";
+        return UBSE_OK;
+    }
+
+    if (config_.containerMode) {
+        // 容器模式二段式:先启动等待 UDS 注入,延迟的是 listenIp/网卡/证书的预校验;
+        // 实际 BindVip 时(StartHttpServer useSsl)仍要求证书文件就绪。
+        UBSE_LOG_INFO << "[VIP] container mode init, waiting for UDS injection";
         return UBSE_OK;
     }
 
@@ -147,11 +166,30 @@ UbseResult UbseVipManager::BindVip()
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    active_ = true;   // 记录 master 角色
+
     if (!config_.enable) {
         UBSE_LOG_DEBUG << "[VIP] VIP management is disabled, skip bind";
         return UBSE_OK;
     }
 
+    // 容器模式 + 配置未注入 → 延迟绑定,不报错,避免选举 handler 返回错误;
+    // 计数并在超过阈值后升级为 ERROR,让"缺 helper/注入永久未到达"的部署在监控上可见。
+    if (config_.containerMode && !configured_) {
+        ++deferBindCount_;
+        UBSE_LOG_WARN << "[VIP] container mode: waiting for injection, defer bind (count=" << deferBindCount_ << ")";
+        if (deferBindCount_ >= kInjectionTimeoutDeferThreshold) {
+            UBSE_LOG_ERROR << "[VIP] VIP still unbound after " << deferBindCount_
+                           << " defer attempts; check ubse-helper DaemonSet and UDS socket";
+        }
+        return UBSE_OK;
+    }
+
+    return BindVipLocked();
+}
+
+UbseResult UbseVipManager::BindVipLocked()
+{
     if (vipBound_) {
         UBSE_LOG_WARN << "[VIP] VIP already bound, skip";
         return UBSE_OK;
@@ -179,6 +217,7 @@ UbseResult UbseVipManager::BindVip()
     UBSE_LOG_INFO << "[VIP] HTTP server started successfully";
 
     vipBound_ = true;
+    deferBindCount_ = 0;   // 绑定成功后清零,避免主备切换后误报 ERROR
     UBSE_LOG_INFO << "[VIP] VIP bound successfully";
     return UBSE_OK;
 }
@@ -186,6 +225,8 @@ UbseResult UbseVipManager::BindVip()
 UbseResult UbseVipManager::UnbindVip()
 {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    active_ = false;   // 记录降为 standby/agent
 
     if (!config_.enable) {
         UBSE_LOG_DEBUG << "[VIP] VIP management is disabled, skip unbind";
@@ -214,6 +255,72 @@ bool UbseVipManager::IsVipBound() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return vipBound_;
+}
+
+UbseResult UbseVipManager::InjectConfig(uint32_t addr, uint16_t port, uint8_t prefix, const std::string &iface)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!config_.containerMode) {
+        UBSE_LOG_ERROR << "[VIP] InjectConfig rejected: not container mode";
+        return UBSE_ERR_INVALID_ARG;
+    }
+
+    // 字段校验:handler 负责 payload 结构(长度/空指针),本函数负责数值范围与业务合法性
+    std::string newAddr = UbseNetUtil::IntToIpV4(addr);
+    if (addr == 0 || !UbseNetUtil::ValidIpv4Addr(newAddr) || UbseNetUtil::IsSpecialIP(newAddr)) {
+        UBSE_LOG_ERROR << "[VIP] InjectConfig invalid addr: " << newAddr;
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (port < 1024 || port > 65535) {
+        UBSE_LOG_ERROR << "[VIP] InjectConfig invalid port: " << port;
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (prefix == 0 || prefix > 32) {
+        UBSE_LOG_ERROR << "[VIP] InjectConfig invalid prefix: " << static_cast<uint32_t>(prefix);
+        return UBSE_ERR_INVALID_ARG;
+    }
+    if (iface.empty() || iface.size() > 15 || !std::regex_match(iface, kIfacePattern)) {
+        UBSE_LOG_ERROR << "[VIP] InjectConfig invalid iface: " << iface;
+        return UBSE_ERR_INVALID_ARG;
+    }
+
+    configured_ = true;
+
+    // 变更检测
+    bool changed = (newAddr != config_.address) || (port != config_.listenPort) ||
+                   (prefix != config_.prefix) || (iface != config_.interface);
+    if (!changed) {
+        // 心跳重推:配置未变但 master 尚未绑定(此前 bind 失败/注入丢失)→ 补 bind
+        if (active_ && !vipBound_) {
+            UBSE_LOG_INFO << "[VIP] config unchanged, master re-bind (heartbeat recovery)";
+            return BindVipLocked();
+        }
+        UBSE_LOG_INFO << "[VIP] config unchanged, no-op";
+        return UBSE_OK;
+    }
+
+    // 落地新配置
+    config_.address = std::move(newAddr);
+    config_.listenPort = port;
+    config_.prefix = prefix;
+    config_.interface = iface;
+    UBSE_LOG_INFO << "[VIP] config injected: " << config_.address << "/" << config_.prefix
+                  << ":" << config_.listenPort << " @" << config_.interface;
+
+    // 非 master 仅保存
+    if (!active_) {
+        UBSE_LOG_INFO << "[VIP] not master, config stored only";
+        return UBSE_OK;
+    }
+
+    // master 热更新:先解绑旧 VIP 再绑新 VIP
+    if (vipBound_) {
+        StopHttpServer();
+        UnbindVipL2();
+        vipBound_ = false;
+    }
+    return BindVipLocked();
 }
 
 UbseResult UbseVipManager::StartHttpServer()
@@ -326,8 +433,7 @@ UbseResult UbseVipManager::ResolveInterface()
     }
 
     // 校验接口名仅包含合法字符，防止命令注入
-    std::regex ifacePattern("^[a-zA-Z0-9._-]+$");
-    if (!std::regex_match(iface, ifacePattern)) {
+    if (!std::regex_match(iface, kIfacePattern)) {
         UBSE_LOG_ERROR << "[VIP] Invalid interface name: " << iface;
         return UBSE_ERROR;
     }

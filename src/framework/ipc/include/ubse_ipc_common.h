@@ -25,6 +25,7 @@ typedef enum {
     UBSE_URMA = 0x0005,
     UBSE_NPU = 0x0006,
     UBSE_SSU = 0x0007,
+    UBSE_VIP = 0x0008, // VIP 框架模块,容器模式经 UDS 注入配置
 } ubse_ipc_module_code_t;
 
 typedef enum {
@@ -143,8 +144,12 @@ typedef enum {
     UBSE_IPC_SSU_DETACH_STRIPED_SPACE = 0x0011,     // 卸载条带化空间请求
     UBSE_IPC_SSU_GET_FE_DEVICE_LIST = 0x0012,       // 查询FE设备列表请求
     UBSE_IPC_SSU_FE_DEVICE_ALLOC = 0x0013,          // 分配VFE设备请求
-    UBSE_IPC_SSU_FE_DEVICE_FREE = 0x0014,           // 释放VFE设备请求
+    UBSE_IPC_SSU_FE_DEVICE_FREE = 0x0014,       // 释放VFE设备请求
 } ubse_ipc_ssu_op_code_t;
+
+typedef enum {
+    UBSE_VIP_CFG_PUSH = 0x0001, // helper 经 UDS 推送 VIP 配置(addr/port/prefix/iface)
+} ubse_ipc_vip_op_code_t;
 #ifdef __cplusplus
 }
 #endif

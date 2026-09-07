@@ -13,8 +13,11 @@
 #ifndef UBSE_VIP_MODULE_H
 #define UBSE_VIP_MODULE_H
 
+#include <memory>
+
 #include "ubse_module.h"
 #include "ubse_vip_manager.h"
+#include "ubse_vip_injection_handler.h"
 #include "ubse_election.h"
 #include "ubse_common_def.h"
 
@@ -37,6 +40,8 @@ private:
     UbseResult LoadConfig();
     UbseResult RegisterElectionHandlers();
     void UnregisterElectionHandlers();
+    UbseResult RegisterContainerInjectionHandler();
+    void UnregisterContainerInjectionHandler();
 
     uint32_t HandleChangeToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
     uint32_t HandleStandbyChangeToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
@@ -44,6 +49,8 @@ private:
     uint32_t HandleChangeToAgent(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
 
     UbseVipConfig config_;
+    // shared_ptr + weak_ptr 捕获:注销时 reset，在飞 Handle 由 lock 出的 shared_ptr 保活，避免 use-after-free
+    std::shared_ptr<UbseVipInjectionHandler> injectionHandler_;   // 容器模式 UDS 注入处理器
 };
 
 } // namespace ubse::vip
