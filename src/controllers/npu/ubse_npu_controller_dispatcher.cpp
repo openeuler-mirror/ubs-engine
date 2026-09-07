@@ -63,13 +63,13 @@ static UbseResult ExecuteDispatcher(const UbseIpcMessage& req, const UbseRequest
 
 UbseResult QueryLocalUbDevices(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
-    UBSE_LOG_INFO << "Received QueryLocalUbDevices request";
+    UBSE_LOG_DEBUG << "Received QueryLocalUbDevices request";
     auto ret = ExecuteDispatcher(req, context, QueryDeviceExecute);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "QueryLocalUbDevices failed, " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "QueryLocalUbDevices success";
+    UBSE_LOG_DEBUG << "QueryLocalUbDevices success";
     return UBSE_OK;
 }
 

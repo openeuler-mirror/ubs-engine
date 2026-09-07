@@ -14,6 +14,7 @@
 
 #include <unistd.h>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <queue>
@@ -138,7 +139,8 @@ public:
         RUNNING_ALLOC, // 使能中
         RUNNING_FREE,  // 去使能中
         FREE_BG,       // 后台去使能
-        INIT           // 初始化
+        INIT,          // 初始化
+        REFRESHING     // 查询触发的NIC数据刷新中
     };
     std::condition_variable cv_;
     std::mutex mtx_;
@@ -259,26 +261,57 @@ void StartCollect()
     }
 }
 
+// RAII状态机guard：构造时等待AVAILABLE并置targetState，析构时归还AVAILABLE。
+// 覆盖所有return和异常逃逸路径，防止状态机卡死在非AVAILABLE状态。
+// 需要切换到ROLLBACK/FREE_BG等非AVAILABLE状态时调用Release()解除guard后再手动SetState。
+class NpuManagerStateGuard {
+public:
+    explicit NpuManagerStateGuard(UbseNpuManagerApi::NpuManagerState targetState)
+        : manager_(UbseNpuManagerApi::GetInstance()),
+          targetState_(targetState)
+    {
+        std::unique_lock<std::mutex> lock(manager_.mtx_);
+        manager_.cv_.wait(lock,
+                          [this] { return manager_.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
+        manager_.SetState(targetState_);
+    }
+    ~NpuManagerStateGuard()
+    {
+        if (!released_) {
+            try {
+                manager_.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+            } catch (...) {
+                // SetState(AVAILABLE)不应抛出；防御性捕获保证析构不逃逸
+            }
+        }
+    }
+    void Release()
+    {
+        released_ = true;
+    }
+    NpuManagerStateGuard(const NpuManagerStateGuard&) = delete;
+    NpuManagerStateGuard& operator=(const NpuManagerStateGuard&) = delete;
+
+private:
+    UbseNpuManagerApi& manager_;
+    UbseNpuManagerApi::NpuManagerState targetState_;
+    bool released_ = false;
+};
+
 UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& newBusInstanceGuid,
                             std::vector<std::shared_ptr<IResource>>& devList)
 {
-    auto& manager = UbseNpuManagerApi::GetInstance();
     if (CheckCollection("alloc npu, nic devices") != UBSE_OK) {
         return UBSE_ERROR;
     }
-    {
-        std::unique_lock<std::mutex> lock(manager.mtx_);
-        manager.cv_.wait(lock,
-                         [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
-    }
+    // RAII：等待AVAILABLE→置RUNNING_ALLOC，析构（含异常逃逸）自动归还AVAILABLE
+    NpuManagerStateGuard stateGuard(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
 
     auto& collection = ResourceCollection::GetInstance();
 
     // 如果传入newBusInstanceGuid， 校验(不存在则返回入参错误）
     if (!requestInfo.busInstanceGuid.empty() and collection.GetDeviceByGuid(requestInfo.busInstanceGuid) == nullptr) {
         UBSE_LOG_ERROR << "Bus Instance Guid is invalid";
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
@@ -288,25 +321,24 @@ UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& ne
     auto ret = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get alloc npu,nic pfe,nic vfe device list from collection";
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return ret; // 如果绑定失败，返回错误码
     }
 
     ret = AllocDevicesAction(requestInfo, newBusInstanceGuid, npuList, nicPfeList, nicVfeList);
     if (ret != UBSE_OK) {
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::ROLLBACK);
+        // 需要切换到ROLLBACK（SetState(ROLLBACK)会调用RollBack()），解除guard后手动切换
+        stateGuard.Release();
+        UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::ROLLBACK);
         return ret;
     }
 
     ret = ListAllocDevices(requestInfo, devList, newBusInstanceGuid);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Success to alloc npu,nic devices but failed to transfer devlist info to resource";
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return ret;
     }
 
     ClearEmptyVMBusInstance();
-    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
     return UBSE_OK;
 }
 
@@ -418,30 +450,23 @@ UbseResult UbseGetAllocDeviceList(const UbseAllocRequest& requestInfo,
 
 UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
 {
-    auto& manager = UbseNpuManagerApi::GetInstance();
     if (CheckCollection("free ub device") != UBSE_OK) {
         return UBSE_ERROR;
     }
-    {
-        std::unique_lock<std::mutex> lock(manager.mtx_);
-        manager.cv_.wait(lock,
-                         [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
-    }
+    // RAII：等待AVAILABLE→置RUNNING_FREE，析构（含异常逃逸）自动归还AVAILABLE
+    NpuManagerStateGuard stateGuard(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
 
     auto& collection = ResourceCollection::GetInstance();
     std::shared_ptr<CollectionDeviceBusi> busInstance = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(
         collection.GetDeviceByGuid(requestInfo.busInstanceGuid));
 
     if (CheckBusi(busInstance) != UBSE_OK) {
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
     uint16_t upi;
     if (ConvertStrToUint16(busInstance->GetUpiStr(), upi, HEX_RADIX) != UBSE_OK) {
         UBSE_LOG_ERROR << "Invalid upi:" << busInstance->GetUpiStr();
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
         return UBSE_ERROR_INVAL;
     }
 
@@ -456,7 +481,6 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
         std::shared_ptr<CollectionDeviceDavid> npu = vfe->GetBondingDevDavid();
         if (npu == nullptr) {
             UBSE_LOG_ERROR << "Failed to get bonding npu device for vfe " << vfe->GetIdStr();
-            manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
             return UBSE_ERROR;
         }
         npus.push_back(npu);
@@ -466,12 +490,13 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo)
     tmpRequest.upiStr = upi;
     auto ret = FreeUbDevicesAction(tmpRequest, npus, nicPfes, nicVfes);
     if (ret != UBSE_OK) {
-        manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
+        // 需要切换到FREE_BG（SetState(FREE_BG)会执行后台释放），解除guard后手动切换
+        stateGuard.Release();
+        UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
         UBSE_LOG_ERROR << "Failed to free ub device";
         return UBSE_ERROR; // 去使能阶段调用某个lcne协议接口失败
     }
 
-    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
     UBSE_LOG_INFO << "Success to free bus instance " << requestInfo.busInstanceGuid
                   << " and its related npu,nic devices";
 
@@ -503,7 +528,6 @@ std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryVmBusInstanc
     CollectionDevIdToDevice vmMap;
     auto res = collection.GetDevicesByType(CollectionDeviceType::VM_BUSINSTANCE, vmMap);
     if (res != UBSE_OK || vmMap.empty()) {
-        UBSE_LOG_WARN << "Failed to get vm bus instances";
         return {res, vmBusInstances};
     }
 
@@ -604,11 +628,19 @@ std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryNicVfeDevice
 
 UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>>& devList)
 {
-    auto& manager = UbseNpuManagerApi::GetInstance();
     if (CheckCollection("query ub device") != UBSE_OK) {
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "Start to query all bus instances and nic, npu devices...";
+    // RAII：等待AVAILABLE→置REFRESHING，析构（含异常逃逸）自动归还AVAILABLE，
+    // 使"NIC刷新写+本地读"与并发查询、alloc/free互斥，消除设备对象字段的数据竞争
+    NpuManagerStateGuard stateGuard(UbseNpuManagerApi::NpuManagerState::REFRESHING);
+
+    // 刷新主体：失败仅记WARN，不阻断查询，沿用本地已有数据
+    auto ret = ResourceCollection::GetInstance().ValidateAndRefreshNic();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "ValidateAndRefreshNic failed, " << FormatRetCode(ret) << ", continue with stale data";
+    }
+    UBSE_LOG_DEBUG << "Start to query all bus instances and nic, npu devices...";
     auto& collection = ResourceCollection::GetInstance();
     // 查询并处理 VM bus instances
     auto vmBusInstances = QueryVmBusInstances(collection);
@@ -2038,6 +2070,8 @@ void UbseNpuManagerApi::SetState(NpuManagerState stateX)
         retryTime_ = COMMON_RETRY_TIME;
         ExecuteFreeQueueBackGround();
     } else if (stateX == NpuManagerState::ROLLBACK_BG) {
+        retryTime_ = COMMON_RETRY_TIME;
+    } else if (stateX == NpuManagerState::REFRESHING) {
         retryTime_ = COMMON_RETRY_TIME;
     }
 }

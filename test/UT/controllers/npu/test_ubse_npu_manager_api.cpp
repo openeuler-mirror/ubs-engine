@@ -10,9 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "test_ubse_npu_manager_api.h"
+#include <thread>
+
 #include "ubse_os_util.h"
 #include "out_of_band/ubse_mti_bus_instance_out_of_band.h"
+#include "test_ubse_npu_manager_api.h"
 // 缩短 CheckNicH2NLinkStatus 的 sleep 与重试次数，避免 UT 长耗时
 #define UBSE_UT_FAST_RETRY
 #include "ubse_npu_manager_api.cpp"
@@ -419,6 +421,47 @@ TEST_F(TestUbseNpuManagerApi, StateTransitionsFromInitToAvailable)
     EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::INIT);
 
     manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+}
+
+/*
+ * ============================================================================
+ * 查询状态机互斥测试（S1-01数据竞争修复：REFRESHING覆盖刷新+读阶段）
+ * ============================================================================
+ */
+TEST_F(TestUbseNpuManagerApi, QueryUbaTidSizeNotBlockedByAllocState)
+{
+    // uba tid size数据由ctrlq实时查询，不参与状态机等待、无本地锁：
+    // alloc进行中（RUNNING_ALLOC）应立即返回guid未找到错误，不被阻塞
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+    UbaTidSize info;
+    EXPECT_EQ(QueryUbaTidSizeImpl("test-guid", info), UBSE_ERROR);
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryAllDevicesWaitsForAvailableThenRestores)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+    MOCKER_CPP(&ResourceCollection::GetState).stubs().will(returnValue(CollectionState::FINISH));
+    // 1825列表查询失败：刷新仅记WARN不阻断查询，沿用本地数据
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList).stubs().will(returnValue(UBSE_ERROR));
+    std::vector<std::shared_ptr<IResource>> devList;
+    std::atomic<bool> done = false;
+    std::thread worker([&devList, &done] {
+        EXPECT_EQ(QueryAllDevicesImpl(devList), UBSE_OK);
+        done = true;
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    // 等待AVAILABLE期间查询被阻塞
+    EXPECT_FALSE(done.load());
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    worker.join();
+    EXPECT_TRUE(done.load());
+    // 查询结束恢复AVAILABLE，不遗留REFRESHING阻塞后续alloc/free
     EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
 }
 
