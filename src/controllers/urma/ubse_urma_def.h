@@ -50,7 +50,7 @@ enum class FeType
 enum class FeTopoType
 {
     INVALID = 0,        // 无效值
-    ALL_PFE = 1,        // 6 PFE，全物理FE
+    ALL_PFE = 1,        // 3 PFE，全物理FE
     PFE_VFE_HYBRID = 2, // 1 PFE + 5 VFE，物理/虚拟混合
 };
 

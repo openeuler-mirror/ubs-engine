@@ -11,12 +11,15 @@
  */
 
 #include "test_ubse_urma_controller_rpc.h"
+#include <functional>
 #include <map>
 #include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
+#include "ubse_thread_pool.h"
+#include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_controller_util.h"
@@ -37,6 +40,12 @@ using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::nodeController;
 using namespace ubse::adapter_plugins::smbios;
+
+bool ExecuteTaskImmediately(task_executor::UbseTaskExecutor*, std::function<void()> task)
+{
+    task();
+    return true;
+}
 
 TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo)
 {
@@ -830,6 +839,28 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaAsyncBrocastUrmaInfo_NullTaskExecutor)
 TEST_F(TestUbseUrmaControllerRpc, PostUpdateUrmaInfosTask_NullTaskExecutor)
 {
     EXPECT_EQ(PostUpdateUrmaInfosTask({}), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseUrmaControllerRpc, PostUpdateUrmaInfosTask_UsesTwentyMillisecondRetryInterval)
+{
+    auto taskModule = std::make_shared<task_executor::UbseTaskExecutorModule>();
+    auto executor = task_executor::UbseTaskExecutor::Create("UrmaExecutor", 1, 1);
+    ASSERT_NE(executor, nullptr);
+    MOCKER_CPP(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER_CPP(&task_executor::UbseTaskExecutorModule::Get)
+        .stubs()
+        .with(eq(std::string("UrmaExecutor")))
+        .will(returnValue(executor));
+    MOCKER_CPP(&task_executor::UbseTaskExecutor::Execute,
+               bool (task_executor::UbseTaskExecutor::*)(const std::function<void()>&))
+        .stubs()
+        .will(invoke(ExecuteTaskImmediately));
+    MOCKER_CPP(HandleTaskWithRetry)
+        .expects(once())
+        .with(eq(std::string("UrmaExecutor")), eq(std::string("UrmaUpdateUrmaInfoRetryTimer")), eq(20U), _)
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(PostUpdateUrmaInfosTask({}), UBSE_OK);
 }
 
 } // namespace ubse::urmaControllerRpc::ut

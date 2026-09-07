@@ -413,7 +413,8 @@ UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t>& urmaIn
             return DoUpdateUrmaInfos(updateNodeIds);
         };
         std::string taskName = "UrmaUpdateUrmaInfoRetryTimer";
-        HandleTaskWithRetry(executorName, taskName, NO_10, task);
+        const uint32_t retryInterval = 20;
+        HandleTaskWithRetry(executorName, taskName, retryInterval, task);
     });
     return UBSE_OK;
 }
