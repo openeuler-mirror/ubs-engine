@@ -488,4 +488,61 @@ TEST_F(TestUbseNpuMsgExecute, UbseAllocRequestUnpack_IsAllocValidUpi_Success)
     EXPECT_EQ(requestInfo.upiStr, 0x0010);
 }
 
+TEST_F(TestUbseNpuMsgExecute, QueryProductTypeExecute_Server)
+{
+    TransReqMsg req{nullptr, 0};
+    TransRespMsg resp{nullptr, 0};
+
+    ProductType productType = ProductType::SERVER;
+    MOCKER(GetProductTypeImpl).stubs().with(outBound(productType)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(QueryProductTypeExecute(req, resp), UBSE_OK);
+    EXPECT_NE(resp.buffer, nullptr);
+    EXPECT_EQ(resp.length, sizeof(uint8_t));
+    EXPECT_EQ(resp.buffer[0], static_cast<uint8_t>(ProductType::SERVER));
+    delete[] resp.buffer;
+}
+
+TEST_F(TestUbseNpuMsgExecute, QueryProductTypeExecute_Pod16)
+{
+    TransReqMsg req{nullptr, 0};
+    TransRespMsg resp{nullptr, 0};
+
+    ProductType productType = ProductType::POD_16_1825;
+    MOCKER(GetProductTypeImpl).stubs().with(outBound(productType)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(QueryProductTypeExecute(req, resp), UBSE_OK);
+    EXPECT_NE(resp.buffer, nullptr);
+    EXPECT_EQ(resp.length, sizeof(uint8_t));
+    EXPECT_EQ(resp.buffer[0], static_cast<uint8_t>(ProductType::POD_16_1825));
+    delete[] resp.buffer;
+}
+
+TEST_F(TestUbseNpuMsgExecute, QueryProductTypeExecute_Pod32)
+{
+    TransReqMsg req{nullptr, 0};
+    TransRespMsg resp{nullptr, 0};
+
+    ProductType productType = ProductType::POD_32_1825;
+    MOCKER(GetProductTypeImpl).stubs().with(outBound(productType)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(QueryProductTypeExecute(req, resp), UBSE_OK);
+    EXPECT_NE(resp.buffer, nullptr);
+    EXPECT_EQ(resp.length, sizeof(uint8_t));
+    EXPECT_EQ(resp.buffer[0], static_cast<uint8_t>(ProductType::POD_32_1825));
+    delete[] resp.buffer;
+}
+
+TEST_F(TestUbseNpuMsgExecute, QueryProductTypeExecute_GetProductTypeFailed)
+{
+    TransReqMsg req{nullptr, 0};
+    TransRespMsg resp{nullptr, 0};
+
+    ProductType productType = ProductType::SERVER;
+    MOCKER(GetProductTypeImpl).stubs().with(outBound(productType)).will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(QueryProductTypeExecute(req, resp), UBSE_ERROR);
+    EXPECT_EQ(resp.buffer, nullptr);
+}
+
 } // namespace ubse::npu::controller::ut

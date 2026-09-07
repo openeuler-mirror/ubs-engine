@@ -59,6 +59,28 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         finally:
             self._ubs_npu_device_list_free(devlist)
 
+    def ubs_get_product_type(self):
+        """
+        查询产品类型
+
+        Returns:
+            int: 产品类型 (0=SERVER, 1=POD_16_1825, 2=POD_32_1825)
+        """
+        if not self.lib_ubse:
+            raise ConnectionError("Native library not loaded")
+        try:
+            logger.info("Querying product type...")
+            product_type = ctypes.c_int(0)
+            result = self.lib_ubse.ubs_npu_product_type_query(
+                ctypes.byref(product_type)
+            )
+            if result != 0:
+                raise RuntimeError("Querying product type failed.")
+            return product_type.value
+        except Exception as ex:
+            logger.error(f"Unexpected error in ubs_get_product_type: {ex}")
+            raise
+
     def ubs_device_alloc(self, upi, bus_guid, device_list):
         """
         分配NPU设备
@@ -566,6 +588,9 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
 
         self.lib_ubse.ubs_npu_device_list_free.argtypes = [POINTER(UbsUbDevicesListT)]
         self.lib_ubse.ubs_npu_device_list_free.restype = None
+
+        self.lib_ubse.ubs_npu_product_type_query.argtypes = [POINTER(ctypes.c_int)]
+        self.lib_ubse.ubs_npu_product_type_query.restype = ctypes.c_int32
 
         self.lib_ubse.ubs_uba_tid_size_query.argtypes = [POINTER(ctypes.c_uint8), POINTER(ctypes.c_uint32),
                                                          POINTER(ctypes.c_uint64), POINTER(ctypes.c_uint64)]
