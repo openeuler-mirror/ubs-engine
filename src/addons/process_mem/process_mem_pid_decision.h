@@ -125,9 +125,9 @@ private:
 
     void AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
-    // 整笔借用超所有可借节点容量(803)后的 fallback: need 按 blockSize 整块折半拆分,
-    // 每块独立债务串行创建+迁移, 由多个借出节点凑足; 不做次数限制, 最小块 1 个 blockSize
-    // 仍失败即跳过本轮, 尾差留待下轮整粒度重借
+    // 整笔借用超所有可借节点容量(803)后的递归对半拆分: 两块独立债务(总和恰等于整笔)各建槽后
+    // 并发投递 executor 下发, 子块再容量不足继续折半(跨任务递归); 不做次数限制, 最小块 1 个
+    // blockSize 仍失败即终止该支, 缺口回 shortage 由下轮整粒度重借收敛
     void SplitBorrowIntoChunks(pid_t pid, uint64_t need, int srcNumaId, uint64_t roundNum);
 
     bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum);

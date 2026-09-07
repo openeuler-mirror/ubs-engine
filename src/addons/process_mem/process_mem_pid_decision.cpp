@@ -1140,7 +1140,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     CreatedDebtInfo created;
     uint32_t createRet = UBSE_OK;
     if (!CreateNumaDebt(pid, need, srcNumaId, debtId, roundNum, created, createRet)) {
-        // 借用额超过所有单借出节点可借容量(典型 801): 折半拆分小块, 由多个借出节点串行凑足;
+        // 借用额超所有可借节点容量(803): 递归对半拆分, 分块债务独立并发下发由多个借出节点凑足;
         // 非容量类失败维持原语义(槽已由 CreateNumaDebt 内部移除, 下轮重试)
         if (IsNoCapacity(createRet)) {
             SplitBorrowIntoChunks(pid, need, srcNumaId, roundNum);
@@ -1176,76 +1176,50 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
                   << " numa_target_migrate";
 }
 
-// 整笔借用(need)超所有可借节点容量(803)失败后调用: 按 blockSize 整块折半(need 本身已 block 对齐,
-// 折半取 floor 整块, 每块保持 blockSize 整数倍)逐块独立债务串行创建+迁移, 由多个借出节点凑足;
-// 不做次数/预算限制——只要返回 size 不足类错误就持续折半, 唯一结构终止: 折半到最小粒度 1 个
-// blockSize 仍失败(或块数本身不足 1 块)即跳过本轮, 尾差留待下轮整粒度重借
+// 递归语义: 整笔借用容量不足(803)时对半拆成两块(need 已 block 对齐, 折半取 floor 整块, 两块
+// 总和恰好等于整笔)各记一个 BORROWING 槽, 并发投递 borrowExecutor_ 独立创建+迁移, 由多个借出
+// 节点并行凑足; 块间无状态依赖——每块债务自洽, smap 迁移经 pid 锁串行化——故无需在父任务内
+// 串行轮询扣减。子块再容量不足经 AsyncBorrowAndMigrate 触发本函数继续折半(跨任务递归, 函数即
+// 返回不阻塞); 不做次数限制, 唯一结构终止: 最小粒度 1 个 blockSize 仍失败, 缺口回 shortage 由
+// 下一轮整粒度重借收敛(跨轮递归)
 void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int srcNumaId, uint64_t roundNum)
 {
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
     if (blockSizeBytes == 0) {
         return;
     }
-    uint64_t remaining = need;
-    uint64_t chunk = (need / blockSizeBytes / 2) * blockSizeBytes;
-    while (remaining > 0) {
-        if (chunk > remaining) {
-            chunk = remaining;
-        }
-        if (chunk < blockSizeBytes) {
-            break;
-        }
-        std::string chunkDebtId = RecordPendingBorrow(pid, chunk, srcNumaId, roundNum);
+    if (need < 2 * blockSizeBytes) {
+        // 已是最小粒度 1 个 blockSize 仍容量不足, 无法继续折半: 跳过本轮, 余量留待下一轮决策重借
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
+                      << " split_min_block_failed amount_gb=" << BytesToGbDouble(need)
+                      << " (no node can lend even one block, retry in next round)";
+        return;
+    }
+    uint64_t first = (need / blockSizeBytes / 2) * blockSizeBytes;
+    uint64_t second = need - first;
+    UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=split pid=" << pid
+                  << " need_gb=" << BytesToGbDouble(need) << " halves_gb=" << BytesToGbDouble(first) << "/"
+                  << BytesToGbDouble(second);
+
+    // 分块槽全部落账后再统一投递: 保证并发执行时块槽已就位, pid 被移除等异常则在记录处中断
+    std::vector<std::pair<uint64_t, std::string>> chunks;
+    chunks.reserve(2);
+    for (uint64_t amount : {first, second}) {
+        std::string chunkDebtId = RecordPendingBorrow(pid, amount, srcNumaId, roundNum);
         if (chunkDebtId.empty()) {
             break;
         }
-        CreatedDebtInfo created;
-        uint32_t createRet = UBSE_OK;
-        if (!CreateNumaDebt(pid, chunk, srcNumaId, chunkDebtId, roundNum, created, createRet)) {
-            if (!IsNoCapacity(createRet)) {
-                break;
-            }
-            if (chunk <= blockSizeBytes) {
-                // 已是最小粒度 1 个 blockSize 仍容量不足, 无法继续折半: 跳过本轮, 余量留待下一轮决策重借
-                UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
-                              << " split_min_block_failed amount_gb=" << BytesToGbDouble(chunk)
-                              << " (no node can lend even one block, retry in next round)";
-                break;
-            }
-            chunk = (chunk / blockSizeBytes / 2) * blockSizeBytes;
-            continue;
-        }
-        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid
-                      << " split_created debt_id=" << chunkDebtId << " chunk_gb=" << BytesToGbDouble(chunk)
-                      << " export_slot=" << created.exportSlotId << " remote_numa=" << created.remoteNumaId
-                      << " src_numa=" << srcNumaId;
-
-        std::map<int, uint64_t> increments;
-        increments[created.remoteNumaId] += chunk;
-        std::vector<std::pair<int, uint64_t>> numaTargets;
-        def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, chunkDebtId, created, increments,
-                                                                        numaTargets);
-        if (migrateResult == def::AtomicMigrateResult::kVanish) {
-            pid::bridge::ProcessMemPidBridge::MemoryReturn(chunkDebtId);
-            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
-                          << " split_chunk_vanished debt_id=" << chunkDebtId
-                          << " (removed by timeout or taken over by return, stop splitting)";
-            break;
-        }
-        if (migrateResult == def::AtomicMigrateResult::kFaultNoMigrate) {
-            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " debt_id=" << chunkDebtId
-                          << " split chunk migrate blocked by fault handling, stop splitting";
-            break;
-        }
-        if (migrateResult != def::AtomicMigrateResult::kOk) {
-            FailBorrowAbort(pid, chunkDebtId, chunk, roundNum);
-            break;
-        }
-        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
-        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid
-                      << " split_chunk_completed debt_id=" << chunkDebtId << " chunk_gb=" << BytesToGbDouble(chunk)
-                      << " remaining_gb=" << BytesToGbDouble(remaining - chunk);
-        remaining -= chunk;
+        chunks.emplace_back(amount, chunkDebtId);
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    for (const auto& chunk : chunks) {
+        uint64_t amount = chunk.first;
+        const std::string& chunkDebtId = chunk.second;
+        borrowExecutor_->Execute([this, chunkDebtId, pid, amount, srcNumaId, roundNum, traceId]() {
+            TraceContext::SetTraceId(traceId);
+            AsyncBorrowAndMigrate(chunkDebtId, pid, amount, srcNumaId, roundNum);
+            TraceContext::Clear();
+        });
     }
 }
 

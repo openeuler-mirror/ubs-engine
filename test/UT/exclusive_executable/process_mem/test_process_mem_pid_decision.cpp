@@ -404,7 +404,7 @@ TEST_F(TestProcessMemPidDecision, EmergencyBorrowSplitHalvesUntilFits)
 
     ProcessMemPidDecision::GetInstance().OomPollOnce();
 
-    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 6u); // 整笔 + 1GB 失败, 512MB×4
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 7u); // 整笔 + 1GB×2 失败, 512MB×4
     EXPECT_EQ(migrateCalls, 4);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     auto it = snapshot.find(1001);
@@ -435,7 +435,7 @@ TEST_F(TestProcessMemPidDecision, EmergencyBorrowSplitSkipsWhenEvenMinBlockFails
 
     ProcessMemPidDecision::GetInstance().OomPollOnce();
 
-    // 整笔 + 折半链(到最小粒度 1 个 blockSize 为止)均失败, 证明确实走入了拆分而非静默失败
+    // 整笔 + 递归折半树(到最小粒度 1 个 blockSize 叶子为止)均失败, 证明确实走入了拆分而非静默失败
     EXPECT_GE(ubse::mem::controller::MockGetNumaCreateCallCount(), 4u);
     EXPECT_EQ(migrateCalls, 0);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
