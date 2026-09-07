@@ -58,7 +58,7 @@ uint32_t ProcessMemPidBridge::MemoryReturn(const std::string& name)
 }
 
 int ProcessMemPidBridge::MigrateOutToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargetsBytes,
-                                           const std::string& logCtx)
+                                           int srcNumaId, const std::string& logCtx)
 {
     std::vector<mempooling::smap::MigrateOutPayload> payloads{};
     mempooling::smap::MigrateOutPayload payload{};
@@ -76,11 +76,13 @@ int ProcessMemPidBridge::MigrateOutToNumas(pid_t pid, const std::vector<std::pai
         inner.destNid = numaTargetsBytes[i].first;
         payload.inner[i] = inner;
         UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
-                      << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
+                      << " src_numa=" << srcNumaId << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
                       << " src_bytes=" << numaTargetsBytes[i].second;
     }
     payload.count = static_cast<int>(innerCount);
     payload.pid = pid;
+    // 显式置源: 0 初始化会使 srcNid=0 被当作"指定本地 numa 0"; 未指定须置 -1(与 rmrs 内部约定一致)
+    payload.srcNid = srcNumaId;
     payloads.push_back(payload);
     if (!rmrsMigrateOut) {
         UBSE_LOG_ERROR << "[process_mem] migrate_out pid=" << pid << " rmrsMigrateOut not loaded, skip migrate";

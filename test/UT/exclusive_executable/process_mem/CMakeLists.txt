@@ -8,7 +8,8 @@ add_executable(${CMAKE_PROJECT_NAME}_process_mem_ut EXCLUDE_FROM_ALL
                ${PROCESS_MEM_TEST_SOURCES} ${MOCK_SOURCES}
                ${SRC_DIR}/process_mem_pid_bridge.cpp ${SRC_DIR}/process_mem_pid_collect.cpp
                ${SRC_DIR}/process_mem_pid_config_manager.cpp ${SRC_DIR}/process_mem_pid_info_manager.cpp
-               ${SRC_DIR}/process_mem_pid_decision.cpp ${SRC_DIR}/process_mem_plugin.cpp
+               ${SRC_DIR}/process_mem_pid_decision.cpp ${SRC_DIR}/process_mem_pid_migrate_ledger.cpp
+               ${SRC_DIR}/process_mem_plugin.cpp
                ${PROJECT_SOURCE_DIR}/test/UT/main.cpp)
 set_target_properties(${CMAKE_PROJECT_NAME}_process_mem_ut PROPERTIES LINK_FLAGS "-Wl,--as-needed")
 target_compile_options(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE

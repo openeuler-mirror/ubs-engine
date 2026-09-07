@@ -1267,7 +1267,7 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
                                               const std::vector<std::pair<int, uint64_t>>& numaTargets)
 {
-    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets,
+    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, -1,
                                                                   debtId.empty() ? "" : "debt_id=" + debtId);
     if (ret != 0) {
         return ret;
