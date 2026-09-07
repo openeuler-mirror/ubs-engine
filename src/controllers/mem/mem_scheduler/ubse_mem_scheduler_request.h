@@ -34,6 +34,9 @@ enum class RequestMode
     SHARE,
 };
 
+// 最小合法请求探针静默键: 候选全剔时以 1 blockSize 请求重放全链区分 801/803, FilterByNames 据此跳过剔除日志
+inline constexpr char kSilentReplayParam[] = "silent_replay";
+
 class SchedulerRequest {
 public:
     std::string name_{};
@@ -74,6 +77,9 @@ public:
     static SchedulerRequest BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req,
                                                  SchedulerNodeManager* info = nullptr);
     static SchedulerRequest BuildFromAddrBorrow(const adapter_plugins::mmi::UbseMemAddrBorrowReq& req);
+    // 借入请求对齐/探针粒度: 优先 import 节点 blockSize, 缺失回退 request 节点
+    static uint32_t GetRequestNodeBlockSize(const NodeId& importNodeId, const NodeId& requestNodeId,
+                                            SchedulerNodeManager* info);
 
     template <typename MemObj>
     static SchedulerRequest BuildRequest(MemObj& obj, SchedulerNodeManager* info);

@@ -25,6 +25,8 @@ namespace {
 
 using NumaInfoPtr = SchedulerNumaInfo*;
 
+constexpr uint64_t BYTES_PER_GB = 1024 * 1024 * 1024;
+
 void FillFromNumaList(const std::vector<NumaInfoPtr>& numaList, const ScoredNode& node, const SchedulerRequest& request,
                       adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t& remaining)
 {
@@ -78,6 +80,7 @@ std::vector<NumaInfoPtr> GetSortedNumaList(SchedulerNodeManager* nodeInfo, const
               [](NumaInfoPtr a, NumaInfoPtr b) { return a->GetMemFreeSize() > b->GetMemFreeSize(); });
     return numaList;
 }
+
 } // namespace
 
 SchedulerImpl::SchedulerImpl()
@@ -169,8 +172,31 @@ UbseResult SchedulerImpl::ScheduleBorrow(const SchedulerRequest& request,
                 return UBSE_SCHEDULER_ERROR_NODE_RECONCILE;
             }
         }
-        UBSE_LOG_ERROR << "All nodes filtered out, can not schedule borrow request";
-        return UBSE_SCHEDULER_ERROR_NO_NODE_CAN_LEND;
+        // 区分 801/803: 以最小合法请求(import 节点 1 个 blockSize, 真实请求按其向上对齐, 与上层
+        // 拆分下限同源)对全量节点重放完整 filter 链, 直接复用真实 filter 实例与判据(谓词零复制,
+        // filter 链演进自动纳入, 借入节点/角色冲突等结构排除由链自身处理)。探针链仍剩节点 →
+        // 最小块有处安放, 拆小可救 → 803(上层拆分 fallback); 探针链也剔光 → 连最小合法请求
+        // 都无处安放, 拆小无益 → 801
+        uint64_t probeSize = ONE_M; // import 节点 blockSize 不可得时回退 1MB(仍 ≤ 合法块下限, 不会误 801)
+        uint64_t probeBlockBytes = 0;
+        uint32_t probeBlockMb =
+            SchedulerRequest::GetRequestNodeBlockSize(request.importNodeId_, request.requestNodeId_, nodeInfo_.get());
+        if (probeBlockMb != 0 && ubse::utils::SizeMb2Byte(probeBlockMb, probeBlockBytes)) {
+            probeSize = probeBlockBytes;
+        }
+        SchedulerRequest probeRequest = request;
+        probeRequest.requestSize_ = probeSize;
+        probeRequest.SetParam(kSilentReplayParam, true);
+        auto probeNodes = nodeInfo_->GetAllNodes();
+        filterManager_->FilterNodes(probeNodes, probeRequest);
+        if (probeNodes.empty()) {
+            UBSE_LOG_ERROR << "All nodes filtered out, can not schedule borrow request";
+            return UBSE_SCHEDULER_ERROR_NO_NODE_CAN_LEND;
+        }
+        UBSE_LOG_ERROR << "No socket can hold request size=" << request.requestSize_
+                       << ", but probe(min 1 blockSize) chain keeps " << probeNodes.size()
+                       << " node(s), smaller request feasible, can not schedule borrow request";
+        return UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND;
     }
     std::vector<ScoredNode> results;
     ret = scoreManager_->ScoreAndRank(nodes, request, results, 1);
