@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 file(GLOB_RECURSE VIRT_AGENT_SDK_MESSAGE_CPP "*.cpp")          # 收集所有 .cpp 文件
 
 FIND_INCLUDE_DIR(VIRT_AGENT_SDK_MESSAGE_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -14,4 +16,4 @@ add_library(virt_agent_sdk_message STATIC
         ${PROJECT_SOURCE_DIR}/src/addons/virt_agent/common/libvirt/libvirt_module.cpp
         )
 target_link_options(virt_agent_sdk_message PRIVATE -Wl,-z,relro,-z,now)
-target_link_libraries(virt_agent_sdk_message PUBLIC rapidjson boundscheck ubse_log ubse_config ubse_serial)
+target_link_libraries(virt_agent_sdk_message PUBLIC boundscheck ubse_log ubse_config ubse_serial)

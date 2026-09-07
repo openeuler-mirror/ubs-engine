@@ -12,7 +12,6 @@ The UB Service Core Engine (UBSE or UBS Engine) provides the UBSE daemon program
 
 ```shell
 UBSEngine/
-├── 3rdparty                    // Third-party software
 ├── conf                        // Configuration file
 ├── doc                         // Document
 ├── scripts                     // Scripts

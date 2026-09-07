@@ -15,8 +15,6 @@ output
 /deps
 /component/deps
 .clion.source.upload.marker
-/3rdparty/*/source
-/3rdparty/*/deps
 __pycache__
 /test/IT/manager_log
 /test/IT/cli_log

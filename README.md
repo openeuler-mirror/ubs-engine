@@ -12,7 +12,6 @@ UBSE(UB Service Core Engine,简称UBSE或UBS Engine)提供了ubse daemon程序�
 
 ```shell
 UBSEngine/
-├── 3rdparty                    //第三方软件
 ├── conf                        //配置文件
 ├── doc                         //文档
 ├── scripts                     //脚本

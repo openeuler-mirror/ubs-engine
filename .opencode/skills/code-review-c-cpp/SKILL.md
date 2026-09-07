@@ -210,7 +210,7 @@ description: Expert C/C++ code review for openEuler Linux system-level software,
 | src/message| 待确认 |
 
 
-不检查的目录包括：`cmake-build-*`、`3rdparty`、`test`
+不检查的目录包括：`cmake-build-*`、`test`
 
 > 由于代码较多，一次检查完后，需要确认是否有遗漏，如果有遗漏，则需要增加检查。
 

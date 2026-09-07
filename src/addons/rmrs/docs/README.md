@@ -8,7 +8,6 @@ UBS RMRS是一款面向虚拟化场景的节点内资源管理服务插件，作
 
 ```path
 UBS RMRS/
-├── 3rdparty                    // 源码三方库
 ├── benchmark                   // cli工具
 ├── conf                        //配置文件
 ├── doc                         //文档

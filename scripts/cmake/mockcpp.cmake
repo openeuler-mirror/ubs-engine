@@ -39,7 +39,7 @@ FetchContent_Declare(
 FetchContent_Populate(_mockcpp_src)
 
 # --- Patch: apply ARM64 support patch ---
-set(PATCH_FILE "${PROJECT_SOURCE_DIR}/3rdparty/patch/mockcpp_support_arm64.patch")
+set(PATCH_FILE "${PROJECT_SOURCE_DIR}/test/mockcpp/mockcpp_support_arm64.patch")
 
 # 检查是否已打过补丁（通过是否存在新增的 ARM64 文件）
 if(EXISTS "${_mockcpp_src_SOURCE_DIR}/src/JmpCodeAARCH64.h")
