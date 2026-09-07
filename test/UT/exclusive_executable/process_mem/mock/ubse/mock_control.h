@@ -12,6 +12,9 @@ void MockSetImportDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& inf
 void MockClearDebtInfos();
 void MockSetNumaCreateError(uint32_t err);
 void MockSetNumaCreateErrorOnce(uint32_t err);
+// 模拟调度器 size 不足: opt.size 超过上限时返回 803(size 超出所有可借节点容量), 0 表示关闭
+void MockSetNumaCreateFailAboveSize(uint64_t sizeBytes);
+uint64_t MockGetNumaCreateCallCount();
 void MockSetNumaDeleteError(uint32_t err);
 void MockSetNumaDeleteErrorOnce(uint32_t err);
 uint32_t MockGetNumaDeleteCallCount();
