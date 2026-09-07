@@ -66,15 +66,6 @@ bool IsConcurrencyConflict(uint32_t ret)
     return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
 }
 
-// 触发拆分 fallback 的唯一错误码: 调度器对"size 超出所有可借节点容量"返回 803, 拆小可救;
-// 其余失败码拆小无益 → 均不触发: 801(容量足够但策略/状态剔光候选)维持原失败语义由下轮重试,
-// 802(对账 smoothing)本就重试, 10/11/12/13/1013 为 numa api 掩码别名或同步无产生点(仅 rmrs 防御引用),
-// 且 api 侧 803 以外的调度失败一律掩码为 1013(见 BuildOperationRespWhenFail failCode 透传)
-bool IsNoCapacity(uint32_t ret)
-{
-    return ret == UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND;
-}
-
 const char* ReturnSceneToString(ReturnScene scene)
 {
     switch (scene) {
@@ -1131,9 +1122,10 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     CreatedDebtInfo created;
     uint32_t createRet = UBSE_OK;
     if (!CreateNumaDebt(pid, need, srcNumaId, debtId, roundNum, created, createRet)) {
-        // 借用额超所有可借节点容量(803): 递归对半拆分, 分块债务独立并发下发由多个借出节点凑足;
-        // 非容量类失败维持原语义(槽已由 CreateNumaDebt 内部移除, 下轮重试)
-        if (IsNoCapacity(createRet)) {
+        // 借用额超所有可借节点容量(803)触发递归对半拆分(分块债务独立并发下发凑足); 803 是 numa
+        // api 透传的唯一调度失败码, 其余(801 策略剔光/802 重试耗尽/掩码 1013)拆小无益,
+        // 槽已由 CreateNumaDebt 内部移除, 维持原失败语义由下轮重试
+        if (createRet == UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND) {
             SplitBorrowIntoChunks(pid, need, srcNumaId, roundNum);
         }
         return;
