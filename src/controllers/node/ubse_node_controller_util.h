@@ -86,6 +86,8 @@ std::string Uint32ToIp(uint32_t ip);
 std::vector<std::string> ParseIpList(const std::string &ipList);
 
 uint32_t FindSameNetMask(std::string ipStr, std::string &localIp);
+
+bool IsHierarchicalElection();
 #undef MODULE_LOG_NAME
 } // namespace ubse::nodeController
 

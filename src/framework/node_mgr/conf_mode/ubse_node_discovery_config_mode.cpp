@@ -30,11 +30,9 @@ using namespace ubse::utils;
 
 UbseResult UbseNodeDiscoveryConfigMode::Init()
 {
-    auto &nodeStaticInfoMgr = UbseNodeStaticInfoMgr::GetInstance();
+    auto& nodeStaticInfoMgr = UbseNodeStaticInfoMgr::GetInstance();
     isClos_ = nodeStaticInfoMgr.IsClos();
-    if (isClos_) {
-        podCapability_ = nodeStaticInfoMgr.GetPodCapability();
-    }
+    podCapability_ = nodeStaticInfoMgr.GetPodCapability();
 
     const std::vector<std::string> ipList = UbseNodeStaticInfoMgr::GetInstance().GetClusterIpList();
 

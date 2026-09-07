@@ -39,9 +39,7 @@ UbseResult UbseNodeDiscoveryStaticMode::Init()
 {
     UbseResult ret = UBSE_OK;
     isClos_ = UbseNodeStaticInfoMgr::GetInstance().IsClos();
-    if (isClos_) {
-        podCapability_ = UbseNodeStaticInfoMgr::GetInstance().GetPodCapability();
-    }
+    podCapability_ = UbseNodeStaticInfoMgr::GetInstance().GetPodCapability();
     ret = GenerateClusterStaticInfo();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "init cluster static info failed, " << FormatRetCode(ret);

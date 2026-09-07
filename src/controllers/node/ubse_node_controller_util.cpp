@@ -24,6 +24,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_mgr.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "securec.h"
@@ -318,11 +319,10 @@ static UbseResult GetParentGroupMasterNodeId(std::string &prevNodeId)
     return UBSE_OK;
 }
 
-static bool IsHierarchicalElection()
+bool IsHierarchicalElection()
 {
-    auto rootList = ubse::nodeMgr::GetRootIpList();
-    auto nodes = ubse::nodeMgr::GetAllNodesStoredByGroup();
-    return rootList.empty() && nodes.size() > 1;
+    return adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType() &&
+           nodeMgr::GetRootIpList().empty() && nodeMgr::GetAllNodesStoredByGroup().size() > 1;
 }
 
 UbseResult GetPrevReportNodeId(std::string &prevNodeId)
