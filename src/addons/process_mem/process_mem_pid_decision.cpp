@@ -66,22 +66,13 @@ bool IsConcurrencyConflict(uint32_t ret)
     return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
 }
 
-// 借用 size 不足类错误码: 调度器对"全网无 socket 装得下请求"返回 803(size 超出所有可借节点容量),
-// 借出侧资源不足(10/11/12/13/1013)拆小同样可缓解 → 均触发拆分 fallback; 801(无可用借出节点)语义
-// 为状态/角色等其他 filter 剔光候选且容量足够, 拆分无益, 维持原失败语义
+// 触发拆分 fallback 的唯一错误码: 调度器对"size 超出所有可借节点容量"返回 803, 拆小可救;
+// 其余失败码拆小无益 → 均不触发: 801(容量足够但策略/状态剔光候选)维持原失败语义由下轮重试,
+// 802(对账 smoothing)本就重试, 10/11/12/13/1013 为 numa api 掩码别名或同步无产生点(仅 rmrs 防御引用),
+// 且 api 侧 803 以外的调度失败一律掩码为 1013(见 BuildOperationRespWhenFail failCode 透传)
 bool IsNoCapacity(uint32_t ret)
 {
-    switch (ret) {
-        case UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND:
-        case UBSE_ERR_OUT_OF_MEMORY:
-        case UBSE_ERR_RESOURCE_BUSY:
-        case UBSE_ERR_RESOURCE_EXHAUSTED:
-        case UBSE_ERR_QUOTA_EXCEEDED:
-        case UBSE_ERR_ALLOCATE:
-            return true;
-        default:
-            return false;
-    }
+    return ret == UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND;
 }
 
 const char* ReturnSceneToString(ReturnScene scene)

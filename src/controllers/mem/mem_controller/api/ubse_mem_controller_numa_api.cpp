@@ -358,7 +358,10 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq& req, UbseMemOperationResp
                        << ", requestId=" << req.requestId;
         BorrowFailedAdvice(
             {MemFault::BORROW_SCHEDULE_FAILED, name, MemType::NUMA, req.size, "", importNodeId, requestNodeId});
-        return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
+        // 调度"size 超出所有可借节点容量"(803)透传, 供 process_mem 拆分 fallback 区分;
+        // 其余调度失败(801 策略剔光/802 对账重试耗尽/内部错误)维持 1013 掩码, 拆小无益
+        uint32_t failCode = (ret == UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND) ? ret : UBSE_ERR_ALLOCATE;
+        return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", failCode,
                                           ubse::adapter_plugins::mmi::MemOperationType::NUMA_BORROW);
     }
     // 填充importNumaInfos的portId和chipId

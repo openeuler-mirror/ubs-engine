@@ -555,6 +555,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp
     UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     resp = respFuture.get();
+    UBSE_LOG_INFO << "numa borrow resp received, name=" << req.name << ", errorCode=" << resp.errorCode
+                  << ", requestId=" << resp.requestId;
     return ret;
 }
 

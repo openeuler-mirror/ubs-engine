@@ -180,6 +180,8 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp& resp, const std::strin
     resp.name = name;
     resp.requestNodeId = requestNodeId;
     resp.errorCode = errorCode;
+    UBSE_LOG_INFO << "Build fail resp will send, name=" << name << ", requestId=" << resp.requestId
+                  << ", errorCode=" << errorCode;
     SendParam sendParam(resp.requestNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                         static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_BORROW_RESULT_NOTIFY));
     if (IsSdkRequest(resp.requestId)) {
