@@ -66,6 +66,24 @@ bool IsConcurrencyConflict(uint32_t ret)
     return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
 }
 
+// 借用 size 不足类错误码: 调度器对"全网无 socket 装得下请求"返回 803(size 超出所有可借节点容量),
+// 借出侧资源不足(10/11/12/13/1013)拆小同样可缓解 → 均触发拆分 fallback; 801(无可用借出节点)语义
+// 为状态/角色等其他 filter 剔光候选且容量足够, 拆分无益, 维持原失败语义
+bool IsNoCapacity(uint32_t ret)
+{
+    switch (ret) {
+        case UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND:
+        case UBSE_ERR_OUT_OF_MEMORY:
+        case UBSE_ERR_RESOURCE_BUSY:
+        case UBSE_ERR_RESOURCE_EXHAUSTED:
+        case UBSE_ERR_QUOTA_EXCEEDED:
+        case UBSE_ERR_ALLOCATE:
+            return true;
+        default:
+            return false;
+    }
+}
+
 const char* ReturnSceneToString(ReturnScene scene)
 {
     switch (scene) {
@@ -943,8 +961,9 @@ bool ProcessMemPidDecision::BuildBorrower(pid_t pid, int srcNumaId, uint64_t nee
 }
 
 bool ProcessMemPidDecision::CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId,
-                                           uint64_t roundNum, CreatedDebtInfo& out)
+                                           uint64_t roundNum, CreatedDebtInfo& out, uint32_t& createRet)
 {
+    createRet = UBSE_OK;
     def::ProcessMemUsrInfo usrInfo{};
     usrInfo.pid = static_cast<int32_t>(pid);
     usrInfo.srcNuma = static_cast<int32_t>(srcNumaId);
@@ -971,6 +990,7 @@ bool ProcessMemPidDecision::CreateNumaDebt(pid_t pid, uint64_t need, int srcNuma
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[process_mem] borrow round=" << roundNum << " pid=" << pid
                        << " slot_failed amount_gb=" << BytesToGbDouble(need) << " reason=create_failed ret=" << ret;
+        createRet = static_cast<uint32_t>(ret);
         RemoveSlotFinalize(pid, debtId);
         return false;
     }
@@ -1118,7 +1138,13 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     }
 
     CreatedDebtInfo created;
-    if (!CreateNumaDebt(pid, need, srcNumaId, debtId, roundNum, created)) {
+    uint32_t createRet = UBSE_OK;
+    if (!CreateNumaDebt(pid, need, srcNumaId, debtId, roundNum, created, createRet)) {
+        // 借用额超过所有单借出节点可借容量(典型 801): 折半拆分小块, 由多个借出节点串行凑足;
+        // 非容量类失败维持原语义(槽已由 CreateNumaDebt 内部移除, 下轮重试)
+        if (IsNoCapacity(createRet)) {
+            SplitBorrowIntoChunks(pid, need, srcNumaId, roundNum);
+        }
         return;
     }
     increments[created.remoteNumaId] += need;
@@ -1148,6 +1174,79 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " slot_completed debt_id=" << debtId
                   << " numa_target_migrate";
+}
+
+// 整笔借用(need)超所有可借节点容量(803)失败后调用: 按 blockSize 整块折半(need 本身已 block 对齐,
+// 折半取 floor 整块, 每块保持 blockSize 整数倍)逐块独立债务串行创建+迁移, 由多个借出节点凑足;
+// 不做次数/预算限制——只要返回 size 不足类错误就持续折半, 唯一结构终止: 折半到最小粒度 1 个
+// blockSize 仍失败(或块数本身不足 1 块)即跳过本轮, 尾差留待下轮整粒度重借
+void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int srcNumaId, uint64_t roundNum)
+{
+    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
+    if (blockSizeBytes == 0) {
+        return;
+    }
+    uint64_t remaining = need;
+    uint64_t chunk = (need / blockSizeBytes / 2) * blockSizeBytes;
+    while (remaining > 0) {
+        if (chunk > remaining) {
+            chunk = remaining;
+        }
+        if (chunk < blockSizeBytes) {
+            break;
+        }
+        std::string chunkDebtId = RecordPendingBorrow(pid, chunk, srcNumaId, roundNum);
+        if (chunkDebtId.empty()) {
+            break;
+        }
+        CreatedDebtInfo created;
+        uint32_t createRet = UBSE_OK;
+        if (!CreateNumaDebt(pid, chunk, srcNumaId, chunkDebtId, roundNum, created, createRet)) {
+            if (!IsNoCapacity(createRet)) {
+                break;
+            }
+            if (chunk <= blockSizeBytes) {
+                // 已是最小粒度 1 个 blockSize 仍容量不足, 无法继续折半: 跳过本轮, 余量留待下一轮决策重借
+                UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
+                              << " split_min_block_failed amount_gb=" << BytesToGbDouble(chunk)
+                              << " (no node can lend even one block, retry in next round)";
+                break;
+            }
+            chunk = (chunk / blockSizeBytes / 2) * blockSizeBytes;
+            continue;
+        }
+        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid
+                      << " split_created debt_id=" << chunkDebtId << " chunk_gb=" << BytesToGbDouble(chunk)
+                      << " export_slot=" << created.exportSlotId << " remote_numa=" << created.remoteNumaId
+                      << " src_numa=" << srcNumaId;
+
+        std::map<int, uint64_t> increments;
+        increments[created.remoteNumaId] += chunk;
+        std::vector<std::pair<int, uint64_t>> numaTargets;
+        def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, chunkDebtId, created, increments,
+                                                                        numaTargets);
+        if (migrateResult == def::AtomicMigrateResult::kVanish) {
+            pid::bridge::ProcessMemPidBridge::MemoryReturn(chunkDebtId);
+            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
+                          << " split_chunk_vanished debt_id=" << chunkDebtId
+                          << " (removed by timeout or taken over by return, stop splitting)";
+            break;
+        }
+        if (migrateResult == def::AtomicMigrateResult::kFaultNoMigrate) {
+            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " debt_id=" << chunkDebtId
+                          << " split chunk migrate blocked by fault handling, stop splitting";
+            break;
+        }
+        if (migrateResult != def::AtomicMigrateResult::kOk) {
+            FailBorrowAbort(pid, chunkDebtId, chunk, roundNum);
+            break;
+        }
+        ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
+        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid
+                      << " split_chunk_completed debt_id=" << chunkDebtId << " chunk_gb=" << BytesToGbDouble(chunk)
+                      << " remaining_gb=" << BytesToGbDouble(remaining - chunk);
+        remaining -= chunk;
+    }
 }
 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
