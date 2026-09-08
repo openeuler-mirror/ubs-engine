@@ -12,6 +12,7 @@
 
 #include "test_ubse_uds_client.h"
 
+#include <fcntl.h>
 #include <poll.h>
 #include <securec.h>
 #include <sys/poll.h>
@@ -30,6 +31,15 @@
 namespace ubse::ut::ipc {
 using namespace ubse::task_executor;
 namespace {
+int MockPollReadyCheckingBlocking(struct pollfd* fds, nfds_t, int)
+{
+    const int flags = fcntl(fds[0].fd, F_GETFL);
+    EXPECT_GE(flags, 0);
+    EXPECT_EQ(flags & O_NONBLOCK, 0);
+    fds[0].revents = fds[0].events;
+    return 1;
+}
+
 int MockPollErr(struct pollfd* fds, nfds_t, int)
 {
     fds[0].revents = POLLERR;
@@ -173,6 +183,68 @@ void TestUbseUdsClient::TearDown()
     GlobalMockObject::reset((void*)SerializeRequestMessage);
     GlobalMockObject::verify();
     Test::TearDown();
+}
+
+TEST_F(TestUbseUdsClient, SendMsg_NegativeFd_ReturnsConnectionFailedWithoutPolling)
+{
+    MOCKER(poll).expects(never());
+
+    const char sent = 'x';
+    EXPECT_EQ(SendMsg(-1, &sent, sizeof(sent), 1000), UBSE_ERR_IPC_CONNECTION_FAILED);
+    EXPECT_EQ(SendMsg(-2, &sent, sizeof(sent), 0), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_NegativeFd_ReturnsConnectionFailedWithoutPolling)
+{
+    MOCKER(poll).expects(never());
+
+    char received = 0;
+    EXPECT_EQ(RecvMsg(-1, &received, sizeof(received), 1000), UBSE_ERR_IPC_CONNECTION_FAILED);
+    EXPECT_EQ(RecvMsg(-2, &received, sizeof(received), 0), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, SendMsg_PreservesBlockingModeDuringSend)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+    MOCKER(poll).stubs().will(invoke(MockPollReadyCheckingBlocking));
+
+    const char sent = 'x';
+    EXPECT_EQ(SendMsg(sockets[0], &sent, sizeof(sent), 1000), UBSE_OK);
+    char received = 0;
+    EXPECT_EQ(recv(sockets[1], &received, sizeof(received), MSG_DONTWAIT), 1);
+    EXPECT_EQ(received, sent);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_PreservesBlockingModeDuringReceive)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+    MOCKER(poll).stubs().will(invoke(MockPollReadyCheckingBlocking));
+
+    const char sent = 'x';
+    EXPECT_EQ(send(sockets[1], &sent, sizeof(sent), MSG_DONTWAIT | MSG_NOSIGNAL), 1);
+    char received = 0;
+    EXPECT_EQ(RecvMsg(sockets[0], &received, sizeof(received), 1000), UBSE_OK);
+    EXPECT_EQ(received, sent);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_BlockingSocketTimesOutWithoutData)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+
+    char received = 0;
+    EXPECT_EQ(RecvMsg(sockets[0], &received, sizeof(received), 20), UBSE_ERR_TIMED_OUT);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
 }
 
 // 测试已连接时直接返回成功

@@ -26,7 +26,7 @@ constexpr uint32_t MILLISECOND_TO_SECOND = 1000; // 1sת1000ms
  * @param[in] fd Target file descriptor
  * @param[in] buffer Source data buffer pointer
  * @param[in] length Data length to transmit in bytes
- * @param[in] timeoutMs Operation timeout in milliseconds (0 = infinite blocking)
+ * @param[in] timeoutMs Operation timeout in milliseconds; must be non-negative
  * @return 0 = success, non-zero = error code
  */
 uint32_t SendMsg(int fd, const void* buffer, uint32_t length, int timeoutMs);
@@ -40,7 +40,7 @@ uint32_t SendMsg(int fd, const void* buffer, uint32_t length, int timeoutMs);
  * @param[in] fd Source file descriptor (must be connection-oriented socket)
  * @param[out] buffer Target data buffer pointer
  * @param[in] length Exact data length to receive in bytes
- * @param[in] timeoutMs Operation timeout in milliseconds (0 = infinite blocking)
+ * @param[in] timeoutMs Operation timeout in milliseconds; must be non-negative
  * @return 0 = success, non-zero = error code
  *
  * @note Peer closure (read return 0) is treated as EPIPE error
