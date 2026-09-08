@@ -298,7 +298,8 @@ TEST_F(TestPidFaultPipelineOrphan, Pipeline_AllPending_ReturnCollectErrorForRetr
         .stubs()
         .will(invoke(MockCollectAllPending));
 
-    MpResult ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid("node1");
+    std::unordered_map<std::string, std::vector<pid_t>> disabledPids;
+    MpResult ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid("node1", disabledPids);
 
     EXPECT_EQ(ret, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
 }

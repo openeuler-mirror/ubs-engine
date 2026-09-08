@@ -468,7 +468,8 @@ TEST_F(TestPidFaultErrorCodeHandler, MigrateSingleTask_InvalidManagedQuota_Fail)
 
 /*
  * 用例描述：RESUME自MIGRATED的纳管移除重试（上轮迁移成功但remove失败）
- * 预期：全部源numa移除成功→恢复enable→REMOVED；任一失败→保持禁用态→MIGRATED
+ * 预期：入口幂等重禁用→全部源numa移除成功→恢复enable→REMOVED；
+ *       任一失败→保持禁用态（不恢复enable）→MIGRATED
  */
 TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_AllSuccess_Removed)
 {
@@ -495,8 +496,10 @@ TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_AllSuccess_Removed)
     EXPECT_EQ(RemoveSingleTaskFaultNumaManaged(task), TaskPhase::REMOVED);
     ASSERT_EQ(gRemoveCalls.size(), 1U);
     EXPECT_EQ(gRemoveCalls[0].second, 5);
-    ASSERT_EQ(gEnableCallSeq.size(), 1U);
-    EXPECT_EQ(gEnableCallSeq[0], 1);
+    // 入口幂等重禁用(0)，remove全部成功后恢复enable(1)
+    ASSERT_EQ(gEnableCallSeq.size(), 2U);
+    EXPECT_EQ(gEnableCallSeq[0], 0);
+    EXPECT_EQ(gEnableCallSeq[1], 1);
 }
 
 TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_RemoveFail_StaysMigrated)
@@ -522,8 +525,9 @@ TEST_F(TestPidFaultErrorCodeHandler, RemoveRetry_RemoveFail_StaysMigrated)
     task.faultNumaUsages = {u1};
 
     EXPECT_EQ(RemoveSingleTaskFaultNumaManaged(task), TaskPhase::MIGRATED);
-    // remove失败不恢复enable
-    EXPECT_TRUE(gEnableCallSeq.empty());
+    // 入口幂等重禁用(0)；remove失败不恢复enable，开关序列只有初始禁用
+    ASSERT_EQ(gEnableCallSeq.size(), 1U);
+    EXPECT_EQ(gEnableCallSeq[0], 0);
 }
 
 // ==================== MigrateTaskGroup: 虚机场景借来内存分大页 ====================

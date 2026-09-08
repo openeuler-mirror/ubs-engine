@@ -55,6 +55,20 @@ static const std::string TAG = "[OverCommit][PidFault][Handler] ";
 static constexpr uint64_t KB_1024 = 1024ULL;
 static constexpr uint64_t VM_HUGE_PAGE_KB = 2048ULL; // 虚机页固定2M大页（无实采条目时pageSize兜底）
 
+// 失败/跳过分支恢复pid冷热迁移开关（best-effort）: 避免task停留中间态期间pid被持续禁用；
+// 下轮RESUME入口会幂等重禁用，恢复失败仅告警不阻断本轮流程
+static void ReEnableSmapMigrateBestEffort(const std::vector<pid_t>& pids, const std::string& scene)
+{
+    if (pids.empty()) {
+        return;
+    }
+    std::vector<pid_t> pidVec = pids;
+    int enableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pidVec.data(), pidVec.size(), 1, 0);
+    if (enableRet != MEM_POOLING_OK) {
+        LOG_WARN << "Re-enable smap migrate best-effort failed: scene=" << scene << ", ret=" << enableRet << ".";
+    }
+}
+
 // ==================== PID Query Handler ====================
 
 // 虚机场景单pid采集中间态: 基础信息+各故障numa实采占用
@@ -222,6 +236,28 @@ static MpResult CollectVmPidMemInfos(const std::vector<uint16_t>& faultNumaIds, 
             LOG_DEBUG << "Pid=" << pid << " faultNuma=" << faultNumaId << " stableKB=" << usage.usedMemKB << ".";
         }
     }
+
+    // 泄漏收尾: 有纳管配额但稳态占用为0的pid进不了任何task（借用将走直接归还），若无收尾则
+    // 冷热迁移永久禁用且每轮Query重禁用无出口; 仅恢复enable（best-effort），纳管配置保留不移除
+    std::unordered_set<pid_t> usedPids;
+    for (const auto& [pid, entry] : vmEntries) {
+        if (!entry.pidInfo.faultNumaUsages.empty()) {
+            usedPids.insert(pid);
+        }
+    }
+    std::unordered_set<pid_t> leakedSeen;
+    std::vector<pid_t> leakedPids;
+    for (const auto& [faultNumaId, managedPids] : numaManagedPids) {
+        for (pid_t pid : managedPids) {
+            if (usedPids.count(pid) > 0) {
+                continue;
+            }
+            if (leakedSeen.insert(pid).second) {
+                leakedPids.push_back(pid);
+            }
+        }
+    }
+    ReEnableSmapMigrateBestEffort(leakedPids, "queryLeakPids");
 
     for (auto& [pid, entry] : vmEntries) {
         if (entry.pidInfo.faultNumaUsages.empty()) {
@@ -400,16 +436,21 @@ static MpResult CollectContainerPidMemInfos(const std::vector<uint16_t>& faultNu
         return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
 
+    // 泄漏收尾: 稳态占用为0的纳管pid进不了任何task（借用走直接归还），仅恢复其冷热迁移enable
+    // （best-effort，纳管配置保留不移除），避免借用归还后per-pid冷热迁移永久禁用无出口
+    std::vector<pid_t> leakedPids;
     for (auto& [pid, pidInfo] : pidInfoMap) {
         if (pidInfo.faultNumaUsages.empty()) {
             // 稳态实采无占用（冷热流动已冻结，0即真无数据），不参与迁移，所在numa由task_builder走直接归还
             LOG_DEBUG << "Skip container pid=" << pid << ": no stable usage collected on fault numas.";
+            leakedPids.push_back(pid);
             continue;
         }
         // bindType由采集侧MarkSocketConstraints按节点统一填写
         LOG_DEBUG << "Found container pid=" << pid << ", instanceId=" << pidInfo.instanceId << ".";
         response.pidMemDistribution.push_back(std::move(pidInfo));
     }
+    ReEnableSmapMigrateBestEffort(leakedPids, "queryLeakPids");
     return overallRet;
 }
 
@@ -511,7 +552,7 @@ static TaskPhase MigrateSingleTask(const MigrationTask& task)
 
     // 迁移前确保pid冷热迁移已禁用（smap约束: pid_remote_numa_migrate调用前必须先禁用，
     // 启用状态下无法迁移）；Query阶段已禁用，此处幂等重调兼保崩溃重启后的禁用态；
-    // 禁用失败则本轮不迁移保持BORROWED下轮重试
+    // 禁用失败则本轮不迁移保持BORROWED下轮重试，冷热迁移由master失败出口统一恢复
     int disableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (disableRet != MEM_POOLING_OK) {
         LOG_ERROR << "Disable smap migrate failed for task=" << task.taskId << ", ret=" << disableRet << ".";
@@ -587,14 +628,15 @@ static TaskPhase MigrateSingleTask(const MigrationTask& task)
         }
     }
 
-    // 迁移失败: 保持BORROWED下轮重试，禁用态保持不恢复（pid停留故障numa上，禁用本身即故障止损）
+    // 迁移失败: 保持BORROWED下轮重试；冷热迁移由master失败出口统一恢复
+    // （数据仍在故障numa时恢复流动属已知取舍），下轮RESUME入口幂等重禁用
     if (finalRet != MEM_POOLING_OK) {
         LOG_DEBUG << "MigrateSingleTask failed: taskId=" << task.taskId << ", stays BORROWED.";
         return TaskPhase::NONE;
     }
 
-    // 迁移成功后移除pid在故障numa上的纳管: 否则恢复冷热流动后冷页可能被写回故障numa；
-    // remove失败不恢复enable，保持MIGRATED下轮只做remove
+    // 迁移成功后移除pid在故障numa上的纳管: 移除纳管前恢复冷热流动会把冷页写回故障numa；
+    // 冷热迁移由master失败出口统一恢复
     for (uint16_t srcNumaId : srcNumaIds) {
         std::vector<pid_t> numaPids;
         for (const auto& [pid, numaSet] : pidNumaScope) {
@@ -619,8 +661,8 @@ static TaskPhase MigrateSingleTask(const MigrationTask& task)
     return TaskPhase::REMOVED;
 }
 
-// 单task纳管移除重试（RESUME自MIGRATED）: pid冷热迁移保持禁用态，仅移除故障numa纳管，
-// 全部成功恢复enable并返回REMOVED，任一失败保持禁用态返回MIGRATED下轮重试
+// 单task纳管移除重试（RESUME自MIGRATED）: 入口幂等重禁用（上轮由master失败出口统一恢复enable），
+// 仅移除故障numa纳管，全部成功恢复enable并返回REMOVED，任一失败保持MIGRATED下轮重试
 static TaskPhase RemoveSingleTaskFaultNumaManaged(const MigrationTask& task)
 {
     std::unordered_map<uint16_t, std::vector<pid_t>> numaPids;
@@ -631,13 +673,20 @@ static TaskPhase RemoveSingleTaskFaultNumaManaged(const MigrationTask& task)
         LOG_ERROR << "Task " << task.taskId << " has no fault numa usage for remove retry.";
         return TaskPhase::MIGRATED;
     }
+    // 幂等重禁用: remove期间保持禁用防冷页回流故障numa（纳管配置未移除前仍指向故障numa）
+    std::vector<pid_t> taskPids = task.pids;
+    int disableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(taskPids.data(), taskPids.size(), 0, 0);
+    if (disableRet != MEM_POOLING_OK) {
+        LOG_ERROR << "Disable smap migrate failed for remove retry, task=" << task.taskId << ", ret=" << disableRet
+                  << ".";
+        return TaskPhase::MIGRATED;
+    }
     for (const auto& [srcNumaId, pids] : numaPids) {
         if (MpSmapHelper::SmapRemovePidsHelper(pids, static_cast<int16_t>(srcNumaId)) != MEM_POOLING_OK) {
             LOG_ERROR << "Smap remove retry failed: task=" << task.taskId << ", srcNuma=" << srcNumaId << ".";
             return TaskPhase::MIGRATED;
         }
     }
-    std::vector<pid_t> taskPids = task.pids;
     int enableRet = MpSmapHelper::SmapEnableProcessMigrateHelper(taskPids.data(), taskPids.size(), 1, 0);
     if (enableRet != MEM_POOLING_OK) {
         LOG_WARN << "Re-enable smap migrate failed for task=" << task.taskId << ", ret=" << enableRet << ".";
@@ -702,6 +751,17 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
 {
     std::unordered_map<std::string, TaskPhase> taskPhaseResults;
     LOG_DEBUG << "MigrateTaskGroup start: destNuma=" << newRemoteNumaId << ", tasks=" << groupTasks.size() << ".";
+
+    // 组内去重pid集（组级失败/跳过分支恢复开关用）
+    std::vector<pid_t> groupPids;
+    std::unordered_set<pid_t> groupPidSeen;
+    for (const auto* task : groupTasks) {
+        for (pid_t pid : task->pids) {
+            if (groupPidSeen.insert(pid).second) {
+                groupPids.push_back(pid);
+            }
+        }
+    }
 
     // 目标numa被其他故障流程预占则整组本轮跳过（保持BORROWED，下轮RESUME）
     if (!FaultNumaReservedLock::Instance().TryReserve(newRemoteNumaId)) {
@@ -776,6 +836,7 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
         if (MpSmapHelper::GetInstance().IdempotentAllocateHugePages(newRemoteNumaId, borrowSizeBytes) !=
             MEM_POOLING_OK) {
             LOG_ERROR << "IdempotentAllocateHugePages failed for numa " << newRemoteNumaId << ", group skipped.";
+            ReEnableSmapMigrateBestEffort(groupPids, "groupNuma" + std::to_string(newRemoteNumaId));
             return taskPhaseResults;
         }
     }
@@ -792,6 +853,7 @@ static std::unordered_map<std::string, TaskPhase> MigrateTaskGroup(uint16_t newR
             // 预算登记失败迁移必-92，不空跑: 整组保持BORROWED下轮RESUME
             LOG_ERROR << "SetSmapRemoteNumaInfo failed for localNuma=" << localNuma << ", numa " << newRemoteNumaId
                       << ", group skipped.";
+            ReEnableSmapMigrateBestEffort(groupPids, "groupNuma" + std::to_string(newRemoteNumaId));
             return taskPhaseResults;
         }
     }

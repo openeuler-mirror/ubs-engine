@@ -31,7 +31,8 @@ static const std::string TAG = "[OverCommit][PidFault][Pipeline] ";
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
 
-MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& faultNodeId)
+MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(
+    const std::string& faultNodeId, std::unordered_map<std::string, std::vector<pid_t>>& outDisabledPids)
 {
     LOG_INFO << "===== ProcessBorrowOutNodeFaultByPid START, faultNodeId=" << faultNodeId << " =====";
 
@@ -42,6 +43,18 @@ MpResult PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(const std::string& fau
     // ==================== Phase 1: 采集 ====================
     OverCommitFaultContext context;
     PidFaultCollector collector;
+
+    // 收集Query阶段禁用的pid名单: 任意失败出口由上层统一恢复冷热流动（本层不做恢复）
+    // 用RAII保证所有return路径都带回名单（含Collect阶段部分节点采集成功的场景）
+    struct DisabledPidsGuard {
+        std::unordered_map<std::string, std::vector<pid_t>>& out;
+        OverCommitFaultContext& ctx;
+        ~DisabledPidsGuard()
+        {
+            out = ctx.nodeToDisabledPids;
+        }
+    } disabledPidsGuard{outDisabledPids, context};
+
     MpResult ret = collector.Collect(faultNodeId, context);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "Phase 1 Collect failed.";
