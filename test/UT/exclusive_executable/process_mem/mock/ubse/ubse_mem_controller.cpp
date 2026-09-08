@@ -25,6 +25,8 @@ static std::vector<UbseNumaMemoryDebtInfo> g_mockDebtInfos;
 static std::vector<UbseNumaMemoryImportDebtInfo> g_mockImportDebtInfos;
 static uint32_t g_mockNumaCreateError = UBSE_OK;
 static uint32_t g_mockNumaCreateErrorOnce = UBSE_OK;
+static uint64_t g_mockNumaCreateFailAboveSize = 0;
+static uint64_t g_mockNumaCreateCallCount = 0;
 static uint32_t g_mockNumaDeleteError = UBSE_OK;
 static uint32_t g_mockNumaDeleteErrorOnce = UBSE_OK;
 static uint32_t g_mockNumaDeleteCallCount = 0;
@@ -127,6 +129,14 @@ void MockSetNumaCreateErrorOnce(uint32_t err)
 {
     g_mockNumaCreateErrorOnce = err;
 }
+void MockSetNumaCreateFailAboveSize(uint64_t sizeBytes)
+{
+    g_mockNumaCreateFailAboveSize = sizeBytes;
+}
+uint64_t MockGetNumaCreateCallCount()
+{
+    return g_mockNumaCreateCallCount;
+}
 void MockSetNumaDeleteError(uint32_t err)
 {
     g_mockNumaDeleteError = err;
@@ -170,6 +180,8 @@ void MockResetAllErrors()
     g_mockLastNumaDeleteName.clear();
     g_mockNumaCreateError = UBSE_OK;
     g_mockNumaCreateErrorOnce = UBSE_OK;
+    g_mockNumaCreateFailAboveSize = 0;
+    g_mockNumaCreateCallCount = 0;
     g_mockNumaDeleteError = UBSE_OK;
     g_mockNumaDeleteErrorOnce = UBSE_OK;
     g_mockNumaDeleteCallCount = 0;
@@ -214,6 +226,7 @@ UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& bor
 UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
                              UbseMemNumaDesc& desc)
 {
+    ++g_mockNumaCreateCallCount;
     if (g_mockNumaCreateErrorOnce != UBSE_OK) {
         UbseResult onceErr = g_mockNumaCreateErrorOnce;
         g_mockNumaCreateErrorOnce = UBSE_OK;
@@ -221,6 +234,9 @@ UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& bor
     }
     if (g_mockNumaCreateError != UBSE_OK) {
         return g_mockNumaCreateError;
+    }
+    if (g_mockNumaCreateFailAboveSize != 0 && opt.size > g_mockNumaCreateFailAboveSize) {
+        return UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND;
     }
     g_mockLastNumaCreateName = name;
     g_mockLastNumaCreateOptSize = opt.size;

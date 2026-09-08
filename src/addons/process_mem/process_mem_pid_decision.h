@@ -125,6 +125,11 @@ private:
 
     void AsyncBorrowAndMigrate(const std::string& debtId, pid_t pid, uint64_t amount, int srcNumaId, uint64_t roundNum);
 
+    // 整笔借用超所有可借节点容量(803)后的递归对半拆分: 两块独立债务(总和恰等于整笔)各建槽后
+    // 并发投递 executor 下发, 子块再容量不足继续折半(跨任务递归); 不做次数限制, 最小块 1 个
+    // blockSize 仍失败即终止该支, 缺口回 shortage 由下轮整粒度重借收敛
+    void SplitBorrowIntoChunks(pid_t pid, uint64_t need, int srcNumaId, uint64_t roundNum);
+
     bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum);
 
     void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
@@ -215,8 +220,9 @@ private:
                                    const CreatedDebtInfo& created);
     bool BuildBorrower(pid_t pid, int srcNumaId, uint64_t need, uint64_t roundNum,
                        ubse::mem::controller::UbseMemBorrower& borrower);
+    // createRet: 创建失败时的 ubse 返回码(供调用方区分容量不足类错误触发拆分 fallback)
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
-                        CreatedDebtInfo& out);
+                        CreatedDebtInfo& out, uint32_t& createRet);
     int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
                            const std::vector<std::pair<int, uint64_t>>& numaTargets);
 
