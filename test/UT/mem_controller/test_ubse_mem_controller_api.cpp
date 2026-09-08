@@ -1971,4 +1971,50 @@ TEST_F(TestUbseMemControllerApi, ClearNodeMap)
     MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_OK));
     EXPECT_NO_THROW(ClearNodeMap());
 }
+
+TEST_F(TestUbseMemControllerApi, ClearNodeMapSkipsNodeRebuildWhenCacheExists)
+{
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::HasNodeCache).stubs().will(returnValue(true));
+    MOCKER_CPP(&SchedulerImpl::NodeObjChangeHandler).expects(never());
+
+    EXPECT_EQ(ClearNodeMap(), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApi, ClearNodeMapRebuildsNodeCacheOnlyOnce)
+{
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_OK));
+    ubse::nodeController::UbseNodeInfo nodeInfo{};
+    nodeInfo.nodeId = "1";
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
+    MOCKER_CPP(&SchedulerImpl::HasNodeCache).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&SchedulerImpl::NodeObjChangeHandler).expects(once()).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(ClearNodeMap(), UBSE_OK);
+    EXPECT_EQ(ClearNodeMap(), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApi, ClearNodeMapSkipsAccountCacheWhenNodeRebuildFails)
+{
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_OK));
+    ubse::nodeController::UbseNodeInfo nodeInfo{};
+    nodeInfo.nodeId = "1";
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
+    MOCKER_CPP(&SchedulerImpl::HasNodeCache).stubs().will(returnValue(false));
+    MOCKER_CPP(&SchedulerImpl::NodeObjChangeHandler).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(ClearNodeMap(), UBSE_ERROR);
+}
 } // namespace ubse::mem_controller::ut

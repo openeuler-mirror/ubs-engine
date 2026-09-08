@@ -149,6 +149,10 @@ UbseResult UbseMemControllerModule::Initialize()
             << "Memory borrow and share features are unsupported, keep mem executor and skip background init.";
         return UBSE_OK;
     }
+    ret = ubse::mem::controller::Init();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     RegisterNodeCtlNotify();
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
     ubse::timer::UbseTimerHandlerRegister(
@@ -202,11 +206,6 @@ UbseResult UbseMemControllerModule::Start()
     }
 
     if (enabled_) {
-        ret = ubse::mem::controller::Init();
-        if (ret != UBSE_OK) {
-            return ret;
-        }
-
         ret = UbseMemFaultManager::InitMemFaultManager();
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
