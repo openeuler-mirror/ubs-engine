@@ -144,6 +144,8 @@ bool UbseTaskExecutor::Start()
 
         if (thr == nullptr) {
             UBSE_LOG_ERROR << "Failed to create executor thread " << i;
+            // 第 i 个线程创建失败：复用 Stop() 清理已创建的 0..i-1 个线程，避免孤儿线程持续运行
+            Stop();
             return false;
         }
 
@@ -163,7 +165,12 @@ void UbseTaskExecutor::Stop()
 {
     std::unique_lock<std::mutex> lock(mtx);
     UBSE_LOG_INFO << "Stop TaskExecutor start";
-    if (!mStarted || mStopped) {
+    if (mStopped) {
+        return;
+    }
+    // 从未启动且未创建线程：不触碰未初始化的队列（其 UnInitialize 会 sem_destroy 未初始化的 sem，属未定义行为）
+    if (!mStarted && mThreads.empty()) {
+        mStopped = true;
         return;
     }
     for (uint32_t i = 0; i < mThreads.size(); ++i) {

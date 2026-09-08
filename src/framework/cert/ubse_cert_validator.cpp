@@ -37,7 +37,7 @@ constexpr mode_t FILEPERMISSION = 0600;
 SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char* path)
 {
     if (!UbseFileUtil::CheckFileExists(path)) {
-        UBSE_LOG_ERROR << "[CERT] Password file not found at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] Password file not found";
         return {};
     }
     std::ifstream f(path);
@@ -52,7 +52,7 @@ SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char* path)
         tmpValue.clear();
         return securePwd;
     }
-    UBSE_LOG_ERROR << "[CERT] Failed to read password from file=" << path;
+    UBSE_LOG_ERROR << "[CERT] Failed to read password from file";
     return {};
 }
 
@@ -84,13 +84,13 @@ bool UbseSslValidator::CheckAllFileExist()
 X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
 {
     if (!UbseFileUtil::CheckFileExists(path)) {
-        UBSE_LOG_ERROR << "[CERT] " << name << " file not found at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] " << name << " file not found";
         return nullptr;
     }
 
     FILE* fp = fopen(path, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file";
         return nullptr;
     }
 
@@ -101,7 +101,7 @@ X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
     }
 
     if (!cert) {
-        UBSE_LOG_ERROR << "[CERT] Failed to parse PEM format for " << name << " at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] Failed to parse PEM format for " << name;
         return nullptr;
     }
 
@@ -113,7 +113,7 @@ X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
         return nullptr;
     }
     if (X509_cmp_time(x509NotAfterPtr, nullptr) < 0) {
-        UBSE_LOG_ERROR << "[CERT] " << name << " has expired at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] " << name << " has expired";
         X509_free(cert);
         return nullptr;
     }
@@ -125,7 +125,7 @@ X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
         return nullptr;
     }
     if (X509_cmp_time(x509NotBeforPtr, nullptr) > 0) {
-        UBSE_LOG_ERROR << "[CERT] " << name << " is not valid at path=" << path;
+        UBSE_LOG_ERROR << "[CERT] " << name << " is not valid";
         X509_free(cert);
         return nullptr;
     }

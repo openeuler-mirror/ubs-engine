@@ -197,8 +197,16 @@ public:
      */
     inline std::string ToString()
     {
+        // 锁内拷贝共享字段，锁外拼串（ostringstream 可能抛异常，避免持锁）
+        mLock_.Lock();
+        auto head = mHead_;
+        auto tail = mTail_;
+        auto capacity = mCapacity_;
+        auto count = mCount_;
+        mLock_.UnLock();
+
         std::ostringstream oss;
-        oss << "head " << mHead_ << ", tail " << mTail_ << ", capacity " << mCapacity_ << ", count " << mCount_;
+        oss << "head " << head << ", tail " << tail << ", capacity " << capacity << ", count " << count;
         return oss.str();
     }
 
