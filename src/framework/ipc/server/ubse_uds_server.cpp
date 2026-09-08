@@ -719,7 +719,7 @@ void UbseUDSServer::HandleWrite(ClientSession* session)
     session->writeBuffer.clear();
     if (session->connType != SessionType::PERSISTENT) {
         // 短链接预关闭链接
-        UBSE_LOG_INFO << "Short link " << session->fd << "pre-closed";
+        UBSE_LOG_DEBUG << "Short link " << session->fd << " pre-closed";
         // 记录开始预关闭的时间点
         session->closingStartTime = std::chrono::steady_clock::now();
         // 移除session
@@ -921,8 +921,8 @@ uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void*
                        << ", opCode=" << requestMessage.header.opCode << "fd=" << fd << " send failed, "
                        << FormatRetCode(sendRet);
     } else {
-        UBSE_LOG_INFO << "req moduleCode=" << requestMessage.header.moduleCode
-                      << ", opCode=" << requestMessage.header.opCode << "fd=" << fd << " send success.";
+        UBSE_LOG_DEBUG << "req moduleCode=" << requestMessage.header.moduleCode
+                       << ", opCode=" << requestMessage.header.opCode << "fd=" << fd << " send success.";
     }
     return sendRet;
 }
@@ -930,8 +930,8 @@ uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void*
 uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo,
                                           void* ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList)
 {
-    UBSE_LOG_INFO << "req moduleCode=" << requestMessage.header.moduleCode
-                  << ", opCode=" << requestMessage.header.opCode;
+    UBSE_LOG_DEBUG << "req moduleCode=" << requestMessage.header.moduleCode
+                   << ", opCode=" << requestMessage.header.opCode;
     if (requestMessage.header.bodyLen > UBSE_MESSAGE_SIZE) {
         UBSE_LOG_ERROR << "req moduleCode=" << requestMessage.header.moduleCode
                        << ", opCode=" << requestMessage.header.opCode << "msg body to large";
@@ -998,7 +998,7 @@ bool UbseUDSServer::AddPendingSession(int fd)
                                   .readBuffer = std::vector<uint8_t>(sizeof(UbseRequestHeader)), // 准备读取头部
                                   .writeBuffer = {}};
     totalPending_++;
-    UBSE_LOG_INFO << "New connection: fd=" << fd << ", uid=" << clientInfo.uid;
+    UBSE_LOG_DEBUG << "New connection: fd=" << fd << ", uid=" << clientInfo.uid;
     return true;
 }
 
@@ -1036,8 +1036,8 @@ bool UbseUDSServer::UpgradeSession(int fd, bool isPersistent)
     }
 
     totalPending_--;
-    UBSE_LOG_INFO << "Session upgraded: fd=" << fd << ", uid=" << uid
-                  << ", connType=" << static_cast<int>(session.connType);
+    UBSE_LOG_DEBUG << "Session upgraded: fd=" << fd << ", uid=" << uid
+                   << ", connType=" << static_cast<int>(session.connType);
     return true;
 }
 
@@ -1058,7 +1058,7 @@ void UbseUDSServer::RemoveSession(int fd, bool isPreClosing)
     session.state = SessionState::CLOSING;
     if (session.connType == SessionType::PENDING) {
         totalPending_--;
-        UBSE_LOG_DEBUG << "Pending connection closed, fd=";
+        UBSE_LOG_DEBUG << "Pending connection closed, fd=" << fd;
     } else if (session.connType == SessionType::PERSISTENT) {
         globalPersistent_--;
         userStats_[session.clientInfo.uid].persistentCount--;
@@ -1078,8 +1078,9 @@ void UbseUDSServer::RemoveSession(int fd, bool isPreClosing)
         preClosingSessions_[fd] = std::move(it->second);
     }
     sessions_.erase(it);
-    UBSE_LOG_INFO << "Total active connections=" << sessions_.size() << ", pending connections=" << totalPending_
-                  << ", persistent connections=" << globalPersistent_ << ", transient connections=" << globalTransient_;
+    UBSE_LOG_DEBUG << "Total active connections=" << sessions_.size() << ", pending connections=" << totalPending_
+                   << ", persistent connections=" << globalPersistent_
+                   << ", transient connections=" << globalTransient_;
 }
 
 bool UbseUDSServer::GetClientInfoByFd(int fd, UbseClientInfo& clientInfo)
