@@ -145,7 +145,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow)
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    EXPECT_EQ(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERROR_NULLPTR);
+    EXPECT_EQ(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERR_ALLOCATE);
 
     const auto sendFunc =
         &UbseComModule::RpcSend<mem::controller::message::UbseMemNumaBorrowReqSimpoPtr, UbseBaseMessagePtr>;
@@ -155,7 +155,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow)
     bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
-    EXPECT_EQ(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERROR);
+    EXPECT_EQ(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERR_ALLOCATE);
 }
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn)

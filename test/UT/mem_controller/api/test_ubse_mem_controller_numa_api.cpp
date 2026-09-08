@@ -134,7 +134,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSendNumaExportError)
     UbseMemDebtNumaInfo numaInfo{"2", 36, 0};
     exportObj.algoResult.exportNumaInfos.push_back(numaInfo);
     auto ret = HandleSendNumaExportError(resp, req, importObj, exportObj);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERR_INTERNAL);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, ValidSocketAndNumaIdParams)
@@ -159,7 +159,7 @@ TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnExportObjFailed)
     UbseMemNumaBorrowExportObj exportObj;
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     auto ret = DealSendNumaUnExportObjFailed(resp, name, exportObj);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_UNIMPORT_SUCCESS);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnImportObjFailed)
@@ -170,7 +170,7 @@ TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnImportObjFailed)
     const std::string name;
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     auto ret = DealSendNumaUnImportObjFailed(importObj, req, resp, name);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportExportDestroyed)
@@ -183,7 +183,7 @@ TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportExportDestroyed)
     importObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     auto ret = NumaReturnExistImport(importObj, hasExport, exportObj, req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportImportDestroyed)
@@ -239,7 +239,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportDestroyed)
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     auto ret = HandleSingleExportReturn(req, resp, exportObj);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportSuccess)
@@ -250,7 +250,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportSuccess)
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     MOCKER_CPP(BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     auto ret = HandleSingleExportReturn(req, resp, exportObj);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERR_INTERNAL);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnImportNodeNok)
@@ -260,9 +260,10 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnImportNodeNok)
     req.importNodeId = "1";
     UbseMemOperationResp resp;
     const std::string realRequestNodeId = "1";
+    MOCKER_CPP(IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ENGINE_ERR_IMPORT_LEDGERING);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnNoBorrowObj)
@@ -274,7 +275,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnNoBorrowObj)
     const std::string realRequestNodeId = "1";
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturn)
@@ -286,7 +287,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturn)
     const std::string realRequestNodeId = "1";
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 }
 
 TEST_F(TestUbseMemControllerNumaApi, CheckNumaResourceState)
