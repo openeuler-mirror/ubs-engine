@@ -12,13 +12,13 @@
 
 #include "ubse_uds_server.h"
 
-#include <linux/vm_sockets.h>
+#include <sys/socket.h>
+
 #include <cstring>
 #include <string>
 
 #include <securec.h>
 #include <sys/epoll.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>

@@ -13,7 +13,6 @@
 #ifndef UBSE_VSOCK_CLIENT_H
 #define UBSE_VSOCK_CLIENT_H
 
-#include <linux/vm_sockets.h>
 #include <sys/socket.h>
 
 #include "ubse_ipc_common_def.h"

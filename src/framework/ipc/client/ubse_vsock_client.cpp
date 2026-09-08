@@ -12,6 +12,9 @@
 
 #include "ubse_vsock_client.h"
 
+#include <sys/socket.h>
+
+#include <linux/vm_sockets.h>
 #include <securec.h>
 #include <cstring>
 

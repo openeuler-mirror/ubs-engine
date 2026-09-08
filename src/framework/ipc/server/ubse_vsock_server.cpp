@@ -12,10 +12,11 @@
 
 #include "ubse_vsock_server.h"
 
+#include <sys/socket.h>
+
 #include <linux/vm_sockets.h>
 #include <pwd.h>
 #include <sys/epoll.h>
-#include <sys/socket.h>
 #include <unistd.h>
 #include <cstring>
 
