@@ -47,9 +47,16 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string&
     // 配置开关: PID粒度故障处理新路径
     if (MpConfiguration::GetInstance().GetPidFaultHandleEnabled()) {
         LOG_INFO << "PidFaultHandle enabled, entering PID-granularity path.";
-        auto ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(nodeId);
+        // Query阶段禁用的pid名单由PID流程带回，任一步失败统一恢复冷热流动
+        std::unordered_map<std::string, std::vector<pid_t>> disabledPids;
+        auto ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(nodeId, disabledPids);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "ProcessBorrowOutNodeFaultByPid failed.";
+            for (const auto& [borrowInNodeId, pids] : disabledPids) {
+                if (!pids.empty()) {
+                    OverCommitFaultMemIdModule::Instance().EnableSmapProcessMigrateRpc(pids, borrowInNodeId);
+                }
+            }
         }
         return ret;
     }
