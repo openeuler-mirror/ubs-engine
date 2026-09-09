@@ -332,7 +332,8 @@ static bool IsFileOpenByProc(const std::filesystem::path& procFdPath, const std:
         list = std::filesystem::directory_iterator(procFdPath);
     } catch (const std::filesystem::filesystem_error& e) {
         // 捕获并处理directory_iterator可能抛出的异常，比如权限问题
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Directory iteration failed=" << e.what();
+        // 只打印错误码，不打印 what()（其中包含文件路径）
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Directory iteration failed, error=" << e.code().value();
         return false;
     }
     for (const auto& entry : list) {

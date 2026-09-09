@@ -12,6 +12,7 @@
 
 #include "ubse_com_cert_verify.h"
 
+#include <fcntl.h>
 #include <openssl/err.h>
 #include <openssl/objects.h>
 #include <openssl/pem.h>
@@ -19,6 +20,8 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <unistd.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -46,18 +49,25 @@ bool GetLocalCertOtherName(const std::string& certPath, std::string& otherName)
         return false;
     }
 
-    FILE* fp = fopen(certPath.c_str(), "r");
+    // O_NOFOLLOW：最终组件为符号链接时拒绝打开，避免跟随非预期符号链接
+    int fd = open(certPath.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to open cert file, errno=" << errno;
+        return false;
+    }
+    FILE* fp = fdopen(fd, "r");
     if (fp == nullptr) {
-        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to open cert file: " << certPath;
+        UBSE_LOG_ERROR << "GetLocalCertOtherName: fdopen failed, errno=" << errno;
+        close(fd);
         return false;
     }
 
     X509* cert = PEM_read_X509(fp, nullptr, nullptr, nullptr);
     if (fclose(fp) != 0) {
-        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to close cert file: " << certPath;
+        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to close cert file";
     }
     if (cert == nullptr) {
-        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to read X509 certificate from: " << certPath;
+        UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to read X509 certificate";
         return false;
     }
 
@@ -67,7 +77,7 @@ bool GetLocalCertOtherName(const std::string& certPath, std::string& otherName)
 
     if (ret) {
         otherName = value;
-        UBSE_LOG_INFO << "GetLocalCertOtherName: extracted otherName=" << otherName << " from " << certPath;
+        UBSE_LOG_INFO << "GetLocalCertOtherName: extracted otherName=" << otherName;
     } else {
         UBSE_LOG_ERROR << "GetLocalCertOtherName: failed to extract otherName from certificate";
     }
@@ -76,20 +86,27 @@ bool GetLocalCertOtherName(const std::string& certPath, std::string& otherName)
 
 bool LoadCrlToStore(X509_STORE_CTX* ctx, const char* crlPath)
 {
-    FILE* crlFile = fopen(crlPath, "r");
+    // O_NOFOLLOW：最终组件为符号链接时拒绝打开，避免跟随非预期符号链接
+    int fd = open(crlPath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        UBSE_LOG_ERROR << "LoadCrlToStore: failed to open CRL file, errno=" << errno;
+        return false;
+    }
+    FILE* crlFile = fdopen(fd, "r");
     if (crlFile == nullptr) {
-        UBSE_LOG_ERROR << "LoadCrlToStore: failed to open CRL file: " << crlPath;
+        UBSE_LOG_ERROR << "LoadCrlToStore: fdopen failed, errno=" << errno;
+        close(fd);
         return false;
     }
 
     X509_CRL* crl = PEM_read_X509_CRL(crlFile, nullptr, nullptr, nullptr);
     if (fclose(crlFile) != 0) {
-        UBSE_LOG_ERROR << "LoadCrlToStore: failed to close CRL file: " << crlPath;
+        UBSE_LOG_ERROR << "LoadCrlToStore: failed to close CRL file";
     }
     if (crl == nullptr) {
         char errBuf[256] = {0};
         ERR_error_string_n(ERR_get_error(), errBuf, sizeof(errBuf));
-        UBSE_LOG_ERROR << "LoadCrlToStore: failed to parse CRL file: " << crlPath << ", err=" << errBuf;
+        UBSE_LOG_ERROR << "LoadCrlToStore: failed to parse CRL file, err=" << errBuf;
         return false;
     }
 
@@ -124,7 +141,7 @@ void SetExpectedLocalNodeId(const std::string& nodeId)
 
 int CertVerifyCallback(void* x509ctx, const char* crlPath)
 {
-    UBSE_LOG_INFO << "CertVerifyCallback: start, crlPath=" << (crlPath != nullptr ? crlPath : "(none)");
+    UBSE_LOG_INFO << "CertVerifyCallback: start";
 
     // 本端证书自校验：本端导入的证书 otherName 必须与本节点 nodeid 一致，
     // 不一致说明证书与本节点不匹配，直接拒绝本次握手，避免使用错误身份的证书建链。
@@ -164,12 +181,12 @@ bool VerifyLocalCertOtherName(const std::string& certPath, const std::string& ex
 {
     std::string otherName;
     if (!GetLocalCertOtherName(certPath, otherName)) {
-        UBSE_LOG_ERROR << "VerifyLocalCertOtherName: failed to extract otherName from local cert: " << certPath;
+        UBSE_LOG_ERROR << "VerifyLocalCertOtherName: failed to extract otherName from local cert";
         return false;
     }
     if (otherName != expectedNodeId) {
         UBSE_LOG_ERROR << "VerifyLocalCertOtherName: local cert otherName mismatch, cert otherName=" << otherName
-                       << ", local nodeId=" << expectedNodeId << ", cert=" << certPath;
+                       << ", local nodeId=" << expectedNodeId;
         return false;
     }
     UBSE_LOG_INFO << "VerifyLocalCertOtherName: local cert otherName=" << otherName

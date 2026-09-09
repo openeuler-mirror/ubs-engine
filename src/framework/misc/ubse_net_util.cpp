@@ -55,6 +55,37 @@ bool UbseNetUtil::ValidIpv6Addr(const std::string& ip)
     return false;
 }
 
+// 日志脱敏：IPv4 保留末端（如 10.1.2.3 -> x.x.x.3），IPv6 保留最后一组（如 fe80::1 -> x:...:1）
+std::string UbseNetUtil::MaskIp(const std::string& ip)
+{
+    if (ValidIpv4Addr(ip)) {
+        auto pos = ip.rfind('.');
+        if (pos != std::string::npos) {
+            return "x.x.x" + ip.substr(pos);
+        }
+        return ip;
+    }
+    in6_addr ipv6{};
+    if (inet_pton(AF_INET6, ip.c_str(), &ipv6) == 1) {
+        // IPv4 映射 IPv6（如 ::ffff:192.168.1.10）：先提取内嵌 IPv4 并按 IPv4 规则脱敏，
+        // 避免 rfind(':') 末段恰好是完整 IPv4 而绕过脱敏
+        if (IN6_IS_ADDR_V4MAPPED(&ipv6)) {
+            char v4Buf[INET_ADDRSTRLEN] = {0};
+            if (inet_ntop(AF_INET, &ipv6.s6_addr[12], v4Buf, sizeof(v4Buf)) != nullptr) {
+                std::string v4Str(v4Buf);
+                auto v4Pos = v4Str.rfind('.');
+                return v4Pos != std::string::npos ? "x.x.x" + v4Str.substr(v4Pos) : v4Str;
+            }
+        }
+        auto pos = ip.rfind(':');
+        if (pos != std::string::npos) {
+            return "x:...:" + ip.substr(pos + 1);
+        }
+        return ip;
+    }
+    return ip;
+}
+
 // 将点分十进制IP转为32位整数
 uint32_t UbseNetUtil::IpV4ToInt(const std::string& ip, uint32_t& intIp)
 {

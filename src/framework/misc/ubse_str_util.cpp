@@ -161,10 +161,11 @@ common::def::UbseResult ConvertStrToUint64(const std::string& str, uint64_t& out
 
 std::string GenerateRandomStr(uint32_t size)
 {
-    std::random_device rd;                      // 获取随机数种子
-    std::mt19937 gen(rd());                     // 使用梅森旋转算法生成随机数
+    // 线程本地生成器：仅首次创建时用 random_device 播种，避免每次调用都创建 random_device
+    static thread_local std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<> dist(0, 9); // 生成 0 到 9 的随机数字
     std::string randomID;
+    randomID.reserve(size); // 预分配，避免字符串反复扩容
 
     for (size_t i = 0; i < size; ++i) {
         randomID += std::to_string(dist(gen)); // 随机选择数字并转换为字符串
@@ -193,7 +194,7 @@ bool StrToULong(const std::string& src, uint64_t& value)
 {
     char* remain = nullptr;
     errno = 0;
-    value = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
+    value = std::strtoull(src.c_str(), &remain, 10L); // 10 is decimal digits, strtoull 返回 64 位保证 uint64_t 全范围
     if ((value == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE) {
         return false;
     }
@@ -204,10 +205,13 @@ bool StrToUint(const std::string& src, uint32_t& value)
 {
     char* remain = nullptr;
     errno = 0;
-    value = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
-    if ((value == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE) {
+    unsigned long parsed = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
+    // 64 位平台上 strtoul 返回 64 位，超出 uint32_t 范围需显式拦截，避免静默截断
+    if ((parsed == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE ||
+        parsed > std::numeric_limits<uint32_t>::max()) {
         return false;
     }
+    value = static_cast<uint32_t>(parsed);
     return true;
 }
 
