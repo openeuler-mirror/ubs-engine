@@ -92,11 +92,6 @@ public:
         return sceneType;
     }
 
-    inline IsSamePlane GetSamePlane()
-    {
-        return isSamePlane;
-    }
-
     inline bool GetMustSamePlane()
     {
         return mustSamePlane;

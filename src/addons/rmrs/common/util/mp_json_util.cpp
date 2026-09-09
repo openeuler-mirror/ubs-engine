@@ -338,16 +338,4 @@ bool JsonUtil::RackMemConvertJsonStr2Vec(const JSON_STR& jsonStr, JSON_VEC& strV
     return true;
 }
 
-std::string JsonUtil::CreateRackDeleteAttr(const bool isForceDelete)
-{
-    JSON_MAP strMap;
-    (void)strMap.emplace("isForceDelete", isForceDelete ? "true" : "false");
-    JSON_STR res;
-    if (!JsonUtil::RackMemConvertMap2JsonStr(strMap, res)) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RackMemConvertMap2JsonStr error.";
-        return "";
-    }
-    return res;
-}
-
 } // namespace mempooling

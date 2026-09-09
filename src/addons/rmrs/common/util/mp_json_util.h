@@ -78,8 +78,6 @@ public:
 
     /* 将array类型的json字符串转为vec,value也可以是json字符串 */
     static bool RackMemConvertJsonStr2Vec(const JSON_STR& jsonStr, JSON_VEC& strVec);
-
-    static std::string CreateRackDeleteAttr(const bool isForceDelete);
 };
 } // namespace mempooling
 

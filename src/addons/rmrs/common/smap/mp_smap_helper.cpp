@@ -742,18 +742,6 @@ void MpSmapHelper::FilterValidPidsByLocalNode(std::vector<pid_t>& pidList)
     return;
 }
 
-void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList)
-{
-    auto ret = ResourceQuery::FilterValidPidListRpc(srcNid, pidList);
-    if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpSmapHelper] FilterValidPidListRpc failed, srcNid: " << srcNid << ".";
-        return;
-    }
-
-    return;
-}
-
 MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, int srcNid, int destNid)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigratePidRemoteNumaHelper start.";
@@ -1315,30 +1303,6 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
     for (int i = 0; i < realLen; i++) {
         processPayloadList.push_back(payloadArr[i]);
     }
-    return MEM_POOLING_OK;
-}
-
-MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList)
-{
-    std::vector<ProcessPayload> processPayloadList;
-    const auto smapQueryProcessConfigFunc = SmapModule::GetSmapGetRemoteProcessesFunc();
-    if (smapQueryProcessConfigFunc == nullptr) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
-        return MEM_POOLING_ERROR;
-    }
-
-    ProcessPayload payloadArr[SMAP_QUERY_PID_NUM];
-    int realLen = 0;
-    int res = smapQueryProcessConfigFunc(nid, payloadArr, SMAP_QUERY_PID_NUM, &realLen);
-    if (res != SMAP_OK || realLen < 0 || realLen > SMAP_QUERY_PID_NUM) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[RmrsSmapHelper] SmapQueryProcessConfig error." << nid << " " << realLen << " " << res;
-        return MEM_POOLING_ERROR;
-    }
-    for (int i = 0; i < realLen; i++) {
-        processPayloadList.push_back(payloadArr[i]);
-    }
-
     return MEM_POOLING_OK;
 }
 

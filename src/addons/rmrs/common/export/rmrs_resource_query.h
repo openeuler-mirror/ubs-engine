@@ -96,7 +96,6 @@ public:
     static MpResult ConvertMetaNumaInfos(std::vector<turbo::rmrs::MetaNumaInfo> metaNumaInfos,
                                          mempooling::RmrsPidInfo& pidInfo);
     static MpResult FilterValidPidListByLocalNode(std::vector<pid_t>& pidList);
-    static MpResult FilterValidPidListRpc(const std::string& srcNid, std::vector<pid_t>& pidList);
 
 private:
     static std::string addTag;

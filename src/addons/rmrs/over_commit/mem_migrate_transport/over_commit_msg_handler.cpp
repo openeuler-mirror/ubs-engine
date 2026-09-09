@@ -505,16 +505,6 @@ void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo& response, const MpResu
     resBuffer.freeFunc = DefaultFreeFunc;
 }
 
-uint32_t NumaBindTypeNotify(UbseByteBuffer& buffer)
-{
-    return OverCommitStorage::Instance().PutNumaBindTypeRawData(buffer);
-}
-
-uint32_t NumaBindTypeGetData(UbseByteBuffer& data)
-{
-    return OverCommitStorage::Instance().GetNumaBindTypeRawData(data, true);
-}
-
 uint32_t InitOverCommitReg()
 {
     // 超分场景 agent节点处理setSmapRemoteNumaInfo

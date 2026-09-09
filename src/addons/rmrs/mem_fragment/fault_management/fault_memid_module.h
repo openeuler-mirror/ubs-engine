@@ -181,9 +181,6 @@ public:
                                               bool& isSameDestNid);
     void PrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
                                         const bool& isSameDestNid);
-    MpResult MemBorrPostprocess(std::string borrowId,
-                                const mempooling::MemBorrowExecuteResult& borrowExecuteResultNotSameNid,
-                                uint64_t totalNeedBorrowMem);
 };
 
 class FaultMemIdModule {

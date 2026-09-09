@@ -26,6 +26,7 @@
 #include "ubse_error.h"
 #include "ubse_mem_controller.h"
 #include "ubse_pointer_process.h"
+#include "OsHelper/OsHelper.h"
 #include "export_type.h"
 #include "exporter.h"
 #include "fault_memid_helper.h"
@@ -666,30 +667,6 @@ void FaultNodeModule::ExecuteBorrow(std::vector<BorrowExecuteParam>& borrowExecu
     }
 }
 
-MpResult FaultNodeModule::DealRes(NumaReplaceReturnMsg msg)
-{
-    std::set<std::string> failSet;
-    // 删除掉老的borrowId
-    for (BorrowExecuteParam param : msg.BorrowExecuteParamVec) {
-        if (mempooling::MemBorrowExecutor::Instance().MemFreeWithOps(param.oldBorrowId, false, false, true)) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] [FaultLentNode] MemFree borrowId failed, nodeId " << msg.faultNuma << " borrowId"
-                << param.oldBorrowId << ".";
-            (void)failSet.insert(msg.faultNuma);
-        }
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [FaultLentNode] Update borrow map oldBorrowId " << param.oldBorrowId << " newBorrowId "
-            << param.newBorrowId << ".";
-        if (BorrowIdRedirection::Instance().Update(param.oldBorrowId, param.newBorrowId)) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] [FaultLentNode] UpdateBorrowIdRedirection failed.";
-            (void)failSet.insert(msg.faultNuma);
-        }
-    }
-
-    return failSet.empty() ? MEM_POOLING_OK : MEM_POOLING_ERROR;
-}
-
 MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> forwardMemIdParamList,
                                                 bool forceDeleteMem)
 {
@@ -712,28 +689,6 @@ MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> f
         }
     }
     return res;
-}
-
-bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId)
-{
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultManager] Master to invoke the slave CheckUBTurboIsAlive, nodeId=" << nodeId << ".";
-    UbseComEndpoint endpoint = {
-        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_CHECK_UBTURBO_IS_ALIVE, .address = nodeId};
-    RmrsOutStream builder;
-    builder << nodeId;
-    UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
-    bool isAlive = false;
-    auto ret = UbseRpcSend(endpoint, reqData, &isAlive, CheckUBTurboIsAliveResHandler);
-    if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAlive failed, ret = " << ret;
-        return false;
-    }
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAlive success.";
-    return isAlive;
 }
 
 uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
@@ -764,22 +719,6 @@ uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& r
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveHandler end.";
     return ret;
-}
-
-void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
-{
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultManager] CheckUBTurboIsAliveResHandler resCode=" << resCode;
-    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Ctx or respData is null.";
-        return;
-    }
-    auto* result = static_cast<bool*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.data[0] != 1) {
-        *result = false;
-        return;
-    }
-    *result = true;
 }
 
 MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId)
@@ -918,32 +857,6 @@ std::vector<BorrowGroupResult> FaultNodeModule::GroupBorrowRecordsByNuma(const s
     std::sort(groups.begin(), groups.end(),
               [](const BorrowGroupResult& a, const BorrowGroupResult& b) { return a.totalSize > b.totalSize; });
     return groups;
-}
-
-static void ConvertToClusterSnapshot(const std::vector<NodeMemoryInfoWithReservedMem>& src,
-                                     std::vector<ClusterSnapshotItem>& dst)
-{
-    const uint64_t blockSize = FaultNodeModule::GetBlockSizeKB();
-    for (const auto& nodeInfo : src) {
-        ClusterSnapshotItem item;
-        item.nodeId = nodeInfo.nodeId;
-        item.socketId = nodeInfo.socketId;
-        item.freeMemSize = nodeInfo.canBorrowMem; // 原始未对齐大小
-        item.totalBlocks = 0;
-        for (const auto& numa : nodeInfo.numaMemInfo) {
-            item.numaIds.push_back(numa.numaId);
-            uint64_t blocks = numa.canBorrowMem / blockSize;
-            if (blocks > 0) {
-                item.numaCanLentMap[numa.numaId] = blocks;
-                item.totalBlocks += blocks;
-            }
-        }
-        item.canLentMemSize = item.totalBlocks * blockSize; // 按 block 对齐后的总大小
-        dst.push_back(item);
-    }
-    std::sort(dst.begin(), dst.end(), [](const ClusterSnapshotItem& a, const ClusterSnapshotItem& b) {
-        return a.canLentMemSize < b.canLentMemSize;
-    });
 }
 
 // 向借入节点发起RPC，获取占用指定远端Numa的所有虚机信息
@@ -2131,6 +2044,46 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
     return MEM_POOLING_OK;
 }
 
+namespace {
+// smap机制：仅当存在smap纳管进程时，Smap MigrateBack才能成功（无纳管进程时迁移回传消息为空直接失败）。
+// 拓扑获取或任一NUMA查询失败时保守返回true维持smap迁回路径，避免误直接归还导致数据丢失。
+bool HasSmapManagedPidOnAnyRemoteNuma()
+{
+    std::vector<uint16_t> numaSet;
+    if (exportV2::OsHelper::GetNumaSet(numaSet) != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel] Get numa set failed, keep smap migrate back path.";
+        return true;
+    }
+    for (uint16_t numaId : numaSet) {
+        bool isLocal = true;
+        if (exportV2::OsHelper::IsNumaLocal(numaId, isLocal) != MEM_POOLING_OK) {
+            // 单节点属性读取异常按缺失节点跳过，兼容非连续编号（同参考实现）
+            continue;
+        }
+        if (isLocal) {
+            continue;
+        }
+        std::vector<ProcessPayload> processPayloadList;
+        if (MpSmapHelper::SmapQueryProcessConfigHelper(numaId, processPayloadList) != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] Query smap managed pids of remoteNumaId=" << numaId
+                << " failed, keep smap migrate back path.";
+            return true;
+        }
+        if (!processPayloadList.empty()) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] RemoteNumaId=" << numaId << " has " << processPayloadList.size()
+                << " smap managed pid(s), keep smap migrate back path.";
+            return true;
+        }
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel] No smap managed pid on remote numa(s), direct return without smap migrate back.";
+    return false;
+}
+} // namespace
+
 void BorrowIdLevelReturnDirectly(const BorrowIdLevelDecision& decision, int errCount)
 {
     if (decision.isReturnDirectly && errCount > 0) {
@@ -2143,7 +2096,9 @@ void BorrowIdLevelReturnDirectly(const BorrowIdLevelDecision& decision, int errC
     if (decision.isReturnDirectly && errCount == 0) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[BorrowIdLevelExecuteHandler] Start to free directly for oldName=" << decision.oldName << ".";
-        auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(decision.oldName, false, true, true);
+        // 归还前判定本机所有远端numa是否存在smap纳管pid，决定归还路径是否走smap迁回
+        bool smapBack = HasSmapManagedPidOnAnyRemoteNuma();
+        auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(decision.oldName, false, smapBack, true);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[BorrowIdLevelExecuteHandler] direct free oldName=" << decision.oldName << "failed. ret=" << ret
@@ -2430,8 +2385,10 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
 {
     if (decision.isReturnDirectly) {
         // 直接归还旧内存
+        // 归还前查询本机所有远端numa是否存在smap纳管pid：存在则走smap迁回路径，全部无纳管则直接归还
+        bool smapBack = HasSmapManagedPidOnAnyRemoteNuma();
         for (auto oldName : decision.oldNames) {
-            auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldName, false, true, true);
+            auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldName, false, smapBack, true);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";

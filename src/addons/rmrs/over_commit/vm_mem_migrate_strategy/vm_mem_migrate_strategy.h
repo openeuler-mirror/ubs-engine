@@ -127,14 +127,8 @@ MpResult FillNumaInfo(mempooling::outinterface::NumaMetaData& numaInfo, JSON_MAP
 uint64_t CalBestRemainValue(const std::map<uint16_t, uint64_t>& resourceCapacity, const VMStat& vmStat,
                             std::map<pid_t, bool> assigned);
 
-MpResult ProcessStepsValidate(int16_t srcNumaId, std::vector<MigrationStep>& steps,
-                              std::map<uint16_t, uint64_t>& remoteMap2Size);
-
 MpResult UpdateContainerInfoInnode(const std::string& srcNid, const std::vector<pid_t>& pids,
                                    std::unordered_map<pid_t, VMInfo>& vmInfos);
-
-MpResult UpdateContainerInfoInnodeByLocalNode(const std::string& srcNid, const std::vector<pid_t>& pids,
-                                              std::unordered_map<pid_t, VMInfo>& vmInfos);
 
 class VMMemMigrateStrategy {
 public:

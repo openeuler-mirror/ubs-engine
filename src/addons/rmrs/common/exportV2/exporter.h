@@ -55,7 +55,6 @@ public:
 private:
     static VmDomainInfo genVmDomainInfo(const std::string& vmName);
     static NumaInfo genNumaInfo(const std::uint16_t& numaId);
-    static time_t NowTimeT();
 
     class StartGate {
     public:

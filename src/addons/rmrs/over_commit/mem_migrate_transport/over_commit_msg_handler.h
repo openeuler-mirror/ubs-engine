@@ -83,9 +83,6 @@ private:
                                 const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs, int16_t srcNumaId);
 };
 
-uint32_t NumaBindTypeNotify(UbseByteBuffer& buffer);
-uint32_t NumaBindTypeGetData(UbseByteBuffer& data);
-
 uint32_t InitOverCommitReg();
 uint32_t InitUCacheOverCommitReg();
 uint32_t InitExportReg();

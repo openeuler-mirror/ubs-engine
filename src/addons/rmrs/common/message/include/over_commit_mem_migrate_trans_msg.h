@@ -40,10 +40,6 @@ public:
     {
     }
 
-    inline OverCommitMemMigrateTrans GetOverCommitMemMigrateTrans() const
-    {
-        return _overCommitMemMigrateTrans;
-    }
     OverCommitMemMigrateTrans _overCommitMemMigrateTrans{};
 };
 } // namespace mempooling
