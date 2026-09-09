@@ -157,8 +157,10 @@ void SetupAdapterFuncs();
 // ============================================================================
 extern std::atomic<int> g_attachFailAfter;
 extern std::atomic<int> g_attachCallCount;
+extern std::atomic<int> g_attachFailRet;
 extern std::atomic<int> g_detachFailAfter;
 extern std::atomic<int> g_detachCallCount;
+extern std::atomic<int> g_detachFailRet;
 
 void ResetControllableMockState();
 
