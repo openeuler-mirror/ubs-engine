@@ -67,6 +67,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_ssu
         ubse_vip
         ubse_vsock_client
+        ubse_vsock_server
         ubse_ssu_sdk
         ubse_npu_sdk
 )
@@ -136,6 +137,7 @@ add_subdirectory(adapter_plugins/bandbridge)
 add_subdirectory(node_mgr)
 add_subdirectory(controllers)
 add_subdirectory(framework/vip)
+add_subdirectory(framework/vscok)
 
 add_independent_exec_ut(${UT_BINARY})
 
