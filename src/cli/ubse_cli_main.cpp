@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -16,6 +17,7 @@
 
 #include "ubse_cli_reg.h"
 #include "ubse_cli_whitelist.h"
+#include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -63,12 +65,16 @@ int main(int argc, char* argv[])
 
     UbseCliModuleRegistry::GetInstance().UbseCliCallAllModuleSignUp();
 
-    auto& ctx = ubse::context::UbseContext::GetInstance();
-    auto confModule = std::make_shared<ubse::config::UbseConfModule>();
-    if (confModule != nullptr) {
-        confModule->Initialize();
-        confModule->Start();
-        ctx.template RegisterModuleInstance<ubse::config::UbseConfModule>(confModule);
+    // UDS场景下socket路径存在时不需要初始化配置模块；仅vsock场景需要读取配置
+    struct stat socketStat = {};
+    if (stat(ubse::common::def::UBSE_UDS_SOCKET_PATH.c_str(), &socketStat) != 0) {
+        auto& ctx = ubse::context::UbseContext::GetInstance();
+        auto confModule = std::make_shared<ubse::config::UbseConfModule>();
+        if (confModule != nullptr) {
+            confModule->Initialize();
+            confModule->Start();
+            ctx.template RegisterModuleInstance<ubse::config::UbseConfModule>(confModule);
+        }
     }
 
     UbseCliWhitelist whitelist;
