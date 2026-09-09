@@ -168,6 +168,30 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_RecordNotFound)
               UBSE_SSU_ERROR_SPACE_NOT_FOUND);
 }
 
+/*
+ * 用例：AttachSpace_Master_AccessDenied
+ * MockAttachNamespace 返回 SSU_ERR_UNAUTHORIZED，AttachSpace 应透传 UBSE_ERR_ACCESS_DENIED。
+ */
+TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AccessDenied)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+
+    UbseSsuAllocResult result;
+    result.name = "test_attach_denied";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
+    PutLedgerEntry("test_attach_denied", UbseSsuNsState::CREATED, result);
+
+    g_attachFailAfter.store(0);  // 1st call fails
+    g_attachFailRet.store(SSU_ERR_UNAUTHORIZED);
+
+    auto identity = MakeIdentity();
+    std::vector<std::string> nsDevPaths;
+    EXPECT_EQ(service_.AttachSpace(MakeSpaceReq("test_attach_denied", "", identity), nsDevPaths),
+              UBSE_ERR_ACCESS_DENIED);
+}
+
 // --------------------------------------------------------------------------
 // AttachSpace - Agent tests
 // --------------------------------------------------------------------------
@@ -302,6 +326,65 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_PartialFail)
 TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_RecordNotFound)
 {
     EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_not_found")), UBSE_SSU_ERROR_SPACE_NOT_FOUND);
+}
+
+/*
+ * 用例：DetachSpace_Master_AccessDenied
+ * MockDetachNamespace 返回 SSU_ERR_UNAUTHORIZED，DetachSpace 应透传 UBSE_ERR_ACCESS_DENIED。
+ */
+TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_AccessDenied)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+
+    UbseSsuAllocResult result;
+    result.name = "test_detach_denied";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
+    PutLedgerEntry("test_detach_denied", UbseSsuNsState::ATTACHED, result);
+
+    g_detachFailAfter.store(0);  // 1st call fails
+    g_detachFailRet.store(SSU_ERR_UNAUTHORIZED);
+
+    auto identity = MakeIdentity();
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_denied", "", identity)),
+              UBSE_ERR_ACCESS_DENIED);
+
+    // Verify ledger state remains ATTACHED
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_detach_denied");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
+}
+
+/*
+ * 用例：DetachSpace_Master_PartialAccessDenied
+ * 第 2 个 NS Detach 返回 SSU_ERR_UNAUTHORIZED，DetachSpace 应优先透传 UBSE_ERR_ACCESS_DENIED。
+ */
+TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_PartialAccessDenied)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
+
+    UbseSsuAllocResult result;
+    result.name = "test_detach_partial_denied";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2));
+    PutLedgerEntry("test_detach_partial_denied", UbseSsuNsState::ATTACHED, result);
+
+    g_detachFailAfter.store(1);  // 2nd call fails
+    g_detachFailRet.store(SSU_ERR_UNAUTHORIZED);
+
+    auto identity = MakeIdentity();
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_partial_denied", "", identity)),
+              UBSE_ERR_ACCESS_DENIED);
+
+    // Verify ledger state remains ATTACHED
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_detach_partial_denied");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
 }
 
 // --------------------------------------------------------------------------

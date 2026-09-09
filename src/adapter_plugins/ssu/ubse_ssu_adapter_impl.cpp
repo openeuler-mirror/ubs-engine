@@ -51,6 +51,20 @@ uint64_t GetLbaSize(uint32_t flbas)
     return (flbas == 1) ? 4096ULL : 512ULL;
 }
 
+// 将 libssu 返回的错误码映射为对应的 UBSE 错误码。
+// 仅对 nqn 无权限（attach/detach 时 adminNqn 不在 server 白名单）做专门映射，
+// 以便上层能识别"无权限"场景；其他 SSU 错误统一走 defaultErr 兜底，保留操作级语义。
+// ssuRet: libssu 函数返回值；defaultErr: 未匹配到已知 SSU 错误码时的兜底错误码。
+uint32_t MapSsuErrToUbseErr(int ssuRet, uint32_t defaultErr)
+{
+    switch (ssuRet) {
+        case SSU_ERR_UNAUTHORIZED:
+            return UBSE_ERR_ACCESS_DENIED;
+        default:
+            return defaultErr;
+    }
+}
+
 std::string MaskNqn(const std::string &nqn)
 {
     if (nqn.size() <= NQN_MASK_SUFFIX_LEN) {
@@ -844,7 +858,7 @@ uint32_t UbseSsuAdapterImpl::AttachDevNameSpace(const std::string &hostNqn, cons
     int attachRet = attachNamespace_(hostNqn.c_str(), &nsInfo);
     if (attachRet != 0) {
         UBSE_LOG_ERROR << "attach_namespace failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << attachRet;
-        return UBSE_SSU_ERROR_ATTACH_FAILED;
+        return MapSsuErrToUbseErr(attachRet, UBSE_SSU_ERROR_ATTACH_FAILED);
     }
 
     // VerifyNamespaceUuid需要调用GetDevList来验证，但agent侧不支持GetDevList，所以这里先不调用
@@ -881,7 +895,7 @@ uint32_t UbseSsuAdapterImpl::DetachDevNameSpace(const std::string &hostNqn, cons
     int detachRet = detachNamespace_(hostNqn.c_str(), &nsInfo);
     if (detachRet != 0) {
         UBSE_LOG_ERROR << "detach_namespace failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << detachRet;
-        return UBSE_SSU_ERROR_DETACH_FAILED;
+        return MapSsuErrToUbseErr(detachRet, UBSE_SSU_ERROR_DETACH_FAILED);
     }
 
     UBSE_LOG_INFO << "Successfully detached namespace " << nameSpace.namespaceId

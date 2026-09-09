@@ -844,7 +844,7 @@ static uint32_t AgentAttachDetachNs(bool isAttach, const UbseSsuNameSpaceInfo &n
     if (opRet != UBSE_OK) {
         UBSE_LOG_ERROR << (isAttach ? "AttachDevNameSpace" : "DetachDevNameSpace") << " failed, eid=" << nsInfo.tgtEid
                        << ", nsId=" << nsInfo.namespaceId << ", ret=" << opRet;
-        return isAttach ? UBSE_SSU_ERROR_ATTACH_FAILED : UBSE_SSU_ERROR_DETACH_FAILED;
+        return opRet;
     }
     return UBSE_OK;
 }
@@ -1145,8 +1145,12 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
         auto nsRet = AgentDetachNs(nsInfo, verifyInfo, req.nqn);
         if (nsRet != UBSE_OK) {
             UBSE_LOG_ERROR << "AgentDetach: DetachSingleNsVerified failed, eid=" << nsInfo.tgtEid
-                           << ", nsId=" << nsInfo.namespaceId;
-            detachRet = UBSE_SSU_ERROR_DETACH_FAILED;
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << nsRet;
+            if (nsRet == UBSE_ERR_ACCESS_DENIED) {
+                detachRet = nsRet; // 权限不足优先透传，上层可识别nqn白名单问题
+            } else if (detachRet == UBSE_OK) {
+                detachRet = UBSE_SSU_ERROR_DETACH_FAILED; // 保留原兜底语义
+            }
         }
     }
     if (detachRet != UBSE_OK) {
@@ -1280,7 +1284,7 @@ static uint32_t AttachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsu
     if (attachRet != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachSingleNs: AttachDevNameSpace failed, eid=" << nsInfo.tgtEid
                        << ", nsId=" << nsInfo.namespaceId << ", ret=" << attachRet;
-        return UBSE_SSU_ERROR_ATTACH_FAILED;
+        return attachRet;
     }
     return UBSE_OK;
 }
@@ -1312,7 +1316,7 @@ static uint32_t DetachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsu
     if (detachRet != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachSingleNs: DetachDevNameSpace failed, eid=" << nsInfo.tgtEid
                        << ", nsId=" << nsInfo.namespaceId << ", ret=" << detachRet;
-        return UBSE_SSU_ERROR_DETACH_FAILED;
+        return detachRet;
     }
     return UBSE_OK;
 }
@@ -1497,8 +1501,12 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         auto ret = DetachSingleNs(nsInfo, req.identity, req.nqn, devMap);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "DetachSpace: DetachSingleNs failed, eid=" << nsInfo.tgtEid
-                           << ", nsId=" << nsInfo.namespaceId;
-            detachRet = UBSE_SSU_ERROR_DETACH_FAILED;
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << ret;
+            if (ret == UBSE_ERR_ACCESS_DENIED) {
+                detachRet = ret; // 权限不足优先透传，上层可识别nqn白名单问题
+            } else if (detachRet == UBSE_OK) {
+                detachRet = UBSE_SSU_ERROR_DETACH_FAILED; // 保留原兜底语义
+            }
         }
     }
 
@@ -1783,8 +1791,12 @@ static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseS
         auto detachRet = DetachSingleNs(nsInfo, req.identity, req.nqn, devMap);
         if (detachRet != UBSE_OK) {
             UBSE_LOG_ERROR << tag << ": DetachSingleNs failed, eid=" << nsInfo.tgtEid
-                           << ", nsId=" << nsInfo.namespaceId;
-            ret = UBSE_SSU_ERROR_DETACH_FAILED;
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << detachRet;
+            if (detachRet == UBSE_ERR_ACCESS_DENIED) {
+                ret = detachRet; // 权限不足优先透传，上层可识别nqn白名单问题
+            } else if (ret == UBSE_OK) {
+                ret = UBSE_SSU_ERROR_DETACH_FAILED; // 保留原兜底语义
+            }
         }
     }
     if (ret != UBSE_OK) {

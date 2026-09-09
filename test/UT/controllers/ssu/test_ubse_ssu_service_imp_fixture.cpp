@@ -75,6 +75,7 @@ int MockDeleteNamespace(const char *adminNqn, DevNamespaceInfoT *nsInfo)
 
 std::atomic<int> g_attachFailAfter{-1};
 std::atomic<int> g_attachCallCount{0};
+std::atomic<int> g_attachFailRet{-1};
 
 int MockAttachNamespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
 {
@@ -82,11 +83,12 @@ int MockAttachNamespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
     (void)nsInfo;
     int call = g_attachCallCount.fetch_add(1);
     int failAfter = g_attachFailAfter.load();
-    return (failAfter >= 0 && call >= failAfter) ? -1 : 0;
+    return (failAfter >= 0 && call >= failAfter) ? g_attachFailRet.load() : 0;
 }
 
 std::atomic<int> g_detachFailAfter{-1};
 std::atomic<int> g_detachCallCount{0};
+std::atomic<int> g_detachFailRet{-1};
 
 int MockDetachNamespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
 {
@@ -94,15 +96,17 @@ int MockDetachNamespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
     (void)nsInfo;
     int call = g_detachCallCount.fetch_add(1);
     int failAfter = g_detachFailAfter.load();
-    return (failAfter >= 0 && call >= failAfter) ? -1 : 0;
+    return (failAfter >= 0 && call >= failAfter) ? g_detachFailRet.load() : 0;
 }
 
 void ResetControllableMockState()
 {
     g_attachFailAfter.store(-1);
     g_attachCallCount.store(0);
+    g_attachFailRet.store(-1);
     g_detachFailAfter.store(-1);
     g_detachCallCount.store(0);
+    g_detachFailRet.store(-1);
 }
 
 // ============================================================================

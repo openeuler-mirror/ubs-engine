@@ -41,6 +41,16 @@ constexpr uint32_t DEV_NAME_SIZE = 32;
 constexpr uint32_t SN_SIZE = 21;
 constexpr uint32_t MN_SIZE = 41;
 
+// SSU 库错误码（与 lib_ssu.h 保持一致），用于将 libssu 返回值映射为 UBSE 错误码
+constexpr int SSU_OK = 0;
+constexpr int SSU_ERR_INVALID_ARG = -1;
+constexpr int SSU_ERR_NO_SERVER = -2;
+constexpr int SSU_ERR_NETWORK = -3;
+constexpr int SSU_ERR_HTTP = -4;
+constexpr int SSU_ERR_JSON = -5;
+constexpr int SSU_ERR_SERVER = -6;
+constexpr int SSU_ERR_UNAUTHORIZED = -7;
+
 typedef struct {
     uint8_t raw[EID_SIZE];
 } DevEidT;
