@@ -12,16 +12,23 @@ if ! grep -qi "openEuler" /etc/openEuler-release 2>/dev/null; then
 fi
 cat /etc/openEuler-release
 
+MIN_UBS_COMM=
+if grep -Eqi "24\.03.*LTS-SP4" /etc/openEuler-release; then
+    MIN_UBS_COMM="1.0.1-7"
+elif grep -Eqi "24\.03.*LTS-SP3" /etc/openEuler-release; then
+    MIN_UBS_COMM="1.0.0-27"
+fi
+
 echo "==> 安装基础工具链"
 dnf install -y gcc gcc-c++ make cmake git python3 python3-pip 'dnf-command(builddep)'
 
 cd "${REPO_ROOT}"
 
-if dnf list ubs-comm-devel >/dev/null 2>&1; then
-    echo "==> 安装构建依赖（spec BuildRequires）"
+if [ -n "${MIN_UBS_COMM}" ] && [ -n "$(dnf --quiet repoquery --installed --available --whatprovides "ubs-comm-devel >= ${MIN_UBS_COMM}" 2>/dev/null)" ]; then
+    echo "==> ubs-comm-devel 满足要求（>= ${MIN_UBS_COMM}），安装构建依赖（spec BuildRequires）"
     dnf builddep -y ubs-engine.spec
 else
-    echo "==> 仓库无 ubs-comm-devel，按构建指导 2.1.2 源码编译 ubs-comm"
+    echo "==> 无满足要求的 ubs-comm-devel（${MIN_UBS_COMM:-当前系统不在 24.03 LTS-SP3/SP4 支持范围内}），按构建指导 2.1.2 源码编译 ubs-comm"
     dnf install -y rpm-build rpmdevtools
     mkdir -p /tmp/src
     [ -d /tmp/src/ubs-comm ] || git clone -b openEuler-24.03-LTS-SP4 --depth 1 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
