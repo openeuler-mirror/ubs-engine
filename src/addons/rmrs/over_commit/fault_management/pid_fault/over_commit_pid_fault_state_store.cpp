@@ -257,17 +257,6 @@ MpResult PidFaultStateStore::ClearFaultState(const std::string& faultNodeId)
     return PersistToStorage();
 }
 
-bool PidFaultStateStore::HasTaskState(const std::string& faultNodeId, const std::string& taskId)
-{
-    std::lock_guard<std::mutex> lock(mtx_);
-    auto stateIt = stateMap_.find(faultNodeId);
-    if (stateIt == stateMap_.end()) {
-        return false;
-    }
-    return std::any_of(stateIt->second.taskStates.begin(), stateIt->second.taskStates.end(),
-                       [&taskId](const TaskPersistState& t) { return t.taskId == taskId; });
-}
-
 MpResult PidFaultStateStore::GetTaskState(const std::string& faultNodeId, const std::string& taskId,
                                           TaskPersistState& taskState)
 {

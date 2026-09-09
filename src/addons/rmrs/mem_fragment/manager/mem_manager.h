@@ -353,20 +353,6 @@ public:
         }
     }
 
-    bool IsFaultNuma(const std::string& nodeId, uint32_t numaId)
-    {
-        std::lock_guard<std::mutex> lk(mutex_);
-
-        auto it = faultNumaMap_.find(nodeId);
-        if (it == faultNumaMap_.end()) {
-            return false;
-        }
-
-        auto& numaList = it->second;
-
-        return std::find(numaList.begin(), numaList.end(), numaId) != numaList.end();
-    }
-
     void PrintFaultNuma()
     {
         std::lock_guard<std::mutex> lk(mutex_);
@@ -478,16 +464,6 @@ public:
         }
         exclusiveLocks_.insert(numaId);
         return MEM_POOLING_OK;
-    }
-
-    // 自身锁（仅与自身并发）：同一NUMA上多把自身锁可并发，但与独占锁、共享锁均互斥
-    void AcquireSelf(uint16_t numaId)
-    {
-        std::unique_lock<std::mutex> lk(mutex_);
-        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
-            cv_.wait(lk);
-        }
-        selfCounts_[numaId]++;
     }
 
     void ReleaseSelf(uint16_t numaId)

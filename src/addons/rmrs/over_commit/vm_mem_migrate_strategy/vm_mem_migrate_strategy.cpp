@@ -1094,25 +1094,6 @@ MpResult VMMemMigrateStrategy::processSteps(int16_t srcNumaId, std::vector<Migra
     return ret;
 }
 
-MpResult ProcessStepsValidate(int16_t srcNumaId, std::vector<MigrationStep>& steps,
-                              std::map<uint16_t, uint64_t>& remoteMap2Size)
-{
-    for (const auto p : remoteMap2Size) {
-        auto res = SetSmapRemoteNumaInfoExec(srcNumaId, p.first, p.second);
-        if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Rebalance] SetSmapRemoteNumaInfoExec Failed.";
-            return MEM_POOLING_ERROR;
-        }
-    }
-
-    if (steps.empty()) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[Rebalance] The step is empty.";
-        return MEM_POOLING_OK;
-    }
-
-    return MEM_POOLING_OK;
-}
-
 MpResult FillNumaInfo(mempooling::outinterface::NumaMetaData& numaInfo, JSON_MAP numaInfoStrMap)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FillNumaInfo] FillNumaInfo start.";

@@ -1042,20 +1042,6 @@ MpResult BorrowIdInFaultProcess::Query(std::vector<std::string>& borrowIdInFault
     return MEM_POOLING_OK;
 }
 
-void GetRemovePidCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
-                                void* ctx)
-{
-    if (ctx == nullptr) {
-        LOG_ERROR << "[PersistentStore][RemovePidCompleted] ctx is null!";
-        return;
-    }
-
-    auto& removePidCompleted = *(static_cast<std::unordered_map<uint16_t, std::unordered_set<pid_t>>*>(ctx));
-    RmrsInStream builder(buff.data, buff.len);
-    builder >> removePidCompleted;
-    LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Loaded map size=" << removePidCompleted.size() << ".";
-}
-
 MpResult RemovePidCompleted::Query(std::unordered_map<uint16_t, std::unordered_set<pid_t>>& removePidCompletedList)
 {
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query start.";

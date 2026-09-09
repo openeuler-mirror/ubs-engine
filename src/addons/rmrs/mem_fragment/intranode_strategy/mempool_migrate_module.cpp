@@ -79,11 +79,6 @@ struct RemoteNumaCandidate {
     uint64_t availableMem;
     int borrowCount;
     int plane;
-
-    std::string GetKey() const
-    {
-        return nodeId + "-" + std::to_string(socketId) + "-" + std::to_string(numaId);
-    }
 };
 
 struct CompareByPriority {

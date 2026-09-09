@@ -227,7 +227,6 @@ public:
     MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType);
     MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType& nodeType);
     MpResult FragmentHandleFault(std::string nodeId);
-    bool CheckUBTurboIsAliveRpc(std::string nodeId);
     MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
 
     MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
@@ -257,7 +256,6 @@ public:
     bool AllocateHugePage(uint16_t numaId, uint64_t hugePageMemSize);
     bool SwitchMigrateForNumaVm(std::vector<pid_t> pidList, int enable);
     bool GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg>& msgList);
-    MpResult DealRes(NumaReplaceReturnMsg msg);
     bool ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg> msgList);
     void DoExecuteBorrow(std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
                          std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
@@ -316,7 +314,6 @@ private:
 
 // RPC Handler
 uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
                                   uint64_t& hugePageMemSize);
 uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
@@ -331,18 +328,9 @@ class MpFaultNodeSubModule : public MpSubModule {
 public:
     MpResult Init() override
     {
-        // 注册ubturbo探活消息
-        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
-        auto ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
-        if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
-            return ret;
-        }
-
         // 注册 NUMA 级别执行 handler
-        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_NUMA_LEVEL_EXECUTE};
-        ret = UbseRegRpcService(endpoint, NumaLevelExecuteHandler);
+        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_NUMA_LEVEL_EXECUTE};
+        auto ret = UbseRegRpcService(endpoint, NumaLevelExecuteHandler);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] NumaLevelExecuteHandler reg failed, ret=" << ret;
