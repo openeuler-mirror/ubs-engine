@@ -6,14 +6,17 @@
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
 
 #include "ubse_cli_ssu_cmd_reg.h"
 
 #include <cctype>
+#include <cstdlib>
+#include <fstream>
 #include <limits>
+#include <sstream>
 #include <utility>
 
 #include "ubse_cli_buffer_guard.h"
@@ -22,6 +25,7 @@
 #include "ubse_cli_ssu_struct.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
+#include "ubse_str_util.h"
 
 namespace ubse::cli::reg {
 // 向 CLI 框架注册 SSU 模块：框架在加载期通过宏收集模块类，统一调度命令字分发。
@@ -42,9 +46,37 @@ const std::string DEV_NAME_OPT = "dev_name";
 const std::string LEVEL_OPT = "level";
 const std::string CHUNK_SIZE_OPT = "chunk_size";
 
-// display ssu 的 -t 取值，区分摘要与详情两类子命令。
+// display ssu 的 -t 取值，区分摘要、详情、连接信息三类子命令。
+// connect_info 为 VM 模式新增,查询已直通的 namespace 连接参数。
 const std::string ALLOC_SUMMARY_TYPE = "alloc_summary";
 const std::string ALLOC_DETAIL_TYPE = "alloc_detail";
+const std::string CONNECT_INFO_TYPE = "connect_info";
+
+// VM 模式配置:CLI 与守护进程统一读取同一配置源 ubse.conf 的 [ubse.ssu] vm_mode
+// (守护进程见 ubse_ssu_controller_module.cpp ReadVmModeConfig → UbseGetBool,部署路径 /etc/ubse/ubse.conf;
+// CLI 为轻量客户端不加载框架配置模块,按同一节/键/取值语义直接解析同一文件)。
+// 环境变量覆盖项 UBSE_SSU_VM_MODE_ENV(语义见 ubse_cli_ssu_cmd_reg.h)优先级高于配置文件,
+// 测试通过显式设值保证确定性,不依赖测试机 /etc/ubse/ubse.conf 的实际内容。
+constexpr const char *SSU_CONF_DEFAULT_PATH = "/etc/ubse/ubse.conf";
+constexpr const char *SSU_CONF_SECTION = "ubse.ssu";
+constexpr const char *SSU_CONF_VM_MODE_KEY = "vm_mode";
+constexpr const char *SSU_CONF_VM_MODE_TRUE = "true";
+
+// 检测 CLI 是否运行在 VM 模式
+// 返回 true 时 UbseCliSignUp 仅注册 display/attach/detach 命令子集;否则注册全部命令
+bool IsVmMode()
+{
+    // 环境变量覆盖项每次即时读取,不做缓存,保证部署/测试场景可动态切换。
+    const char *value = std::getenv(UBSE_SSU_VM_MODE_ENV);
+    if (value != nullptr) {
+        return value[0] == '1' && value[1] == '\0';
+    }
+    // 配置文件解析结果进程内首次读取后缓存(与守护进程 "vm_mode 配置单次读取,后续只读" 语义一致):
+    // 避免 UbseCliSignUp/UbseCliDisplaySsu/UbseCliDisplaySsuFunc 各自读盘,
+    // 并防止注册命令集与帮助文案/类型校验因两次读取间配置变化而脱节。
+    static const bool vmModeConf = IsSsuVmModeConf(SSU_CONF_DEFAULT_PATH);
+    return vmModeConf;
+}
 
 // 枚举的规范字符串字面量：输入校验与表格输出共用同一份，避免大小写/拼写漂移导致输入输出不一致。
 const std::string STRATEGY_LINEAR = "Linear";
@@ -103,6 +135,14 @@ const std::string ERR_STRIPED_NS_NUM_REQUIRED = "ERROR: Striped strategy require
 const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
+const std::string INFO_EMPTY_CONNECT = "INFO: No SSU connect information found.";
+
+// display ssu 的 -t 非法取值错误文案：VM 模式含 connect_info，
+// host 模式仅 alloc_summary/alloc_detail 两类，与该模式下注册的命令集保持一致。
+const std::string ERR_INVALID_DISPLAY_TYPE_HOST =
+    "ERROR: Invalid type. The value must be alloc_summary or alloc_detail.";
+const std::string ERR_INVALID_DISPLAY_TYPE_VM =
+    "ERROR: Invalid type. The value must be alloc_summary, alloc_detail or connect_info.";
 
 // ns_num 的合法区间随 SSU_CLI_DEFAULT_NS_NUM/SSU_CLI_MAX_NS_NUM 变化，故区间按常量动态拼接，
 // 避免改契约时错误文案与实际校验脱节（与 ParseNsNum 的判定保持单一来源）。
@@ -140,6 +180,7 @@ uint64_t SumNameSpaceSize(const UbseCliSsuAllocResult &allocation)
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response);
 std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response);
 std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult &response);
+std::shared_ptr<UbseCliResultEcho> BuildConnectInfoOutput(const UbseCliSsuConnectInfoRsp &response);
 bool IsValidName(const std::string &name);
 bool ParseSize(const std::string &value, uint64_t &sizeBytes);
 bool ParseNsNum(const std::string &value, uint32_t &nsNum);
@@ -445,9 +486,61 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::st
 }
 } // namespace
 
+// 解析 ubse.conf 内容,提取 [ubse.ssu] vm_mode(解析规则与守护进程 UbseConfigManager 对齐:
+// 逐行 trim 后跳过空行与 ';'/'#' 注释行,识别 [section] 行与 key=value 行,同键后值覆盖先值)。
+// 仅字面量 "true" 视为 VM 模式,"false" 或非法值按 host 模式处理(与 UbseConfModule::GetBoolConf 一致)。
+bool ParseSsuVmModeConf(const std::string &confContent)
+{
+    std::istringstream stream(confContent);
+    std::string line;
+    bool inSsuSection = false;
+    bool found = false;
+    std::string vmModeValue;
+    while (std::getline(stream, line)) {
+        line = ubse::utils::Trim(line);
+        if (line.empty() || line.front() == ';' || line.front() == '#') {
+            continue;
+        }
+        if (line.front() == '[' && line.back() == ']' && line.size() >= 2) {
+            inSsuSection = ubse::utils::Trim(line.substr(1, line.size() - 2)) == SSU_CONF_SECTION;
+            continue;
+        }
+        const auto equalPos = line.find('=');
+        if (equalPos == std::string::npos || equalPos == 0 || equalPos == line.size() - 1) {
+            continue;
+        }
+        if (!inSsuSection || ubse::utils::Trim(line.substr(0, equalPos)) != SSU_CONF_VM_MODE_KEY) {
+            continue;
+        }
+        vmModeValue = ubse::utils::Trim(line.substr(equalPos + 1));
+        found = true;
+    }
+    return found && vmModeValue == SSU_CONF_VM_MODE_TRUE;
+}
+
+// 读取指定路径的 ubse.conf 并解析 vm_mode;文件不存在或不可读返回 false(回落 host 模式)
+bool IsSsuVmModeConf(const std::string &confPath)
+{
+    std::ifstream confFile(confPath);
+    if (!confFile.is_open()) {
+        return false;
+    }
+    std::ostringstream buffer;
+    buffer << confFile.rdbuf();
+    return ParseSsuVmModeConf(buffer.str());
+}
+
 void UbseCliRegSsuModule::UbseCliSignUp()
 {
-    // 注册顺序即命令进入模块命令列表的顺序，框架据此生成补全与帮助。
+    // VM 模式:仅注册 display/attach/detach 命令子集
+    // 不注册 create/delete(盘由 openstack 分配)
+    if (IsVmMode()) {
+        this->cmd_.emplace_back(UbseCliDisplaySsu());
+        this->cmd_.emplace_back(UbseCliAttachSsu());
+        this->cmd_.emplace_back(UbseCliDetachSsu());
+        return;
+    }
+    // host 模式:注册顺序即命令进入模块命令列表的顺序，框架据此生成补全与帮助。
     this->cmd_.emplace_back(UbseCliDisplaySsu());
     this->cmd_.emplace_back(UbseCliCreateSsu());
     this->cmd_.emplace_back(UbseCliDeleteSsu());
@@ -455,14 +548,19 @@ void UbseCliRegSsuModule::UbseCliSignUp()
     this->cmd_.emplace_back(UbseCliDetachSsu());
 }
 
-// display ssu：仅 -t 必填，按 alloc_summary / alloc_detail 分流到不同子处理。
-// -n 仅 alloc_detail 需要：摘要路径显式拒绝 -n，详情路径在子处理中校验。
+// display ssu：仅 -t 必填，按 alloc_summary / alloc_detail / connect_info 分流到不同子处理。
+// -n 仅 alloc_detail 与 connect_info 需要:摘要路径显式拒绝 -n,详情/连接信息路径在子处理中校验。
+// connect_info 为 VM 模式新增类型,host 模式下帮助文案不含该值,与命令集保持一致。
 UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDisplaySsu()
 {
+    // 帮助文案与 UbseCliDisplaySsuFunc 的类型校验保持同源：host 仅两类，VM 额外含 connect_info。
+    const std::string typeHelp = std::string("SSU display type: allowed values are ") +
+                                 (IsVmMode() ? "alloc_summary, alloc_detail or connect_info."
+                                             : "alloc_summary or alloc_detail.");
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("display")
         .UbseCliSetType("ssu")
-        .UbseCliAddOption("t", TYPE_OPT, "SSU display type: allowed values are alloc_summary or alloc_detail.")
+        .UbseCliAddOption("t", TYPE_OPT, typeHelp)
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliSetFunc(UbseCliDisplaySsuFunc);
     return builder.UbseCliBuild();
@@ -533,6 +631,7 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDeleteSsu()
 
 // display ssu 入口：先按 -t 分流，缺失或非法 -t 直接返回错误，不进入 IPC 路径；
 // alloc_summary 不接受 -n，显式报错避免用户误以为 -n 生效。
+// connect_info 为 VM 模式新增类型,host 模式下按非法类型拒绝,不进入 IPC。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
 {
@@ -549,7 +648,14 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
     if (type->second == ALLOC_DETAIL_TYPE) {
         return DisplayAllocDetail(params);
     }
-    return UbseCliStringPromptReply("ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
+    const bool vmMode = IsVmMode();
+    if (type->second == CONNECT_INFO_TYPE) {
+        if (!vmMode) {
+            return UbseCliStringPromptReply(ERR_INVALID_DISPLAY_TYPE_HOST);
+        }
+        return DisplayConnectInfo(params);
+    }
+    return UbseCliStringPromptReply(vmMode ? ERR_INVALID_DISPLAY_TYPE_VM : ERR_INVALID_DISPLAY_TYPE_HOST);
 }
 
 // 摘要查询：空列表返回 INFO 提示而非空表，避免用户误判为故障。
@@ -580,6 +686,25 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocDetail(
     request.name = name->second;
     return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME,
                                                                          request, BuildDetailOutput);
+}
+
+// 连接信息查询:VM 模式新增,查询已直通 namespace 的连接参数(nqn/eid/connection id 等)。
+// name 必填,通过 UBSE_IPC_SSU_GET_CONNECT_INFO 调用 VM 侧 UbseSsuServiceImp::GetConnectInfo(走本地缓存)。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayConnectInfo(
+    const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
+    }
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+
+    UbseCliSsuConnectInfoReq request;
+    request.name = name->second;
+    return InvokeSsuIpc<UbseCliSsuConnectInfoReq, UbseCliSsuConnectInfoRsp>(UBSE_SSU, UBSE_IPC_SSU_GET_CONNECT_INFO,
+                                                                           request, BuildConnectInfoOutput);
 }
 
 // create ssu 入口：按"必填校验 → 格式校验 → 序列化 → IPC → 回显"顺序推进，
@@ -758,6 +883,37 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult 
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, nameSpace.nsDevPath);
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, std::to_string(nameSpace.nsSize));
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, LbaToString(nameSpace.lbaFormat));
+    }
+    builder.UbseCliAddBottomlineSeparate();
+    return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
+}
+
+// 连接信息表：6 列（src_eid/tgt_eid/tgt_nqn/host_nqn/ns_uuid/ns_id），列宽与摘要/详情表一致；
+// 字段对齐服务层 UbseSsuConnectInfo，由 display ssu -t connect_info 使用。
+std::shared_ptr<UbseCliResultEcho> BuildConnectInfoOutput(const UbseCliSsuConnectInfoRsp &response)
+{
+    if (response.connectInfoList.empty()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(INFO_EMPTY_CONNECT);
+    }
+    UbseCliResBuilder builder(UBSE_CLI_NUM_6, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
+    size_t row = builder.UbseCliAddRow();
+    builder.UbseCliAddlineSeparate(row);
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "src_eid");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "tgt_eid");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "tgt_nqn");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "host_nqn");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "ns_uuid");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "ns_id");
+    builder.UbseCliAddBottomlineSeparate();
+
+    for (const auto &info : response.connectInfoList) {
+        row = builder.UbseCliAddRow();
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, info.srcEid);
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, info.tgtEid);
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, info.tgtNqn);
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, info.hostNqn);
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, info.nsUuid);
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, std::to_string(info.nsId));
     }
     builder.UbseCliAddBottomlineSeparate();
     return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());

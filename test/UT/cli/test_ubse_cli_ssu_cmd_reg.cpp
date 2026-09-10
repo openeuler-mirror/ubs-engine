@@ -6,7 +6,7 @@
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
 
@@ -90,6 +90,7 @@ const std::string ERR_NEED_DETACH_BEFORE_FREE =
 const std::string ERR_STRATEGY_MISMATCH =
     "ERROR: The SSU allocation strategy does not match the attach or detach type.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
+const std::string INFO_EMPTY_CONNECT = "INFO: No SSU connect information found.";
 
 // 捕获 UbseCliDisplayResult 写入 stdout 的文本，便于对回显内容做子串断言。
 std::string Render(const std::shared_ptr<UbseCliResultEcho>& result)
@@ -190,6 +191,12 @@ std::map<std::string, std::string> DetailParams(const std::string& name = "alloc
     return {{"type", "alloc_detail"}, {"name", name}};
 }
 
+// 构造 connect_info 子命令的入参（VM 模式新增），name 可覆盖以测试不同 name 校验场景。
+std::map<std::string, std::string> ConnectInfoParams(const std::string& name = "alloc-space-1")
+{
+    return {{"type", "connect_info"}, {"name", name}};
+}
+
 // 构造 create ssu 的最小合法入参（仅必填项），可选参数由各用例按需追加。
 std::map<std::string, std::string> CreateParams()
 {
@@ -265,6 +272,7 @@ void TestUbseCliSsuCmdReg::TearDown()
 {
     MOCKER(&ubse_invoke_call).reset(); // 复位 ubse_invoke_call 桩，防止影响后续用例
     GlobalMockObject::verify();        // 校验本用例 mock 期望并释放桩资源
+    UnsetVmModeEnv(); // 清除 VM 模式覆盖项，避免污染其他用例
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
 }
@@ -285,9 +293,18 @@ TEST_F(TestUbseCliSsuCmdReg, SsuErrorMessageMapsKnownCodesAndPreservesUnknownCod
     EXPECT_EQ(GetSsuErrorMessage(4321), "ERROR: Internal error with error code 4321.");
 }
 
-// 注册校验：SignUp 后框架应登记 display/create/delete/attach/detach ssu 五条命令。
+/*
+ * 用例描述:SignUp 后框架应登记 display/create/delete/attach/detach ssu 五条命令
+ * 测试步骤:
+ * 1、SetVmModeEnv(false) 强制 host 模式
+ * 2、实例化 UbseCliRegSsuModule 并调用 UbseCliSignUp 与 UbseCliRegisterCmd
+ * 预期结果:
+ * 1、注册表中存在 display_ssu/create_ssu/delete_ssu/attach_ssu/detach_ssu 五条命令
+ */
 TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersAllSsuCommands)
 {
+    // 显式强制 host 模式，避免注册结果依赖测试机 /etc/ubse/ubse.conf 的 vm_mode 配置。
+    SetVmModeEnv(false);
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliRegSsuModule module;
     module.UbseCliSignUp();
@@ -301,19 +318,25 @@ TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersAllSsuCommands)
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
 }
 
-// 帮助应完整列出 SSU 枚举，并明确区分可显式输入的值与省略参数时的默认行为。
+/*
+ * 用例描述:帮助应完整列出 SSU 枚举,并明确区分可显式输入的值与省略参数时的默认行为
+ * 测试步骤:
+ * 1、SetVmModeEnv(true) 后注册 SSU 命令并渲染 display/attach/detach 帮助
+ * 2、折叠空白后逐项检索枚举文案
+ * 预期结果:
+ * 1、display 帮助含 alloc_summary/alloc_detail/connect_info 三类取值
+ * 2、attach/detach 帮助分别含类型、RAID 级别与 chunk size 的完整枚举
+ */
 TEST_F(TestUbseCliSsuCmdReg, HelpListsSsuEnumValuesAndDefaults)
 {
+    SetVmModeEnv(true);
     RegisterSsuCommandsForHelp();
 
     const std::string display = CollapseWhitespace(RenderSsuHelp("display"));
-    EXPECT_NE(display.find("SSU display type: allowed values are alloc_summary or alloc_detail"), std::string::npos);
-
-    const std::string create = CollapseWhitespace(RenderSsuHelp("create"));
-    EXPECT_NE(create.find("SSU LBA format: allowed values are 512B or 4K"), std::string::npos);
-    EXPECT_NE(create.find("SSU allocation strategy: explicitly set Linear or Striped; if omitted, defaults to Normal"),
+    EXPECT_NE(display.find("SSU display type: allowed values are alloc_summary, alloc_detail or connect_info"),
               std::string::npos);
 
+    // create ssu 在 VM 模式下不注册，其帮助文案随 host 模式用例断言。
     const std::string attach = CollapseWhitespace(RenderSsuHelp("attach"));
     EXPECT_NE(attach.find("SSU attach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
                           "Normal space operation"),
@@ -328,6 +351,30 @@ TEST_F(TestUbseCliSsuCmdReg, HelpListsSsuEnumValuesAndDefaults)
               std::string::npos);
 }
 
+/*
+ * 用例描述:host 模式下 display 的 -t 帮助文案不应出现 connect_info,且覆盖 create 帮助文案
+ * 测试步骤:
+ * 1、SetVmModeEnv(false) 后注册 SSU 命令并渲染 display 与 create 帮助
+ * 预期结果:
+ * 1、display 帮助仅含 alloc_summary/alloc_detail 两类,不含 connect_info
+ * 2、create 帮助含 LBA 与 strategy 的完整枚举
+ */
+TEST_F(TestUbseCliSsuCmdReg, HelpDisplayTypeExcludesConnectInfoInHostMode)
+{
+    SetVmModeEnv(false);
+    RegisterSsuCommandsForHelp();
+
+    const std::string display = CollapseWhitespace(RenderSsuHelp("display"));
+    EXPECT_NE(display.find("SSU display type: allowed values are alloc_summary or alloc_detail"),
+              std::string::npos);
+    EXPECT_EQ(display.find("connect_info"), std::string::npos);
+
+    const std::string create = CollapseWhitespace(RenderSsuHelp("create"));
+    EXPECT_NE(create.find("SSU LBA format: allowed values are 512B or 4K"), std::string::npos);
+    EXPECT_NE(create.find("SSU allocation strategy: explicitly set Linear or Striped; if omitted, defaults to Normal"),
+              std::string::npos);
+}
+
 // display ssu 缺少 -t 应返回必选参数错误，不进入 IPC。
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsMissingType)
 {
@@ -335,11 +382,23 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsMissingType)
                            "ERROR: The option -t or --type is required.");
 }
 
-// display ssu 的 -t 取值非 alloc_summary/alloc_detail 应返回非法类型错误。
+/*
+ * 用例描述:display ssu 的 -t 取值非法时应按模式返回对应的非法类型错误
+ * 测试步骤:
+ * 1、SetVmModeEnv(false) 传入 -t unknown
+ * 2、SetVmModeEnv(true) 传入 -t unknown
+ * 预期结果:
+ * 1、host 模式提示取值须为 alloc_summary 或 alloc_detail
+ * 2、VM 模式提示取值须为 alloc_summary、alloc_detail 或 connect_info
+ */
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsUnsupportedType)
 {
+    SetVmModeEnv(false);
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "unknown"}}),
                            "ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
+    SetVmModeEnv(true);
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "unknown"}}),
+                           "ERROR: Invalid type. The value must be alloc_summary, alloc_detail or connect_info.");
 }
 
 // alloc_summary 不接受 -n：传入 -n 应显式报错，且不进入 IPC 路径。
@@ -502,6 +561,115 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsSpaceNotFoundMessage)
     const auto result = UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams());
     ASSERT_NE(result, nullptr);
     EXPECT_EQ(result->UbseCliGetResultStr(), INFO_SPACE_NOT_FOUND);
+}
+
+// connect_info 为 VM 模式新增类型，本组用例显式设置 VM 模式保证确定性。
+
+/*
+ * 用例描述:VM 模式下 connect_info 缺少 -n 应返回 name 必选参数错误
+ * 测试步骤:
+ * 1、SetVmModeEnv(true)
+ * 2、仅携带 -t connect_info 调用 display 处理函数
+ * 预期结果:
+ * 1、返回 ERR_NAME_REQUIRED 文案,不进入 IPC
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoRejectsMissingName)
+{
+    SetVmModeEnv(true);
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "connect_info"}}),
+                           ERR_NAME_REQUIRED);
+}
+
+/*
+ * 用例描述:connect_info 的 name 含非法字符应返回 name 格式错误
+ * 测试步骤:
+ * 1、SetVmModeEnv(true)
+ * 2、以 name="bad/name" 调用 display 处理函数
+ * 预期结果:
+ * 1、返回以 ERR_INVALID_NAME_PREFIX 为前缀的错误文案,不进入 IPC
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoRejectsInvalidName)
+{
+    SetVmModeEnv(true);
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(ConnectInfoParams("bad/name")),
+                           ERR_INVALID_NAME_PREFIX);
+}
+
+/*
+ * 用例描述:connect_info 应使用 GET_CONNECT_INFO 操作码发起 IPC,请求体为 name + hasVfe=0
+ * 测试步骤:
+ * 1、SetVmModeEnv(true) 并挂接 mock_ssu_connect_info_invoke_call_normal 桩
+ * 2、携带合法 -n 调用 display 处理函数
+ * 预期结果:
+ * 1、module/op code 为 SSU/GET_CONNECT_INFO,请求体反序列化成功且 name 与入参一致
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoSerializesNameAndUsesConnectInfoOpcode)
+{
+    SetVmModeEnv(true);
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_connect_info_invoke_call_normal));
+    auto result = UbseCliRegSsuModule::UbseCliDisplaySsuFunc(ConnectInfoParams());
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_GET_CONNECT_INFO));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastConnectInfoReq.name, "alloc-space-1");
+}
+
+/*
+ * 用例描述:连接信息表应完整呈现 6 列表头与数据行
+ * 测试步骤:
+ * 1、SetVmModeEnv(true) 并挂接返回单条连接信息的 mock 桩
+ * 2、渲染处理函数输出并逐项检索
+ * 预期结果:
+ * 1、输出包含 src_eid/tgt_eid/tgt_nqn/host_nqn/ns_uuid/ns_id 表头
+ * 2、输出包含 mock 数据中的 tgtNqn/hostNqn/nsUuid 值
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoPrintsConnectTable)
+{
+    SetVmModeEnv(true);
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_connect_info_invoke_call_normal));
+    const std::string output = Render(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(ConnectInfoParams()));
+    EXPECT_NE(output.find("src_eid"), std::string::npos);
+    EXPECT_NE(output.find("tgt_eid"), std::string::npos);
+    EXPECT_NE(output.find("tgt_nqn"), std::string::npos);
+    EXPECT_NE(output.find("host_nqn"), std::string::npos);
+    EXPECT_NE(output.find("ns_uuid"), std::string::npos);
+    EXPECT_NE(output.find("ns_id"), std::string::npos);
+    EXPECT_NE(output.find("nqn.2024-01:target"), std::string::npos);
+    EXPECT_NE(output.find("nqn.2026-07:host-a"), std::string::npos);
+    EXPECT_NE(output.find("uuid-aa"), std::string::npos);
+}
+
+/*
+ * 用例描述:connect_info 返回空列表时应输出 INFO 提示而非空表
+ * 测试步骤:
+ * 1、SetVmModeEnv(true) 并挂接返回空列表的 mock 桩
+ * 2、渲染处理函数输出
+ * 预期结果:
+ * 1、输出包含 INFO_EMPTY_CONNECT 提示文案
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoReturnsInfoWhenEmpty)
+{
+    SetVmModeEnv(true);
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_connect_info_invoke_call_empty));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(ConnectInfoParams()), INFO_EMPTY_CONNECT);
+}
+
+/*
+ * 用例描述:host 模式下 connect_info 为未定义类型,应按非法类型拒绝且不进入 IPC
+ * 测试步骤:
+ * 1、SetVmModeEnv(false) 后携带 -t connect_info 调用 display 处理函数
+ * 预期结果:
+ * 1、返回 host 模式非法类型错误文案
+ * 2、mock 捕获的 module/op code 均为 0,证明未发起 IPC
+ */
+TEST_F(TestUbseCliSsuCmdReg, DisplayConnectInfoRejectedInHostMode)
+{
+    SetVmModeEnv(false);
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(ConnectInfoParams()),
+                           "ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+    EXPECT_EQ(g_ssuMockLastOpCode, 0);
 }
 
 // create ssu 缺少 -n 应返回 name 必选参数错误。

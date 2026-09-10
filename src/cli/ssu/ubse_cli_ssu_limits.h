@@ -6,7 +6,7 @@
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
 
@@ -40,6 +40,7 @@ constexpr uint32_t SSU_CLI_MAX_DEV_NAME_LENGTH = 33 - 1; // 聚合块设备名�
 // 该值仅作为 CLI 反序列化资源保护阈值，并非 SSU 业务容量或线协议上限。
 constexpr uint32_t SSU_CLI_MAX_DESERIALIZED_ALLOCATIONS = 1U << 16;
 constexpr uint32_t SSU_CLI_MAX_DESERIALIZED_HOST_NQNS = 1U << 16;
+constexpr uint32_t SSU_CLI_MAX_DESERIALIZED_CONNECT_INFOS = 1U << 16;
 
 // detach 命令不对用户暴露以下选项，但请求仍需携带这些线协议默认值。
 inline constexpr char SSU_CLI_DETACH_SRC_EID[] = "";

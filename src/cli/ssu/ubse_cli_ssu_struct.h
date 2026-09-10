@@ -147,6 +147,29 @@ struct UbseCliSsuAllocListRsp {
     std::vector<UbseCliSsuAllocResult> allocations;
     bool Deserialize(const uint8_t *buffer, uint32_t length);
 };
+
+// 连接信息查询请求：仅携带待查询的分配名称（对应服务端 SsuGetConnectInfoUnpack：name + hasVfe）。
+// CLI 无 VFE 过滤参数，hasVfe 固定 0。
+struct UbseCliSsuConnectInfoReq {
+    std::string name;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+// 单条连接信息：字段对齐服务层 UbseSsuConnectInfo，线报文字段顺序与服务端 ConnectInfoPack 保持一致。
+struct UbseCliSsuConnectInfo {
+    std::string srcEid;
+    std::string tgtEid;
+    std::string tgtNqn;
+    std::string hostNqn;
+    std::string nsUuid;
+    uint32_t nsId = 0;
+};
+
+// 连接信息查询响应：connectInfoList 为空时 CLI 输出 INFO 提示。
+struct UbseCliSsuConnectInfoRsp {
+    std::vector<UbseCliSsuConnectInfo> connectInfoList;
+    bool Deserialize(const uint8_t *buffer, uint32_t length);
+};
 } // namespace ubse::cli::reg
 
 #endif // UBSE_CLI_SSU_STRUCT_H
