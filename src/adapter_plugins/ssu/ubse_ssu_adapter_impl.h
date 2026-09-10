@@ -134,7 +134,14 @@ public:
     uint32_t CreateBlockDevice(const std::string &deviceName, const std::vector<std::string> &devicePathList,
                                const UbseCreateBlockDeviceOptions &options, std::string &devicePath) override;
 
-    uint32_t DeleteBlockDevice(const std::string &deviceName) override;
+    int ProbeBlockDevice(const std::string& deviceName, UbseSsuAddressingType addressingType) override;
+
+    uint32_t AssembleBlockDevice(const std::string& deviceName, const std::vector<std::string>& devicePathList,
+                                 std::string& devicePath, UbseSsuAddressingType addressingType) override;
+
+    uint32_t StopBlockDevice(const std::string& deviceName) override;
+
+    uint32_t DeleteBlockDevice(const std::string& deviceName) override;
 
     static UbseSsuAdapterImpl &GetInstance();
 
@@ -192,6 +199,31 @@ private:
     uint32_t DeleteLvmBlockDevice(const std::string& deviceName, const std::string& vgName);
 
     uint32_t DeleteMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath);
+
+    // Stop（保留元数据）：仅 lvchange -an，不 lvremove/vgremove/pvremove
+    uint32_t StopLvmBlockDevice(const std::string& deviceName, const std::string& vgName);
+
+    // Stop（保留元数据）：仅 mdadm --stop，不 --zero-superblock
+    uint32_t StopMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath);
+
+    // Assemble（复用元数据）：vgchange -ay
+    uint32_t AssembleLvmBlockDevice(const std::string& deviceName, const std::string& vgName, std::string& devicePath);
+
+    // Assemble（复用元数据）：mdadm --assemble /dev/md/{name} dev1 dev2 ...
+    uint32_t AssembleMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath,
+                                   const std::vector<std::string>& devicePathList, std::string& devicePath);
+
+    // 查询底层 LVM 设备是否存在（/dev/mapper 或 /dev/{vg}/ 双路径）
+    bool LvmDeviceExists(const std::string& deviceName, const std::string& vgName);
+
+    // 查询底层 md 设备是否存在
+    bool MdDeviceExists(const std::string& deviceName, const std::string& mdDevicePath);
+
+    // 查询成员盘上是否残留 LVM PV 元数据（VG 名匹配 deviceName+\"_vg\"）
+    int LvmMetadataResidual(const std::string& vgName);
+
+    // 查询成员盘上是否残留 md superblock（name 匹配 deviceName）
+    int MdMetadataResidual(const std::string& deviceName);
 
     UbseDlManager dlManager_;
     std::mutex mutex_;
