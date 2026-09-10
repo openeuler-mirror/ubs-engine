@@ -1,5 +1,7 @@
 # UBSE Go API 最佳实践
 
+<p> 简体中文 | <a href="README_EN.md">English</a> </p>
+
 UBS Engine Go API 是基于 Go 语言开发的 ubs engine 管理接口，能够实现资源调度与管理，执行关键业务操作。
 
 本篇内容旨在帮助开发者快速掌握 ubs engine Go API 的核心功能、适用场景及开发技巧，提供可直接运行的示例代码，并规避常见问题。

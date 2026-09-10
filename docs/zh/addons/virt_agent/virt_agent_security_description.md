@@ -4,9 +4,9 @@
 
 **安全设计目标:**
 
-- UBS VirtAgent权限最小化
-- UBS VirtAgent的暴露面满足安全要求
-- UBS VirtAgent安全编译
+- UBS VirtAgent权限最小化。
+- UBS VirtAgent的暴露面满足安全要求。
+- UBS VirtAgent安全编译。
 
 ### 安全威胁分析
 
@@ -14,10 +14,12 @@
 
 **边界说明:**
 
-- 边界1：UBS VirtAgent -- MatrixServiceAgent；VirtAgent向MatrixServiceAgent提供SDK接口，通过UDS通信方式实现。允许MatrixServiceAgent查询节点信息，执行内存借用、归还、迁移等操作
-- 边界2：UBS VirtAgent -- UBS RMRS; RMRS向VirtAgent提供动态库。允许VirtAgent查询节点信息，执行内存借用、归还、迁移等操作
+- 边界1：UBS VirtAgent -- MatrixServiceAgent；VirtAgent向MatrixServiceAgent提供SDK接口，通过UDS通信方式实现。允许MatrixServiceAgent查询节点信息，执行内存借用、归还、迁移等操作。
+- 边界2：UBS VirtAgent -- UBS RMRS; RMRS向VirtAgent提供动态库。允许VirtAgent查询节点信息，执行内存借用、归还、迁移等操作。
 
-其中，由于UBS VirtAgent是UBS Engine运行框架上插件运行。在同一进程内，所以两者之间不存在信任边界。无攻击路径
+> [!NOTE] 说明
+>
+> 由于UBS VirtAgent是UBS Engine运行框架上插件运行，在同一进程内，所以两者之间不存在信任边界。无攻击路径。
 
 ## 最小化特权
 
@@ -32,14 +34,14 @@
 | /usr/lib64/libubs-virt-agent.so.x.x.x    | 动态库  | root:root | 755 | SDK接口动态库              |
 | /usr/include/virt_agent/                 | 目录   | root:root | 755 | C接口头文件目录              |
 | /usr/include/virt_agent/*                | 头文件  | root:root | 644 | C接口头文件                |
-| /usr/lib/python3.11/site-packages/ubse/  | 目录   | root:root | 755 | SDK接口文件目录             |             
-| /usr/lib/python3.11/site-packages/ubse/* | 接口文件 | root:root | 644 | SDK接口文件               | 
+| /usr/lib/python3.11/site-packages/ubse/  | 目录   | root:root | 755 | SDK接口文件目录             |
+| /usr/lib/python3.11/site-packages/ubse/* | 接口文件 | root:root | 644 | SDK接口文件               |
 
 ## 暴露面安全设计
 
 **UBS VirtAgent的暴露面安全设计:**
 
-- 基于UBS Engine提供的SDK框架, 暴露的SDK接口
+基于UBS Engine提供的SDK框架，暴露的SDK接口。
 
 ### 虚拟化通用接口
 
@@ -53,20 +55,20 @@
 
 | 接口名称       | SDK                                                                                                                                | 权限组              | 使用用户          |
 |------------|------------------------------------------------------------------------------------------------------------------------------------|------------------|---------------|
-| 查询节点内存信息   | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt);                          | vm.query         | ubs-scheduler |
-| 查询节点虚拟机信息  | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt);                 | vm.query         | ubs-scheduler |
-| 设置节点亲和性配置  | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);                              | vm.fragmentation | ubs-scheduler |
+| 查询节点内存信息   | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt);`                          | vm.query         | ubs-scheduler |
+| 查询节点虚拟机信息  | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt);`                 | vm.query         | ubs-scheduler |
+| 设置节点亲和性配置  | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);`                              | vm.fragmentation | ubs-scheduler |
 | 内存借用决策     | `virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param, borrow_strategy_c* borrow_strategy);` | vm.fragmentation | ubs-scheduler |
 | 内存借用执行     | `virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result);`           | vm.fragmentation | ubs-scheduler |
 | 内存迁移决策     | `virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam, MemMigrateStrategy* strategy);`    | vm.fragmentation | ubs-scheduler |
-| 内存迁移执行     | virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam);                                    | vm.fragmentation | ubs-scheduler |
-| 归还节点借用内存   | virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);                                   | vm.fragmentation | ubs-scheduler |
+| 内存迁移执行     | `virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam);`                                    | vm.fragmentation | ubs-scheduler |
+| 归还节点借用内存   | `virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);`                                   | vm.fragmentation | ubs-scheduler |
 | 查询内存操作任务结果 | `virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);`                | vm.fragmentation | ubs-scheduler |
-| 借用失败后回滚    | virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);                                                    | vm.fragmentation | ubs-scheduler |
+| 借用失败后回滚    | `virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);`                                                    | vm.fragmentation | ubs-scheduler |
 
 ### 确定性热迁移接口
 
-- 当前确定性热迁移流程中, libvirt与UBS VirtAgent通信; 通信使用接口SDK
+当前确定性热迁移流程中，libvirt与UBS VirtAgent通信; 通信使用接口SDK。
 
 | 接口名称         | SDK                                                                                                                                                                     | 权限组        | 使用用户 |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|------|
@@ -94,13 +96,13 @@
 **边界说明:**
 
 - origin Node
-  - 边界1：UBS VirtAgent -- libvirt; 通过UDS方式通信, libvirt通知UBS VirtAgent准备确定性迁移, 迁移结束清理资源
-  - 边界2：libvirt -- qemu; 通过qmp指令交互, 当前特性未对三方件原生边界做修改. 继承三方件安全特性
+  - 边界1：UBS VirtAgent -- libvirt; 通过UDS方式通信，libvirt通知UBS VirtAgent准备确定性迁移，迁移结束清理资源。
+  - 边界2：libvirt -- qemu; 通过qmp指令交互，当前特性未对三方件原生边界做修改。 继承三方件安全特性。
 - origin Node -- dest Node
-  - 边界3：libvirt(origin) -- libvirt(dest); 通过tcp通信交互, 当前特性未对三方件原生边界做修改. 继承三方件安全特性
-  - 边界4：qemu(origin) -- qemu(dest); 使用UB通道实现内存迁移
+  - 边界3：libvirt(origin) -- libvirt(dest); 通过TCP通信交互，当前特性未对三方件原生边界做修改. 继承三方件安全特性。
+  - 边界4：qemu(origin) -- qemu(dest); 使用UB通道实现内存迁移。
 - master Node -- slaver Node(origin/dest)
-  - 边界5：UBS Engine框架提供节点间通信能力
+  - 边界5：UBS Engine框架提供节点间通信能力。
 
 ### 攻击路径
 
@@ -116,9 +118,9 @@
 
 ## 安全编译
 
-```text
-# 安全编译选项CMakeList添加如下编译选项
+安全编译选项CMakeLists添加如下编译选项
 
+```text
 -fPIC                                           # 实现动态库随机加载
 -fstack-protector-strong                        # 启用栈保护，防止栈溢出攻击
 -Wl,-z,noexecstack                              # 堆栈不可执行保护

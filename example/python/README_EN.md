@@ -1,3 +1,7 @@
+# UBSE Python API Best Practice
+
+<p> English | <a href="README.md">简体中文</a> </p>
+
 The UBS Engine Python API is a UBS Engine management interface developed based on the Python language. It is used to schedule and manage resources and perform key service operations.
 
 This document aims to help developers quickly master the core functions, application scenarios, and development skills of the UBS Engine Python API, provide sample code that can be directly executed, and avoid common issues.
@@ -133,7 +137,7 @@ No node information is obtained.
 * **NIC**: optional dependency (TCP can be used to assist UB in link establishment. By default, UB bootstrap is used for link establishment.)
 * **User permission**: The `root` permission is required for installation and management.
 
-> For more requirements, see [Deployment Description](../../docs/build_install/Deployment_Description.md).
+> For more requirements, see [Deployment Description](../../docs/build_install/部署说明.md).
 
 Install the RPM package. (The `ubs-engine` main package must be installed on all cluster nodes.)
 
@@ -150,7 +154,7 @@ sudo dnf install -y python3-ubs-engine
 
 Start the UBS Engine service on each node.
 
-By default, secure communication is enabled for UBS Engine. Ensure that the certificate is successfully imported. Otherwise, the cluster status may be abnormal. For details about how to import the certificate, see [ubsectl_cert](../../docs/cli/ubsectl_cert.md). Alternatively, you can modify the `/etc/ubse/ubse.conf` configuration file and set `cert.use` to `false` to disable secure communication.
+By default, secure communication is enabled for UBS Engine. Ensure that the certificate is successfully imported. Otherwise, the cluster status may be abnormal. For details about how to import the certificate, see [ubsectl_cert](../../docs/zh/ubse_cli_user_guide.md#证书管理). Alternatively, you can modify the `/etc/ubse/ubse.conf` configuration file and set `cert.use` to `false` to disable secure communication.
 
 ```shell
 sudo systemctl start ubse
@@ -186,7 +190,7 @@ sudo ubsectl display cluster
 
 #### 4.2.1 Configuring the Client Program
 
-For details about the UBSE authentication mechanism, see [UBSE Role-based Access Control Design](../../docs/design/UBSE_Role-based_Access_Control_Design.md).
+For details about the UBSE authentication mechanism, see [UBSE Role-based Access Control Design](../../docs/design/UBSE角色访问控制设计.md).
 The user who delivers the configuration must have the root permission. Assume that the user who uses the UBSE API is test_user.
 
 1. Add test_user to the UBSE user group.

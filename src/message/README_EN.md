@@ -1,5 +1,7 @@
 # Design and Usage of the Serialization and Deserialization Modules Based on the Simpo Component
 
+<p> English | <a href="README.md">简体中文</a> </p>
+
 ## 1. Introduction to Message Serialization
 
 ### A. What?

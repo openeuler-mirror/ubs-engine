@@ -732,7 +732,6 @@ int UBSRMRSRemove(const std::vector<pid_t>& pids, int pidType);
 
 暂无
 
-
 # UBSRMRSSmapAddProcessTracking: 通知SMAP添加进程扫描，并设置扫描周期参数
 
 ## 摘要 SYNOPSIS
@@ -845,7 +844,7 @@ uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<Pag
 | 参数名 | 数据类型 | 有效性规格 | 参数类型 | description|
 | ------------- | ------ | ---------------------------------------------------- |---|-----------------------------|
 | pid           | pid_t     | 进程PID，需真实存在，且为虚机进程    |入参|虚机PID|
-| pageSwapPairs | std::vector<PageSwapPair>     | 页交换配对数组，每个PageSwapPair包含localNumas和remoteNumas，NUMA ID不能重复且需在xml中配置的NUMA中，配额大小，单位KB，不能超过xml中的配额 |入参|页交换配对数组|
+| pageSwapPairs | std::vector\<PageSwapPair>     | 页交换配对数组，每个PageSwapPair包含localNumas和remoteNumas，NUMA ID不能重复且需在xml中配置的NUMA中，配额大小，单位KB，不能超过xml中的配额 |入参|页交换配对数组|
 
 ### 返回值 RETURN VALUE
 

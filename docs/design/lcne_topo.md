@@ -1,20 +1,20 @@
 # lcne topo
 
-## UBM TOPO 变化通知接口
+## UBM TOPO变化通知接口
 
-> 提供给UBM通知UBSE，系统topo变化的通知接口。
+提供给UBM通知UBSE，系统topo变化的通知接口。
 
 **基础信息**
 
 - **服务地址**：`/var/run/ubse/ubse_ubm.socket`
-- **认证方式**：`双向 TLS/SSL 证书认证` 
+- **认证方式**：`双向 TLS/SSL 证书认证`
 - **数据格式**：`application/xml`
 
 ---
 
 ## /topolink/change/
 
-> notify topolink changed
+notify topolink changed
 
 **请求**
 
@@ -29,11 +29,11 @@
 
 **请求参数**
 
-无
+无。
 
 **请求响应**
 
-无
+无。
 
 **swagger定义**
 
