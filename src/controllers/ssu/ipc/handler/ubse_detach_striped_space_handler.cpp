@@ -44,8 +44,6 @@ void UbseDetachStripedSpaceHandler::LogRequest()
 {
     UBSE_LOG_DEBUG << "DetachStripedSpace req: name=" << req.name << ", nqn=" << req.nqn
                    << ", srcEid=" << req.srcEid << ", devName=" << req.devName
-                   << ", level=" << static_cast<uint32_t>(req.level)
-                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize)
                    << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
 }
 
