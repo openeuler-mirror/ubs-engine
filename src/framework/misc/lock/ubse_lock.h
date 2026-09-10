@@ -111,11 +111,6 @@ public:
     SpinLock(SpinLock&&) = delete;
     SpinLock& operator=(SpinLock&&) = delete;
 
-    inline void TryLock()
-    {
-        mFlag_.test_and_set(std::memory_order_acquire);
-    }
-
     inline void Lock()
     {
         while (mFlag_.test_and_set(std::memory_order_acquire)) {}
