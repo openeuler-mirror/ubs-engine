@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include "ubse_com.h"
+#include "ubse_serial_util.h"
 #include "ubse_ssu_service.h"
 
 namespace ubse::ssu::message {
@@ -169,6 +170,12 @@ struct UbseSsuGetConnectInfoResp {
     uint32_t errorCode{0};
     std::vector<UbseSsuConnectInfo> connectInfoList;
 };
+
+// UbseSsuConnectInfo 序列化/反序列化算子声明,供 vsock 推送 handler 复用
+ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                             const UbseSsuConnectInfo &info);
+ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                               UbseSsuConnectInfo &info);
 
 class UbseSsuGetConnectInfoReqMsg : public ubse::com::UbseRpcMessage {
 public:

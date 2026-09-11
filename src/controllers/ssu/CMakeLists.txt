@@ -9,7 +9,8 @@ add_library(ssu_plugin SHARED ${UBSE_SSU_CONTROLLER_ALL_SOURCES})
 
 set(SSU_PLUGIN_DEP_TARGETS
     ubse_log ubse_context ubse_com ubse_serial ubse_election
-    ubse_timer ubse_utils ubse_vip ubse_ssu_ipc ubse_mti ubse_ssu)
+    ubse_timer ubse_utils ubse_vip ubse_ssu_ipc ubse_mti ubse_ssu
+    ubse_config ubse_vsock_server)
 
 # 获取其它模块的头文件路径（遍历所有依赖，不限于链接依赖）
 # 注意：部分依赖（如 ubse_mti）目标尚未创建（controllers 在 adapter_plugins 之前加载），
@@ -33,7 +34,9 @@ endforeach()
 
 target_include_directories(ssu_plugin PUBLIC ${SSU_PLUGIN_INCLUDES})
 
- target_link_libraries(ssu_plugin PRIVATE ubse_ssu_ipc)
+# VM 模式新增依赖:ubse_config(读取 vm_mode/vsock 配置)、ubse_vsock_server(VM 侧 vsock server)
+# VM 模式 InitializeVmMode 需要读取配置并创建 UbseVsockServer
+target_link_libraries(ssu_plugin PRIVATE ubse_ssu_ipc ubse_config ubse_vsock_server)
 
 target_link_options(ssu_plugin PRIVATE -Wl,--allow-shlib-undefined)
 

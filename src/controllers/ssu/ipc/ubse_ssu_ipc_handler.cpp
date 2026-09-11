@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -124,6 +124,14 @@ static UbseResult RegisterHandler(const ubse_ipc_ssu_op_code_t opCode, const std
     return ret;
 }
 
+static UbseResult RegisterAllocInfoHandlers()
+{
+    auto ret = RegisterHandler<UbseListAllocInfoHandler>(UBSE_IPC_SSU_LIST_ALLOC_INFO, SSU_PERMISSION);
+    if (ret != UBSE_OK)
+        return ret;
+    return RegisterHandler<UbseGetAllocInfoByNameHandler>(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME, SSU_PERMISSION);
+}
+
 static UbseResult RegisterSpaceHandlers()
 {
     auto ret = RegisterHandler<UbseAllocSpaceHandler>(UBSE_IPC_SSU_ALLOC_SPACE, SSU_PERMISSION);
@@ -132,10 +140,7 @@ static UbseResult RegisterSpaceHandlers()
     ret = RegisterHandler<UbseFreeSpaceHandler>(UBSE_IPC_SSU_FREE_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseListAllocInfoHandler>(UBSE_IPC_SSU_LIST_ALLOC_INFO, SSU_PERMISSION);
-    if (ret != UBSE_OK)
-        return ret;
-    return RegisterHandler<UbseGetAllocInfoByNameHandler>(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME, SSU_PERMISSION);
+    return RegisterAllocInfoHandlers();
 }
 
 static UbseResult RegisterInfoHandlers()
@@ -206,6 +211,27 @@ UbseResult RegisterSdkDispatcher()
         return ret;
 
     UBSE_LOG_INFO << "All SSU IPC handlers registered successfully";
+    return UBSE_OK;
+}
+
+// VM 模式 dispatcher:仅注册查询/attach/detach handler 子集
+// 不注册:AllocSpace/FreeSpace/AddAccessPermission/RemoveAccessPermission/
+// FeDeviceAlloc/FeDeviceFree/GetFeDeviceList(VM 模式不支持)
+UbseResult RegisterVmModeDispatcher()
+{
+    auto ret = RegisterAllocInfoHandlers();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterInfoHandlers();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterAttachDetachHandlers();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    UBSE_LOG_INFO << "VM mode SSU IPC handlers (query/attach/detach subset) registered successfully";
     return UBSE_OK;
 }
 } // namespace ubse::ssu::ipc

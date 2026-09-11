@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -39,5 +39,9 @@ protected:
     plugin::service::ssu::UbseSsuAllocIdentityInfo identity_{};
 };
 common::def::UbseResult RegisterSdkDispatcher();
+
+// VM 模式下仅注册查询(ListAllocInfo/GetAllocInfoByName/GetNsStats/GetConnectInfo)
+// 与 attach/detach handler 子集，写操作由宿主侧代理;host 模式注册逻辑(RegisterSdkDispatcher)保持不变
+common::def::UbseResult RegisterVmModeDispatcher();
 } // namespace ubse::ssu::ipc
 #endif //UBS_ENGINE_UBSE_SSU_IPC_HANDLER_H

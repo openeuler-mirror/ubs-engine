@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -20,6 +20,14 @@
 #include "ubse_ssu_collector.h"
 #include "ubse_ssu_scheduler.h"
 
+namespace ubse::ssu::controller {
+class UbseSsuVmCache;
+} // namespace ubse::ssu::controller
+
+namespace ubse::adapter_plugins::ssu::def {
+struct UbseCreateBlockDeviceOptions;
+} // namespace ubse::adapter_plugins::ssu::def
+
 namespace ubse::ssu::service {
 
 using namespace ubse::plugin::service::ssu;
@@ -31,6 +39,14 @@ public:
     UbseSsuServiceImp &operator=(const UbseSsuServiceImp &) = delete;
 
     static UbseSsuServiceImp &GetInstance();
+
+    // === VM 模式扩展 ===
+    // 设置 VM 模式开关:Initialize 阶段由 UbseSsuControllerModule 调用一次
+    void SetVmMode(bool enabled) { vmMode_ = enabled; }
+    bool IsVmMode() const { return vmMode_; }
+    // 注入 VM 模式本地缓存指针(所有权归 UbseSsuControllerModule,ServiceImp 不持有)
+    // vmCache_ 由 controller 模块在 InitializeVmMode 时注入
+    void SetVmCache(ubse::ssu::controller::UbseSsuVmCache *cache) { vmCache_ = cache; }
 
     // 启动收集器，用于定期更新设备状态，仅master端调用
     uint32_t StartCollecting();
@@ -114,9 +130,35 @@ private:
                                    std::vector<UbseSsuConnectInfo> &connectInfoList,
                                    const UbseSsuAllocIdentityInfo &identity);
 
+    // === VM 模式私有辅助 ===
+    // VM 模式 AttachSpace:校验 vmCache_ 命中 → adapter AttachDevNameSpace → MarkAttached
+    // 幂等性:已 attach 直接返回成功;未在缓存中返回 UBSE_SSU_ERROR_NS_NOT_FOUND
+    uint32_t VmAttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths);
+    // VM 模式 DetachSpace:校验 vmCache_ 命中 → adapter DetachDevNameSpace → MarkDetached
+    // 幂等性:未 attach 直接返回成功
+    uint32_t VmDetachSpace(const UbseSsuSpaceReq &req);
+    // VM 模式 AttachLinearSpace/AttachStripedSpace:复用 VmAttachSpace + adapter CreateBlockDevice
+    // options 由调用方构造并透传(LINEAR 或 STRIPED+level/chunkSize),聚合参数不在此处丢失
+    // VM 模式 DetachLinearSpace/DetachStripedSpace:adapter DeleteBlockDevice + VmDetachSpace
+    uint32_t VmAttachAggregated(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
+                                std::string &devPath,
+                                const ubse::adapter_plugins::ssu::def::UbseCreateBlockDeviceOptions &options);
+    uint32_t VmDetachAggregated(const UbseSsuLinearSpaceReq &req, bool isStriped);
+    // VM 模式 GetNsStats:校验 vmCache_ 命中 → 走本地适配器查询 namespace 统计(usedSize 取自 nuse)
+    // VM 内无 collector 缓存,按需 RefreshDevCache 触发本地适配器 GetDevList 查询;identity 校验与 master 一致
+    uint32_t VmGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                          const UbseSsuAllocIdentityInfo &identity);
+
     UbseSsuCollector collector_;
     UbseSsuScheduler scheduler_;
     std::mutex schedulerLock_;
+
+    // === VM 模式成员 ===
+    // vmMode_ 在 Initialize 阶段读取一次,后续只读
+    bool vmMode_{false};
+    // vmCache_ 由 controller 模块注入,VM 模式下查询走本地缓存、attach 前校验缓存命中
+    // host 模式下保持 nullptr,所有方法走现有分支
+    ubse::ssu::controller::UbseSsuVmCache *vmCache_{nullptr};
 };
 } // namespace ubse::ssu::service
 #endif // UBSE_SSU_SERVICE_IMP_H
