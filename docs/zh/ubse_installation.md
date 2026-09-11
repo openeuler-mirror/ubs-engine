@@ -1,5 +1,11 @@
 # UBS-Engine (UBSE) 安装指南
 
+当前 UBSE 提供两种环境部署方式：RPM 包安装、容器镜像部署。环境部署流程包含以下主要步骤：
+
+1. 环境准备与安装
+2. 构建项目与单元测试
+3. 运行示例与验证
+
 ## 环境要求
 
 |部件|版本|
@@ -24,6 +30,8 @@
   - UBSE需要调用ubturbo接口，ubturbo接口有权限校验，需要将ubse用户加到ubturbo用户组中，该用户组由ubturbo服务创建，如果ubturbo服务未安装，ubse用户可能无法加入ubturbo用户组，导致UBSE服务调用ubturbo接口异常。待ubturbo安装完成后，需手动将ubse用户加入ubturbo用户组。
 
 ## 执行安装
+
+### RPM 包安装
 
 **在线安装**
 
@@ -93,6 +101,117 @@
     sudo dnf install -y python3-ubs-engine-<version>-<release>.aarch64.rpm
     ```
 
+### 容器镜像部署（可选）
+
+容器环境部署有两种方式：
+
+- 基于镜像构建容器环境
+- 基于 openEuler 基础环境从零安装
+
+#### 方式一：基于镜像构建容器环境
+
+基于镜像构建容器环境，首先需要获取镜像。获取镜像有两种方式：
+
+- 直接从镜像仓库拉取预构建镜像
+- 从 Dockerfile 构建镜像
+
+**步骤 1：获取镜像**
+
+选项一：直接拉取预构建镜像
+
+```bash
+docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1
+```
+
+选项二：从 Dockerfile 构建镜像
+
+Dockerfile 位于仓库 `docker/ubs-engine.Dockerfile`，内容如下：
+
+```dockerfile
+ARG BASE_IMAGE=hub.oepkgs.net/openeuler/openeuler:24.03-lts-sp3
+FROM ${BASE_IMAGE}
+
+ARG BUILD_TYPE=Release
+ARG ENABLE_UT=OFF
+ARG JOBS=8
+ARG REPO_DIR=/workspace
+
+COPY ubs-engine.spec /tmp/ubs-engine.spec
+RUN dnf install -y "dnf-command(builddep)" \
+        gcc gcc-c++ make cmake git python3 python3-pip \
+    && dnf builddep -y /tmp/ubs-engine.spec \
+    && dnf install -y numactl-devel gtest gtest-devel gmock gmock-devel \
+        python3-setuptools util-linux-user patch bc bash coreutils sudo tar \
+    && dnf clean all
+
+WORKDIR ${REPO_DIR}
+COPY . ${REPO_DIR}
+
+RUN bash build.sh -T ${BUILD_TYPE} -j ${JOBS} \
+    && if [ "${ENABLE_UT}" = "ON" ]; then \
+           bash build.sh ut -j ${JOBS} \
+               || echo "WARNING: unit tests FAILED, image built without UT verification"; \
+       fi \
+    && BUILD_DIR="cmake-build-$(echo "${BUILD_TYPE}" | tr 'A-Z' 'a-z')" \
+    && cmake --install "${BUILD_DIR}" --component ubse_sdk --prefix /usr
+
+WORKDIR ${REPO_DIR}
+CMD ["/bin/bash"]
+```
+
+构建镜像：
+
+```bash
+cd ubs-engine
+docker build -f docker/Dockerfile.openeuler -t ubs-engine-openeuler:24.03-sp3-1.0.1 .
+```
+
+**步骤 2：创建容器**
+
+以 x86_64 服务器为例，创建容器：
+
+```bash
+docker run -d --privileged --name ubs-engine-ttfhw \
+    -v /home/workspace/ubs-engine-verify:/workspace \
+    swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1 \
+    sleep infinity
+```
+
+构建/UT 场景无需挂载 NPU 设备；镜像默认工作目录为 `/workspace`，不建议挂载整个 `/home` 目录。
+
+**步骤 3：进入容器**
+
+```bash
+docker exec -it ubs-engine-ttfhw bash
+```
+
+#### 方式二：基于 openEuler 基础环境从零安装
+
+不使用镜像时，可通过仓库内一键式环境配置脚本自动安装全部依赖并构建：
+
+```bash
+cd ubs-engine
+bash docker/build_env.sh
+```
+
+脚本会安装全部构建/UT 依赖（openEuler 仓库无 `ubs-comm-devel` 时按《构建指导》2.1.2 源码编译），并执行 Release 构建与 SDK 安装；仅安装依赖可执行 `bash docker/build_env.sh --skip-build`。该方式耗时较长，推荐使用方式一。
+
+### 容器卸载与清理
+
+步骤 1. 停止并删除容器
+
+```bash
+docker ps -a
+docker stop <container_id>
+docker rm <container_id>
+```
+
+步骤 2. 删除镜像
+
+```bash
+docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1
+```
+
 ## 安装结果
 
 - **ubs-engine 主程序安装结果**
@@ -144,6 +263,7 @@
     > 支持配置IP地址范围，例如：192.168.100.100-192.168.100.102。
     > 默认使用urma通信时，需已安装urma。
     > 未配置 `cluster.ipList` 且未开启 URMA 特性时，UBSE 无可用建链方式，服务启动失败。
+    > `cert.use=true`（默认）开启 TLS 证书认证，需导入证书；测试环境可置 `false` 关闭。
 
     ubs engine支持两种通信模式，可根据硬件和网络环境选择。
 
