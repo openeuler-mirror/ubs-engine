@@ -27,15 +27,6 @@ TEST_F(IpcTestFixture, DetachStripedSpace_NormalFlow)
     EXPECT_EQ(handler.Pack(resp.msg), UBSE_OK);
 }
 
-TEST_F(IpcTestFixture, DetachStripedSpace_UnpackFailed_InvalidRaidLevel)
-{
-    RequestGuard req(MakeStripedSpaceReq("sd_bad", "dev", 9, 4));
-    auto ctx = MakeContext();
-    HandlerAccessor<UbseDetachStripedSpaceHandler> handler;
-    EXPECT_EQ(handler.Init(req.Ref(), ctx), UBSE_OK);
-    EXPECT_EQ(handler.Unpack(), UBSE_ERROR_DESERIALIZE_FAILED);
-}
-
 TEST_F(IpcTestFixture, DetachStripedSpace_HandleFailed)
 {
     RequestGuard req(MakeStripedSpaceReq("sd_fail", "dev",

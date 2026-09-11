@@ -621,7 +621,33 @@ TEST_F(TestUbseSsuHandlerMessage, SsuAttachStripedSpaceUnpack_InvalidRaidLevel_R
 
 // ===== SsuDetachStripedSpaceUnpack =====
 
+// 卸载仅反序列化线性空间基本字段（name/nqn/srcEid/devName），不读 level/chunkSize
 TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_RoundTrip)
+{
+    UbseSsuStripedSpaceReq src{};
+    src.name = "striped_detach";
+    src.nqn = "nqn.sd";
+    src.srcEid = "eid_sd";
+    src.devName = "striped_dev";
+
+    uint8_t reqBuf[256] = {0};
+    UbsePackUtil packer(reqBuf, sizeof(reqBuf));
+    ASSERT_TRUE(packer.UbsePackString(src.name, MAX_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackString(src.nqn, MAX_NQN_LEN));
+    ASSERT_TRUE(packer.UbsePackString(src.srcEid, MAX_EID_LEN));
+    ASSERT_TRUE(packer.UbsePackString(src.devName, MAX_DEV_NAME_LEN));
+    UbseIpcMessage req{reqBuf, sizeof(reqBuf)};
+
+    UbseSsuStripedSpaceReq dst{};
+    EXPECT_EQ(SsuDetachStripedSpaceUnpack(req, dst), UBSE_OK);
+    EXPECT_EQ(dst.name, src.name);
+    EXPECT_EQ(dst.nqn, src.nqn);
+    EXPECT_EQ(dst.srcEid, src.srcEid);
+    EXPECT_EQ(dst.devName, src.devName);
+}
+
+// 客户端打包侧仍按 attach 格式发送 6 字段（含 level/chunkSize），服务端需容忍尾部多余字节
+TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_ToleratesExtraStripedFields)
 {
     UbseSsuStripedSpaceReq src{};
     src.name = "striped_detach";

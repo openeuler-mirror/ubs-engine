@@ -308,8 +308,8 @@ bool UbseCliSsuDetachStripedReq::Serialize(std::vector<uint8_t> &payload) const
 {
     const auto rawLevel = static_cast<uint8_t>(level);
     const auto rawChunkSize = static_cast<uint32_t>(chunkSize);
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH) ||
-        !IsValidRaidLevel(rawLevel) || !IsValidChunkSize(rawChunkSize)) {
+    // detach 不向用户暴露 level/chunkSize，不校验。
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH)) {
         return false;
     }
     const uint32_t size =

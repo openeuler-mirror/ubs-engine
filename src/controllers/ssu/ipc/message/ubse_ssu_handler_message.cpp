@@ -463,7 +463,8 @@ UbseResult SsuDetachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     ubse::utils::UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
-    return StripedSpaceReqUnpack(unpackUtil, req);
+    // 卸载操作无需 level/chunkSize，仅反序列化线性空间基本字段
+    return LinearSpaceReqUnpack(unpackUtil, req);
 }
 
 UbseResult SsuGetFeDeviceListPack(const std::vector<UbseSsuFe> &feList, api::server::UbseIpcMessage &response)
