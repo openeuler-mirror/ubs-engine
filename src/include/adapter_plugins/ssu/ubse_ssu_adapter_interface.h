@@ -25,7 +25,8 @@ using ubse::adapter_plugins::ssu::def::UbseSsuDevNameSpace;
  *   - 命名空间生命周期管理（CreateDevNameSpace / DeleteDevNameSpace）
  *   - 命名空间挂载/卸载（AttachDevNameSpace / DetachDevNameSpace）
  *   - 访问权限控制（AddSubSystemAllowHost / RemoveSubSystemAllowHost 等）
- *   - 块设备聚合管理（CreateBlockDevice / DeleteBlockDevice）
+ *   - 块设备聚合管理（CreateBlockDevice / AssembleBlockDevice / StopBlockDevice /
+ *     ProbeBlockDevice / DeleteBlockDevice）
  *
  * 本接口采用抽象基类设计，具体实现由适配器插件提供，
  * 通过 GetInstance 获取单例实例，实现与底层 NVMe 硬件的解耦。
@@ -34,7 +35,7 @@ using ubse::adapter_plugins::ssu::def::UbseSsuDevNameSpace;
  *   - 仅 Master 节点可调用的接口：GetDevList、CreateDevNameSpace、DeleteDevNameSpace、
  *     AddSubSystemAllowHost、RemoveSubSystemAllowHost、AddNameSpaceAllowHost、RemoveNameSpaceAllowHost
  *   - Master 和 Agent 节点均可调用的接口：AttachDevNameSpace、DetachDevNameSpace、
- *     CreateBlockDevice、DeleteBlockDevice
+ *     CreateBlockDevice、AssembleBlockDevice、StopBlockDevice、ProbeBlockDevice、DeleteBlockDevice
  */
 class UbseSsuAdapterInterface {
 public:
@@ -202,6 +203,80 @@ public:
      */
     virtual uint32_t CreateBlockDevice(const std::string &deviceName, const std::vector<std::string> &devicePathList,
                                        const UbseCreateBlockDeviceOptions &options, std::string &devicePath) = 0;
+
+    /*
+     * 探测聚合块设备元数据是否残留在硬件上
+     * Master，Agent节点都可以调用此接口
+     *
+     * 仅查询不修改硬件状态：
+     *   - LVM：成员盘上是否存在 PV label（pvdisplay/pvs 命中且 VG 名匹配）
+     *   - mdadm：成员盘上是否存在 md superblock（mdadm --examine 命中且 name 匹配）
+     *   - 符号链接 /dev/ssu/{deviceName} 存在但底层已删的"断链"场景也视为元数据残留为 false
+     *
+     * 用途：Attach 入口根据账本 devName + Probe 结果决定走 Assemble（重挂）还是 Create（首次/降级）。
+     *
+     * 可靠性要求：
+     *   - 只读操作，无副作用，可重试
+     *   - deviceName 走 IsSafeDeviceName 白名单校验，防命令注入
+     *   - 探测命令执行失败时返回 -1（探测失败），调用方应中止而非降级 Create
+     *
+     * @param deviceName 聚合块设备名
+     * @param addressingType 编址类型（LINEAR/STRIPED），由调用方根据挂载类型传入，
+     *     仅探测对应类型的元数据，避免对另一种编址类型执行不必要的全盘扫描命令
+     * @return 1 元数据残留（可走 Assemble 重挂）；0 无残留（需走 Create）；-1 探测失败（调用方应中止）
+     */
+    virtual int ProbeBlockDevice(const std::string &deviceName,
+                                 UbseSsuAddressingType addressingType) = 0;
+
+    /*
+     * 重组已有元数据的聚合块设备（不破坏元数据）
+     * Master，Agent节点都可以调用此接口
+     *
+     * 与 CreateBlockDevice 区别：
+     *   - Create 调 pvcreate/vgcreate/lvcreate 或 mdadm --create，会重建元数据，原数据布局丢失
+     *   - Assemble 调 vgchange -ay 或 mdadm --assemble，复用硬件上已有元数据重组，保留数据
+     *
+     * 可靠性要求：
+     *   - 调用方应先 ProbeBlockDevice 确认元数据存在再调本接口，否则直接报错而非降级 Create
+     *     （probe 命中但 assemble 失败多属硬件异常，强行 Create 会 zero-superblock 加剧问题）
+     *   - 设备已 active 时返回成功并回填 devicePath（幂等性，支持重试收敛）
+     *   - deviceName 走 IsSafeDeviceName 白名单校验，防命令注入
+     *
+     * @param deviceName 聚合块设备名（账本记录的权威值，由调用方传入）
+     * @param devicePathList 成员盘路径（与 attach 时的 NS 路径一致）；
+     *     - mdadm 路径：显式指定成员盘拼入 `mdadm --assemble /dev/md/{name} dev1 dev2 ...`，
+     *       不依赖 mdadm.conf 配置，避免 Create 后 conf 未更新或被清理导致 assemble 失败
+     *     - LVM 路径：vg 名可从 deviceName 推导，本参数忽略
+     * @param addressingType 编址类型（LINEAR/STRIPED），由调用方根据挂载类型传入，
+     *     用于直接选择 LVM 或 mdadm 路径，避免对另一种编址类型执行不必要的元数据探测命令
+     * @param devicePath [out] 返回重组后的块设备路径（如 /dev/md/ubse-pool-0）
+     * @return 0 成功，非零失败（具体见 UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED 等）
+     */
+    virtual uint32_t AssembleBlockDevice(const std::string &deviceName,
+                                         const std::vector<std::string> &devicePathList,
+                                         std::string &devicePath,
+                                         UbseSsuAddressingType addressingType) = 0;
+
+    /*
+     * 停止聚合块设备运行态（保留元数据）
+     * Master，Agent节点都可以调用此接口
+     *
+     * 与 DeleteBlockDevice 区别：
+     *   - Delete 调 lvremove/vgremove/pvremove 或 mdadm --stop + --zero-superblock，彻底销毁元数据
+     *   - Stop 调 lvchange -an 或 mdadm --stop，仅卸载运行态，成员盘元数据保留，可后续 Assemble 复用
+     *
+     * 业务语义：Detach 的正确实现 —— 仅断开访问路径，数据保留，支持快速 re-attach。
+     *
+     * 可靠性要求：
+     *   - 设备不存在或已停止时返回成功（幂等性，支持重试收敛）
+     *   - 停止前应确保块设备上无活跃 I/O
+     *   - deviceName 走 IsSafeDeviceName 白名单校验，防命令注入
+     *   - 符号链接 /dev/ssu/{deviceName} 在 Stop 成功后移除（运行态已停，链接失效）
+     *
+     * @param deviceName 要停止的块设备名
+     * @return 0 成功，非零失败
+     */
+    virtual uint32_t StopBlockDevice(const std::string &deviceName) = 0;
 
     /*
      * 删除块设备

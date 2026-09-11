@@ -692,6 +692,7 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
     std::vector<UbseSsuNameSpaceInfo> remainingNs; // 未删成功的namespace，保留在账本中便于上层重试
     std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
     std::unordered_set<std::string> refreshedEids;
+
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         // 按 uuid 匹配：缓存可能滞后于硬件（nsid 复用重建时 guid/uuid 已变化），
         // uuid 一致才命中，避免拿过期缓存条目的 guid 去执行删除
@@ -799,11 +800,11 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
         if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState, &devName](UbseSsuLedgerEntry &e) {
                 oldState = e.state;
                 e.state = state;
-                // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已删除/未创建成功，
-                if (state == UbseSsuNsState::CREATED) {
-                    e.devName.clear();
-                } else if (!devName.empty()) {
-                    // 非空才覆盖（attach成功时携带），保留历史devName供重复挂载回填devPath
+                // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已停止运行态（StopBlockDevice），
+                // 元数据保留在硬件上可供 re-attach 时 Assemble 复用，故 devName 不再清空。
+                // 仅当 attach 失败回退且 devName 为空（首次 attach 未创建成功）时保持为空。
+                // attach 成功（state==ATTACHED）时 devName 非空才覆盖，保留权威值供重复挂载回填 devPath。
+                if (state == UbseSsuNsState::ATTACHED && !devName.empty()) {
                     e.devName = devName;
                 }
             })) {
@@ -989,6 +990,63 @@ static uint32_t ValidateAllocStrategyMatch(const std::string &name, UbseSsuAlloc
     return UBSE_OK;
 }
 
+// Probe→Create/Assemble 决策辅助函数，消除 AgentAttach 与 AttachNsAndCreateBlockDevice 中的重复逻辑。
+// 核心决策：
+//   - ledgerDevName 空（首次挂载）→ CreateBlockDevice
+//   - Probe 探测失败（命令异常）→ 返回错误码，禁止降级 Create（fail-closed）
+//   - Probe 无残留 → CreateBlockDevice（降级，失败时自动 DeleteBlockDevice 清理）
+//   - Probe 有残留 → AssembleBlockDevice（复用已有元数据，设备名不匹配时返回错误）
+// 调用方在 setupRet != UBSE_OK 时执行各自的 RollbackAttachedNsAndLedger 回滚。
+static uint32_t SetupBlockDeviceWithProbe(const std::string &tag, const std::string &reqDevName,
+                                          const std::string &ledgerDevName,
+                                          const std::vector<std::string> &nsDevPaths,
+                                          const UbseCreateBlockDeviceOptions &options, std::string &devPath)
+{
+    // 首次挂载（账本无记录）：直接 Create，无需 Probe
+    if (ledgerDevName.empty()) {
+        uint32_t ret = UbseSsuAdapterInterface::GetInstance().CreateBlockDevice(reqDevName, nsDevPaths, options, devPath);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << tag << ": CreateBlockDevice failed, devName=" << reqDevName << ", ret=" << ret;
+            if (!reqDevName.empty()) {
+                UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(reqDevName);
+            }
+            return ret;
+        }
+        return UBSE_OK;
+    }
+
+    // 重挂：先 Probe 确认元数据状态
+    int probeResult = UbseSsuAdapterInterface::GetInstance().ProbeBlockDevice(ledgerDevName, options.addressingType);
+    if (probeResult < 0) {
+        // 探测失败（命令执行异常），fail-closed：禁止降级 Create，避免破坏保留元数据
+        UBSE_LOG_ERROR << tag << ": ProbeBlockDevice failed, dev=" << ledgerDevName
+                       << ", probeResult=" << probeResult;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_PROBE_FAILED;
+    }
+    if (probeResult == 0) {
+        // 账本有记录但元数据已无残留：降级 Create（打 WARN，此场景数据已不可恢复）
+        UBSE_LOG_WARN << tag << ": ledgerDevName=" << ledgerDevName
+                      << " set but no metadata residual, fallback to CreateBlockDevice";
+        uint32_t ret = UbseSsuAdapterInterface::GetInstance().CreateBlockDevice(reqDevName, nsDevPaths, options, devPath);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << tag << ": CreateBlockDevice failed, devName=" << reqDevName << ", ret=" << ret;
+            if (!reqDevName.empty()) {
+                UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(reqDevName);
+            }
+            return ret;
+        }
+        return UBSE_OK;
+    }
+    // probeResult == 1：元数据残留，走 Assemble 复用
+    if (reqDevName != ledgerDevName) {
+        UBSE_LOG_ERROR << tag << ": devName mismatch, reqDevName=" << reqDevName
+                       << ", ledgerDevName=" << ledgerDevName;
+        return UBSE_ERR_INVALID_ARG;
+    }
+    return UbseSsuAdapterInterface::GetInstance().AssembleBlockDevice(ledgerDevName, nsDevPaths, devPath,
+                                                                      options.addressingType);
+}
+
 // agent端通用attach主流程：发送identity验证请求到master，从响应中获取namespace列表，
 // 验证成功后逐个attach NS。可选创建聚合块设备（blockDeviceOptions非空时，Linear/Striped场景）。
 // 失败时回滚已attach的NS；成功时通过RPC通知master更新状态。
@@ -1066,17 +1124,15 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     }
 
     if (blockDeviceOptions != nullptr) {
-        auto createRet =
-            UbseSsuAdapterInterface::GetInstance().CreateBlockDevice(devName, nsDevPaths, *blockDeviceOptions, devPath);
-        if (createRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "AgentAttach: CreateBlockDevice failed, devName=" << devName << ", ret=" << createRet;
-            // 块设备未创建成功也尝试删除（幂等），再回滚已attach的NS
-            if (!devName.empty()) {
-                UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(devName);
-            }
+        // 决策 Create / Assemble（委托 SetupBlockDeviceWithProbe 统一处理）：
+        //   - Probe 命中 → Assemble 复用元数据；否则降级 Create 并 WARN
+        const std::string& ledgerDevName = verifyResp.devName;
+        uint32_t setupRet = SetupBlockDeviceWithProbe("AgentAttach", devName, ledgerDevName,
+            nsDevPaths, *blockDeviceOptions, devPath);
+        if (setupRet != UBSE_OK) {
             std::unordered_map<std::string, UbseSsuDevInfoPtr> emptyDevMap;
             RollbackAttachedNsAndLedger(attachedNsList, req, emptyDevMap, &verifyResp);
-            return createRet;
+            return setupRet;
         }
     }
 
@@ -1088,16 +1144,16 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
 }
 
 // agent端通用detach主流程：发送identity验证请求到master，从响应中获取namespace列表，
-// 验证成功后逐个detach NS。可选先删除聚合块设备（deleteBlockDevice=true，Linear/Striped场景）。
+// 验证成功后逐个detach NS。可选先停止聚合块设备（stopBlockDevice=true，Linear/Striped场景）。
 // 部分detach失败时保持ATTACHED状态（DetachDevNameSpace幂等，可重试收敛）；全部成功才回退为CREATED。
-static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devName, bool deleteBlockDevice,
+static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devName, bool stopBlockDevice,
                             bool isStriped = false)
 {
     UbseSsuAttachDetachVerifyOption option; // detach场景：master校验state（ATTACHED正常/CREATED幂等）
     option.isAttach = false;
     // 卸载方式对应的分配策略（DetachSpace=NORMAL/DetachLinearSpace=LINEAR/DetachStripedSpace=STRIPED），
     // 与账本分配策略必须严格一致
-    option.expectedStrategy = deleteBlockDevice ?
+    option.expectedStrategy = stopBlockDevice ?
                                   (isStriped ? UbseSsuAllocStrategy::STRIPED : UbseSsuAllocStrategy::LINEAR) :
                                   UbseSsuAllocStrategy::NORMAL;
     UbseSsuAttachDetachVerifyResp verifyResp{};
@@ -1121,19 +1177,20 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
         return UBSE_SSU_ERROR_NS_COUNT_MISMATCH;
     }
 
-    // identity验证通过后再删除聚合块设备（NS detach 之前），避免未授权删除导致状态不一致。
-    // 删除前校验请求devName与账本记录一致（账本为attach时写入的权威值），防止误删他人/无关聚合块设备；
-    if (deleteBlockDevice) {
+    // identity验证通过后再停止聚合块设备（NS detach 之前），避免未授权操作导致状态不一致。
+    // 停止前校验请求devName与账本记录一致（账本为attach时写入的权威值），防止误停他人/无关聚合块设备；
+    // Stop 仅卸载运行态保留元数据，支持 re-attach 时 Assemble 复用，业务数据不丢失
+    if (stopBlockDevice) {
         if (!verifyResp.devName.empty() && devName != verifyResp.devName) {
             UBSE_LOG_ERROR << "AgentDetach: devName mismatch, name=" << req.name << ", reqDevName=" << devName
                            << ", ledgerDevName=" << verifyResp.devName;
             return UBSE_ERR_INVALID_ARG;
         }
         if (!devName.empty()) {
-            auto deleteRet = UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(devName);
-            if (deleteRet != UBSE_OK) {
-                UBSE_LOG_ERROR << "AgentDetach: DeleteBlockDevice failed, devName=" << devName << ", ret=" << deleteRet;
-                return UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED;
+            auto stopRet = UbseSsuAdapterInterface::GetInstance().StopBlockDevice(devName);
+            if (stopRet != UBSE_OK) {
+                UBSE_LOG_ERROR << "AgentDetach: StopBlockDevice failed, devName=" << devName << ", ret=" << stopRet;
+                return UBSE_SSU_ERROR_BLOCK_DEVICE_STOP_FAILED;
             }
         }
     }
@@ -1441,6 +1498,9 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
 }
 
 // detach空间主入口，agent/master节点都可调用
+// 卸载空间主入口（NORMAL 分配策略）。
+// NORMAL 策略无聚合块设备，仅 detach 底层 NS；不会触碰 LVM/mdadm 元数据。
+// LINEAR/STRIPED 场景由 DetachLinearSpace/DetachStripedSpace 路由，先 Stop 聚合块设备（保留元数据）再 detach NS，
 uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 {
     if (req.name.empty()) {
@@ -1533,11 +1593,13 @@ struct AttachNsCreateBlockDeviceOutput {
 };
 
 // master端AttachStripedSpace和AttachLinearSpace通用辅助
-// attach所有NS + 创建聚合块设备 + 账本状态管理（ATTACHING -> ATTACHED / 失败回退）
+// attach所有NS + 创建/重组聚合块设备 + 账本状态管理（ATTACHING -> ATTACHED / 失败回退）
+// ledgerDevName：账本记录的 devName（可能为空=首次挂载；非空=重挂，需 Probe 判定走 Assemble 或降级 Create）
 static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
                                              std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                              const UbseCreateBlockDeviceOptions &options,
+                                             const std::string &ledgerDevName,
                                              AttachNsCreateBlockDeviceOutput &output)
 {
     std::string tag = (options.addressingType == UbseSsuAddressingType::STRIPED) ? "AttachStripedSpace" :
@@ -1558,12 +1620,12 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
         output.nsDevPaths.push_back(nsInfo.nsDevPath);
     }
 
-    auto createRet = UbseSsuAdapterInterface::GetInstance().CreateBlockDevice(req.devName, output.nsDevPaths, options,
-                                                                              output.devPath);
-    if (createRet != UBSE_OK) {
-        UBSE_LOG_ERROR << tag << ": CreateBlockDevice failed, devName=" << req.devName << ", ret=" << createRet;
+    // 决策 Create / Assemble（委托 SetupBlockDeviceWithProbe 统一处理）：
+    uint32_t setupRet = SetupBlockDeviceWithProbe(tag, req.devName, ledgerDevName,
+        output.nsDevPaths, options, output.devPath);
+    if (setupRet != UBSE_OK) {
         RollbackAttachedNsAndLedger(attachedNsList, req, devMap);
-        return UBSE_SSU_ERROR_BLOCK_DEVICE_CREATE_FAILED;
+        return setupRet;
     }
 
     // 同步写入聚合块设备名到账本，供重复挂载回填devPath（devPath恒为/dev/ssu/{devName}）
@@ -1649,7 +1711,8 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
-    auto ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options, output);
+    auto ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
+                                            entryPtr->devName, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -1753,7 +1816,8 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
-    ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options, output);
+    ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
+                                       entryPtr->devName, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -1768,22 +1832,23 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 }
 
 // master端DetachLinearSpace和DetachStripedSpace通用辅助
-// 删除块设备 + detach所有NS + 账本状态回退（ATTACHED -> CREATED）
-static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseSsuLinearSpaceReq &req,
-                                             const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
-                                             std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
-                                             const std::string &expectedDevName)
+// 停止聚合块设备运行态(保留元数据) + detach所有NS + 账本状态回退（ATTACHED -> CREATED）
+static uint32_t DetachNsAndStopBlockDevice(const std::string& tag, const UbseSsuLinearSpaceReq& req,
+                                           const std::vector<UbseSsuNameSpaceInfo>& nameSpaceList,
+                                           std::unordered_map<std::string, UbseSsuDevInfoPtr>& devMap,
+                                           const std::string& expectedDevName)
 {
-    // 删除前校验请求的devName与账本记录一致（账本为attach时写入的权威值），防止误删他人/无关聚合块设备；
+    // 停止前校验请求的devName与账本记录一致（账本为attach时写入的权威值），防止误停他人/无关聚合块设备；
     if (!expectedDevName.empty() && req.devName != expectedDevName) {
         UBSE_LOG_ERROR << tag << ": devName mismatch, name=" << req.name << ", reqDevName=" << req.devName
                        << ", ledgerDevName=" << expectedDevName;
         return UBSE_ERR_INVALID_ARG;
     }
-    auto deleteRet = UbseSsuAdapterInterface::GetInstance().DeleteBlockDevice(req.devName);
-    if (deleteRet != UBSE_OK) {
-        UBSE_LOG_ERROR << tag << ": DeleteBlockDevice failed, devName=" << req.devName << ", ret=" << deleteRet;
-        return UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED;
+    // Stop 仅卸载运行态保留元数据，支持 re-attach 时 Assemble 复用，业务数据不丢失
+    auto stopRet = UbseSsuAdapterInterface::GetInstance().StopBlockDevice(req.devName);
+    if (stopRet != UBSE_OK) {
+        UBSE_LOG_ERROR << tag << ": StopBlockDevice failed, devName=" << req.devName << ", ret=" << stopRet;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_STOP_FAILED;
     }
 
     uint32_t ret = UBSE_OK;
@@ -1802,9 +1867,10 @@ static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseS
     if (ret != UBSE_OK) {
         // 部分NS detach失败：账本state刻意保持ATTACHED不变。
         // 1) DetachDevNameSpace幂等（见适配器契约），调用方可重试，已detach的NS会再次返回成功，重试收敛；
-        //    DeleteBlockDevice同样幂等，重试时不会因块设备已删而失败
+        //    StopBlockDevice同样幂等，重试时不会因块设备已停而失败
         // 2) ExecuteFree要求state==CREATED才允许释放NS，保持ATTACHED可阻止在仍有NS挂在host上时误删NS，
-        //    也可阻止在"块设备已删"的脏状态上误调Attach*重建聚合设备
+        //    也可阻止在"块设备已停但部分NS仍挂在host上"的脏状态上误调Attach*重建聚合设备
+        //    （Attach入口会先 Probe 命中已停的元数据走 Assemble，而非盲目 Create）
         UBSE_LOG_ERROR << tag << ": failed to detach all namespaces, name=" << req.name;
         return ret;
     }
@@ -1875,8 +1941,8 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     }
 
     auto devMap = collector_.GetCachedDevMap();
-    auto ret = DetachNsAndDeleteBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
-                                            entryPtr->devName);
+    auto ret = DetachNsAndStopBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
+                                           entryPtr->devName);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -1940,8 +2006,8 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     }
 
     auto devMap = collector_.GetCachedDevMap();
-    auto ret = DetachNsAndDeleteBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
-                                            entryPtr->devName);
+    auto ret = DetachNsAndStopBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
+                                          entryPtr->devName);
     if (ret != UBSE_OK) {
         return ret;
     }

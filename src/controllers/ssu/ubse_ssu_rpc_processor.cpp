@@ -211,14 +211,14 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
             e.state = statusReq.state;
             // 同步上报的聚合块设备名（attach成功时由agent携带，非空才覆盖）。
             // 上报值会拼接为/dev/ssu/{devName}路径，需过白名单校验防路径穿越（agent为可信节点，属纵深防御）。
-            // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已删除/未创建成功，清空devName，
-            // 避免陈旧值导致后续通用AttachSpace+DetachSpace被误判为需Linear/Striped卸载
-            if (statusReq.state == UbseSsuNsState::CREATED) {
-                e.devName.clear();
-            } else if (!statusReq.devName.empty() && ubse::ssu::utils::IsValidDevName(statusReq.devName)) {
-                e.devName = statusReq.devName;
-            } else if (!statusReq.devName.empty()) {
-                UBSE_LOG_WARN << "StatusUpdate: invalid devName ignored, name=" << statusReq.requestName;
+            // detach（state==CREATED）后聚合块设备仅 Stop 保留元数据，devName 不再清空，
+            // 供 re-attach 时 Probe + Assemble 复用；attach 失败回退时 devName 为空保持不变。
+            if (statusReq.state == UbseSsuNsState::ATTACHED) {
+                if (!statusReq.devName.empty() && ubse::ssu::utils::IsValidDevName(statusReq.devName)) {
+                    e.devName = statusReq.devName;
+                } else if (!statusReq.devName.empty()) {
+                    UBSE_LOG_WARN << "StatusUpdate: invalid devName ignored, name=" << statusReq.requestName;
+                }
             }
             modified = true;
         })) {

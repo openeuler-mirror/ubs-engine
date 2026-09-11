@@ -19,7 +19,11 @@
 #include <cerrno>
 #include <array>
 #include <cstdio>
+#include <chrono>
+#include <thread>
+#include <dirent.h>
 #include <glib.h>
+#include <climits>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -111,6 +115,36 @@ uint32_t EnsureSsuDevDir()
         return UBSE_ERROR_IO;
     }
     return UBSE_OK;
+}
+
+// 聚合块设备当前状态：符号链接、md、LVM 三元存在性
+struct BlockDevicePresence {
+    bool ssuLinkExists{false};
+    bool mdDeviceExists{false};
+    bool lvmDeviceExists{false};
+    std::string vgName;
+    std::string mdDevicePath;
+    std::string ssuLinkPath;
+
+    bool AnyActive() const
+    {
+        return ssuLinkExists || mdDeviceExists || lvmDeviceExists;
+    }
+};
+
+BlockDevicePresence GetBlockDevicePresence(const std::string &deviceName)
+{
+    BlockDevicePresence p;
+    p.ssuLinkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    p.ssuLinkExists = g_file_test(p.ssuLinkPath.c_str(), G_FILE_TEST_IS_SYMLINK);
+    p.mdDevicePath = "/dev/md/" + deviceName;
+    p.mdDeviceExists = g_file_test(p.mdDevicePath.c_str(), G_FILE_TEST_EXISTS);
+    p.vgName = deviceName + "_vg";
+    std::string lvPath1 = "/dev/mapper/" + p.vgName + "-" + deviceName;
+    std::string lvPath2 = "/dev/" + p.vgName + "/" + deviceName;
+    p.lvmDeviceExists = g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) ||
+                        g_file_test(lvPath2.c_str(), G_FILE_TEST_EXISTS);
+    return p;
 }
 
 // 在 /dev/ssu/{deviceName} 创建指向 targetPath 的符号链接，linkPath 输出最终的链接路径
@@ -229,6 +263,71 @@ void RollbackCreatedPVs(const std::vector<std::string> &createdPVs, const std::s
         if (ExecWithSudo("pvremove -ff " + pvPath, pvOut) != UBSE_OK) {
             UBSE_LOG_WARN << "Failed to pvremove on " << pvPath
                           << " during " << scenario << ", output=" << pvOut;
+        }
+    }
+}
+
+// 扫描成员盘的 /sys/block/<baseName>/holders/ 目录，停止占用成员盘的 md 阵列。
+// 场景：DetachStripedSpace 后 re-attach 前，udev/systemd 可能基于残留 superblock
+// 自动 assemble 出 /dev/mdN 的幽灵阵列占用成员盘，导致后续 mdadm --assemble 报 "is busy"。
+// 先调用本函数释放幽灵阵列，再执行 mdadm --assemble。
+void StopMdHoldersOnMembers(const std::vector<std::string> &devicePathList)
+{
+    for (const auto &devPath : devicePathList) {
+        if (devPath.empty()) {
+            continue;
+        }
+        // 解析 by-id 符号链接到真实设备路径（/dev/nvme0n1）
+        char *realBuf = static_cast<char *>(malloc(PATH_MAX));
+        if (realBuf == nullptr) {
+            UBSE_LOG_WARN << "StopMdHoldersOnMembers: malloc failed for " << devPath;
+            continue;
+        }
+        if (realpath(devPath.c_str(), realBuf) == nullptr) {
+            UBSE_LOG_WARN << "StopMdHoldersOnMembers: realpath failed for " << devPath << ", errno=" << errno;
+            free(realBuf);
+            continue;
+        }
+
+        std::string realPath(realBuf, strnlen(realBuf, PATH_MAX));
+        free(realBuf);
+        const std::string devPrefix = "/dev/";
+        if (realPath.size() <= devPrefix.size() ||
+            realPath.compare(0, devPrefix.size(), devPrefix) != 0) {
+            UBSE_LOG_WARN << "StopMdHoldersOnMembers: realPath not under /dev/, path=" << realPath;
+            continue;
+        }
+        std::string baseName = realPath.substr(devPrefix.size());
+        // 检查 /sys/block/<baseName>/holders/ 下的 md 持有者
+        std::string holdersDir = "/sys/block/" + baseName + "/holders";
+        struct DirCloser { void operator()(DIR* d) const { if (d != nullptr) { closedir(d); } } };
+        std::unique_ptr<DIR, DirCloser> dir(opendir(holdersDir.c_str()));
+        if (dir == nullptr) {
+            // holders 目录不存在说明该盘未被任何块设备占用，正常情况
+            continue;
+        }
+        struct dirent *entry = nullptr;
+        while ((entry = readdir(dir.get())) != nullptr) {
+            std::string holderName = entry->d_name;
+            if (holderName == "." || holderName == "..") {
+                continue;
+            }
+            if (holderName.compare(0, 2, "md") != 0) {
+                continue;
+            }
+            std::string mdDevPath = "/dev/" + holderName;
+            if (!IsSafePath(mdDevPath)) {
+                UBSE_LOG_WARN << "StopMdHoldersOnMembers: unsafe holder path: " << mdDevPath;
+                continue;
+            }
+            UBSE_LOG_INFO << "StopMdHoldersOnMembers: member " << devPath
+                          << " is held by active array " << mdDevPath
+                          << ", stopping it to free member for assemble";
+            std::string stopOut;
+            if (ExecWithSudo("mdadm --stop " + mdDevPath, stopOut) != UBSE_OK) {
+                UBSE_LOG_WARN << "StopMdHoldersOnMembers: mdadm --stop " << mdDevPath
+                              << " failed, output=" << stopOut;
+            }
         }
     }
 }
@@ -1228,36 +1327,22 @@ uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
         UBSE_LOG_ERROR << "Invalid deviceName with unsafe characters: " << deviceName;
         return UBSE_SSU_ERROR_DEVICE_NAME_INVALID;
     }
-    // /dev/ssu/{deviceName} 是对外暴露的符号链接，底层设备可能为 LVM 或 mdadm。
-    // 注意必须用 IS_SYMLINK 而非 EXISTS：EXISTS 会跟随链接判断目标是否存在，
-    // 当底层设备已被外部删除导致断链时 EXISTS 返回 FALSE，会漏掉断链的清理。
-    std::string ssuLinkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
-    bool ssuLinkExists = g_file_test(ssuLinkPath.c_str(), G_FILE_TEST_IS_SYMLINK);
-
-    // 先检查底层设备是否存在
-    std::string mdDevicePath = "/dev/md/" + deviceName;
-    bool mdDeviceExists = g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS);
-
-    std::string vgName = deviceName + "_vg";
-    // 检查LVM逻辑卷是否存在，通过两种路径检查
-    std::string lvPath1 = "/dev/mapper/" + vgName + "-" + deviceName;
-    std::string lvPath2 = "/dev/" + vgName + "/" + deviceName;
-    bool lvmDeviceExists = g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) ||
-                           g_file_test(lvPath2.c_str(), G_FILE_TEST_EXISTS);
+    // 聚合块设备三元存在性判定（ssuLink/md/lvm），与 StopBlockDevice 共用同一判定逻辑
+    auto presence = GetBlockDevicePresence(deviceName);
     // 如果底层设备和符号链接都不存在，直接返回成功（幂等）
-    if (!ssuLinkExists && !mdDeviceExists && !lvmDeviceExists) {
+    if (!presence.AnyActive()) {
         UBSE_LOG_INFO << "Block device " << deviceName << " does not exist, returning success (idempotent)";
         return UBSE_OK;
     }
 
-    if (lvmDeviceExists) {
-        return DeleteLvmBlockDevice(deviceName, vgName);
+    if (presence.lvmDeviceExists) {
+        return DeleteLvmBlockDevice(deviceName, presence.vgName);
     }
-    if (mdDeviceExists) {
-        return DeleteMdBlockDevice(deviceName, mdDevicePath);
+    if (presence.mdDeviceExists) {
+        return DeleteMdBlockDevice(deviceName, presence.mdDevicePath);
     }
     // 底层设备不存在但符号链接残留，清理符号链接
-    if (ssuLinkExists) {
+    if (presence.ssuLinkExists) {
         RemoveSsuDevSymlink(deviceName);
         UBSE_LOG_INFO << "Removed orphan symlink for block device " << deviceName;
     }
@@ -1370,6 +1455,361 @@ uint32_t UbseSsuAdapterImpl::DeleteMdBlockDevice(const std::string &deviceName, 
     }
     RemoveSsuDevSymlink(deviceName);
     UBSE_LOG_INFO << "Successfully deleted mdadm block device " << deviceName;
+    return UBSE_OK;
+}
+
+// ===================== Stop / Assemble / Probe 实现 =====================
+// 语义见 ubse_ssu_adapter_interface.h：Stop 仅卸载运行态保留元数据，Assemble 复用元数据重组，
+// Probe 仅查询不修改。三者配合支撑"detach 不删数据，reattach 复用元数据"的业务语义。
+
+bool UbseSsuAdapterImpl::LvmDeviceExists(const std::string& deviceName, const std::string& vgName)
+{
+    // /dev/mapper/{vg}-{deviceName} 或 /dev/{vg}/{deviceName} 任一存在即视为 LV 存在
+    std::string lvPath1 = "/dev/mapper/" + vgName + "-" + deviceName;
+    std::string lvPath2 = "/dev/" + vgName + "/" + deviceName;
+    return g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) || g_file_test(lvPath2.c_str(), G_FILE_TEST_EXISTS);
+}
+
+bool UbseSsuAdapterImpl::MdDeviceExists(const std::string& deviceName, const std::string& mdDevicePath)
+{
+    (void)deviceName;
+    return g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS);
+}
+
+// 查询成员盘上是否残留 LVM PV 元数据（VG 名匹配 vgName）。
+// pvs -S vg_name=<vg> --noheadings：命中输出 PV 路径列表，未命中输出为空。
+// pvs 命令只读，无副作用，可重试。
+// 返回值：1=有残留，0=无残留，-1=探测失败（命令执行异常，调用方应中止而非降级 Create）
+int UbseSsuAdapterImpl::LvmMetadataResidual(const std::string& vgName)
+{
+    if (!IsSafeDeviceName(vgName)) {
+        UBSE_LOG_WARN << "LvmMetadataResidual: invalid vgName, treat as probe failed, vg=" << vgName;
+        return -1;
+    }
+    std::string pvsOutput;
+    if (ExecWithSudo("pvs --noheadings -o pv_name -S vg_name=" + vgName, pvsOutput) != UBSE_OK) {
+        UBSE_LOG_ERROR << "LvmMetadataResidual: pvs query failed, vg=" << vgName
+                       << ", output=" << pvsOutput;
+        return -1; // 探测失败：上层应返回错误并允许重试，禁止降级 Create
+    }
+    // 输出非空（至少一行非空白）说明有 PV 关联到该 VG
+    std::istringstream iss(pvsOutput);
+    std::string line;
+    while (std::getline(iss, line)) {
+        if (line.find_first_not_of(" \t\r\n") != std::string::npos) {
+            // 找到非空白行说明有 PV 关联到该 VG
+            UBSE_LOG_INFO << "LvmMetadataResidual: PV metadata residual found, dev=" << line
+                          << ", vg=" << vgName;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// 查询成员盘上是否残留 md superblock（name 匹配 deviceName）。
+// mdadm --examine --scan --verbose 输出含 "name=<host>:<deviceName>" 时视为命中。
+// --examine 只读，无副作用。
+// 返回值：1=有残留，0=无残留，-1=探测失败（命令执行异常，调用方应中止而非降级 Create）
+int UbseSsuAdapterImpl::MdMetadataResidual(const std::string& deviceName)
+{
+    std::string output;
+    // --scan 扫描所有块设备的 md superblock；--verbose 输出每阵列的详细信息含 name 字段
+    if (ExecWithSudo("mdadm --examine --scan --verbose", output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "MdMetadataResidual: mdadm --examine failed, dev=" << deviceName
+                       << ", output=" << output;
+        return -1; // 探测失败：上层应返回错误并允许重试，禁止降级 Create
+    }
+    // mdadm --examine --scan --verbose 输出格式：
+    //   ARRAY /dev/md/<name> metadata=<type> UUID=<uuid> name=<host>:<deviceName>
+    // 按行解析 "name=" 字段，提取值后做全词精确匹配，避免子串匹配导致的漏判/误判。
+    std::istringstream iss(output);
+    std::string line;
+    const std::string nameKey = "name=";
+    while (std::getline(iss, line)) {
+        auto keyPos = line.find(nameKey);
+        if (keyPos == std::string::npos) {
+            continue;
+        }
+        // 提取 name 字段值（紧跟在 "name=" 之后到行尾/空白），去掉尾部空白
+        std::string nameVal = TrimTrailingWhitespace(line.substr(keyPos + nameKey.size()));
+        // 去掉前导空白
+        auto startPos = nameVal.find_first_not_of(" \t");
+        if (startPos == std::string::npos) {
+            continue;
+        }
+        nameVal = nameVal.substr(startPos);
+        // 形态1 "<host>:<deviceName>"，形态2 "<deviceName>"
+        // 取最后一个 ':' 之后的部分作为裸设备名，与 deviceName 全词比较
+        auto colonPos = nameVal.rfind(':');
+        std::string bareName = (colonPos == std::string::npos) ? nameVal : nameVal.substr(colonPos + 1);
+        if (bareName == deviceName) {
+            UBSE_LOG_INFO << "MdMetadataResidual: md superblock residual found, dev=" << deviceName
+                          << ", host=" << nameVal.substr(0, colonPos);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+uint32_t UbseSsuAdapterImpl::StopLvmBlockDevice(const std::string& deviceName, const std::string& vgName)
+{
+    // 调用方 StopBlockDevice 已保证 LV active 存在，此处直接 deactivate。
+    // lvchange -an 仅 deactivate 逻辑卷，不删除 LV/VG 元数据，成员盘 PV label 保留。
+    std::string output;
+    if (ExecWithSudo("lvchange -an " + vgName + "/" + deviceName, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "StopLvmBlockDevice: lvchange -an failed, dev=" << deviceName << ", output=" << output;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_STOP_FAILED;
+    }
+    // 运行态已停，符号链接失效，移除以避免后续访问断链
+    RemoveSsuDevSymlink(deviceName);
+    UBSE_LOG_INFO << "StopLvmBlockDevice success, dev=" << deviceName;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::StopMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath)
+{
+    // 调用方 StopBlockDevice 已保证 md 设备 active 存在，此处直接 stop。
+    // mdadm --stop 仅停止阵列运行态，成员盘 superblock 保留，可后续 --assemble 复用。
+    std::string output;
+    if (ExecWithSudo("mdadm --stop " + mdDevicePath, output) != UBSE_OK) {
+        // 不加 --force：stop 失败多因阵列仍 busy，调用方应先确保无活跃 I/O 再重试
+        UBSE_LOG_ERROR << "StopMdBlockDevice: mdadm --stop failed, dev=" << deviceName << ", output=" << output;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_STOP_FAILED;
+    }
+    RemoveSsuDevSymlink(deviceName);
+    UBSE_LOG_INFO << "StopMdBlockDevice success, dev=" << deviceName;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::AssembleLvmBlockDevice(const std::string& deviceName, const std::string& vgName,
+                                                    std::string& devicePath)
+{
+    // vgchange -ay 激活整个 VG 的所有 LV，复用硬件上已有的 VG 元数据，PV label 不重建。
+    // 若 LV 已 active，vgchange -ay 幂等返回成功（LVM 设计语义）。
+    std::string output;
+    if (ExecWithSudo("vgchange -ay " + vgName, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "AssembleLvmBlockDevice: vgchange -ay failed, dev=" << deviceName << ", output=" << output;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED;
+    }
+    // 激活后 LV 设备路径应存在，重建 /dev/ssu/{deviceName} 符号链接
+    std::string lvPath = "/dev/" + vgName + "/" + deviceName;
+    if (!g_file_test(lvPath.c_str(), G_FILE_TEST_EXISTS)) {
+        // 兜底尝试 /dev/mapper 路径，仍不存在则视为激活异常，不创建断链
+        lvPath = "/dev/mapper/" + vgName + "-" + deviceName;
+        if (!g_file_test(lvPath.c_str(), G_FILE_TEST_EXISTS)) {
+            UBSE_LOG_ERROR << "AssembleLvmBlockDevice: LV device node missing after vgchange -ay, dev="
+                           << deviceName;
+            return UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED;
+        }
+    }
+    uint32_t ret = CreateSsuDevSymlink(deviceName, lvPath, devicePath);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "AssembleLvmBlockDevice: CreateSsuDevSymlink failed, dev=" << deviceName;
+        return ret;
+    }
+    UBSE_LOG_INFO << "AssembleLvmBlockDevice success, dev=" << deviceName << ", path=" << devicePath;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::AssembleMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath,
+                                                   const std::vector<std::string>& devicePathList,
+                                                   std::string& devicePath)
+{
+    // 校验成员盘路径（拼入 ExecWithSudo 前必须白名单校验防注入）
+    for (const auto& devPath : devicePathList) {
+        if (!IsSafePath(devPath)) {
+            UBSE_LOG_ERROR << "AssembleMdBlockDevice: invalid member dev path: " << devPath;
+            return UBSE_SSU_ERROR_DEVICE_NAME_INVALID;
+        }
+    }
+
+    // 1) 幂等：md 设备已 active（/dev/md/{name} 已存在），无需再 assemble，直接建符号链接
+    if (g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS)) {
+        uint32_t ret = CreateSsuDevSymlink(deviceName, mdDevicePath, devicePath);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "AssembleMdBlockDevice: CreateSsuDevSymlink failed, dev=" << deviceName;
+            return ret;
+        }
+        UBSE_LOG_INFO << "AssembleMdBlockDevice: md device already active, skip assemble, dev=" << deviceName
+                      << ", path=" << devicePath;
+        return UBSE_OK;
+    }
+
+    // 2) 解除成员盘上可能存在的 md holder：detach 后 re-attach 期间，udev/systemd 可能
+    //    基于残留 superblock 自动 assemble 出 /dev/mdN 的幽灵阵列占用成员盘，导致
+    //    mdadm --assemble 报 "is busy"。先扫描成员盘的 holders，停止占用的 md 阵列。
+    StopMdHoldersOnMembers(devicePathList);
+
+    // 3) mdadm --assemble /dev/md/{name} dev1 dev2 ... 复用 superblock 重组阵列，不重建元数据。
+    //    不依赖 mdadm.conf 配置，避免 Create 后 conf 未更新或被清理导致 assemble 失败。
+    //    带重试：StopMdHoldersOnMembers 执行后 udev 可能在空窗期自动 assemble 幽灵阵列占用成员盘，
+    //    或 NVMe attach 后 kernel 内部引用尚未完全释放，导致 O_EXCL open 失败报 "is busy"。
+    //    每次重试前重新清理 holders，让 udev/kernel 有时间收敛。
+    constexpr int maxAssembleRetries = 3;
+    constexpr int assembleRetryDelayMs = 500;
+    std::string output;
+    bool assembled = false;
+    for (int attempt = 0; attempt < maxAssembleRetries; ++attempt) {
+        if (attempt > 0) {
+            StopMdHoldersOnMembers(devicePathList);
+            std::this_thread::sleep_for(std::chrono::milliseconds(assembleRetryDelayMs));
+        }
+        std::string cmd = "mdadm --assemble " + mdDevicePath;
+        for (const auto& devPath : devicePathList) {
+            cmd += " " + devPath;
+        }
+        if (ExecWithSudo(cmd, output) == UBSE_OK) {
+            assembled = true;
+            break;
+        }
+        // 幂等收敛：阵列已 active（可能是 udev 自动 assemble 或上次 Assemble 成功后未清理链接）。
+        // mdadm 输出 "is already active" 或 "already in use" 时退出码非 0，但目标状态已达成，
+        // 只要目标 /dev/md/{name} 存在即视为成功。
+        if (output.find("already active") != std::string::npos ||
+            output.find("already in use") != std::string::npos) {
+            if (g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS)) {
+                UBSE_LOG_INFO << "AssembleMdBlockDevice: array already active, treat as success, dev="
+                              << deviceName << ", output=" << output;
+                assembled = true;
+                break;
+            }
+        }
+        UBSE_LOG_WARN << "AssembleMdBlockDevice: assemble attempt " << (attempt + 1) << "/" << maxAssembleRetries
+                      << " failed, dev=" << deviceName << ", output=" << output;
+    }
+    if (!assembled) {
+        // --scan 兜底：成员盘指定失败时尝试从 superblock 扫描组装（不依赖 conf）
+        // 必须限定设备名 /dev/md/{name}，避免无参 --scan 组装系统上所有可组装阵列产生副作用
+        std::string scanOut;
+        std::string scanCmd = "mdadm --assemble --scan " + mdDevicePath;
+        if (ExecWithSudo(scanCmd, scanOut) != UBSE_OK) {
+            UBSE_LOG_ERROR << "AssembleMdBlockDevice: mdadm --assemble failed after " << maxAssembleRetries
+                           << " retries, dev=" << deviceName
+                           << ", output=" << output << ", scanOut=" << scanOut;
+            return UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED;
+        }
+    }
+    // 组装后 md 设备路径应存在，重建 /dev/ssu/{deviceName} 符号链接
+    if (!g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS)) {
+        UBSE_LOG_ERROR << "AssembleMdBlockDevice: md device not active after assemble, dev=" << deviceName;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED;
+    }
+    uint32_t ret = CreateSsuDevSymlink(deviceName, mdDevicePath, devicePath);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "AssembleMdBlockDevice: CreateSsuDevSymlink failed, dev=" << deviceName;
+        return ret;
+    }
+    UBSE_LOG_INFO << "AssembleMdBlockDevice success, dev=" << deviceName << ", path=" << devicePath;
+    return UBSE_OK;
+}
+
+int UbseSsuAdapterImpl::ProbeBlockDevice(const std::string& deviceName, UbseSsuAddressingType addressingType)
+{
+    // deviceName 来源于账本/verify 响应，本为可信节点内部数据，但拼入 shell 仍走白名单校验防纵深防御。
+    // 探测无法执行的场景（含非法 deviceName）统一走 -1 fail-closed，避免调用方降级 Create 误覆盖保留元数据。
+    if (!IsSafeDeviceName(deviceName)) {
+        UBSE_LOG_WARN << "ProbeBlockDevice: invalid deviceName, treat as probe failed, dev=" << deviceName;
+        return -1;
+    }
+    std::string vgName = deviceName + "_vg";
+    std::string mdDevicePath = "/dev/md/" + deviceName;
+
+    // 按 addressingType 直接分路，仅探测对应类型的元数据，避免对另一种编址类型执行不必要的全盘扫描命令
+    if (addressingType == UbseSsuAddressingType::LINEAR) {
+        // LVM 路径：先检查设备是否已 active，再检查成员盘 PV 元数据是否残留
+        if (LvmDeviceExists(deviceName, vgName)) {
+            return 1;
+        }
+        int residual = LvmMetadataResidual(vgName);
+        if (residual < 0) {
+            return -1; // 探测失败，传递错误
+        }
+        return residual;
+    }
+    // STRIPED 路径：先检查设备是否已 active，再检查成员盘 md superblock 是否残留
+    if (MdDeviceExists(deviceName, mdDevicePath)) {
+        return 1;
+    }
+    int residual = MdMetadataResidual(deviceName);
+    if (residual < 0) {
+        return -1; // 探测失败，传递错误
+    }
+    return residual;
+}
+
+uint32_t UbseSsuAdapterImpl::AssembleBlockDevice(const std::string& deviceName,
+                                                 const std::vector<std::string>& devicePathList,
+                                                 std::string& devicePath,
+                                                 UbseSsuAddressingType addressingType)
+{
+    if (!IsSafeDeviceName(deviceName)) {
+        UBSE_LOG_ERROR << "AssembleBlockDevice: invalid deviceName: " << deviceName;
+        return UBSE_SSU_ERROR_DEVICE_NAME_INVALID;
+    }
+    std::string vgName = deviceName + "_vg";
+    std::string mdDevicePath = "/dev/md/" + deviceName;
+
+    // 按 addressingType 直接分派，避免对另一种编址类型执行不必要的元数据探测命令（pvs/mdadm --examine）
+    if (addressingType == UbseSsuAddressingType::LINEAR) {
+        // LVM 路径：若设备已 active 直接走 Assemble；否则探测元数据残留，探测失败须 fail-closed
+        if (LvmDeviceExists(deviceName, vgName)) {
+            return AssembleLvmBlockDevice(deviceName, vgName, devicePath);
+        }
+        int residual = LvmMetadataResidual(vgName);
+        if (residual < 0) {
+            UBSE_LOG_ERROR << "AssembleBlockDevice: LvmMetadataResidual probe failed, dev=" << deviceName;
+            return UBSE_SSU_ERROR_BLOCK_DEVICE_PROBE_FAILED;
+        }
+        if (residual > 0) {
+            return AssembleLvmBlockDevice(deviceName, vgName, devicePath);
+        }
+    } else {
+        // STRIPED 路径：若设备已 active 直接走 Assemble；否则探测元数据残留，探测失败须 fail-closed
+        if (MdDeviceExists(deviceName, mdDevicePath)) {
+            return AssembleMdBlockDevice(deviceName, mdDevicePath, devicePathList, devicePath);
+        }
+        int residual = MdMetadataResidual(deviceName);
+        if (residual < 0) {
+            UBSE_LOG_ERROR << "AssembleBlockDevice: MdMetadataResidual probe failed, dev=" << deviceName;
+            return UBSE_SSU_ERROR_BLOCK_DEVICE_PROBE_FAILED;
+        }
+        if (residual > 0) {
+            return AssembleMdBlockDevice(deviceName, mdDevicePath, devicePathList, devicePath);
+        }
+    }
+    // residual 为 0 说明无元数据残留，需 Create 而不是 Assemble
+    // 调用方应先 Probe 再 Assemble，到此处说明调用方未遵守契约
+    UBSE_LOG_ERROR << "AssembleBlockDevice: no metadata residual, caller should call CreateBlockDevice, dev="
+                   << deviceName;
+    return UBSE_SSU_ERROR_BLOCK_DEVICE_ASSEMBLE_FAILED;
+}
+
+uint32_t UbseSsuAdapterImpl::StopBlockDevice(const std::string& deviceName)
+{
+    if (!IsSafeDeviceName(deviceName)) {
+        UBSE_LOG_ERROR << "StopBlockDevice: invalid deviceName: " << deviceName;
+        return UBSE_SSU_ERROR_DEVICE_NAME_INVALID;
+    }
+    // 聚合块设备三元存在性判定（ssuLink/md/lvm），与 DeleteBlockDevice 共用同一判定逻辑
+    auto presence = GetBlockDevicePresence(deviceName);
+
+    if (!presence.AnyActive()) {
+        // 仍需检查成员盘元数据：可能 stop 后符号链接已删但元数据仍在（合理状态，无需再 stop）
+        UBSE_LOG_INFO << "StopBlockDevice: device not active, returning success (idempotent), dev=" << deviceName;
+        return UBSE_OK;
+    }
+
+    if (presence.lvmDeviceExists) {
+        return StopLvmBlockDevice(deviceName, presence.vgName);
+    }
+    if (presence.mdDeviceExists) {
+        return StopMdBlockDevice(deviceName, presence.mdDevicePath);
+    }
+    // 底层设备不存在但符号链接残留（断链），清理符号链接
+    if (presence.ssuLinkExists) {
+        RemoveSsuDevSymlink(deviceName);
+        UBSE_LOG_INFO << "StopBlockDevice: removed orphan symlink, dev=" << deviceName;
+    }
     return UBSE_OK;
 }
 
