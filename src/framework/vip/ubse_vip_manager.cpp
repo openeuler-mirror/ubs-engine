@@ -340,6 +340,9 @@ UbseResult UbseVipManager::StartHttpServer()
         httpConfig.udsPath = "";
         httpConfig.certPaths = MakeVipCertPaths();
 
+        // 端口限流配置：来自 vip.httpServer.rateLimitRps，0=不限流
+        httpConfig.rateLimitRps = config_.rateLimitRps;
+
         httpServer_ = std::make_unique<UbseHttpServer>(httpConfig);
 
         // Register all pending routes

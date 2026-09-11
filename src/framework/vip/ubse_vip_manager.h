@@ -29,6 +29,7 @@ struct UbseVipConfig {
     bool enable{false};
     std::string listenIp;          // CIDR format from config: 192.168.100.200/24
     uint32_t listenPort{10002};    // HTTP server listening port
+    uint32_t rateLimitRps{0};      // 0=不限流（默认），>0 表示每秒最大请求数
     uint32_t arpCount{5};
     uint32_t arpInterval{200};
 

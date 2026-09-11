@@ -139,6 +139,17 @@ UbseResult UbseVipModule::LoadConfig()
         }
     }
 
+    uint32_t rateLimitRps = 0;
+    ret = confModule->GetConf(section, "vip.httpServer.rateLimitRps", rateLimitRps);
+    if (ret == UBSE_OK) {
+        if (rateLimitRps <= 10000) {  // 0=不限流，上限 10000 防误配置
+            config_.rateLimitRps = rateLimitRps;
+        } else {
+            UBSE_LOG_WARN << "[VIP] vip.httpServer.rateLimitRps=" << rateLimitRps
+                          << " is out of range [0, 10000], using default: " << config_.rateLimitRps;
+        }
+    }
+
     ret = confModule->GetConf(section, "vip.httpServer.listen.ip", config_.listenIp);
     if (ret != UBSE_OK || config_.listenIp.empty()) {
         // 容器模式:enable=true 且缺省 listenIp,配置经 UDS 由 helper 注入,不在此处报错。
@@ -158,6 +169,7 @@ UbseResult UbseVipModule::LoadConfig()
 
     UBSE_LOG_INFO << "[VIP] Config loaded: listenIp=" << config_.listenIp
                   << ", listenPort=" << config_.listenPort
+                  << ", rateLimitRps=" << config_.rateLimitRps
                   << ", arpCount=" << config_.arpCount << ", arpInterval=" << config_.arpInterval;
     return UBSE_OK;
 }
