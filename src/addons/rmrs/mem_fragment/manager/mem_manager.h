@@ -720,7 +720,7 @@ public:
         return instance;
     }
     MpResult Init();
-    // 获取内存账本
+    // 获取内存账本（每次调用实时采集，不再保留全局缓存）
     MpResult CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
     MpResult CollectBorrowRecordsWithFault(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
     MpResult CollectBorrowRecordsOnlyBorrowIn(const std::string nodeId, const int& numaId,
@@ -728,10 +728,8 @@ public:
     // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
     MpResult CollectBorrowRecordsAll(std::vector<BorrowRecord>& borrowRecords, bool isFault = false,
                                      bool isFilter = false);
-    // 更新内存账本 - 通过内存子系统接口查询全量信息到全局变量
-    // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
-    MpResult UpdateBorrowRecords(bool isFilter = false);
-    MpResult UpdateBorrowRecordsAllWithFault();
+    // 实时采集账本到 out（纯函数，无共享状态）：allWithFault 走全量故障视图，isFilter 走 filter 视图
+    MpResult FetchBorrowRecords(std::vector<BorrowRecord>& out, bool allWithFault = false, bool isFilter = false);
     MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult UpdateBorrowRecordsWithFragmentFault(std::string nodeId);
     bool ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord);
@@ -744,11 +742,16 @@ public:
     MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord>& fragMentFaultBorrowRecords);
-    bool BorrowIdExists(const std::string& borrowId);
+    // 在给定账本快照中查找 borrowId（纯查找，无 IPC），供批量调用方一次采集后复用
+    static bool BorrowIdExistsIn(const std::vector<BorrowRecord>& records, const std::string& borrowId);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);
-    std::vector<BorrowRecord> gBorrowRecords;
+    // 故障轮级账本快照：由 UpdateBorrowRecordsWithFragmentFault 在每轮故障处理开始时刷新，
+    // 本轮故障处理流程（DetermineNodeTypeFragment/GetBorrowNodeInfo/FaultMemIdManageHelper）
+    // 通过 GetFragmentFaultBorrowRecords 读同一份数据，保证单轮内数据来源一致。
+    // 已知限制：本 map 无锁，多节点故障事件并发处理时存在写-写/读-写竞争（存量问题），
+    // 待后续迭代参照 gBorrowRecords 的 FetchBorrowRecords 方案治理。
     std::map<std::string, std::vector<BorrowRecord>> gBorrowRecordsFragmentFault; // key: nodeId value: debts of nodeId
 };
 

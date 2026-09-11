@@ -323,6 +323,16 @@ void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, u
 uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
+// 判定持久化 NUMA 级借用决策与本轮实采的故障 numa 组是否属于同一续做上下文。
+// 仅当 (决策 pids ∩ 本轮实采虚机 pid) 非空 且 (决策 oldName ∩ 本轮账本 oldName) 非空时才认定为有效续做，
+// 否则视为陈旧孤儿（虚机已换/已退出，或 present numaId 被回收复用于另一笔借用），应回退为重新决策。
+bool IsNumaLevelDecisionMatchGroup(const BorrowGroupResult& group, const NumaLevelBorrowedDecision& decision);
+// borrowId 级同上，逐条决策判定。
+bool IsBorrowIdLevelDecisionMatchGroup(const BorrowGroupResult& group, const BorrowIdLevelBorrowedDecision& decision);
+// 判定持久化借用决策是否仍存活：其新借用 newName 仍在本节点账本中（未被正常归还流程释放）。
+// newName 已不在账本 = 对应 present numa 已消失，续做必然失败，应剔除并删除该孤儿决策。
+bool IsBorrowedDecisionAlive(const BorrowedDecision& decision);
+
 MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId);
 class MpFaultNodeSubModule : public MpSubModule {
 public:

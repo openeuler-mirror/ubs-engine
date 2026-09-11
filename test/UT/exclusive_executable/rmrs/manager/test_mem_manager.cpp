@@ -67,22 +67,12 @@ public:
 
 TEST_F(TestMemManager, MemManagerInitSucceed)
 {
-    // Mock测试
+    // Mock测试：账本已去全局缓存，Init 内部走 FetchBorrowRecords 实时采集
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
-    MOCKER_CPP(&mempooling::BorrowRecordHelper::UpdateBorrowRecords, MpResult(*)())
+    MOCKER_CPP(&mempooling::BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(mempooling::BorrowRecordHelper*, std::vector<mempooling::BorrowRecord>&, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    BorrowRecord record;
-    record.name = "borrow_task_001";
-    record.size = 40960; // 40MB
-    record.lentNode = "nodeA";
-    record.lentMemId = {1001, 1002, 1003};
-    record.lentSocketId = 1;
-    record.borrowNode = "nodeB";
-    record.borrowLocalNuma = 0;
-    record.borrowRemoteNuma = -1;
-    record.borrowMemId = {2001, 2002, 2003};
-    obj.gBorrowRecords.push_back(record);
     MpResult res = obj.Init();
     EXPECT_EQ(res, MEM_POOLING_OK);
 }
@@ -433,7 +423,10 @@ TEST_F(TestMemManager, RemoveBorrowIdRedirection_succeed)
 
 TEST_F(TestMemManager, CollectBorrowRecordsSucceed)
 {
-    MOCKER_CPP(&BorrowRecordHelper::UpdateBorrowRecords, MpResult(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(returnValue(0));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     std::vector<mempooling::BorrowRecord> vec;
     auto ret = obj.CollectBorrowRecords("ab", vec);
@@ -856,10 +849,11 @@ TEST_F(TestMemManager, GenerateNumaSocketMap_failed2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-TEST_F(TestMemManager, UpdateBorrowRecordsFailed1)
+TEST_F(TestMemManager, FetchBorrowRecordsSucceed)
 {
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
-    auto ret = obj.UpdateBorrowRecords();
+    std::vector<mempooling::BorrowRecord> records;
+    auto ret = obj.FetchBorrowRecords(records);
     EXPECT_EQ(ret, 0);
 }
 
@@ -1219,8 +1213,6 @@ TEST_F(TestMemManager, CollectBorrowRecordsAllSucceed)
         .will(returnValue(MEM_POOLING_OK));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     std::vector<BorrowRecord> borrowRecords;
-    BorrowRecord item;
-    obj.gBorrowRecords.push_back(item);
     auto ret = obj.CollectBorrowRecordsAll(borrowRecords);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }

@@ -85,13 +85,15 @@ constexpr uint16_t TIMEOUT_CYCLES_LIMIT = 300; // 超时周期上限
 
 MpResult BorrowRecordHelper::Init()
 {
-    MpResult ret = UpdateBorrowRecords();
+    // 账本不再全局缓存，Init 仅做一次启动期采集自检并打印账本概况。
+    std::vector<BorrowRecord> records;
+    MpResult ret = FetchBorrowRecords(records);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "Failed to init gBorrowRecords, memManager init failed.";
+        LOG_ERROR << "Failed to fetch borrow records, memManager init failed.";
         return ret;
     }
-    LOG_DEBUG << "MemManager init success. gBorrowRecords size: " << gBorrowRecords.size();
-    for (const auto& record : gBorrowRecords) {
+    LOG_DEBUG << "MemManager init success. borrow records size: " << records.size();
+    for (const auto& record : records) {
         LOG_DEBUG << "" << record.ToString();
     }
     return MEM_POOLING_OK;
@@ -1000,8 +1002,10 @@ MpResult FaultHandleBorrowedDecision::QueryAll(std::vector<BorrowedDecision>& de
 
     LOG_DEBUG << "[FaultHandleBorrowedDecision] borrowedDecisionMap.size=" << borrowedDecisionMap.size() << ".";
     if (borrowedDecisionMap.size() == 0) {
+        // 空表是正常状态（该节点无待续做决策），返回 OK + 空列表，
+        // 避免上层（GetBorrowedDecisionHandler/RebuildBorrowGroup）将“无决策”误判为查询失败(ret=99)
         LOG_DEBUG << "[FaultHandleBorrowedDecision] No borrowed decision found.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_OK;
     }
 
     for (const auto& pair : borrowedDecisionMap) {
@@ -1738,12 +1742,21 @@ MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemo
     return MEM_POOLING_OK;
 }
 
-// isFilter为默认参数，为标志位表示是否是filter函数调用，默认值为false
-MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
+// 实时采集账本到 out（纯函数，无共享状态）：调用方每次拿到最新快照，
+// 采集或转换失败时 out 为空且不产生任何半成品状态。
+MpResult BorrowRecordHelper::FetchBorrowRecords(std::vector<BorrowRecord>& out, bool allWithFault, bool isFilter)
 {
+    out.clear();
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     MpResult ret = MEM_POOLING_OK;
-    if (isFilter) {
+    if (allWithFault) {
+        auto ubseRet = UbseGetNumaMemDebtInfo(debtInfos);
+        if (ubseRet == UBSE_ERR_INTERNAL) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] UbseGetNumaMemDebtInfo failed, ret="
+                      << static_cast<uint32_t>(ubseRet) << ".";
+            return MEM_POOLING_ERROR;
+        }
+    } else if (isFilter) {
         // filterAndSort函数无需校验remoteNumaId
         ret = GetDebtInfosWithRetry(debtInfos);
     } else {
@@ -1751,43 +1764,18 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
     }
 
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[MemLedger][BorrowRecords] GetDebtInfosWithRetry failed.";
+        LOG_ERROR << "[MemLedger][BorrowRecords] Fetch debt infos failed.";
         return MEM_POOLING_ERROR;
     }
-    gBorrowRecords.clear();
     for (auto& debtInfo : debtInfos) {
         BorrowRecord record;
-        record.name = debtInfo.name;
-        record.username = debtInfo.username;
-        record.uid = debtInfo.uid;
-        record.size = debtInfo.size / KB_TO_BYTES;
-        record.lentNode = debtInfo.lentNodeId;
-        record.lentMemId = debtInfo.lentMemId;
-        // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+        // 最小化修改：调用子函数完成转换（SocketIdList 为空或 memcpy 失败均返回错误）
+        if (!ConvertDebtToRecord(debtInfo, record)) {
             return MEM_POOLING_ERROR;
         }
-        record.lentSocketId = debtInfo.lentSocketIdList[0];
-        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
-        size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
-        for (size_t i = 0; i < n; ++i) {
-            LentNuma ln;
-            ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
-            ln.lentSize = debtInfo.lentNumaSizeList[i];
-            record.lentNuma.push_back(ln);
-        }
-        record.borrowNode = debtInfo.borrowNodeId;
-        errno_t res = memcpy_s(&record.borrowLocalNuma, sizeof(record.borrowLocalNuma), debtInfo.usrInfo,
-                               sizeof(record.borrowLocalNuma));
-        if (res != EOK) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] memcpy_s failed.";
-        }
-        record.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
-        record.borrowMemId = debtInfo.borrowMemId;
-        gBorrowRecords.push_back(record);
+        out.push_back(record);
     }
-    for (auto& record : gBorrowRecords) {
+    for (const auto& record : out) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecords: " << record.ToString() << ".";
     }
     return MEM_POOLING_OK;
@@ -1892,54 +1880,6 @@ MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
-{
-    std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    auto ret = UbseGetNumaMemDebtInfo(debtInfos);
-    if (ret == UBSE_ERR_INTERNAL) {
-        LOG_ERROR << "[MemLedger] [BorrowRecords] UbseGetNumaMemDebtInfo failed, ret=" << static_cast<uint32_t>(ret)
-                  << ".";
-        return MEM_POOLING_ERROR;
-    }
-    gBorrowRecords.clear();
-    for (auto& debtInfo : debtInfos) {
-        BorrowRecord record;
-        record.name = debtInfo.name;
-        record.username = debtInfo.username;
-        record.uid = debtInfo.uid;
-        record.size = debtInfo.size / KB_TO_BYTES;
-        record.lentNode = debtInfo.lentNodeId;
-        record.lentMemId = debtInfo.lentMemId;
-        // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
-            return MEM_POOLING_ERROR;
-        }
-        record.lentSocketId = debtInfo.lentSocketIdList[0];
-        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
-        size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
-        for (size_t i = 0; i < n; ++i) {
-            LentNuma ln;
-            ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
-            ln.lentSize = debtInfo.lentNumaSizeList[i];
-            record.lentNuma.push_back(ln);
-        }
-        record.borrowNode = debtInfo.borrowNodeId;
-        errno_t res = memcpy_s(&record.borrowLocalNuma, sizeof(record.borrowLocalNuma), debtInfo.usrInfo,
-                               sizeof(record.borrowLocalNuma));
-        if (res != EOK) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] memcpy_s failed.";
-        }
-        record.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
-        record.borrowMemId = debtInfo.borrowMemId;
-        gBorrowRecords.push_back(record);
-    }
-    for (auto& record : gBorrowRecords) {
-        LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecords: " << record.ToString() << ".";
-    }
-    return MEM_POOLING_OK;
-}
-
 MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFault(const std::string nodeId,
                                                           std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
@@ -2025,14 +1965,15 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
 
 MpResult BorrowRecordHelper::CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
-    auto ret = BorrowRecordHelper::Instance().UpdateBorrowRecords();
+    borrowRecords.clear();
+    std::vector<BorrowRecord> allRecords;
+    auto ret = FetchBorrowRecords(allRecords);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[MemLedger] [BorrowRecords] CollectBorrowRecords failed when update gBorrowRecords.";
+        LOG_ERROR << "[MemLedger] [BorrowRecords] CollectBorrowRecords failed when fetch borrow records.";
         return ret;
     }
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Start to collect borrow records of node_id=" << nodeId.c_str() << ".";
-    borrowRecords.clear();
-    for (const auto& record : gBorrowRecords) {
+    for (const auto& record : allRecords) {
         if (record.borrowNode == nodeId || record.lentNode == nodeId) {
             borrowRecords.push_back(record);
         }
@@ -2083,20 +2024,12 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsAll(std::vector<BorrowRecord>& 
                                                      bool isFilter)
 {
     LOG_INFO << "[MemLedger] [BorrowRecords] Collect all borrowRecords, isFault=" << isFault << ".";
-    MpResult ret = MEM_POOLING_OK;
-    if (isFault) {
-        ret = UpdateBorrowRecordsAllWithFault();
-    } else {
-        ret = UpdateBorrowRecords(isFilter);
-    }
-
-    if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[MemLedger] [BorrowRecords] Collect All BorrowRecords failed when updateBorrowRecords.";
-        return ret;
-    }
     borrowRecords.clear();
-    for (const auto& record : gBorrowRecords) {
-        borrowRecords.push_back(record);
+    // 每次调用实时采集最新账本，直接写入调用方容器，不再经全局中转
+    auto ret = FetchBorrowRecords(borrowRecords, isFault, isFilter);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords] Collect All BorrowRecords failed when fetch borrow records.";
+        return ret;
     }
     return MEM_POOLING_OK;
 }
@@ -2128,9 +2061,9 @@ MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string>& borro
     return MEM_POOLING_OK;
 }
 
-bool BorrowRecordHelper::BorrowIdExists(const std::string& borrowId)
+bool BorrowRecordHelper::BorrowIdExistsIn(const std::vector<BorrowRecord>& records, const std::string& borrowId)
 {
-    for (const auto& record : gBorrowRecords) {
+    for (const auto& record : records) {
         if (record.name == borrowId) {
             return true;
         }

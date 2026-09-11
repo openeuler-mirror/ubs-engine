@@ -768,8 +768,16 @@ void MempoolMigrateExecute::ExcludePendingReturnBorrowIds(std::unordered_set<std
     if (pendingReturnIds.empty()) {
         return;
     }
+    // 一次实时采集账本快照，循环内本地查找，避免逐 id 重复 IPC
+    std::vector<BorrowRecord> records;
+    if (BorrowRecordHelper::Instance().FetchBorrowRecords(records) != MEM_POOLING_OK) {
+        // fail-safe：账本采集失败时跳过陈旧清理，避免误删仍存活的 pending 归还记录
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Fetch ledger failed, skip stale pending return cleanup.";
+        return;
+    }
     for (const auto& pendingId : pendingReturnIds) {
-        if (!BorrowRecordHelper::Instance().BorrowIdExists(pendingId)) {
+        if (!BorrowRecordHelper::BorrowIdExistsIn(records, pendingId)) {
             MemReturnManager::Instance().RemovePendingReturn(pendingId);
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemMigrate][MemMigrate] Removed stale pending return borrowId=" << pendingId

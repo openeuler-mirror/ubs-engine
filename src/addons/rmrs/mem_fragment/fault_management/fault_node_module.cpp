@@ -21,6 +21,7 @@
 #include <set>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "ubse_com.h"
 #include "ubse_error.h"
@@ -1477,6 +1478,88 @@ void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, ui
         << "[GetBorrowedDecisionResHandler] Received " << result->size() << " decisions.";
 }
 
+// 构造本轮实采的身份集合：故障 numa 上当前的虚机 pid 与旧借用 oldName
+static void CollectGroupIdentity(const BorrowGroupResult& group, std::unordered_set<pid_t>& curPids,
+                                 std::unordered_set<std::string>& curOldNames)
+{
+    for (const auto& vm : group.vmInfos) {
+        curPids.insert(vm.pid);
+    }
+    for (const auto& record : group.records) {
+        curOldNames.insert(record.name);
+    }
+}
+
+bool IsNumaLevelDecisionMatchGroup(const BorrowGroupResult& group, const NumaLevelBorrowedDecision& decision)
+{
+    std::unordered_set<pid_t> curPids;
+    std::unordered_set<std::string> curOldNames;
+    CollectGroupIdentity(group, curPids, curOldNames);
+
+    bool pidHit = std::any_of(decision.pids.begin(), decision.pids.end(),
+                              [&curPids](pid_t pid) { return curPids.count(pid) > 0; });
+    bool oldNameHit = std::any_of(decision.borrowResultMap.begin(), decision.borrowResultMap.end(),
+                                  [&curOldNames](const auto& kv) { return curOldNames.count(kv.first) > 0; });
+    return pidHit && oldNameHit;
+}
+
+bool IsBorrowIdLevelDecisionMatchGroup(const BorrowGroupResult& group, const BorrowIdLevelBorrowedDecision& decision)
+{
+    std::unordered_set<pid_t> curPids;
+    std::unordered_set<std::string> curOldNames;
+    CollectGroupIdentity(group, curPids, curOldNames);
+
+    bool pidHit = std::any_of(decision.pids.begin(), decision.pids.end(),
+                              [&curPids](pid_t pid) { return curPids.count(pid) > 0; });
+    bool oldNameHit = curOldNames.count(decision.oldName) > 0;
+    return pidHit && oldNameHit;
+}
+
+bool IsBorrowedDecisionAlive(const BorrowedDecision& decision)
+{
+    // 一次实时采集账本快照，循环内本地查找，避免逐 newName 重复 IPC
+    std::vector<BorrowRecord> records;
+    if (BorrowRecordHelper::Instance().FetchBorrowRecords(records) != MEM_POOLING_OK) {
+        // fail-safe：账本采集失败时视为存活，避免误删存活决策导致新借用泄漏
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel] Fetch ledger failed in IsBorrowedDecisionAlive, fail-safe keep decision, "
+            << "remoteNumaId=" << decision.remoteNumaId << ".";
+        return true;
+    }
+    if (decision.isNumaLevel) {
+        for (const auto& [oldName, newName] : decision.numaBorrowedDecision.borrowResultMap) {
+            if (BorrowRecordHelper::BorrowIdExistsIn(records, newName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    for (const auto& bdec : decision.borrowIdBorrowedDecisions) {
+        if (BorrowRecordHelper::BorrowIdExistsIn(records, bdec.newName)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool IsBorrowedDecisionAlive(const BorrowedDecision& decision, const std::vector<BorrowRecord>& records)
+{
+    if (decision.isNumaLevel) {
+        for (const auto& [oldName, newName] : decision.numaBorrowedDecision.borrowResultMap) {
+            if (BorrowRecordHelper::BorrowIdExistsIn(records, newName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    for (const auto& bdec : decision.borrowIdBorrowedDecisions) {
+        if (BorrowRecordHelper::BorrowIdExistsIn(records, bdec.newName)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] GetBorrowedDecisionHandler start.";
@@ -1498,9 +1581,31 @@ uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& r
         return MEM_POOLING_ERROR;
     }
 
-    // 序列化决策列表
+    // 用前自愈：newName 已不在账本 = 新借用已被正常归还流程释放，present numa 已消失，决策已陈旧。
+    // 若继续下发，master 会按故障 numa 匹配并让借入节点续做已消失的 present numa，导致迁移失败(ret=99)。
+    // 此处在源头剔除并删除这类孤儿决策，使该故障 numa 回退为重新借用。
+    std::vector<BorrowRecord> ledgerRecords;
+    bool ledgerFetched = BorrowRecordHelper::Instance().FetchBorrowRecords(ledgerRecords) == MEM_POOLING_OK;
+    if (!ledgerFetched) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel] Fetch ledger failed, fail-safe keep all decisions.";
+    }
+    std::vector<BorrowedDecision> aliveDecisions;
+    aliveDecisions.reserve(decisionList.size());
+    for (auto& dec : decisionList) {
+        if (!ledgerFetched || IsBorrowedDecisionAlive(dec, ledgerRecords)) {
+            aliveDecisions.push_back(std::move(dec));
+            continue;
+        }
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel] Drop stale borrowed decision (newName already returned), remoteNumaId="
+            << dec.remoteNumaId << ", decision=" << dec.ToString() << ".";
+        FaultHandleBorrowedDecision::Instance().Remove(dec.remoteNumaId);
+    }
+
+    // 序列化存活决策列表
     RmrsOutStream builder;
-    builder << decisionList;
+    builder << aliveDecisions;
     resp.len = builder.GetSize();
     resp.data = builder.GetBufferPointer();
     resp.freeFunc = [](uint8_t* data) {
@@ -1508,7 +1613,7 @@ uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& r
     };
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultHandleParallel] Success, returned " << decisionList.size() << " decisions.";
+        << "[FaultHandleParallel] Success, returned " << aliveDecisions.size() << " decisions.";
     return MEM_POOLING_OK;
 }
 
@@ -1545,22 +1650,42 @@ void FaultNodeModule::RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowG
                 continue;
             const auto& borrowed = it->second;
             if (borrowed.isNumaLevel) {
-                // NUMA 级别失败决策
+                // NUMA 级别失败决策：需 (pid, oldName) 复合身份与本轮实采吻合才续做，否则判为陈旧孤儿、回退重决策
+                if (!IsNumaLevelDecisionMatchGroup(group, borrowed.numaBorrowedDecision)) {
+                    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[FaultHandleParallel] Stale numa-level borrowed decision, skip RESUME and re-decide."
+                        << " nodeId=" << nodeId << ", remoteNumaId=" << group.remoteNumaId
+                        << ", decision=" << borrowed.numaBorrowedDecision.ToString() << ".";
+                    continue;
+                }
                 group.strategyType = BorrowStrategyType::NUMA_LEVEL_STRATEGY;
                 group.numaDecision.isBorrowed = true;
                 group.numaDecision.borrowedDecision = borrowed.numaBorrowedDecision;
             } else {
-                // borrowId 级别失败决策
-                group.strategyType = BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY;
-                // 构建 borrowIdDecisions 列表
+                // borrowId 级别失败决策：逐条按 (pid, oldName) 复合身份过滤陈旧项
                 group.borrowIdDecisions.clear();
                 for (const auto& bdec : borrowed.borrowIdBorrowedDecisions) {
+                    if (!IsBorrowIdLevelDecisionMatchGroup(group, bdec)) {
+                        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                            << "[FaultHandleParallel] Stale borrowId-level borrowed decision, skip RESUME."
+                            << " nodeId=" << nodeId << ", oldName=" << bdec.oldName << ", decision=" << bdec.ToString()
+                            << ".";
+                        continue;
+                    }
                     BorrowIdLevelDecision dec;
                     dec.oldName = bdec.oldName;
                     dec.isBorrowed = true;
                     dec.borrowedDecision = bdec;
                     group.borrowIdDecisions.push_back(dec);
                 }
+                if (group.borrowIdDecisions.empty()) {
+                    // 全部陈旧 → 保持 STRATEGY_FAILED，交由决策层重新生成
+                    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[FaultHandleParallel] All borrowId-level decisions stale, fallback to re-decide."
+                        << " nodeId=" << nodeId << ", remoteNumaId=" << group.remoteNumaId << ".";
+                    continue;
+                }
+                group.strategyType = BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY;
             }
         }
     }
