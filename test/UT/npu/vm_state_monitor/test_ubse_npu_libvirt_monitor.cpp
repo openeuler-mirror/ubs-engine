@@ -226,6 +226,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenDlsymMissingSymbol)
 {
     LibvirtMonitor monitor("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_FALSE(monitor.Start());
     EXPECT_FALSE(monitor.IsRunning());
@@ -235,6 +236,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenEventRegisterFails)
 {
     LibvirtMonitor monitor("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     SetupDlsymEventRegisterFailMocks();
     EXPECT_FALSE(monitor.Start());
     EXPECT_FALSE(monitor.IsRunning());
@@ -244,6 +246,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenConnectOpenFails)
 {
     LibvirtMonitor monitor("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     SetupDlsymConnectOpenFailMocks();
     EXPECT_FALSE(monitor.Start());
     EXPECT_FALSE(monitor.IsRunning());
@@ -253,6 +256,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenLifecycleRegisterFails)
 {
     LibvirtMonitor monitor("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     SetupDlsymSuccessMocks();
     g_registerAnyFailOnCall = 1;
     EXPECT_FALSE(monitor.Start());
@@ -263,6 +267,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenRebootRegisterFails)
 {
     LibvirtMonitor monitor("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     SetupDlsymSuccessMocks();
     g_registerAnyFailOnCall = 2;
     EXPECT_FALSE(monitor.Start());
@@ -435,6 +440,7 @@ TEST_F(TestUbseNpuLibvirtMonitor, LoadLibraryDlsymMissingSymbol)
 {
     LibvirtMonitorImpl impl("qemu:///system");
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    MOCKER(dlclose).stubs().will(returnValue(0));
     MOCKER(dlsym)
         .stubs()
         .will(returnValue(reinterpret_cast<void*>(MockVirConnectOpenSuccess)))

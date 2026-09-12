@@ -156,10 +156,15 @@ bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP& wate
             << "[MemBorrow][MemBorrowExecute] Convert json string to vector failed.";
         return false;
     }
+    if (lenderLocsVec.size() != lenderSizeVec.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MemBorrowExecute] The size of lenderLocs is not equal to the size of lenderSize.";
+        return false;
+    }
     this->waterMallocAttr.lenderLocs.resize(lenderLocsVec.size());
     for (size_t i = 0; i < lenderLocsVec.size(); ++i) {
         std::vector<std::string> vecTmp;
-        auto item = lenderLocsVec[0];
+        auto item = lenderLocsVec[i];
         Split(item, "/", vecTmp);
 
         if (vecTmp.size() < 3U) {
@@ -180,7 +185,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP& wate
 
     this->waterMallocAttr.lenderSizes.resize(lenderLocsVec.size());
     for (size_t i = 0; i < lenderLocsVec.size(); ++i) {
-        auto item = lenderSizeVec[0];
+        auto item = lenderSizeVec[i];
         if (!StrToULong(item, this->waterMallocAttr.lenderSizes[i])) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] Convert string to int failed.";

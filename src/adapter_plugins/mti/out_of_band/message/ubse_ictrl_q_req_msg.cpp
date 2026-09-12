@@ -41,12 +41,12 @@ static void SetServiceTypeToBuf(uint8_t serviceType, CtrlQReqMessage& reqMsg)
     reqMsg.blocks.front().head.serviceType = serviceType;
 }
 
-static void SetBBNumToBuf(uint8_t bbNum, CtrlQReqMessage& reqMsg)
+static void SetBBNumToBuf(uint32_t bbNum, CtrlQReqMessage& reqMsg)
 {
-    reqMsg.blocks.front().head.bbNum = bbNum;
+    reqMsg.blocks.front().head.bbNum = static_cast<uint8_t>(bbNum);
 }
 
-ICtrlQReqMsg::ICtrlQReqMsg(uint8_t opCode, uint8_t bbNum)
+ICtrlQReqMsg::ICtrlQReqMsg(uint8_t opCode, uint32_t bbNum)
 {
     reqMsg_ = CtrlQReqMessage(bbNum);
     SetBBNumToBuf(bbNum, reqMsg_);
@@ -89,7 +89,7 @@ void ICtrlQReqMsg::SetServiceType(uint8_t serviceType)
     SetServiceTypeToBuf(serviceType, reqMsg_);
 }
 
-void ICtrlQReqMsg::SetBBNum(uint8_t bbNum)
+void ICtrlQReqMsg::SetBBNum(uint32_t bbNum)
 {
     SetBBNumToBuf(bbNum, reqMsg_);
 }

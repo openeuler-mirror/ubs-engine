@@ -49,6 +49,7 @@ using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
+const uint32_t LOCAL_HANDLER_MAX_RETRY_TIMES = 300; // 最大重试300次(约10分钟)，避免handler持续失败导致线程永久阻塞
 const uint32_t IPV4_LENGTH = 4;
 const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
@@ -365,12 +366,19 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
 void ExecLocalStateHandler(const UbseNodeInfo& nodeInfo, const std::vector<UbseLocalStateNotifyHandler>& handlers)
 {
     for (auto handler : handlers) {
+        uint32_t retryTimes = 0;
         while (true) {
             if (handler == nullptr) {
                 break;
             }
             auto ret = handler(nodeInfo);
             if (ret == UBSE_OK) {
+                break;
+            }
+            if (++retryTimes >= LOCAL_HANDLER_MAX_RETRY_TIMES) {
+                // handler 持续失败时放弃重试，避免调用线程被永久阻塞
+                UBSE_LOG_ERROR << "local node exec handler retry times exceeded " << LOCAL_HANDLER_MAX_RETRY_TIMES
+                               << ", when update local state to " << static_cast<uint32_t>(nodeInfo.localState);
                 break;
             }
             UBSE_LOG_WARN << "local node exec handler failed, when update local state to "
@@ -1161,7 +1169,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
         item >> info.chipId >> info.dieId >> info.eid >> info.guid >> info.busNodeCna;
         size_t portNum = 0;
         item >> portNum;
-        if (!inStream.Check()) {
+        if (!item.Check()) {
             UBSE_LOG_ERROR << "Ubse deserialize cpu info vec failed";
             return UBSE_ERROR;
         }
@@ -1172,7 +1180,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
             port >> portInfo.portId >> portInfo.ifName >> portInfo.portRole >> enum_v(portInfo.portStatus) >>
                 portInfo.portCna >> portInfo.urmaEid >> portInfo.remoteSlotId >> portInfo.remoteChipId >>
                 portInfo.remoteDieId >> portInfo.remoteIfName >> portInfo.remotePortId;
-            if (!inStream.Check()) {
+            if (!item.Check()) {
                 UBSE_LOG_ERROR << "Ubse deserialize portInfo failed";
                 return UBSE_ERROR;
             }
@@ -1232,10 +1240,12 @@ uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo>& infos, uint8_t* buff
     UbseDeSerialization inStream(buffer, size);
     size_t num = 0;
     inStream >> num;
-    infos.reserve(num);
     if (!inStream.Check()) {
         return UBSE_ERROR;
     }
+    // num来自对端报文，限制预分配上限，避免异常超大值触发内存分配失败
+    constexpr size_t MAX_NODE_INFO_RESERVE = 1024;
+    infos.reserve(std::min(num, MAX_NODE_INFO_RESERVE));
     for (size_t i = 0; i < num; i++) {
         UbseDeSerialization item;
         inStream >> item;

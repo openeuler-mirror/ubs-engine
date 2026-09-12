@@ -719,6 +719,10 @@ bool CheckMessageBodyLen(UBSHcomServiceContext& context, UbseComMessage& msg)
 
 uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext& context)
 {
+    if (context.Channel() == nullptr) {
+        UBSE_LOG_DEBUG << "Channel is nullptr";
+        return 0;
+    }
     return context.Channel()->GetId();
 }
 

@@ -1028,6 +1028,10 @@ int mempooling::outinterface::UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t>
 int mempooling::outinterface::UBSRMRSRemove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry Remove.";
+    if (pids.size() > static_cast<size_t>(MAX_NR_REMOVE_MP)) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Remove invalid pids size=" << pids.size() << ".";
+        return MEM_POOLING_ERROR_INVAL;
+    }
     RemoveMsg msg{};
     msg.count = static_cast<int>(pids.size());
     for (size_t i = 0; i < static_cast<size_t>(msg.count); ++i) {

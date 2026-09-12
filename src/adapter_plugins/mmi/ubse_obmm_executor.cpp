@@ -529,17 +529,26 @@ std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int 
 UbseResult RmObmmExecutor::ObmmUnExport(const std::vector<mem_id>& id)
 {
     std::vector<uint64_t> successfulList;
+    UbseResult errCode = UBSE_OK;
     for (mem_id memId : id) {
         const auto ret = ObmmUnExport(memId);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "All memids=" << RmCommonUtils::GetInstance().MemToStr(id)
-                           << ", successfulList=" << RmCommonUtils::GetInstance().MemToStr(successfulList)
-                           << ", errCode=" << ret;
-            return ret;
+            // 单个memId释放失败时继续释放剩余memId，避免批量释放场景下剩余memId漏释放
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "UnExport memid failed, errCode=" << ret
+                           << ", memids=" << RmCommonUtils::GetInstance().MemToStr(id);
+            if (errCode == UBSE_OK) {
+                errCode = ret;
+            }
+            continue;
         }
         successfulList.push_back(memId);
     }
-    return UBSE_OK;
+    if (errCode != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "All memids=" << RmCommonUtils::GetInstance().MemToStr(id)
+                       << ", successfulList=" << RmCommonUtils::GetInstance().MemToStr(successfulList)
+                       << ", errCode=" << errCode;
+    }
+    return errCode;
 }
 
 UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obmm_mem_desc& desc,

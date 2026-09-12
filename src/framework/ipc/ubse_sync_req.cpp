@@ -47,22 +47,18 @@ uint32_t UbseSyncReq::WaitForResp(uint64_t reqId, int timeout, UbseResponseMessa
     const auto start = std::chrono::steady_clock::now();
     const auto duration = std::chrono::milliseconds(timeout);
     while (std::chrono::steady_clock::now() - start < duration) {
-        mtx_.lock();
+        std::unique_lock<std::mutex> lock(mtx_);
         auto respIter = responses_.find(reqId);
-        mtx_.unlock();
         if (respIter == responses_.end()) {
             continue;
         }
         msg = respIter->second;
-        mtx_.lock();
         responses_.erase(respIter);
         waitList_.erase(reqId);
-        mtx_.unlock();
         return UBSE_OK;
     }
-    mtx_.lock();
+    std::unique_lock<std::mutex> lock(mtx_);
     waitList_.erase(reqId);
-    mtx_.unlock();
     return UBSE_IPC_ERROR_RESP_NOT_FOUND;
 }
 

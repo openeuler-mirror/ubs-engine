@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 #include <type_traits>
 
 #include <securec.h>
@@ -182,6 +183,9 @@ static ubs_error_t InnerUnpackUbDeviceType(UnpackCtx& ctx, ubs_ub_devices_type_t
 
 static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& ubctrlIndex)
 {
+    if (ubctrlIndex >= deviceList.ubctrl_cnt) {
+        return UBS_ERR_INVALID_ARG;
+    }
     auto& item = deviceList.ubctrl_ptr[ubctrlIndex];
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
@@ -212,6 +216,9 @@ static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
 static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& nicIndex)
 {
+    if (nicIndex >= deviceList.nic_pfe_cnt) {
+        return UBS_ERR_INVALID_ARG;
+    }
     auto& item = deviceList.nic_pfe_ptr[nicIndex];
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
@@ -261,6 +268,9 @@ static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
 static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& nicIndex)
 {
+    if (nicIndex >= deviceList.nic_vfe_cnt) {
+        return UBS_ERR_INVALID_ARG;
+    }
     auto& item = deviceList.nic_vfe_ptr[nicIndex];
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
@@ -310,6 +320,9 @@ static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
 static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& npuIndex)
 {
+    if (npuIndex >= deviceList.npu_cnt) {
+        return UBS_ERR_INVALID_ARG;
+    }
     auto& item = deviceList.npu_ptr[npuIndex];
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
@@ -358,6 +371,9 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
 
 static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& busiIndex)
 {
+    if (busiIndex >= deviceList.busi_cnt) {
+        return UBS_ERR_INVALID_ARG;
+    }
     auto& item = deviceList.busi_ptr[busiIndex];
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
@@ -421,13 +437,21 @@ struct DevIndex {
     size_t busiIndex = 0;
 };
 
-static void InnerAllocateDeviceBuffers(ubs_ub_devices_list_t& deviceList)
+static void InnerFreeAllDeviceBuffers(ubs_ub_devices_list_t& deviceList);
+
+static ubs_error_t InnerAllocateDeviceBuffers(ubs_ub_devices_list_t& deviceList)
 {
-    deviceList.nic_pfe_ptr = new ubs_nic_pfe_t[deviceList.nic_pfe_cnt]{};
-    deviceList.nic_vfe_ptr = new ubs_nic_vfe_t[deviceList.nic_vfe_cnt]{};
-    deviceList.npu_ptr = new ubs_npu_t[deviceList.npu_cnt]{};
-    deviceList.ubctrl_ptr = new ubs_ubctrl_t[deviceList.ubctrl_cnt]{};
-    deviceList.busi_ptr = new ubs_busi_t[deviceList.busi_cnt]{};
+    deviceList.nic_pfe_ptr = new (std::nothrow) ubs_nic_pfe_t[deviceList.nic_pfe_cnt]{};
+    deviceList.nic_vfe_ptr = new (std::nothrow) ubs_nic_vfe_t[deviceList.nic_vfe_cnt]{};
+    deviceList.npu_ptr = new (std::nothrow) ubs_npu_t[deviceList.npu_cnt]{};
+    deviceList.ubctrl_ptr = new (std::nothrow) ubs_ubctrl_t[deviceList.ubctrl_cnt]{};
+    deviceList.busi_ptr = new (std::nothrow) ubs_busi_t[deviceList.busi_cnt]{};
+    if (deviceList.nic_pfe_ptr == nullptr || deviceList.nic_vfe_ptr == nullptr || deviceList.npu_ptr == nullptr ||
+        deviceList.ubctrl_ptr == nullptr || deviceList.busi_ptr == nullptr) {
+        InnerFreeAllDeviceBuffers(deviceList);
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    return UBS_SUCCESS;
 }
 
 static ubs_error_t InnerUnpackDeviceByType(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, uint8_t type,
@@ -468,7 +492,9 @@ static ubs_error_t InnerUbDevListUnpack(UnpackCtx& ctx, ubs_ub_devices_list_t& d
     if (InnerReadDeviceCounts(ctx, deviceList) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    InnerAllocateDeviceBuffers(deviceList);
+    if (InnerAllocateDeviceBuffers(deviceList) != UBS_SUCCESS) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
     DevIndex indices;
     for (size_t i = 0; i < count; i++) {
         uint8_t type = 0;
@@ -625,6 +651,9 @@ static ubs_error_t BuildGuidBuffer(ubse_api_buffer_t& buffer, const uint8_t* bus
     }
     auto ret = memcpy_s(buffer.buffer, MACRO_UBSE_UB_DEVICE_GUID_SIZE, busInstanceGuid, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
     if (ret != EOK) {
+        free(buffer.buffer);
+        buffer.buffer = nullptr;
+        buffer.length = 0;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     buffer.length = MACRO_UBSE_UB_DEVICE_GUID_SIZE;

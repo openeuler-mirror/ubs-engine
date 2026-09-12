@@ -136,7 +136,7 @@ MEM_POOLING_RES MpStringUtil::SafeStou16(const std::string& str, uint16_t& ret) 
         return MEM_POOLING_ERROR;
     }
     try {
-        unsigned int value = std::stoul(str);
+        unsigned long value = std::stoul(str);
         if (value > std::numeric_limits<uint16_t>::max()) {
             return MEM_POOLING_ERROR_EXCEEDS_RANGE;
         }

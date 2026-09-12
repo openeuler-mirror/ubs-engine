@@ -104,10 +104,13 @@ private:
             } catch (const std::exception& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "submit threw exception: " << e.what() << " (tag=" << (tag_cstr ? tag_cstr : "<unnamed>") << ")";
+                // 已提交的任务阻塞在 gate.wait()，异常提前退出前必须先放行，否则线程被永久占死
+                gate.release();
                 throw;
             } catch (...) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "submit threw unknown exception (tag=" << (tag_cstr ? tag_cstr : "<unnamed>") << ")";
+                gate.release();
                 throw;
             }
         }

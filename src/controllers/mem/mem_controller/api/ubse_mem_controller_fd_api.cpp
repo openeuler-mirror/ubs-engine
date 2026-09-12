@@ -902,7 +902,9 @@ void FdImportFillResp(UbseMemOperationResp& resp, const UbseMemFdBorrowImportObj
     for (const auto importResult : importObj.status.importResults) {
         resp.memIdList.push_back(importResult.memId);
     }
-    resp.remoteNumaId = importObj.status.importResults[0].numaId;
+    if (!importObj.status.importResults.empty()) {
+        resp.remoteNumaId = importObj.status.importResults[0].numaId;
+    }
     uint64_t realSize{};
     for (const auto& numaInfo : importObj.algoResult.exportNumaInfos) {
         SafeAdd(realSize, numaInfo.size, realSize);

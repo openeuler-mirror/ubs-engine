@@ -418,6 +418,9 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareDetach)
     const auto sendFunc =
         &UbseComModule::RpcSend<mem::controller::message::UbseMemShareDetachReqSimpoPtr, UbseBaseMessagePtr>;
     std::chrono::seconds timeout(1);
+    Ref<ubse::task_executor::UbseTaskExecutor> taskExecutorPtr =
+        new ubse::task_executor::UbseTaskExecutor("task", 0, 0);
+    MOCKER_CPP(&ubse::mem::util::GetExecutor).stubs().will(returnValue(taskExecutorPtr));
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
     bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =

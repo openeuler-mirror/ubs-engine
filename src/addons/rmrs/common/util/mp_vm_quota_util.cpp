@@ -13,6 +13,7 @@
 #include "mp_vm_quota_util.h"
 
 #include <fstream>
+#include <limits>
 #include <regex>
 #include <sstream>
 
@@ -73,6 +74,11 @@ static void ParseProportionString(const std::string& proportion, std::map<int, u
         uint64_t valueMB = 0;
 
         if (ParseTokenToNodeId(token, nodeId, valueMB)) {
+            if (valueMB > std::numeric_limits<uint64_t>::max() / MB_TO_KB) {
+                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[ParseProportion] value out of range, skip token: " << token;
+                continue;
+            }
             numaLimits[nodeId] += valueMB * MB_TO_KB;
         }
     }

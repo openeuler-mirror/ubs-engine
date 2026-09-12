@@ -218,8 +218,13 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ValidateSingleQosParam(
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
     }
     try {
-        priority = static_cast<uint32_t>(std::stoul(priToken));
-        bandwidth = static_cast<uint32_t>(std::stoul(cirToken));
+        unsigned long long priValue = std::stoull(priToken);
+        unsigned long long cirValue = std::stoull(cirToken);
+        if (priValue > UINT32_MAX || cirValue > UINT32_MAX) {
+            return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
+        }
+        priority = static_cast<uint32_t>(priValue);
+        bandwidth = static_cast<uint32_t>(cirValue);
     } catch (const std::exception& e) {
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
     }
@@ -404,7 +409,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaPar
         nodeId = UINT32_MAX; // 默认值：表示查询本节点的 URMA 信息
     } else {
         try {
-            nodeId = static_cast<uint32_t>(std::stoul(urmaNodeCli->second));
+            unsigned long long nodeValue = std::stoull(urmaNodeCli->second);
+            if (nodeValue > UINT32_MAX) {
+                return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
+            }
+            nodeId = static_cast<uint32_t>(nodeValue);
         } catch (const std::exception& e) {
             return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
         }

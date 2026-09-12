@@ -1077,7 +1077,8 @@ MpResult MempoolBorrowModule::ValidateBorrowExecuteParam(const DestMemoryBorrowP
     MpResult ret = MEM_POOLING_ERROR;
     for (size_t i = 0; i < destParam.destNumaId.size(); i++) {
         if ((destParam.memSize[i] % (gBlockSize * MB_TO_KB) != 0) ||
-            (enableBorrowSplit && destParam.memSize[i] > FOUR_GB)) {
+            (enableBorrowSplit && destParam.memSize[i] > FOUR_GB) ||
+            destParam.memSize[i] > (std::numeric_limits<uint64_t>::max() / KB_TO_BYTES)) { // 防止KB转字节时溢出
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] Invalid memSize which = " << destParam.memSize[i]
                 << ", the memSize should be an integer multiple of " << (gBlockSize * MB_TO_KB)
