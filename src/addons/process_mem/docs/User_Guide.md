@@ -100,25 +100,24 @@ emergency_free_threshold=5
 | collect_process_interval | 5 | 秒 | [1, 3600] | 进程发现与采集周期，周期内扫描 `/proc`、采集 VmRSS 与 NUMA 内存分布。参数不在配置范围内则采用默认值。 |
 | filter_root_process | true | - | true/false | 是否过滤 root 进程（uid 0）。开启后 root 进程不纳管、不参与借用；PID 配置了 root 进程将被拒绝。 |
 | schedule_interval | 5 | 秒 | [1, 3600] | 调度决策周期，周期内执行借用超时检查、借用决策与被动归还广播。参数不在配置范围内则采用默认值。 |
-| pressing_free_threshold | 15 | GB | [1, 4096] | 本地所有 NUMA 节点总空闲内存低于 f 时触发借用，f 由容量规划推导：f = S − k × d × r。不应超过本地总内存，且应大于 emergency_free_threshold。参数不在配置范围内则采用默认值。 |
+| pressing_free_threshold | 15 | GB | [1, 4096] | 本地所有 NUMA 节点总空闲内存低于 pressing_free_threshold 时触发借用，由容量规划推导：pressing_free_threshold = S − k × d × r。不应超过本地总内存，且应大于 emergency_free_threshold。参数不在配置范围内则采用默认值。 |
 | borrow.timeout | 1000 | 毫秒/128MB | [1, 1800000]（30 分钟） | 每 128MB 借用量对应的超时时间，超时未完成的借用将被清理并归还。参数为 0 或超出范围则采用默认值。 |
 | borrow.must_same_plane | false | - | true/false | true 表示借用必须落在同平面节点（严格过滤）；false 表示软偏好，按评分加权选择借出节点。 |
 | observe_cycles | 300 | 次 | [1, 4096] | 连续快速轮询周期数：仅在紧急快速轮询（200ms）期间采样节点空闲内存，每 n 次采样结算一次观测窗口，窗口内空闲内存最小值高于 pressing_free_threshold 时触发主动归还（默认 300 × 200ms = 60s 观测窗口）。参数不在配置范围内则采用默认值。 |
 | collect_node_interval | 200 | 毫秒 | [50, 60000] | OOM 紧急快速轮询间隔，用于本地空闲内存的持续监控。参数不在配置范围内则采用默认值。 |
 | emergency_free_threshold | 5 | GB | [1, 4096] | 本地空闲内存低于该阈值时触发紧急借用并向借入节点广播被动归还请求；与 OOM 观测窗口配合，空闲内存回升（观测窗口最小值高于 pressing_free_threshold）时触发主动归还。应小于 pressing_free_threshold。参数不在配置范围内则采用默认值。 |
 
-`pressing_free_threshold`（f）由容量规划推导，各变量含义：
+`pressing_free_threshold` 由容量规划推导，各变量含义：
 
 | 变量 | 含义 | 单位 |
 | ---- | ---- | ---- |
-| f | 节点本地空闲内存阈值，低于 f 触发借用 | GB |
 | S | 单节点可对外借出上限（nodeMaxLend），即 ubse.conf `[ubse.memory]` 段的 `scheduler.node_lending_limit` | GB |
 | k | 单节点纳管实例数 | 个 |
 | d | 单实例突发增量 = maxMemory − 基线内存 | GB/实例 |
 | r | 同时突发的实例比例 | - |
 
-- 简化形式：`f = S − k × d × r`
-- 精确形式：`f = S − d × ⌈k × r⌉`（实例数向上取整）
+- 简化形式：`pressing_free_threshold = S − k × d × r`
+- 精确形式：`pressing_free_threshold = S − d × ⌈k × r⌉`（实例数向上取整）
 
 ### 2.3.2 插件准入配置 `/etc/ubse/ubse_plugin_admission.conf`
 
