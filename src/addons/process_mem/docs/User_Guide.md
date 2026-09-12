@@ -107,6 +107,19 @@ emergency_free_threshold=5
 | collect_node_interval | 200 | 毫秒 | [50, 60000] | OOM 紧急快速轮询间隔，用于本地空闲内存的持续监控。参数不在配置范围内则采用默认值。 |
 | emergency_free_threshold | 5 | GB | [1, 4096] | 本地空闲内存低于该阈值时触发紧急借用并向借入节点广播被动归还请求；与 OOM 观测窗口配合，空闲内存回升（观测窗口最小值高于 pressing_free_threshold）时触发主动归还。应小于 pressing_free_threshold。参数不在配置范围内则采用默认值。 |
 
+`pressing_free_threshold`（f）由容量规划推导，各变量含义：
+
+| 变量 | 含义 | 单位 |
+| ---- | ---- | ---- |
+| f | 节点本地空闲内存阈值，低于 f 触发借用 | GB |
+| S | 单节点可对外借出上限（nodeMaxLend），即 ubse.conf `[ubse.memory]` 段的 `scheduler.node_lending_limit` | GB |
+| k | 单节点纳管实例数 | 个 |
+| d | 单实例突发增量 = maxMemory − 基线内存 | GB/实例 |
+| r | 同时突发的实例比例 | - |
+
+- 简化形式：`f = S − k × d × r`
+- 精确形式：`f = S − d × ⌈k × r⌉`（实例数向上取整）
+
 ### 2.3.2 插件准入配置 `/etc/ubse/ubse_plugin_admission.conf`
 
 启用 process_mem 插件（使用预留的插件码 `234`）：
