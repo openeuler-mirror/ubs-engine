@@ -12,6 +12,10 @@
 
 #ifndef UBSE_HTTP_SERVER_H
 #define UBSE_HTTP_SERVER_H
+#include <chrono>
+#include <deque>
+#include <mutex>
+#include <unordered_map>
 #include "httplib.h"
 #include "src/include/cert/ubse_cert_def.h"
 #include "ubse_common_def.h"
@@ -33,6 +37,9 @@ public:
         std::string udsPath;
         bool useSsl{false};
         cert::UbseCertPaths certPaths;  // 证书相关文件路径，由调用方初始化时填写
+
+        // 端口限流配置（0 表示不限流）
+        uint32_t rateLimitRps{0};  // 每秒允许的最大请求数
     };
 
     UbseHttpServer(const Config &config);
@@ -58,6 +65,17 @@ private:
     std::thread serverThread_;
     std::unordered_map<std::string, UbseHttpHandlerFunc> routes_;
     utils::SecureBuffer password;
+
+    // 限流相关
+    std::mutex rateLimitMutex_;
+    std::unordered_map<std::string, std::deque<std::chrono::steady_clock::time_point>> rateLimitWindows_;
+    // 上次全表扫描时间点，用于时间门控触发惰性回收，避免不再访问的 IP 条目无界累积
+    std::chrono::steady_clock::time_point lastRateLimitSweep_;
+    // 上次限流告警时间点，用于告警节流，避免持续攻击时逐请求打日志放大磁盘 I/O
+    std::chrono::steady_clock::time_point lastRateLimitWarnTime_;
+    static constexpr std::chrono::seconds RATE_LIMIT_SWEEP_INTERVAL{5};
+    static constexpr size_t RATE_LIMIT_MAX_IPS = 10000;
+    bool IsRateLimited(const httplib::Request& req);
 
     void TcpRun();
 

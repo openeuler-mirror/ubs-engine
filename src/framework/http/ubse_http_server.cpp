@@ -18,6 +18,8 @@
 #include <openssl/x509.h>
 #include <securec.h>
 #include <cerrno>
+#include <chrono>
+#include <cstdint>
 
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
@@ -225,6 +227,16 @@ UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request& req, Ubse
 void UbseHttpServer::HandleRequest(const httplib::Request& req, httplib::Response& res)
 {
     UBSE_LOG_INFO << "[" << config_.name << "] Receive request, uri=" << req.path << ", method=" << req.method;
+
+    // 端口限流检查（仅限北向外部 TCP 通信，内部 UDS 通信跳过）
+    // 注：判据取传输维度（!useUds）而非 useSsl，避免未来 TLS 与外部可见性解耦时语义漂移。
+    if (!config_.useUds && IsRateLimited(req)) {
+        res.status = httplib::TooManyRequests_429;
+        res.set_header("Retry-After", "1");  // RFC 6585 / 7231：429 应建议客户端重试间隔
+        res.set_content("Too Many Requests", "text/plain");
+        return;
+    }
+
     UbseHttpRequest request{};
     if (ValidateHttpRequest(req, request) != UBSE_OK) {
         res.status = httplib::BadRequest_400;
@@ -413,4 +425,82 @@ std::string UbseHttpServer::GetParentDirectory(const std::string& path)
     size_t pos = path.find_last_of('/');
     return (pos == std::string::npos) ? "" : path.substr(0, pos);
 }
+
+bool UbseHttpServer::IsRateLimited(const httplib::Request& req)
+{
+    if (config_.rateLimitRps == 0) {
+        return false; // 不限流
+    }
+
+    // 使用客户端 IP 作为限流 key
+    std::string clientIp = req.remote_addr;
+    if (clientIp.empty()) {
+        clientIp = "unknown";
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    constexpr std::chrono::milliseconds windowMs(1000); // 1秒滑动窗口
+
+    // 注：rateLimitMutex_ 当前为全局单锁；rateLimitRps推荐值为 100，单锁在该量级下无瓶颈。
+    // 若未来调高至数千 rps 或多核高并发场景下成为热点，可改为分片锁或 per-IP 局部锁。
+    std::lock_guard<std::mutex> lock(rateLimitMutex_);
+
+    // 定期全表扫描：回收窗口已全部过期的 IP 条目，避免"一次性访问后不再出现"的 IP
+    if (now - lastRateLimitSweep_ > RATE_LIMIT_SWEEP_INTERVAL) {
+        lastRateLimitSweep_ = now;
+        for (auto sweepIt = rateLimitWindows_.begin(); sweepIt != rateLimitWindows_.end();) {
+            auto& w = sweepIt->second;
+            while (!w.empty() && (now - w.front() > windowMs)) {
+                w.pop_front();
+            }
+            if (w.empty()) {
+                sweepIt = rateLimitWindows_.erase(sweepIt);
+            } else {
+                ++sweepIt;
+            }
+        }
+    }
+
+    auto it = rateLimitWindows_.find(clientIp);
+
+    // 命中既有窗口：先淘汰过期条目，再判是否超限
+    if (it != rateLimitWindows_.end()) {
+        auto& window = it->second;
+        while (!window.empty() && (now - window.front() > windowMs)) {
+            window.pop_front();
+        }
+        // 窗口内条目已全部过期：回收该 IP 项，避免长期不再访问的 IP 在 map 中累积无界膨胀。
+        if (window.empty()) {
+            rateLimitWindows_.erase(it);
+            it = rateLimitWindows_.end();
+        } else if (window.size() >= config_.rateLimitRps) {
+            // 告警节流：同一秒内至多记录一条限流 WARN，避免持续攻击时逐请求打日志放大磁盘 I/O
+            if (now - lastRateLimitWarnTime_ >= std::chrono::seconds(1)) {
+                lastRateLimitWarnTime_ = now;
+                UBSE_LOG_WARN << "[" << config_.name << "] Rate limit exceeded for client: " << clientIp
+                              << ", limit=" << config_.rateLimitRps << " req/s";
+            }
+            return true;
+        } else {
+            window.push_back(now);
+            return false;
+        }
+    }
+
+    // 该 IP 首次出现或刚被回收：新建窗口并记录本次请求
+    // 硬上限保护：已达上限则拒绝新 IP，防止突发海量不同 IP 耗尽内存。
+    // 既有 IP 的窗口仍正常计数与回收，仅新 IP 被挡在门外（视为限流命中）。
+    if (rateLimitWindows_.size() >= RATE_LIMIT_MAX_IPS) {
+        // 告警节流：同一秒内至多记录一条 IP 上限 WARN，避免突发海量不同 IP 逐请求打日志
+        if (now - lastRateLimitWarnTime_ >= std::chrono::seconds(1)) {
+            lastRateLimitWarnTime_ = now;
+            UBSE_LOG_WARN << "[" << config_.name << "] Rate limit IP entries cap reached: " << RATE_LIMIT_MAX_IPS
+                          << ", rejecting new client: " << clientIp;
+        }
+        return true;
+    }
+    rateLimitWindows_[clientIp].push_back(now);
+    return false;
+}
+
 } // namespace ubse::http
