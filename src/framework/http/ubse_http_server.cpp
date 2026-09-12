@@ -339,8 +339,14 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
         UBSE_LOG_ERROR << "[" << config_.name << "] Failed to configure CRL validation for server";
         return nullptr;
     }
-    sslServer->new_task_queue = []() -> httplib::ThreadPool* {
-        return new httplib::ThreadPool(NO_1, NO_8);
+    // 等待队列上限（mqr）= maxQueuedRequests，仅在北向 TCP 入口生效；UDS 内部通信不限队列。
+    // httplib ThreadPool(NO_1, NO_8, mqr) 在稳态下最多同时处理 8 个请求（worker 上限）+ 队列积压 mqr 个，合计 8+mqr。
+    // 超出此上限的请求在 accept 后 enqueue 失败时被 shutdown(SHUT_RDWR)+close(fd) 关闭
+    // 不进入应用层响应，客户端返回http_code=000
+    // 避免过载时无限堆积请求和 FD 耗尽，超出的连接会被accept后立即close。
+    const size_t mqr = config_.useUds ? 0 : config_.maxQueuedRequests;
+    sslServer->new_task_queue = [mqr]() -> httplib::ThreadPool* {
+        return new httplib::ThreadPool(NO_1, NO_8, mqr);
     };
     return sslServer;
 }

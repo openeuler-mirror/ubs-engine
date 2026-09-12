@@ -343,6 +343,9 @@ UbseResult UbseVipManager::StartHttpServer()
         // 端口限流配置：来自 vip.httpServer.rateLimitRps，0=不限流
         httpConfig.rateLimitRps = config_.rateLimitRps;
 
+        // 北向 HTTP 等待队列上限：来自 vip.httpServer.maxQueuedRequests，0=不限制
+        httpConfig.maxQueuedRequests = config_.maxQueuedRequests;
+
         httpServer_ = std::make_unique<UbseHttpServer>(httpConfig);
 
         // Register all pending routes
