@@ -104,11 +104,6 @@ public:
     void Stop()
     {
         if (!running_.exchange(false)) {
-            // Start失败(running_未置位)时也需释放已打开的库句柄，避免动态库句柄泄漏
-            if (dlHandle_) {
-                dlclose(dlHandle_);
-                dlHandle_ = nullptr;
-            }
             return;
         }
         if (eventThread_.joinable()) {
@@ -159,11 +154,6 @@ private:
 
     bool LoadLibrary()
     {
-        if (dlHandle_) {
-            // 重试Start时先释放上一次已打开的句柄，避免覆盖丢失
-            dlclose(dlHandle_);
-            dlHandle_ = nullptr;
-        }
         dlHandle_ = dlopen("libvirt.so", RTLD_LAZY);
         if (!dlHandle_) {
             UBSE_LOG_ERROR << "libvirt.so dlopen failed:" << dlerror();
@@ -196,8 +186,6 @@ private:
 
         for (auto& symbol : symbols) {
             if (!loadSymbol(symbol.symbolName, symbol.symbolPtr)) {
-                dlclose(dlHandle_);
-                dlHandle_ = nullptr;
                 return false;
             }
         }

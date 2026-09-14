@@ -186,11 +186,8 @@ MpResult LibvirtHelper::ConnectSetKeepAlive()
         return MEM_POOLING_ERROR;
     }
 
-    // 保活线程只允许创建一次，避免连接重试时重复创建导致线程对象泄漏
-    if (virKeepAliveThread == nullptr) {
-        virKeepAliveThread = new std::thread([this]() { this->KeepAlive(); });
-        virKeepAliveThread->detach();
-    }
+    virKeepAliveThread = new std::thread([this]() { this->KeepAlive(); });
+    virKeepAliveThread->detach();
     return MEM_POOLING_OK;
 }
 
@@ -295,8 +292,6 @@ void LibvirtHelper::FreeDomain(VirDomainPtr domain)
 
 void LibvirtHelper::Shutdown()
 {
-    delete virKeepAliveThread;
-    virKeepAliveThread = nullptr;
     LibvirtModule::CloseLibvirtHandle();
     auto ret = CloseConn();
     if (ret != MEM_POOLING_OK) {
