@@ -49,7 +49,7 @@ uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg& resp)
     }
     // 封装回复数据
     ret = QueryDeviceRespPack(devList, resp);
-    UBSE_LOG_INFO << "[NPU] pack query dev request";
+    UBSE_LOG_DEBUG << "[NPU] pack query dev request";
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseNode pack failed, " << FormatRetCode(ret);
         return ret;
@@ -129,6 +129,29 @@ uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg& resp)
     return UBSE_OK;
 }
 
+uint32_t QueryProductTypeExecute([[maybe_unused]] TransReqMsg req, TransRespMsg& resp)
+{
+    ProductType productType = ProductType::SERVER;
+    auto ret = GetProductTypeImpl(productType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetProductType failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    resp.buffer = new (std::nothrow) uint8_t[sizeof(uint8_t)];
+    if (resp.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    resp.length = sizeof(uint8_t);
+    UbsePackUtil packUtil(resp.buffer, resp.length);
+    if (!packUtil.UbsePackUint8(static_cast<uint8_t>(productType))) {
+        delete[] resp.buffer;
+        resp.buffer = nullptr;
+        resp.length = 0;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
 struct DeviceCnt {
     uint8_t npuCnt{};
     uint8_t ubctrlCnt{};
@@ -169,7 +192,7 @@ uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>
         return UBSE_ERROR_NULLPTR;
     }
     buffer.length = size + HEAD_SIZE;
-    UBSE_LOG_INFO << "[NPU] buffer before pack size = " << buffer.length;
+    UBSE_LOG_DEBUG << "[NPU] buffer before pack size = " << buffer.length;
     return UBSE_OK;
 }
 

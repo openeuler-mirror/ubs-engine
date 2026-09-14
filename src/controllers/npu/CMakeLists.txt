@@ -1,4 +1,4 @@
-add_subdirectory(vm_state_monitor)
+﻿add_subdirectory(vm_state_monitor)
 add_subdirectory(resource_collection)
 
 #npu_controller_header_dep
@@ -21,7 +21,8 @@ target_link_libraries(npu_controller_core PUBLIC npu_resource_collection npu_con
         PRIVATE npu_controller_def)
 target_include_directories(npu_controller_core PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/src/include)
+        ${PROJECT_SOURCE_DIR}/src/include
+        ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mti)
 
 #npu_plugin
 add_library(npu_plugin SHARED

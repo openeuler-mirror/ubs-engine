@@ -276,4 +276,35 @@ TEST_F(TestUbseMtiUtil, Uint16ToStrLowercaseOutput)
     EXPECT_EQ("abcd", UpiUint16ToStr(0xABCD));
 }
 
+// ==================== S3-02 大小写往返一致性测试 ====================
+
+TEST_F(TestUbseMtiUtil, EidCaseRoundTrip)
+{
+    // 大写输入解析后，序列化输出应为等值小写，保证往返一致
+    std::array<uint8_t, 16> eid{};
+    EXPECT_TRUE(EidStrToArray("0ABCD", eid));
+    std::string eidStr;
+    EXPECT_TRUE(EidArrayToStr(eid, eidStr));
+    EXPECT_EQ("0abcd", eidStr);
+}
+
+TEST_F(TestUbseMtiUtil, GuidCaseRoundTrip)
+{
+    // 大写 GUID 输入与对应小写输入解析结果应一致
+    std::array<uint8_t, 16> guidUpper{};
+    std::array<uint8_t, 16> guidLower{};
+    EXPECT_TRUE(GuidStrToArray("0123456789ABCDEF0123456789ABCDEF", guidUpper));
+    EXPECT_TRUE(GuidStrToArray("0123456789abcdef0123456789abcdef", guidLower));
+    EXPECT_EQ(guidUpper, guidLower);
+}
+
+TEST_F(TestUbseMtiUtil, UpiCaseRoundTrip)
+{
+    // 大写 UPI 输入解析后，序列化输出应为等值小写，保证往返一致
+    uint16_t upi = 0;
+    EXPECT_TRUE(UpiStrToUint16("ABCD", upi));
+    EXPECT_EQ(0xABCDu, upi);
+    EXPECT_EQ("abcd", UpiUint16ToStr(upi));
+}
+
 } // namespace ubse::ut::mti

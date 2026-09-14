@@ -1764,6 +1764,155 @@ TEST_F(TestUbseNpuResourceCollection, CollectNicAddNicFeFailTest)
     rc.ClearAllDevices();
 }
 
+// === ValidateAndRefreshNic tests ===
+
+TEST_F(TestUbseNpuResourceCollection, ValidateAndRefreshNicGetFeListFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList).stubs().will(returnValue(UBSE_ERROR));
+    // 获取1825列表失败透传真实错误码，非致命策略由调用方落实
+    EXPECT_EQ(rc.ValidateAndRefreshNic(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, ValidateAndRefreshNicNoMissingTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    // 本地已采集pf+vf，与ctrlq返回一致
+    UbseMti1825Pf mti1825Pf;
+    mti1825Pf.slotId = 1;
+    mti1825Pf.chipId = 2;
+    mti1825Pf.dieId = 3;
+    mti1825Pf.pfId = 4;
+    UbseMtiGuid pfeGuid{};
+    pfeGuid[0] = 0x51;
+    mti1825Pf.guid = pfeGuid;
+    UbseMti1825Vf mti1825Vf;
+    mti1825Vf.slotId = 1;
+    mti1825Vf.chipId = 2;
+    mti1825Vf.dieId = 3;
+    mti1825Vf.pfId = 4;
+    mti1825Vf.vfId = 1;
+    UbseMtiGuid vfeGuid{};
+    vfeGuid[0] = 0x52;
+    mti1825Vf.guid = vfeGuid;
+    mti1825Pf.vfList.push_back(mti1825Vf);
+    EXPECT_EQ(rc.AddNicFe(mti1825Pf), UBSE_OK);
+    std::vector<UbseMti1825Pf> pfList;
+    pfList.push_back(mti1825Pf);
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList)
+        .stubs()
+        .with(outBound(pfList))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(rc.ValidateAndRefreshNic(), UBSE_OK);
+    // 无差异：不触发合并，设备数不变
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_PFE)].size(), 1);
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_VFE)].size(), 1);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, ValidateAndRefreshNicMergeMissingTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    // 本地未采集，ctrlq返回pf+vf，应全量增量合并
+    UbseMti1825Pf mti1825Pf;
+    mti1825Pf.slotId = 1;
+    mti1825Pf.chipId = 2;
+    mti1825Pf.dieId = 3;
+    mti1825Pf.pfId = 4;
+    UbseMtiGuid pfeGuid{};
+    pfeGuid[0] = 0x31;
+    mti1825Pf.guid = pfeGuid;
+    UbseMti1825Vf mti1825Vf;
+    mti1825Vf.slotId = 1;
+    mti1825Vf.chipId = 2;
+    mti1825Vf.dieId = 3;
+    mti1825Vf.pfId = 4;
+    mti1825Vf.vfId = 1;
+    UbseMtiGuid vfeGuid{};
+    vfeGuid[0] = 0x32;
+    mti1825Vf.guid = vfeGuid;
+    mti1825Pf.vfList.push_back(mti1825Vf);
+    std::vector<UbseMti1825Pf> pfList;
+    pfList.push_back(mti1825Pf);
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList)
+        .stubs()
+        .with(outBound(pfList))
+        .will(returnValue(UBSE_OK));
+    // 绑定重跑依赖：bus instance返回空成功；david affinity失败仅记WARN（非致命）
+    auto& busiInstMti = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    std::vector<UbseMtiBusInst> emptyBusInstanceList;
+    MOCKER_CPP_VIRTUAL(busiInstMti, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .with(outBound(emptyBusInstanceList))
+        .will(returnValue(UBSE_OK));
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.ValidateAndRefreshNic(), UBSE_OK);
+    // pf与vf均被增量合并
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_PFE)].size(), 1);
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_VFE)].size(), 1);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, ValidateAndRefreshNicPartialMissingTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    // 本地已采集pf（无vf），ctrlq返回同pf+新增vf：仅vf缺失，应增量合并vf且pf不重复
+    UbseMti1825Pf mti1825Pf;
+    mti1825Pf.slotId = 1;
+    mti1825Pf.chipId = 2;
+    mti1825Pf.dieId = 3;
+    mti1825Pf.pfId = 4;
+    UbseMtiGuid pfeGuid{};
+    pfeGuid[0] = 0x41;
+    mti1825Pf.guid = pfeGuid;
+    UbseMti1825Vf mti1825Vf;
+    mti1825Vf.slotId = 1;
+    mti1825Vf.chipId = 2;
+    mti1825Vf.dieId = 3;
+    mti1825Vf.pfId = 4;
+    mti1825Vf.vfId = 1;
+    UbseMtiGuid vfeGuid{};
+    vfeGuid[0] = 0x42;
+    mti1825Vf.guid = vfeGuid;
+    UbseMti1825Pf localPf = mti1825Pf; // 预置：仅pf，不带vf
+    localPf.vfList.clear();
+    EXPECT_EQ(rc.AddNicFe(localPf), UBSE_OK);
+    mti1825Pf.vfList.push_back(mti1825Vf);
+    std::vector<UbseMti1825Pf> pfList;
+    pfList.push_back(mti1825Pf);
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList)
+        .stubs()
+        .with(outBound(pfList))
+        .will(returnValue(UBSE_OK));
+    auto& busiInstMti = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    std::vector<UbseMtiBusInst> emptyBusInstanceList;
+    MOCKER_CPP_VIRTUAL(busiInstMti, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .with(outBound(emptyBusInstanceList))
+        .will(returnValue(UBSE_OK));
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.ValidateAndRefreshNic(), UBSE_OK);
+    // pf幂等复用不重复，vf增量合并
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_PFE)].size(), 1);
+    EXPECT_EQ(rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::NIC_VFE)].size(), 1);
+    rc.ClearAllDevices();
+}
+
 // === QueryBusiSubDevices tests ===
 
 TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
@@ -1772,16 +1921,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
     rc.ClearAllDevices();
     rc.state_ = CollectionState::WAIT_INIT;
     UbseMtiEid eid{};
-    CollectDeviceLoc nicPfeLoc;
-    nicPfeLoc.slotId = 1;
-    nicPfeLoc.chipId = 2;
-    nicPfeLoc.pfeId = 3;
-    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
-    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
-    auto nicPfeDev = CollectionDevice::CollectionToBase(nicPfe);
-    rc.SetDevice(nicPfeDev);
-    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    UbseMtiEid subDeviceEid{};
+    subDeviceEid[0] = 0xAA;
+    subDeviceEid[1] = 0xBB;
     UbseMtiGuid mtiGuid{};
     mtiGuid[0] = 0xef;
     mtiGuid[1] = 0xab;
@@ -1793,9 +1935,20 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 2;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = CollectionStringUtil::GuidToStr(mtiGuid);
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicPfeDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicPfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, subDeviceEid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
+    EXPECT_EQ(nicPfe->GetEid(), subDeviceEid);
     rc.ClearAllDevices();
 }
 
@@ -1827,9 +1980,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundVmBusiTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 
@@ -1861,9 +2014,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundHostBusiTest)
     for (size_t i = 7; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 
@@ -1880,9 +2033,9 @@ TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesDeviceNotFoundTest)
     for (size_t i = 1; i < 16; i++) {
         mtiGuid[i] = 0x00;
     }
-    std::vector<UbseMtiGuid> guids;
-    guids.push_back(mtiGuid);
-    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
+    subDevices.push_back({mtiGuid, eid});
+    EXPECT_EQ(rc.QueryBusiSubDevices(subDevices, busi), UBSE_OK);
     rc.ClearAllDevices();
 }
 

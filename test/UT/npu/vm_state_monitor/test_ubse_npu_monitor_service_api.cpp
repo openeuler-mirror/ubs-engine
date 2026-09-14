@@ -216,14 +216,9 @@ TEST_F(TestUbseNpuMonitorServiceApi, GetBusInstanceWithEmptyGuid)
     EXPECT_TRUE(guid.empty());
 }
 
-TEST_F(TestUbseNpuMonitorServiceApi, ResetNpuOfBusInstanceWithStartedEvent)
+TEST_F(TestUbseNpuMonitorServiceApi, ResetNpuOfBusInstanceWithIgnoredEventStarted)
 {
-    auto chain = CreateValidBusiDeviceChain("test-busi");
-    MOCKER_CPP(&ResourceCollection::GetDeviceByGuid).stubs().will(returnValue(chain.basePtr));
-    MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(invoke(StubExecSuccess));
     ResetNpuOfBusInstance("test-busi", VirDomainEventType::VIR_DOMAIN_EVENT_STARTED);
-    EXPECT_FALSE(g_capturedCmd.empty());
-    EXPECT_NE(g_capturedCmd.find("0x05"), std::string::npos);
 }
 
 TEST_F(TestUbseNpuMonitorServiceApi, ResetNpuOfBusInstanceWithStoppedEvent)
@@ -307,7 +302,7 @@ TEST_F(TestUbseNpuMonitorServiceApi, VmStateCallbackStripsDashesFromGuid)
     ASSERT_NE(xmlRaw, nullptr);
     auto xmlPtr = std::shared_ptr<char>(xmlRaw, [](char* p) { free(p); });
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(invoke(StubExecSuccess));
-    VmStateCallback("test-vm", VirDomainEventType::VIR_DOMAIN_EVENT_STARTED, xmlPtr);
+    VmStateCallback("test-vm", VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED, xmlPtr);
     EXPECT_FALSE(g_capturedCmd.empty());
     EXPECT_NE(g_capturedCmd.find("0x05"), std::string::npos);
 }

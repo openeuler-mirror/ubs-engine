@@ -52,5 +52,13 @@ uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg& resp);
  * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
  */
 uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg& resp);
+
+/**
+ * 产品类型查询-sdk服务端执行
+ * @param req 请求参数（本查询无请求载荷，忽略）
+ * @param resp 返回响应
+ * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
+ */
+uint32_t QueryProductTypeExecute([[maybe_unused]] TransReqMsg req, TransRespMsg& resp);
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_MSG_EXECUTE_H

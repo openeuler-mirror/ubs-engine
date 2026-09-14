@@ -29,6 +29,8 @@ class UbseMti1825OutOfBand : public UbseMti1825 {
 
     UbseResult UnReg1825FeFromVmBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMti1825Vf>& vfList,
                                             std::vector<bool>& resList) override;
+
+    bool Check1825PfeH2NLinkStatus(const UbseMtiEid& eid) override;
 };
 } // namespace ubse::mti::_1825
 #endif // UBSE_MTI_1825_OUT_OF_BAND_H

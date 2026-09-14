@@ -25,12 +25,11 @@ namespace ubse::mti::bus_instance {
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
-const uint16_t DEFAULT_VENDOR = 0;
+const uint16_t DEFAULT_VENDOR = 0xcc08;
 
 const std::string LSUB_HEADER = "BusInstance show format: guid type eid upi";
 const std::string LSUB_STATIC_SERVER_TYPE = "Static_Server";
 const std::string LSUB_CLUSTER_SERVER_TYPE = "Static_Cluster";
-const std::string UB_DEVICES_PATH = "/sys/bus/ub/devices/";
 const std::string LSUB_SUB_DEVICE_HEADER = "Uents under this busInstance:";
 void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst>& busInstanceList, const std::string& output)
 {
@@ -102,7 +101,7 @@ std::vector<std::string> ParseGetSubDeviceOutput(const std::string& output)
     return devices;
 }
 
-UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseMtiGuid>& guidList)
+UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseMtiBusInstSubDevice>& subDeviceList)
 {
     auto cmd = "lsub -b -E " + eidStr;
     std::string cmdResult{};
@@ -128,7 +127,12 @@ UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseM
             UBSE_LOG_ERROR << "Invalid guid format, dev :" << dev << ", guid :" << nativeGuid;
             return UBSE_ERROR;
         }
-        guidList.emplace_back(guid);
+        UbseMtiEid eid;
+        if (!EidStrToArray(dev, eid)) {
+            UBSE_LOG_ERROR << "Invalid eid format, dev :" << dev;
+            return UBSE_ERROR;
+        }
+        subDeviceList.emplace_back(UbseMtiBusInstSubDevice{.guid = guid, .eid = eid});
     }
     return UBSE_OK;
 }
@@ -150,7 +154,7 @@ UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst>& busInstanceList)
                 UBSE_LOG_ERROR << "Failed to convert eid to string";
                 return UBSE_ERROR;
             }
-            ret = GetBusInstanceSubDevices(eidStr, busInstance.subDeviceGuids);
+            ret = GetBusInstanceSubDevices(eidStr, busInstance.subDevices);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to get bus instance sub devices, eid :" << eidStr
                                << ", ret :" << FormatRetCode(ret);

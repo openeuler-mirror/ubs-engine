@@ -16,6 +16,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <shared_mutex>
 #include <type_traits>
 #include <vector>
 
@@ -153,9 +154,9 @@ public:
     CollectionDevId GetIdStr() override; // guid
     CollectionUpi GetUpiStr();           // upi
     void SetUpiStr(const CollectionUpi& upi);
-    const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& GetSubDevNicPfe() const;
-    const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& GetSubDevNicVfe() const;
-    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>>& GetSubDevIdev() const;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> GetSubDevNicPfe() const;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> GetSubDevNicVfe() const;
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> GetSubDevIdev() const;
 
     void SetSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& devNic);
     void SetSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& devNic);
@@ -166,6 +167,8 @@ public:
     void RemoveSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& devIdev);
 
 private:
+    // 读写锁保护子设备列表：查询线程读、使能/去使能线程增删
+    mutable std::shared_mutex subDevMutex_;
     std::vector<std::shared_ptr<CollectionDeviceNicPfe>> subDevNicPfe;
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> subDevNicVfe;
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> subDevIdev;

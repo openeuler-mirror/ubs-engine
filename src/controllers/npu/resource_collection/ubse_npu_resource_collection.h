@@ -11,7 +11,7 @@
  */
 #ifndef UBSE_NPU_RESOURCE_COLLECTION_H
 #define UBSE_NPU_RESOURCE_COLLECTION_H
-#include <array>
+#include <atomic>
 #include <map>
 #include <regex>
 #include <shared_mutex>
@@ -20,7 +20,6 @@
 #include "ubse_npu_resource_collection_def.h"
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::npu::controller {
 using CollectionDevIdToDevice = std::map<CollectionDevId, std::shared_ptr<CollectionDevice>>;
 using CollectionGuidToDevice = CollectionDevIdToDevice;
@@ -35,6 +34,12 @@ public:
      * @return 采集结果， UBSE_OK代表采集成功，其它代表采集失败
      */
     UbseResult CollectStaticResource();
+
+    /**
+     * 查询采集状态，FINISH代表采集完成，可进行使能/去使能等操作
+     */
+    CollectionState GetState() const;
+
     // 数据查询
     /**
      * 通过devId和type来获取对应类型的设备
@@ -59,6 +64,13 @@ public:
     UbseResult GetDevicesByType(const CollectionDeviceType& type, CollectionDevIdToDevice& devices);
     std::shared_ptr<CollectionDeviceBusi> GetDeviceHostBusInstance();
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> GetDeviceAllComSharedIdevVfe();
+    /**
+     * NIC数据校验与实时刷新：查ctrlq最新1825设备列表，增量合并到本地容器
+     * 重跑bus instance和david affinity绑定（幂等安全）
+     * @return 获取1825列表失败时透传相应错误码（由调用方按非致命处理，沿用本地已有数据）；
+     *         其余失败仅记日志并返回UBSE_OK
+     */
+    UbseResult ValidateAndRefreshNic();
     UbseResult SetDevice(std::shared_ptr<CollectionDevice>& dev);
     UbseResult RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice>& device);
     /**
@@ -78,6 +90,8 @@ public:
     static UbseResult UnbindDevice(const std::shared_ptr<CollectionDevice>& dev1,
                                    const std::shared_ptr<CollectionDevice>& dev2);
 
+    UbseResult GetProductType(ProductType& productType);
+
 private:
     UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice>& dev);
     ResourceCollection();
@@ -91,13 +105,17 @@ private:
     UbseResult CollectIdevPfeDavid();
     UbseResult CollectNic();
     std::shared_ptr<CollectionDeviceIdevVfe> GetIdevVfeByGuid(const std::string& guid);
-    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiGuid>& guids,
+    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiBusInstSubDevice>& subDevices,
                                    std::shared_ptr<CollectionDeviceBusi>& devBusi);
     UbseResult CollectBusInstance();
     void ClearAllDevices();
     UbseResult BindVfeToNpu();
 
     UbseResult CollectDavidAffinityNic();
+
+    std::vector<std::string> DiffMissingNicGuids(const std::vector<mti::_1825::UbseMti1825Pf>& latestPfList);
+
+    void MergeMissingNicDevices(const std::vector<mti::_1825::UbseMti1825Pf>& latestPfList);
 
     UbseResult GenerateDavidNicMap(ProductType productType, CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId);
 
@@ -107,15 +125,20 @@ private:
 
     std::vector<std::string> SplitFields(std::vector<std::string> lines);
 
-    UbseResult GetProductType(ProductType& productType);
-
     UbseResult GetDavidSlotId(uint8_t& slotId);
 
 private:
+    void CacheProductType(ProductType productType);
+
     std::vector<CollectionDevIdToDevice> devIdToDevice_;
     CollectionGuidToDevice guidToDevice_;
-    std::mutex mutex_;
-    CollectionState state_;
+    // 读写锁保护设备容器：查询线程(IPC线程池)并发读、采集/分配/释放线程写
+    std::shared_mutex mutex_;
+    // 采集状态：StartCollect线程写、请求线程读，用atomic保证无锁并发安全
+    std::atomic<CollectionState> state_;
+    mutable std::mutex productTypeMutex_;
+    ProductType productTypeCache_ = ProductType::SERVER;
+    bool productTypeCached_ = false;
 };
 
 } // namespace ubse::npu::controller

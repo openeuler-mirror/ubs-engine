@@ -31,6 +31,13 @@ typedef enum
     UBS_UBCTRL = 5
 } ubs_device_type;
 
+typedef enum
+{
+    UBS_PRODUCT_TYPE_SERVER = 0,
+    UBS_PRODUCT_TYPE_POD_16_1825 = 1,
+    UBS_PRODUCT_TYPE_POD_32_1825 = 2
+} ubs_product_type;
+
 typedef struct {
     ubs_device_type device_type;
     uint8_t slot_id;
@@ -129,6 +136,8 @@ typedef struct {
 } ubs_ub_devices_list_t;
 
 int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list);
+
+int32_t ubs_npu_product_type_query(ubs_product_type* product_type);
 
 int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
                              ubs_ub_devices_list_t* device_list);

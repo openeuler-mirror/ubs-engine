@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  */
@@ -68,7 +68,9 @@ UbseMtiBusInst TestUbseSsuDirectToVmManager::MakeVmBusInst(uint16_t upi, const U
     busInst.type = UbseMtiBusInstanceType::VM;
     busInst.upi = upi;
     busInst.guid = guid;
-    busInst.subDeviceGuids = subDeviceGuids;
+    for (const auto &subGuid : subDeviceGuids) {
+        busInst.subDevices.push_back({subGuid, {}});
+    }
     return busInst;
 }
 

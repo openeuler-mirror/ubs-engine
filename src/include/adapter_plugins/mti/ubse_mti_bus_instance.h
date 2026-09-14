@@ -41,13 +41,18 @@ enum class UbseMtiBusInstanceType
     VM
 };
 
+struct UbseMtiBusInstSubDevice {
+    UbseMtiGuid guid;
+    UbseMtiEid eid;
+};
+
 struct UbseMtiBusInst {
     UbseMtiBusInstanceType type{UbseMtiBusInstanceType::VM};
     uint16_t upi;
     uint16_t vendor;
     UbseMtiGuid guid;
     UbseMtiEid eid;
-    std::vector<UbseMtiGuid> subDeviceGuids;
+    std::vector<UbseMtiBusInstSubDevice> subDevices;
 };
 
 class UbseMtiBusInstance {

@@ -125,6 +125,7 @@ typedef enum {
     UBSE_NPU_ALLOC_UB_DEVICES = 0x0003,
     UBSE_NPU_FREE_UB_DEVICES = 0x0004,
     UBSE_NPU_QUERY_UBA_TID_SIZE = 0x0005,
+    UBSE_NPU_QUERY_PRODUCT_TYPE = 0x0006,
 } ubse_ipc_npu_op_code_t;
 
 typedef enum {

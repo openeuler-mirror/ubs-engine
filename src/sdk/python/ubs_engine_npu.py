@@ -31,6 +31,20 @@ def get_host_ub_devices() -> List[DeviceInfo]:
     return _npu_interface.ubs_device_list()
 
 
+def get_product_type() -> int:
+    """
+    获取产品类型
+    
+    Returns:
+        int: 产品类型 (0=SERVER, 1=POD_16_1825, 2=POD_32_1825)
+    Raises:
+        ConnectionError: 本地库未加载
+        RuntimeError: 查询失败
+        Exception: 其他未知错误
+    """
+    return _npu_interface.ubs_get_product_type()
+
+
 def alloc_devices(upi, bus_guid, device_list) -> Tuple[str, List[DeviceInfo]]:
     """
     分配UB设备

@@ -10,7 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_npu_resource_collection_def.h"
+#include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include "ubse_logger.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::npu::controller {
@@ -99,16 +101,19 @@ void CollectionDeviceBusi::SetUpiStr(const CollectionUpi& upi)
 {
     dev.upi = upi;
 }
-const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& CollectionDeviceBusi::GetSubDevNicPfe() const
+std::vector<std::shared_ptr<CollectionDeviceNicPfe>> CollectionDeviceBusi::GetSubDevNicPfe() const
 {
+    std::shared_lock<std::shared_mutex> lock(subDevMutex_);
     return subDevNicPfe;
 }
-const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& CollectionDeviceBusi::GetSubDevNicVfe() const
+std::vector<std::shared_ptr<CollectionDeviceNicVfe>> CollectionDeviceBusi::GetSubDevNicVfe() const
 {
+    std::shared_lock<std::shared_mutex> lock(subDevMutex_);
     return subDevNicVfe;
 }
-const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>>& CollectionDeviceBusi::GetSubDevIdev() const
+std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> CollectionDeviceBusi::GetSubDevIdev() const
 {
+    std::shared_lock<std::shared_mutex> lock(subDevMutex_);
     return subDevIdev;
 }
 
@@ -180,29 +185,35 @@ void RemoveCollectionDevice(std::vector<std::weak_ptr<T>>& devices, const std::s
 
 void CollectionDeviceBusi::SetSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& devNic)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     SetCollectionDevice<CollectionDeviceNicPfe>(subDevNicPfe, devNic, DEV_NIC_PFE);
 }
 
 void CollectionDeviceBusi::SetSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& devNic)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     SetCollectionDevice<CollectionDeviceNicVfe>(subDevNicVfe, devNic, DEV_NIC_VFE);
 }
 
 void CollectionDeviceBusi::SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& devIdev)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     SetCollectionDevice<CollectionDeviceIdevVfe>(subDevIdev, devIdev, DEV_IDEV);
 }
 
 void CollectionDeviceBusi::RemoveSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& devNic)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     RemoveCollectionDevice<CollectionDeviceNicPfe>(subDevNicPfe, devNic, DEV_NIC_PFE);
 }
 void CollectionDeviceBusi::RemoveSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& devNic)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     RemoveCollectionDevice<CollectionDeviceNicVfe>(subDevNicVfe, devNic, DEV_NIC_VFE);
 }
 void CollectionDeviceBusi::RemoveSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& devIdev)
 {
+    std::unique_lock<std::shared_mutex> lock(subDevMutex_);
     RemoveCollectionDevice<CollectionDeviceIdevVfe>(subDevIdev, devIdev, DEV_IDEV);
 }
 CollectionDeviceUbCtrl::CollectionDeviceUbCtrl(const CollectDeviceLoc& devLoc)
