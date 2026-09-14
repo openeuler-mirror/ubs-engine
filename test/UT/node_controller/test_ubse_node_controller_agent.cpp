@@ -20,9 +20,23 @@ void TestUbseNodeControllerAgent::TearDown()
 
 TEST_F(TestUbseNodeControllerAgent, RegAgentMsgHandler)
 {
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> nullModule = nullptr;
+    std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
 
+    // 第1次：comModule为nullptr
+    EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR_NULLPTR);
+
+    // 第2次：SYNC handler注册失败
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR);
+
+    // 第3次：SYNC/SYNC_FULL注册成功，后续UbseRegRpcService失败
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR);
+
+    // 第4次：全部注册成功
     EXPECT_EQ(RegAgentMsgHandler(), UBSE_OK);
 }
 

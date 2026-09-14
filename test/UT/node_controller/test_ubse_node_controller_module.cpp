@@ -28,6 +28,7 @@ using namespace ubse::common::def;
 using namespace ubse::timer;
 using namespace election;
 using namespace ubse::com;
+using namespace ubse::context;
 using namespace ubse::nodeController;
 
 void TestUbseNodeControllerModule::SetUp()
@@ -85,6 +86,12 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Success)
 
     MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
 
+    // RegAgentMsgHandler中SYNC/FULL端点经comModule注册（需先mock GetModule与模板注册函数）
+    std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_OK));
+
     // 模拟全局函数 UbseRegRpcService
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
@@ -124,6 +131,12 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
 
     MOCKER_CPP(&UbseNodeControllerMaster::Initialize).stubs().will(returnValue(UBSE_ERROR));
 
+    // RegAgentMsgHandler中SYNC/FULL端点经comModule注册（需先mock GetModule与模板注册函数）
+    std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_OK));
+
     // 添加UbseRegRpcService的模拟
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
@@ -141,8 +154,11 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentMsgHandler)
 
     MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
-    // UbseRegRpcService 第一次调用失败（RegAgentMsgHandler 中）
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
+    // RegAgentMsgHandler中SYNC端点经comModule注册失败
+    std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -160,6 +176,12 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterMsgHandler)
     MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
     MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
+
+    // RegAgentMsgHandler中SYNC/FULL端点经comModule注册（需先mock GetModule与模板注册函数）
+    std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_OK));
 
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     // 让RegMasterMsgHandler返回失败
