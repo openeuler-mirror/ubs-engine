@@ -1135,8 +1135,8 @@ TEST_F(TestSchedulerEndToEnd, CheckMixBorrowReturnIsOk)
 /**
  * @brief 用例 29: SocketFreeMem_Insufficient
  *
- * 验证 GetAvailableLendSize 契约：返回具体可用字节（不按 blockSize 对齐），
- * socket 级为各 NUMA 可用字节之和。
+ * 验证 GetAvailableLendSize 契约：socket 级为各 NUMA 可用字节按 blockSize 向下取整成整块后之和
+ * （与分配侧 FillFromNumaList 逐 NUMA 取整口径一致），不足一整块的零头不计入可借出量。
  * HUGETLB_PMD 场景未配置 2M 大页（nr_hugepages_2M=0）→ memTotal=0 → 可借出 0 字节。
  *
  * 前置状态:
@@ -1145,7 +1145,7 @@ TEST_F(TestSchedulerEndToEnd, CheckMixBorrowReturnIsOk)
  * 操作步骤:
  *   1. Mock 节点（HUGETLB_PMD），注册
  *   2. 获取 node2 socket36
- *   3. 调用 socket->GetAvailableLendSize(100)
+ *   3. 调用 socket->GetAvailableLendSize(100, 128MB)
  *
  * 预期输出:
  *   1. GetAvailableLendSize 返回值 == 0（未配置大页内存，无可用字节）
@@ -1164,8 +1164,8 @@ TEST_F(TestSchedulerEndToEnd, SocketFreeMem_Insufficient)
     ASSERT_NE(socket, nullptr);
 
     // HUGETLB_PMD 场景未配置 2M 大页，memTotal=0，waterLine=100
-    // 契约返回具体可用字节：0
-    uint64_t available = socket->GetAvailableLendSize(100);
+    // 契约返回按 blockSize(128MB) 对齐后的可用字节：0
+    uint64_t available = socket->GetAvailableLendSize(100, 128 * ONE_M);
     EXPECT_EQ(available, 0u);
 }
 

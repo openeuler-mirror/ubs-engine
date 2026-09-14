@@ -18,6 +18,7 @@
 #include "ubse_mem_scheduler_filter_manager.h"
 #include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_node_controller.h"
+#include "scheduler_filter/ubse_mem_scheduler_free_memory_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_shared_pool_filter.h"
 
 namespace ubse::mem::scheduler::ut {
@@ -59,6 +60,45 @@ NodeInfo MakePoolNodeView(const std::string& nodeId)
     NodeInfo node;
     node.nodeId = nodeId;
     node.socketInfos = {{36, {0}}};
+    return node;
+}
+
+constexpr uint64_t MB_BYTES = 1024 * 1024;
+
+// FreeMemoryFilter 用例：单 socket(36) 挂两个 NUMA 的 lender 节点，容量由用例显式设定
+UbseNodeInfo MakeTwoNumaLender(const std::string& nodeId, uint32_t blockSizeMb)
+{
+    UbseNodeInfo info{};
+    info.nodeId = nodeId;
+    info.hostName = "host-" + nodeId;
+    info.allocator = UbseAllocator::BUDDY_HIGHMEM;
+    info.blockSize = blockSizeMb;
+    info.isLender = true;
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+
+    for (uint32_t numaId : {0U, 1U}) {
+        ubse::nodeController::UbseNumaLocation loc{nodeId, numaId};
+        UbseNumaInfo numa{};
+        numa.location = loc;
+        numa.socketId = 36;
+        numa.size = 0;
+        numa.freeSize = 0;
+        info.numaInfos[loc] = numa;
+    }
+
+    ubse::nodeController::UbseCpuLocation cpuKey{nodeId, 0};
+    ubse::nodeController::UbseCpuInfo cpu{};
+    cpu.socketId = 36;
+    cpu.chipId = "0";
+    info.cpuInfos[cpuKey] = cpu;
+    return info;
+}
+
+NodeInfo MakeTwoNumaLenderView(const std::string& nodeId)
+{
+    NodeInfo node;
+    node.nodeId = nodeId;
+    node.socketInfos = {{36, {0, 1}}};
     return node;
 }
 } // namespace
@@ -274,6 +314,65 @@ TEST_F(TestSchedulerFilterManager, SharedPoolFilterUnknownNodeSkipped)
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(nodes.size(), 1u);
     EXPECT_EQ(nodes[0].nodeId, "1");
+}
+
+// ==================== FreeMemoryFilter Tests ====================
+
+/**
+ * 可用量必须按 NUMA 逐块折算后再求和：numa0 185MB→150MB(3 块)，numa1 15MB→0 块，
+ * 合计 150MB < 200MB 请求，节点应被剔除。
+ * 若按原始字节求和(185+15=200MB ≥ 200MB)会被误判为可借出，放行后在分配侧才失败。
+ */
+TEST_F(TestSchedulerFilterManager, FreeMemoryFilterAlignsAvailableByBlockPerNuma)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.UpdateNodeInfo(MakeTwoNumaLender("2", 50));
+
+    auto* numa0 = nodeMgr.GetNumaInfo("2", 0);
+    ASSERT_NE(numa0, nullptr);
+    numa0->UpdateNumaMemorySize(250 * MB_BYTES, 65 * MB_BYTES, 185 * MB_BYTES); // 可用 185MB
+    auto* numa1 = nodeMgr.GetNumaInfo("2", 1);
+    ASSERT_NE(numa1, nullptr);
+    numa1->UpdateNumaMemorySize(60 * MB_BYTES, 45 * MB_BYTES, 15 * MB_BYTES); // 可用 15MB，不足一块
+
+    FreeMemoryFilter filter;
+    std::vector<NodeInfo> nodes = {MakeTwoNumaLenderView("2")};
+    SchedulerRequest req;
+    req.requestSize_ = 200 * MB_BYTES;
+
+    auto ret = filter.FilterNodes(nodes, nodeMgr, accMgr, req);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_TRUE(nodes.empty());
+}
+
+/**
+ * 整块折算后刚好满足请求时保留节点：150MB(3 块) + 50MB(1 块) = 200MB == 请求 200MB。
+ */
+TEST_F(TestSchedulerFilterManager, FreeMemoryFilterKeepsNodeWhenAlignedBlocksEnough)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.UpdateNodeInfo(MakeTwoNumaLender("2", 50));
+
+    auto* numa0 = nodeMgr.GetNumaInfo("2", 0);
+    ASSERT_NE(numa0, nullptr);
+    numa0->UpdateNumaMemorySize(250 * MB_BYTES, 65 * MB_BYTES, 185 * MB_BYTES); // 可用 185MB → 150MB
+    auto* numa1 = nodeMgr.GetNumaInfo("2", 1);
+    ASSERT_NE(numa1, nullptr);
+    numa1->UpdateNumaMemorySize(100 * MB_BYTES, 40 * MB_BYTES, 60 * MB_BYTES); // 可用 60MB → 50MB
+
+    FreeMemoryFilter filter;
+    std::vector<NodeInfo> nodes = {MakeTwoNumaLenderView("2")};
+    SchedulerRequest req;
+    req.requestSize_ = 200 * MB_BYTES;
+
+    auto ret = filter.FilterNodes(nodes, nodeMgr, accMgr, req);
+    EXPECT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodes.size(), 1u);
+    EXPECT_EQ(nodes[0].nodeId, "2");
+    ASSERT_EQ(nodes[0].socketInfos.size(), 1u);
+    EXPECT_EQ(nodes[0].socketInfos[0].socketId, 36);
 }
 
 } // namespace ubse::mem::scheduler::ut
