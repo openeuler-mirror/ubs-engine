@@ -49,6 +49,8 @@ int main()
     mbuf.recvbuf = malloc(mbuf.recvbuf_size);
     if (mbuf.sendbuf == NULL || mbuf.recvbuf == NULL) {
         printf("#### malloc memory failed\n");
+        free(mbuf.sendbuf);
+        free(mbuf.recvbuf);
         return -1;
     }
 

@@ -156,6 +156,7 @@ void ResetAllMocks()
 void TestUbseNpuLibvirtMonitor::SetUp()
 {
     Test::SetUp();
+    MOCKER(dlclose).stubs().will(returnValue(0));
 }
 
 void TestUbseNpuLibvirtMonitor::TearDown()
