@@ -28,9 +28,9 @@ constexpr uint32_t SSU_FE_ID = 6; // 6： 设计规定 1650 FE 6给SSU使用
 constexpr uint8_t SLEEP_TIME = 2;
 constexpr uint8_t COMMON_RETRY_TIME = 5;
 constexpr uint32_t CLEAR_VM_BUS_INST_INTERVAL_SECONDS = 60;
-constexpr const char *CLEAR_VM_BUS_INST_TIMER_NAME = "SsuClearEmptyVMBusInst";
+constexpr const char* CLEAR_VM_BUS_INST_TIMER_NAME = "SsuClearEmptyVMBusInst";
 
-UbseSsuDirectToVmManager &UbseSsuDirectToVmManager::GetInstance()
+UbseSsuDirectToVmManager& UbseSsuDirectToVmManager::GetInstance()
 {
     static UbseSsuDirectToVmManager ssuManager;
     return ssuManager;
@@ -99,11 +99,11 @@ void UbseSsuDirectToVmManager::ClearEmptyVMBusInstance()
         UBSE_LOG_ERROR << "GetBusInstanceList failed, " << FormatRetCode(ret);
         return;
     }
-    for (const auto &busInst : busInstanceList) {
+    for (const auto& busInst : busInstanceList) {
         if (busInst.type != UbseMtiBusInstanceType::VM) {
             continue;
         }
-        if (!busInst.subDeviceGuids.empty()) {
+        if (!busInst.subDevices.empty()) {
             continue;
         }
         UBSE_LOG_INFO << "Destroy empty VM bus instance " << GuidToStr(busInst.guid);
@@ -115,13 +115,13 @@ void UbseSsuDirectToVmManager::ClearEmptyVMBusInstance()
     UBSE_LOG_INFO << "Clear empty VM bus instances done";
 }
 
-uint32_t UbseSsuDirectToVmManager::GetFeDeviceList(std::vector<UbseSsuFe> &feList)
+uint32_t UbseSsuDirectToVmManager::GetFeDeviceList(std::vector<UbseSsuFe>& feList)
 {
     std::vector<UbseMtiIdevPfe> pfes{};
     if (const UbseResult ret = QueryPfeList(pfes); ret != UBSE_OK) {
         return ret;
     }
-    for (const UbseMtiIdevPfe &pfe : pfes) {
+    for (const UbseMtiIdevPfe& pfe : pfes) {
         if (pfe.pfeId == SSU_FE_ID) {
             feList.push_back(ConvertFe(pfe));
         }
@@ -129,7 +129,7 @@ uint32_t UbseSsuDirectToVmManager::GetFeDeviceList(std::vector<UbseSsuFe> &feLis
     return FillBusInstanceGuid(feList);
 }
 
-uint32_t UbseSsuDirectToVmManager::QueryPfeList(std::vector<UbseMtiIdevPfe> &pfes)
+uint32_t UbseSsuDirectToVmManager::QueryPfeList(std::vector<UbseMtiIdevPfe>& pfes)
 {
     const UbseResult ret = UbseMtiUrma::GetInstance().GetIdevFeList(pfes);
     if (ret != UBSE_OK) {
@@ -138,7 +138,7 @@ uint32_t UbseSsuDirectToVmManager::QueryPfeList(std::vector<UbseMtiIdevPfe> &pfe
     return ret;
 }
 
-UbseSsuVfe UbseSsuDirectToVmManager::ConvertVfe(const UbseMtiIdevVfe &vfe)
+UbseSsuVfe UbseSsuDirectToVmManager::ConvertVfe(const UbseMtiIdevVfe& vfe)
 {
     UbseSsuVfe ssuVfe;
     ssuVfe.slotId = vfe.ubController.slotId;
@@ -150,7 +150,7 @@ UbseSsuVfe UbseSsuDirectToVmManager::ConvertVfe(const UbseMtiIdevVfe &vfe)
     return ssuVfe;
 }
 
-UbseSsuFe UbseSsuDirectToVmManager::ConvertFe(const UbseMtiIdevPfe &pfe)
+UbseSsuFe UbseSsuDirectToVmManager::ConvertFe(const UbseMtiIdevPfe& pfe)
 {
     UbseSsuFe ssuFe;
     ssuFe.slotId = pfe.ubController.slotId;
@@ -158,13 +158,13 @@ UbseSsuFe UbseSsuDirectToVmManager::ConvertFe(const UbseMtiIdevPfe &pfe)
     ssuFe.dieId = pfe.ubController.dieId;
     ssuFe.pfeId = pfe.pfeId;
     ssuFe.pfeGuid = GuidToStr(pfe.guid);
-    for (const UbseMtiIdevVfe &vfe : pfe.vfeList) {
+    for (const UbseMtiIdevVfe& vfe : pfe.vfeList) {
         ssuFe.vfeList.push_back(ConvertVfe(vfe));
     }
     return ssuFe;
 }
 
-uint32_t UbseSsuDirectToVmManager::FillBusInstanceGuid(std::vector<UbseSsuFe> &feList)
+uint32_t UbseSsuDirectToVmManager::FillBusInstanceGuid(std::vector<UbseSsuFe>& feList)
 {
     std::vector<UbseMtiBusInst> busInstanceList{};
     const UbseResult ret = UbseMtiBusInstance::GetInstance().GetBusInstanceList(busInstanceList);
@@ -173,17 +173,17 @@ uint32_t UbseSsuDirectToVmManager::FillBusInstanceGuid(std::vector<UbseSsuFe> &f
         return ret;
     }
     std::map<std::string, std::string> vfeToBusInst;
-    for (const auto &busInst : busInstanceList) {
+    for (const auto& busInst : busInstanceList) {
         if (busInst.type != UbseMtiBusInstanceType::VM) {
             continue;
         }
         const std::string busInstanceGuid = GuidToStr(busInst.guid);
-        for (const auto &subDeviceGuid : busInst.subDeviceGuids) {
-            vfeToBusInst[GuidToStr(subDeviceGuid)] = busInstanceGuid;
+        for (const auto& subDevice : busInst.subDevices) {
+            vfeToBusInst[GuidToStr(subDevice.guid)] = busInstanceGuid;
         }
     }
-    for (auto &fe : feList) {
-        for (auto &vfe : fe.vfeList) {
+    for (auto& fe : feList) {
+        for (auto& vfe : fe.vfeList) {
             auto it = vfeToBusInst.find(vfe.vfeGuid);
             if (it != vfeToBusInst.end()) {
                 vfe.bindBusInstanceGuid = it->second;
@@ -193,7 +193,7 @@ uint32_t UbseSsuDirectToVmManager::FillBusInstanceGuid(std::vector<UbseSsuFe> &f
     return UBSE_OK;
 }
 
-std::string UbseSsuDirectToVmManager::GuidToStr(const UbseMtiGuid &guid)
+std::string UbseSsuDirectToVmManager::GuidToStr(const UbseMtiGuid& guid)
 {
     UbseMtiGuid reversed{};
     size_t reversedSize = guid.size() - 1;
@@ -208,7 +208,7 @@ std::string UbseSsuDirectToVmManager::GuidToStr(const UbseMtiGuid &guid)
     return oss.str();
 }
 
-UbseResult UbseSsuDirectToVmManager::FindVmBusInst(const std::string &busInstanceGuid, UbseMtiBusInst &busInst)
+UbseResult UbseSsuDirectToVmManager::FindVmBusInst(const std::string& busInstanceGuid, UbseMtiBusInst& busInst)
 {
     std::vector<UbseMtiBusInst> busInstanceList{};
     const UbseResult ret = UbseMtiBusInstance::GetInstance().GetBusInstanceList(busInstanceList);
@@ -216,7 +216,7 @@ UbseResult UbseSsuDirectToVmManager::FindVmBusInst(const std::string &busInstanc
         UBSE_LOG_ERROR << "GetBusInstanceList failed, " << FormatRetCode(ret);
         return ret;
     }
-    auto it = std::find_if(busInstanceList.begin(), busInstanceList.end(), [&](const UbseMtiBusInst &inst) {
+    auto it = std::find_if(busInstanceList.begin(), busInstanceList.end(), [&](const UbseMtiBusInst& inst) {
         return inst.type == UbseMtiBusInstanceType::VM && GuidToStr(inst.guid) == busInstanceGuid;
     });
     if (it != busInstanceList.end()) {
@@ -228,7 +228,7 @@ UbseResult UbseSsuDirectToVmManager::FindVmBusInst(const std::string &busInstanc
 }
 
 template <typename Func>
-UbseResult RetryWithBackoff(Func &&op, uint8_t retryTime, const std::string &opName)
+UbseResult RetryWithBackoff(Func&& op, uint8_t retryTime, const std::string& opName)
 {
     for (uint8_t i = 0; i < retryTime; i++) {
         const UbseResult ret = op();
@@ -243,19 +243,19 @@ UbseResult RetryWithBackoff(Func &&op, uint8_t retryTime, const std::string &opN
     return UBSE_ERROR;
 }
 
-UbseResult UbseSsuDirectToVmManager::CreateVmBusInst(uint16_t upi, UbseMtiBusInst &busInst)
+UbseResult UbseSsuDirectToVmManager::CreateVmBusInst(uint16_t upi, UbseMtiBusInst& busInst)
 {
     return RetryWithBackoff([&]() { return UbseMtiBusInstance::GetInstance().CreateVmBusInstance(upi, busInst); },
                             COMMON_RETRY_TIME, "CreateVmBusInstance");
 }
 
-UbseResult UbseSsuDirectToVmManager::DestroyVmBusInst(const UbseMtiBusInst &busInst)
+UbseResult UbseSsuDirectToVmManager::DestroyVmBusInst(const UbseMtiBusInst& busInst)
 {
     return RetryWithBackoff([&]() { return UbseMtiBusInstance::GetInstance().DestroyVmBusInstance(busInst); },
                             COMMON_RETRY_TIME, "DestroyVmBusInstance");
 }
 
-UbseResult UbseSsuDirectToVmManager::RegVfeToVmBusInst(const UbseMtiBusInst &busInst, const UbseMtiIdevVfe &mtiVfe)
+UbseResult UbseSsuDirectToVmManager::RegVfeToVmBusInst(const UbseMtiBusInst& busInst, const UbseMtiIdevVfe& mtiVfe)
 {
     return RetryWithBackoff(
         [&]() {
@@ -274,7 +274,7 @@ UbseResult UbseSsuDirectToVmManager::RegVfeToVmBusInst(const UbseMtiBusInst &bus
         COMMON_RETRY_TIME, "RegDavidFeToVmBusInstance");
 }
 
-UbseResult UbseSsuDirectToVmManager::UnRegVfeFromVmBusInst(const UbseMtiBusInst &busInst, const UbseMtiIdevVfe &mtiVfe)
+UbseResult UbseSsuDirectToVmManager::UnRegVfeFromVmBusInst(const UbseMtiBusInst& busInst, const UbseMtiIdevVfe& mtiVfe)
 {
     return RetryWithBackoff(
         [&]() {
@@ -293,14 +293,14 @@ UbseResult UbseSsuDirectToVmManager::UnRegVfeFromVmBusInst(const UbseMtiBusInst 
         COMMON_RETRY_TIME, "UnRegDavidFeFromVmBusInstance");
 }
 
-UbseResult UbseSsuDirectToVmManager::FindVfeInPfeList(const UbseSsuVfe &vfe, const std::vector<UbseMtiIdevPfe> &pfes,
-                                                      UbseMtiIdevVfe &mtiVfe)
+UbseResult UbseSsuDirectToVmManager::FindVfeInPfeList(const UbseSsuVfe& vfe, const std::vector<UbseMtiIdevPfe>& pfes,
+                                                      UbseMtiIdevVfe& mtiVfe)
 {
-    for (const auto &pfe : pfes) {
+    for (const auto& pfe : pfes) {
         if (pfe.pfeId != SSU_FE_ID) {
             continue;
         }
-        auto it = std::find_if(pfe.vfeList.begin(), pfe.vfeList.end(), [&](const UbseMtiIdevVfe &ivfe) {
+        auto it = std::find_if(pfe.vfeList.begin(), pfe.vfeList.end(), [&](const UbseMtiIdevVfe& ivfe) {
             return ivfe.vfeId == vfe.vfeId && ivfe.ubController.slotId == vfe.slotId &&
                    ivfe.ubController.chipId == vfe.chipId && ivfe.ubController.dieId == vfe.dieId;
         });
@@ -314,12 +314,12 @@ UbseResult UbseSsuDirectToVmManager::FindVfeInPfeList(const UbseSsuVfe &vfe, con
     return UBSE_ERROR_INVAL;
 }
 
-bool UbseSsuDirectToVmManager::FindVfeByGuidInPfes(const std::string &vfeGuid, const std::vector<UbseMtiIdevPfe> &pfes,
-                                                   UbseMtiIdevVfe &mtiVfe)
+bool UbseSsuDirectToVmManager::FindVfeByGuidInPfes(const std::string& vfeGuid, const std::vector<UbseMtiIdevPfe>& pfes,
+                                                   UbseMtiIdevVfe& mtiVfe)
 {
-    for (const auto &pfe : pfes) {
+    for (const auto& pfe : pfes) {
         auto it = std::find_if(pfe.vfeList.begin(), pfe.vfeList.end(),
-                               [&](const UbseMtiIdevVfe &ivfe) { return GuidToStr(ivfe.guid) == vfeGuid; });
+                               [&](const UbseMtiIdevVfe& ivfe) { return GuidToStr(ivfe.guid) == vfeGuid; });
         if (it != pfe.vfeList.end()) {
             mtiVfe = *it;
             return true;
@@ -328,7 +328,7 @@ bool UbseSsuDirectToVmManager::FindVfeByGuidInPfes(const std::string &vfeGuid, c
     return false;
 }
 
-UbseResult UbseSsuDirectToVmManager::CheckVfeOccupied(const std::string &vfeGuid, std::string &occupiedBusInstanceGuid)
+UbseResult UbseSsuDirectToVmManager::CheckVfeOccupied(const std::string& vfeGuid, std::string& occupiedBusInstanceGuid)
 {
     std::vector<UbseMtiBusInst> busInstanceList{};
     const UbseResult ret = UbseMtiBusInstance::GetInstance().GetBusInstanceList(busInstanceList);
@@ -336,13 +336,14 @@ UbseResult UbseSsuDirectToVmManager::CheckVfeOccupied(const std::string &vfeGuid
         UBSE_LOG_ERROR << "GetBusInstanceList failed, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &busInst : busInstanceList) {
+    for (const auto& busInst : busInstanceList) {
         if (busInst.type != UbseMtiBusInstanceType::VM) {
             continue;
         }
-        auto it = std::find_if(busInst.subDeviceGuids.begin(), busInst.subDeviceGuids.end(),
-                               [&](const UbseMtiGuid &subGuid) { return GuidToStr(subGuid) == vfeGuid; });
-        if (it != busInst.subDeviceGuids.end()) {
+        auto it = std::find_if(
+            busInst.subDevices.begin(), busInst.subDevices.end(),
+            [&](const UbseMtiBusInstSubDevice& subDevice) { return GuidToStr(subDevice.guid) == vfeGuid; });
+        if (it != busInst.subDevices.end()) {
             occupiedBusInstanceGuid = GuidToStr(busInst.guid);
             UBSE_LOG_WARN << "VFE " << vfeGuid << " is already registered to VM bus instance "
                           << occupiedBusInstanceGuid;
@@ -353,9 +354,9 @@ UbseResult UbseSsuDirectToVmManager::CheckVfeOccupied(const std::string &vfeGuid
     return UBSE_OK;
 }
 
-UbseResult UbseSsuDirectToVmManager::HandleOccupiedVfe(const UbseSsuVfe &vfe,
-                                                       const std::string &occupiedBusInstanceGuid,
-                                                       const UbseMtiIdevVfe &mtiVfe)
+UbseResult UbseSsuDirectToVmManager::HandleOccupiedVfe(const UbseSsuVfe& vfe,
+                                                       const std::string& occupiedBusInstanceGuid,
+                                                       const UbseMtiIdevVfe& mtiVfe)
 {
     if (occupiedBusInstanceGuid.empty()) {
         return UBSE_OK;
@@ -376,12 +377,12 @@ UbseResult UbseSsuDirectToVmManager::HandleOccupiedVfe(const UbseSsuVfe &vfe,
     return UBSE_OK;
 }
 
-UbseResult UbseSsuDirectToVmManager::HandleExistingVfesOnTargetBusInst(const UbseMtiBusInst &busInst,
-                                                                       const UbseSsuVfe &vfe,
-                                                                       const std::vector<UbseMtiIdevPfe> &pfes)
+UbseResult UbseSsuDirectToVmManager::HandleExistingVfesOnTargetBusInst(const UbseMtiBusInst& busInst,
+                                                                       const UbseSsuVfe& vfe,
+                                                                       const std::vector<UbseMtiIdevPfe>& pfes)
 {
-    for (const auto &subDeviceGuid : busInst.subDeviceGuids) {
-        std::string existingVfeGuid = GuidToStr(subDeviceGuid);
+    for (const auto& subDevice : busInst.subDevices) {
+        std::string existingVfeGuid = GuidToStr(subDevice.guid);
         if (existingVfeGuid == vfe.vfeGuid) {
             continue;
         }
@@ -400,14 +401,14 @@ UbseResult UbseSsuDirectToVmManager::HandleExistingVfesOnTargetBusInst(const Ubs
     return UBSE_OK;
 }
 
-bool UbseSsuDirectToVmManager::HasOtherVfe(const UbseMtiBusInst &busInst, const std::string &vfeGuid)
+bool UbseSsuDirectToVmManager::HasOtherVfe(const UbseMtiBusInst& busInst, const std::string& vfeGuid)
 {
-    return std::any_of(busInst.subDeviceGuids.begin(), busInst.subDeviceGuids.end(),
-                       [&](const UbseMtiGuid &subGuid) { return GuidToStr(subGuid) != vfeGuid; });
+    return std::any_of(busInst.subDevices.begin(), busInst.subDevices.end(),
+                       [&](const UbseMtiBusInstSubDevice& subDevice) { return GuidToStr(subDevice.guid) != vfeGuid; });
 }
 
-UbseResult UbseSsuDirectToVmManager::AllocPreparation(const UbseSsuVfe &vfe, std::vector<UbseMtiIdevPfe> &pfes,
-                                                      UbseMtiIdevVfe &mtiVfe, std::string &occupiedBusInstanceGuid)
+UbseResult UbseSsuDirectToVmManager::AllocPreparation(const UbseSsuVfe& vfe, std::vector<UbseMtiIdevPfe>& pfes,
+                                                      UbseMtiIdevVfe& mtiVfe, std::string& occupiedBusInstanceGuid)
 {
     const UbseResult pfeRet = QueryPfeList(pfes);
     if (pfeRet != UBSE_OK) {
@@ -420,9 +421,9 @@ UbseResult UbseSsuDirectToVmManager::AllocPreparation(const UbseSsuVfe &vfe, std
     return CheckVfeOccupied(vfe.vfeGuid, occupiedBusInstanceGuid);
 }
 
-UbseResult UbseSsuDirectToVmManager::AllocExecution(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid,
-                                                    const std::vector<UbseMtiIdevPfe> &pfes,
-                                                    const UbseMtiIdevVfe &mtiVfe, UbseMtiBusInst &busInst)
+UbseResult UbseSsuDirectToVmManager::AllocExecution(uint32_t upi, const UbseSsuVfe& vfe, std::string& busInstanceGuid,
+                                                    const std::vector<UbseMtiIdevPfe>& pfes,
+                                                    const UbseMtiIdevVfe& mtiVfe, UbseMtiBusInst& busInst)
 {
     if (!busInstanceGuid.empty()) {
         const UbseResult findRet = FindVmBusInst(busInstanceGuid, busInst);
@@ -443,7 +444,7 @@ UbseResult UbseSsuDirectToVmManager::AllocExecution(uint32_t upi, const UbseSsuV
     return RegVfeToVmBusInst(busInst, mtiVfe);
 }
 
-uint32_t UbseSsuDirectToVmManager::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid)
+uint32_t UbseSsuDirectToVmManager::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe& vfe, std::string& busInstanceGuid)
 {
     if (upi > UINT16_MAX) {
         UBSE_LOG_ERROR << "Invalid upi value: " << upi << ", exceeds uint16_t range";
@@ -488,9 +489,9 @@ uint32_t UbseSsuDirectToVmManager::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe 
     return UBSE_OK;
 }
 
-UbseResult UbseSsuDirectToVmManager::FreePreparation(uint32_t upi, const UbseSsuVfe &vfe,
-                                                     const std::string &busInstanceGuid, UbseMtiBusInst &busInst,
-                                                     UbseMtiIdevVfe &mtiVfe)
+UbseResult UbseSsuDirectToVmManager::FreePreparation(uint32_t upi, const UbseSsuVfe& vfe,
+                                                     const std::string& busInstanceGuid, UbseMtiBusInst& busInst,
+                                                     UbseMtiIdevVfe& mtiVfe)
 {
     const UbseResult findRet = FindVmBusInst(busInstanceGuid, busInst);
     if (findRet != UBSE_OK) {
@@ -508,7 +509,7 @@ UbseResult UbseSsuDirectToVmManager::FreePreparation(uint32_t upi, const UbseSsu
     return FindVfeInPfeList(vfe, pfes, mtiVfe);
 }
 
-uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe)
+uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe& vfe)
 {
     if (upi > UINT16_MAX) {
         UBSE_LOG_ERROR << "Invalid upi value: " << upi << ", exceeds uint16_t range";
