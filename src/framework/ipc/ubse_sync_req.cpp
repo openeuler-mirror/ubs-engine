@@ -44,22 +44,18 @@ bool UbseSyncReq::IsReqIdRegister(uint64_t reqId)
 
 uint32_t UbseSyncReq::WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage& msg)
 {
-    const auto start = std::chrono::steady_clock::now();
-    const auto duration = std::chrono::milliseconds(timeout);
-    while (std::chrono::steady_clock::now() - start < duration) {
-        std::unique_lock<std::mutex> lock(mtx_);
-        auto respIter = responses_.find(reqId);
-        if (respIter == responses_.end()) {
-            continue;
-        }
-        msg = respIter->second;
-        responses_.erase(respIter);
-        waitList_.erase(reqId);
-        return UBSE_OK;
-    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
     std::unique_lock<std::mutex> lock(mtx_);
+    cv_.wait_until(lock, deadline, [this, reqId]() { return responses_.find(reqId) != responses_.end(); });
+    auto respIter = responses_.find(reqId);
+    if (respIter == responses_.end()) {
+        waitList_.erase(reqId);
+        return UBSE_IPC_ERROR_RESP_NOT_FOUND;
+    }
+    msg = respIter->second;
+    responses_.erase(respIter);
     waitList_.erase(reqId);
-    return UBSE_IPC_ERROR_RESP_NOT_FOUND;
+    return UBSE_OK;
 }
 
 void UbseSyncReq::StoreResp(uint64_t reqId, UbseResponseMessage msg)
@@ -67,5 +63,6 @@ void UbseSyncReq::StoreResp(uint64_t reqId, UbseResponseMessage msg)
     std::unique_lock<std::mutex> lock(mtx_);
     // 存储响应
     responses_[reqId] = msg;
+    cv_.notify_all();
 }
 } // namespace ubse::ipc

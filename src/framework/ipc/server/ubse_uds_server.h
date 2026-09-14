@@ -43,6 +43,8 @@ struct UbseUDSConfig {
     uint32_t maxPersistentConnectionsPerUser = 128;
 };
 
+// 回调返回后，服务端会立即通过 freeFunc 释放 response.body。
+// handler 内不得保存 response.body 指针供回调返回后使用；如需保留数据，请在回调内深拷贝。
 using UbseAsyncResponseHandler = std::function<void(void* ctx, const UbseResponseMessage&)>;
 
 struct UbseAsyncCallBack {

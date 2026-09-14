@@ -62,6 +62,7 @@ public:
 
 private:
     std::mutex mtx_;
+    std::condition_variable cv_;                                  // 响应到达时唤醒等待方
     std::unordered_map<uint64_t, UbseResponseMessage> responses_; // 请求ID到响应的映射
     std::unordered_set<uint64_t> waitList_;                       // 请求ID到条件变量的映射
 };
