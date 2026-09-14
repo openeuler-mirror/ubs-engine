@@ -1089,6 +1089,8 @@ bool UbseComEngine::VerifyMsg(UbseComMessageCtx& msgCtx)
         return false;
     }
     if (channelInfo.GetConnectInfo().GetRemoteNodeId() != masterInfo.nodeId) {
+        UBSE_LOG_ERROR << "remote nodeId not master, remote node Id=" << channelInfo.GetConnectInfo().GetRemoteNodeId()
+                       << ", master nodeId=" << masterInfo.nodeId;
         return false;
     }
     return true;

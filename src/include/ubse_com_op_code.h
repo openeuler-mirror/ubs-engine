@@ -120,6 +120,9 @@ enum class UbseNodeControllerOpCode
     NODE_CONTROLLER_GET_DEV_CONNECT = 0x0004,             // 获取设备连接
     NODE_CONTROLLER_REPORT = 0x0005,                      // 节点控制器报告
     NODE_CONTROLLER_NODE_CHANGE = 0x0006,                 // 节点变更(节点上线、节点链路变化)
+    NODE_CONTROLLER_NODE_INFO_SYNC = 0x0007,              // 主→备 单点节点信息增量
+    NODE_CONTROLLER_NODE_INFO_SYNC_FULL = 0x0008,         // 主→备 全量节点信息快照
+    NODE_CONTROLLER_NODE_INFO_SYNC_REQ = 0x0009,          // 备→主 全量节点信息拉取请求
 };
 
 // UBSE内存响应控制操作码
