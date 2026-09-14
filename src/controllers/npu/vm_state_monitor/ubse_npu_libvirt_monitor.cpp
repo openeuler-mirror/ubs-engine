@@ -60,11 +60,15 @@ public:
         }
         if (virEventRegisterDefaultImpl_() < 0) {
             UBSE_LOG_ERROR << "Failed to register event impl.";
+            dlclose(dlHandle_);
+            dlHandle_ = nullptr;
             return false;
         }
         connection_ = virConnectOpen_(uri_.c_str());
         if (!connection_) {
             UBSE_LOG_ERROR << "Failed to connect to " << uri_;
+            dlclose(dlHandle_);
+            dlHandle_ = nullptr;
             return false;
         }
         lifecycleCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_LIFECYCLE,
@@ -74,6 +78,8 @@ public:
             UBSE_LOG_ERROR << "Failed to register domain lifecycle event callback.";
             virConnectClose_(connection_);
             connection_ = nullptr;
+            dlclose(dlHandle_);
+            dlHandle_ = nullptr;
             return false;
         }
 
@@ -86,6 +92,8 @@ public:
             lifecycleCallbackId_ = -1;
             virConnectClose_(connection_);
             connection_ = nullptr;
+            dlclose(dlHandle_);
+            dlHandle_ = nullptr;
             return false;
         }
 
@@ -186,6 +194,8 @@ private:
 
         for (auto& symbol : symbols) {
             if (!loadSymbol(symbol.symbolName, symbol.symbolPtr)) {
+                dlclose(dlHandle_);
+                dlHandle_ = nullptr;
                 return false;
             }
         }
