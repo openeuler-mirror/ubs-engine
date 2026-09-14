@@ -111,7 +111,12 @@ UbseResult UbsePluginManager::LoadAndInitPlugin(const std::string& pluginName, c
     ret = InitProcessPlugin(pluginName, moduleCode.value());
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "plugin init failed, related plugin name: " << pluginName;
-        loadedPluginModules_.erase(pluginName);
+        if (const auto it = loadedPluginModules_.find(pluginName); it != loadedPluginModules_.end()) {
+            if (it->second != nullptr) {
+                dlclose(it->second);
+            }
+            loadedPluginModules_.erase(it);
+        }
         return UBSE_PLUGIN_ERROR_PLUGIN_INIT_FAILED;
     }
     return UBSE_OK;
@@ -172,6 +177,8 @@ UbseResult UbsePluginManager::DeInitializePlugin(const std::string& pluginName)
         } else {
             UBSE_LOG_WARN << "Unable to find UbsePluginDeInit function; plugin name: " << pluginName;
         }
+        // 关闭插件so，释放动态库句柄
+        dlclose(handle);
     }
     loadedPluginModules_.erase(pluginName);
     return UBSE_OK;

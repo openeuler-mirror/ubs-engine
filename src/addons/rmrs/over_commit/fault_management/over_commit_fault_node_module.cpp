@@ -476,6 +476,11 @@ MpResult OverCommitFaultNodeModule::SmapMigrateRemoteToRemote(
         uint64_t remoteNumaMem = vmResults[i].size;
         LOG_DEBUG << "The pid=" << vmResults[i].pid << " should migrate " << remoteNumaMem
                   << " byte to remoteNuma=" << vmResults[i].remoteNumaId << ".";
+        if (usageMem == 0) {
+            // 理论上不存在该情况，仅用来做防御
+            LOG_ERROR << "The pid=" << vmResults[i].pid << " has no mem used, skip migrate.";
+            continue;
+        }
         msg.payload[msgIndex].ratio = static_cast<int>((static_cast<double>(remoteNumaMem) * 100.0) / usageMem);
 
         msg.payload[msgIndex].migrateMode = MIG_RATIO_MODE;

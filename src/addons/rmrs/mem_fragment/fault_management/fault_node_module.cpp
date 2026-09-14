@@ -2156,6 +2156,9 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][BorrowIdLevelExecute] MemFreeWithOps error oldName=" << decision.oldName << ".";
+        // 归还旧内存失败，登记已借用的新内存，避免新借内存成为无账本资源被重复借用，后续轮次可重试归还
+        BorrowIdLevelBorrowedDecision borrowedDecision;
+        UpdateBorrowedDecisionBorrowIdLevel(group, decision, borrowExecuteResult, borrowedDecision);
         return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
     }
     // 4 归还成功后更新借用描述符的重定向关系表
@@ -2254,18 +2257,19 @@ MpResult FaultNodeModule::BorrowIdLevelBorrowedExecute(const BorrowGroupResult& 
         return MEM_POOLING_ERROR;
     }
 
-    // 2 迁移成功后移除该borrowedDecision
-    RemoveBorrowedDecisionBorrowIdLevel(borrowedDecision);
-
-    // 3 归还旧内存
+    // 2 归还旧内存
     res = MemBorrowExecutor::Instance().MemFreeWithOps(borrowedDecision.oldName, false, true, true);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] MemFreeWithOps error oldName="
             << borrowedDecision.oldName << ".";
+        // 归还失败时保留该borrowedDecision，待下一轮重试归还，避免旧内存失去回收路径
         return MEM_POOLING_ERROR;
     }
-    // 3 归还成功后更新借用描述符的重定向关系表
+    // 3 归还成功后移除该borrowedDecision
+    RemoveBorrowedDecisionBorrowIdLevel(borrowedDecision);
+
+    // 4 归还成功后更新借用描述符的重定向关系表
     MpResult retBorrId = BorrowIdRedirection::Instance().Update(borrowedDecision.oldName, borrowedDecision.newName);
     if (retBorrId != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

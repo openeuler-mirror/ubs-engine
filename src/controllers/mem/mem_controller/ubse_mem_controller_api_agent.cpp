@@ -841,6 +841,10 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
         BorrowFailedAdvice({MemFault::RETURN_TIME_OUT, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
+        if (memBorrowWaitTimeOutExecutor == nullptr) {
+            UBSE_LOG_ERROR << "Get memBorrowWaitTimeOutExecutor is nullptr";
+            return UBSE_ERROR_NULLPTR;
+        }
         memBorrowWaitTimeOutExecutor->Execute([req, resp] { SendRpcRequestForShareDetach(req); });
         return UBSE_ERROR;
     }

@@ -119,7 +119,9 @@ static void ClearExpiredHandlerResult()
     auto now = GetTimestamp();
     for (auto& msgResult : g_handlerResultMap) {
         for (auto it = msgResult.second.begin(); it != msgResult.second.end();) {
-            if (now - it->second.timestamp > UBSE_RAS_FAULT_HANDLE_RESULT_EXPIRE_TIME_MS &&
+            // 墙钟回拨时 now 可能小于 timestamp，需先比较再相减，避免无符号下溢导致误判过期
+            if (now >= it->second.timestamp &&
+                now - it->second.timestamp > UBSE_RAS_FAULT_HANDLE_RESULT_EXPIRE_TIME_MS &&
                 it->second.alarmFaultType == ALARM_OOM_EVENT) { // 影响最小化，只清除OOM故障结果
                 UBSE_LOG_INFO << "Clear expired OOM handler result for msg: " << msgResult.first
                               << ", handlerName: " << it->first;
@@ -273,6 +275,21 @@ static void StopBmcFaultTimer(const std::string& nodeId)
         timer->worker.join();
     }
     UBSE_LOG_INFO << "BMC fault timer stopped, nodeId=" << nodeId;
+}
+
+void UbseRasHandler::StopAllBmcFaultTimers()
+{
+    std::vector<std::string> nodeIds;
+    {
+        std::lock_guard<std::mutex> lock(g_bmcFaultTimersMutex);
+        nodeIds.reserve(g_bmcFaultTimers.size());
+        for (const auto& item : g_bmcFaultTimers) {
+            nodeIds.push_back(item.first);
+        }
+    }
+    for (const auto& nodeId : nodeIds) {
+        StopBmcFaultTimer(nodeId);
+    }
 }
 
 // 新 msgId 时清空状态并返回 true；重复 msgId 返回 false

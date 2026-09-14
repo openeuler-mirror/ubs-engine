@@ -10,7 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_ictrl_q_req_msg.h"
+#include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
+using namespace ubse::log;
+UBSE_DEFINE_THIS_MODULE("ubse");
 static void SetVersionToBuf(uint8_t version, CtrlQReqMessage& reqMsg)
 {
     reqMsg.blocks.front().head.version = version;
@@ -18,6 +21,10 @@ static void SetVersionToBuf(uint8_t version, CtrlQReqMessage& reqMsg)
 
 static void SetOpCodeToBuf(uint8_t opcode, CtrlQReqMessage& reqMsg)
 {
+    if (reqMsg.blocks.empty()) {
+        UBSE_LOG_ERROR << "blocks is empty, opcode: " << static_cast<uint32_t>(opcode);
+        return;
+    }
     reqMsg.blocks.front().head.opCode = opcode;
 }
 
@@ -38,15 +45,23 @@ static void SetResvToBuf(uint8_t resv, CtrlQReqMessage& reqMsg)
 
 static void SetServiceTypeToBuf(uint8_t serviceType, CtrlQReqMessage& reqMsg)
 {
+    if (reqMsg.blocks.empty()) {
+        UBSE_LOG_ERROR << "blocks is empty, serviceType: " << static_cast<uint32_t>(serviceType);
+        return;
+    }
     reqMsg.blocks.front().head.serviceType = serviceType;
 }
 
-static void SetBBNumToBuf(uint8_t bbNum, CtrlQReqMessage& reqMsg)
+static void SetBBNumToBuf(uint32_t bbNum, CtrlQReqMessage& reqMsg)
 {
-    reqMsg.blocks.front().head.bbNum = bbNum;
+    if (reqMsg.blocks.empty()) {
+        UBSE_LOG_ERROR << "blocks is empty, bbNum: " << bbNum;
+        return;
+    }
+    reqMsg.blocks.front().head.bbNum = static_cast<uint8_t>(bbNum);
 }
 
-ICtrlQReqMsg::ICtrlQReqMsg(uint8_t opCode, uint8_t bbNum)
+ICtrlQReqMsg::ICtrlQReqMsg(uint8_t opCode, uint32_t bbNum)
 {
     reqMsg_ = CtrlQReqMessage(bbNum);
     SetBBNumToBuf(bbNum, reqMsg_);
@@ -89,7 +104,7 @@ void ICtrlQReqMsg::SetServiceType(uint8_t serviceType)
     SetServiceTypeToBuf(serviceType, reqMsg_);
 }
 
-void ICtrlQReqMsg::SetBBNum(uint8_t bbNum)
+void ICtrlQReqMsg::SetBBNum(uint32_t bbNum)
 {
     SetBBNumToBuf(bbNum, reqMsg_);
 }

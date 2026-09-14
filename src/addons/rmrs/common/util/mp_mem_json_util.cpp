@@ -38,7 +38,12 @@ bool MpFaultMemIdParam::FromJson(const std::string& jsonString)
         return false;
     }
     this->importNodeId = MpFaultMemIdParamMap["importNodeId"];
-    this->importMemId = std::stoull(MpFaultMemIdParamMap["importMemId"]);
+    if (MpStringUtil::SafeStoull(MpFaultMemIdParamMap["importMemId"], this->importMemId) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MpFaultMemIdParam] Convert importMemId to uint64_t failed. importMemId="
+            << MpFaultMemIdParamMap["importMemId"];
+        return false;
+    }
     log();
     return true;
 }

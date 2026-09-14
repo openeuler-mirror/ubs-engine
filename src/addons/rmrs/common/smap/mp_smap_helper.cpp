@@ -719,6 +719,11 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Query config failed for NUMA=" << faultNumaId << ".";
         return MEM_POOLING_ERROR;
     }
+    if (retLen < 0 || retLen > MpSmapHelper::SMAP_QUERY_PID_NUM) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Invalid process payload length=" << retLen << " for NUMA=" << faultNumaId << ".";
+        return MEM_POOLING_ERROR;
+    }
 
     // 遍历 processPayload 数组，填充 map
     for (int i = 0; i < retLen; ++i) {
@@ -748,6 +753,13 @@ MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, in
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MpSmapHelper] Input remoteNuma, srcNid = " << srcNid << ", destNid = " << destNid << ".";
+
+    if (len < 0 || len > MAX_NR_MIGOUT) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Invalid pid count, expected max_size=" << MAX_NR_MIGOUT << ", actual_size=" << len
+            << ".";
+        return MEM_POOLING_ERROR;
+    }
 
     MigrateEscapeMsg msg;
     msg.count = len;
@@ -1223,18 +1235,29 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t& ret)
 
     if (!file.is_open()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Can not open file, file name: " << result;
+        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 
     std::string line;
     if (std::getline(file, line)) {
-        if (std::stoul(line) >= MB_TASK_BUTT) {
+        unsigned long backRet = 0;
+        try {
+            backRet = std::stoul(line);
+        } catch (const std::exception& e) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Get smap back result is invalid, file name: " << result;
+            file.close();
+            (void)ubse::security::ChangeOverrideCapability(false);
+            return MEM_POOLING_ERROR;
+        }
+        if (backRet >= MB_TASK_BUTT) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get smap back result is invaild.";
             file.close();
             (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         } else {
-            ret = std::stoul(line);
+            ret = static_cast<uint16_t>(backRet);
             file.close();
             (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_OK;
@@ -1377,6 +1400,12 @@ uint32_t MpSmapHelper::GetSmapMigratePeriodMs(uint32_t fallbackMs, const std::st
             std::istringstream iss(value);
             uint64_t parsed = 0;
             if (iss >> parsed && iss.eof()) {
+                if (parsed > UINT32_MAX) {
+                    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[MpSmapHelper] smap.migrate.period out of uint32 range, value=" << parsed << ", fallback "
+                        << fallbackMs << "ms.";
+                    continue;
+                }
                 periodMs = static_cast<uint32_t>(parsed);
                 hasPeriod = true;
             }

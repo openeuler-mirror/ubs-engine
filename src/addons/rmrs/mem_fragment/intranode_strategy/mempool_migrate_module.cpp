@@ -1111,7 +1111,8 @@ static uint64_t CalculateBorrowableMem(const UbseNumaInfo& numaInfo,
     if (riIt != reservedInfo1GMap.end()) {
         const ReservedInfo1G& ri = riIt->second;
         uint64_t reservedMem = hp.nrHugepages * hp.hugePageKB * ri.reservedRatio / NUM_TO_RATIO;
-        uint64_t theoreticalBorrowable = reservedMem - ri.memLent - ri.memShared;
+        uint64_t theoreticalBorrowable =
+            (ri.memLent + ri.memShared) > reservedMem ? 0 : reservedMem - ri.memLent - ri.memShared;
         uint64_t physicalFree = hp.freeHugepages * hp.hugePageKB;
         borrowableMem = std::min(theoreticalBorrowable, physicalFree);
     } else {

@@ -66,10 +66,9 @@ UbseResult ShareBorrowRpcObjCheck(const Obj& obj)
     if (!isNumericString(obj.req.requestNodeId)) {
         return UBSE_ERROR_INVAL;
     }
-    if constexpr (std::is_same_v<Obj, UbseMemShareBorrowExportObj>) {
-        if (obj.algoResult.exportNumaInfos.empty()) {
-            return UBSE_ERROR_INVAL;
-        }
+    // 导入/导出对象均依赖 exportNumaInfos 首个元素，空列表需在入口拦截，避免后续越界访问
+    if (obj.algoResult.exportNumaInfos.empty()) {
+        return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
 }

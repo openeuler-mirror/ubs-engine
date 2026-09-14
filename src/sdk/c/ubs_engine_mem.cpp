@@ -690,6 +690,9 @@ int32_t ubs_mem_shm_attach(const char* name, const ubs_mem_fd_owner_t* owner, mo
     if (ret != UBS_SUCCESS) {
         return static_cast<int32_t>(ret);
     }
+    if (shm_desc == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
     // 构造buffer
     ubse_api_buffer_t request_buffer;
     ret = ubse_mem_shm_attach_req_build(&request_buffer, name);
@@ -732,6 +735,9 @@ int32_t ubs_mem_shm_get(const char* name, ubs_mem_shm_desc_t** shm_desc)
     ubs_error_t ret = ubse_mem_name_is_valid(name);
     if (ret != UBS_SUCCESS) {
         return static_cast<int32_t>(ret);
+    }
+    if (shm_desc == nullptr) {
+        return UBS_ERR_NULL_POINTER;
     }
     // 构造buffer
     ubse_api_buffer_t request_buffer;

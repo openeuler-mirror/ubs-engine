@@ -146,7 +146,7 @@ uint32_t UbseUDSClient::HandleInProgressConnection()
                 Disconnect();
                 return UBSE_ERR_IPC_CONNECTION_FAILED;
             }
-            timeoutMs = remaining.count();
+            timeoutMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count());
             continue;
         }
         if (result <= 0) {
@@ -252,7 +252,8 @@ uint32_t UbseUDSClient::WaitForDataReadable(uint32_t timeoutMs)
             if (remaining.count() <= 0) {
                 ready = 0; // 超时处理
             } else {
-                timeoutMs = remaining.count();
+                timeoutMs =
+                    static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count());
                 IPC_LOG_INFO << "poll interrupted, remaining time: " << timeoutMs << "ms";
                 continue;
             }

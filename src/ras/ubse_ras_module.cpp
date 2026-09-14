@@ -56,6 +56,8 @@ UbseResult UbseRasModule::Start()
 void UbseRasModule::Stop()
 {
     ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_FAULT_HANDLE_RESULT_CLEAN_TIMER);
+    // 退出前回收BMC故障重试计时线程，避免残留joinable线程导致进程异常终止
+    UbseRasHandler::GetInstance().StopAllBmcFaultTimers();
     auto taskExecutor = UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         UBSE_LOG_ERROR << "Task executor module not found";

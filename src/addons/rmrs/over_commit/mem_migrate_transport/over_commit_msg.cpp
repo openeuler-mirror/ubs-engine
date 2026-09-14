@@ -172,14 +172,15 @@ void OverCommitMsg::GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& 
         return;
     }
     OverCommitFaultVmNumaInfoResult result;
-    auto* overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult*>(ctx);
+    // ctx 由 GetVmNumaInfoMapRpc 传入，实参为 std::vector<VmNumaInfoWithSocket>，此处按实际类型转换
+    auto* vmNumaInfoWithSocketList = static_cast<std::vector<VmNumaInfoWithSocket>*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         LOG_ERROR << "[OverCommit] Send error " << resCode << ".";
     } else {
         RmrsInStream builder(respData.data, respData.len);
         builder >> result;
     }
-    *overCommitFaultVmNumaInfoResult = result;
+    *vmNumaInfoWithSocketList = result.vmNumaInfoWithSocketList;
 }
 
 uint32_t OverCommitMsg::NumaMemInfoCollectRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)

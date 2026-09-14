@@ -163,6 +163,11 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& expo
                        << ", exportSize=" << exportObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
+    if (exportObj.algoResult.exportNumaInfos.size() > TOPOLOGY_MAX_NUMA_PER_SOCKET) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO
+                       << "The exportNumaInfos size is invalid, size=" << exportObj.algoResult.exportNumaInfos.size();
+        return UBSE_ERROR_INVAL;
+    }
     for (int i = 0; i < exportObj.algoResult.exportNumaInfos.size(); i++) {
         if (!RmCommonUtils::GetInstance().IsValidUint8(exportObj.algoResult.importNumaInfos[i].numaId) ||
             !RmCommonUtils::GetInstance().IsValidUint8(exportObj.algoResult.exportNumaInfos[i].numaId)) {
@@ -207,6 +212,11 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& impo
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
                        << ", exportSize=" << importObj.algoResult.exportNumaInfos.size();
+        return UBSE_ERROR_INVAL;
+    }
+    if (importObj.algoResult.exportNumaInfos.size() > TOPOLOGY_MAX_NUMA_PER_SOCKET) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO
+                       << "The exportNumaInfos size is invalid, size=" << importObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < importObj.algoResult.exportNumaInfos.size(); i++) {
@@ -382,6 +392,11 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& expo
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
                        << ", exportSize=" << exportObj.algoResult.exportNumaInfos.size();
+        return UBSE_ERROR_INVAL;
+    }
+    if (exportObj.algoResult.exportNumaInfos.size() > TOPOLOGY_MAX_NUMA_PER_SOCKET) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO
+                       << "The exportNumaInfos size is invalid, size=" << exportObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < exportObj.algoResult.exportNumaInfos.size(); i++) {

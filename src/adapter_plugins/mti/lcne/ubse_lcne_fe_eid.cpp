@@ -13,6 +13,7 @@
 #include "ubse_lcne_fe_eid.h" // for Lcne_urma
 #include <algorithm>
 #include <cctype>
+#include <limits>
 #include "ubse_error.h"
 #include "ubse_http_module.h"      // for UbseHttpModule
 #include "ubse_logger.h"           // for FormatRetCode, UBSE_DEFINE_THIS_MO...
@@ -245,6 +246,10 @@ UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string& responseStr, 
         std::string entityId = ubseXml->Child("entity-id")->Text();
         UbseMtiFeInfo ubseFeInfo{iouInfo.slotId, iouInfo.ubpuId, iouInfo.iouId, entityId, UbseMtiFeType::PHYSICAL_TYPE};
         ubseXml = ubseXml->Next("urma-communication-infos");
+        if (ubseXml == nullptr) {
+            UBSE_LOG_ERROR << "[MTI] Xml parse urma-communication-infos failed.";
+            return UBSE_ERROR;
+        }
         if (ParseFeEidXml(ubseXml, ubseFeInfo) != UBSE_OK) {
             return UBSE_ERROR;
         }
@@ -378,7 +383,13 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
         // 提取'/'后面的部分
         std::string portStr = intfaceName.substr(lastSlashPos + 1);
         try {
-            portId = std::stoul(portStr) - 1;
+            auto portIndex = std::stoul(portStr);
+            // 端口号从1开始，0或超出uint32_t范围均为非法输入，避免下溢/截断
+            if (portIndex == 0 || portIndex > std::numeric_limits<uint32_t>::max()) {
+                UBSE_LOG_ERROR << "[MTI] Invalid port index in interfaceName " << intfaceName;
+                return UBSE_ERROR;
+            }
+            portId = static_cast<uint32_t>(portIndex - 1);
         } catch (const std::invalid_argument& e) {
             return UBSE_ERROR;
         } catch (const std::out_of_range& e) {

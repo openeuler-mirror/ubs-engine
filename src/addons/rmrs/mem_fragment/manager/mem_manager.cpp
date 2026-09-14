@@ -2287,7 +2287,9 @@ void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemo
     for (const auto& [nodeId, info] : srcMap) {
         auto& dst = nodeMemMap[nodeId];
         dst.totalReservedMem = info.reservedMem * KB_TO_BYTES;
-        dst.totalBorrowableMem = (info.reservedMem - info.lentMemory - info.sharedMem) * KB_TO_BYTES;
+        dst.totalBorrowableMem = (info.lentMemory + info.sharedMem > info.reservedMem) ?
+                                     0 :
+                                     (info.reservedMem - info.lentMemory - info.sharedMem) * KB_TO_BYTES;
         dst.totalLentMem = info.lentMemory * KB_TO_BYTES;
         dst.timestamp = info.timestamp;
 
@@ -2297,7 +2299,9 @@ void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemo
             mem.socketId = numa.socketId;
             mem.reservedMem = numa.reservedMem * KB_TO_BYTES;
             mem.lentMem = numa.lentMem * KB_TO_BYTES;
-            mem.borrowableMem = (numa.reservedMem - numa.lentMem - numa.sharedMem) * KB_TO_BYTES;
+            mem.borrowableMem = (numa.lentMem + numa.sharedMem > numa.reservedMem) ?
+                                    0 :
+                                    (numa.reservedMem - numa.lentMem - numa.sharedMem) * KB_TO_BYTES;
             mem.memFree = numa.memFree * KB_TO_BYTES;
             mem.vmMemFree = numa.vmMemFree * KB_TO_BYTES;
             (void)dst.localnumaMemInfo.emplace_back(mem);

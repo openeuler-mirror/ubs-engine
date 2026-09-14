@@ -694,6 +694,11 @@ void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession* session)
     }
     // 处理异步回调
     ProcessAsyncCallback(header.clientRequestId, response);
+    // 回调处理完成后统一释放消息体，避免body内存泄漏
+    if (response.freeFunc != nullptr && response.body != nullptr) {
+        response.freeFunc(response.body);
+        response.body = nullptr;
+    }
 }
 
 void UbseUDSServer::HandleWrite(ClientSession* session)

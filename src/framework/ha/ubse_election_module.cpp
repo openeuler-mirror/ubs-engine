@@ -224,7 +224,12 @@ bool UbseElectionModule::IsLeader()
         UBSE_LOG_ERROR << "[ELECTION] Get myself nodeId failed";
         return false;
     }
-    masterId = RoleMgr::GetInstance().GetRole()->GetMasterNode();
+    auto role = RoleMgr::GetInstance().GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return false;
+    }
+    masterId = role->GetMasterNode();
     if (masterId == currentNode.id) {
         return true;
     }
@@ -243,13 +248,23 @@ UbseResult UbseElectionModule::GetCurrentNode(Node& currentNode)
 }
 UbseResult UbseElectionModule::GetMasterStatus(uint8_t& status)
 {
-    status = RoleMgr::GetInstance().GetRole()->GetMasterStatus();
+    auto role = RoleMgr::GetInstance().GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return UBSE_ERROR;
+    }
+    status = role->GetMasterStatus();
     return UBSE_OK;
 }
 
 UbseResult UbseElectionModule::GetStandbyStatus(uint8_t& status)
 {
-    status = RoleMgr::GetInstance().GetRole()->GetStandbyStatus();
+    auto role = RoleMgr::GetInstance().GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return UBSE_ERROR;
+    }
+    status = role->GetStandbyStatus();
     return UBSE_OK;
 }
 
