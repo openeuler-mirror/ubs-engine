@@ -120,7 +120,7 @@
 选项一：直接拉取预构建镜像
 
 ```bash
-docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1
+docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
 ```
 
 选项二：从 Dockerfile 构建镜像
@@ -163,7 +163,7 @@ CMD ["/bin/bash"]
 
 ```bash
 cd ubs-engine
-docker build -f docker/Dockerfile.openeuler -t ubs-engine-openeuler:24.03-sp3-1.0.1 .
+docker build -f docker/Dockerfile.openeuler -t ubs-engine:24.03-sp3-1.0.1 .
 ```
 
 **步骤 2：创建容器**
@@ -173,7 +173,7 @@ docker build -f docker/Dockerfile.openeuler -t ubs-engine-openeuler:24.03-sp3-1.
 ```bash
 docker run -d --privileged --name ubs-engine-ttfhw \
     -v /home/workspace/ubs-engine-verify:/workspace \
-    swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1 \
+    swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1 \
     sleep infinity
 ```
 
@@ -209,7 +209,7 @@ docker rm <container_id>
 步骤 2. 删除镜像
 
 ```bash
-docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine-openeuler:24.03-sp3-1.0.1
+docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
 ```
 
 ## 安装结果
