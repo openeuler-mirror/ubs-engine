@@ -40,6 +40,13 @@ public:
 
         // 端口限流配置（0 表示不限流）
         uint32_t rateLimitRps{0};  // 每秒允许的最大请求数
+
+        // 请求等待队列上限（mqr）（0 表示不限制）
+        // 作为 httplib::ThreadPool 的等待队列上限（mqr）传入：当所有 worker 忙且队列长度
+        // 达到此值时，httplib 调用 shutdown(SHUT_RDWR)+close(fd) 关闭新 accept 的连接（发送
+        // FIN；客户端看到 "Empty reply from server"/http_code=000），不进入应用层响应。
+        // 仅对北向 TCP 入口生效；UDS 内部通信不受限（始终为 0 = 不限制）。
+        uint32_t maxQueuedRequests{0};
     };
 
     UbseHttpServer(const Config &config);

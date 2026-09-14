@@ -89,6 +89,31 @@ void SetupEnabledConfigMocks(uint32_t arpCount = 5, uint32_t arpInterval = 200)
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
 }
+
+// 设置 enabled=true 的配置 mock，所有 uint32_t 配置项统一返回 uintVal
+// 用于测试 maxQueuedRequests 等配置项的范围校验逻辑
+void SetupEnabledConfigMocksWithUint(uint32_t uintVal)
+{
+    auto conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    bool enableVal = true;
+    MOCKER_CPP(&UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(enableVal))
+        .will(returnValue(UBSE_OK));
+    std::string listenIp = "192.168.100.200/24";
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(listenIp))
+        .will(returnValue(UBSE_OK));
+    uint32_t val = uintVal;
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(val))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+}
 } // namespace
 
 class TestUbseVipModule : public testing::Test {
@@ -99,6 +124,7 @@ public:
     {
         UbseVipManager::GetInstance().Deinit();
         Test::SetUp();
+        GlobalMockObject::reset();
     }
 
     void TearDown() override
@@ -423,6 +449,53 @@ TEST_F(TestUbseVipModule, UnInitialize_ResetsVipManager)
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.Initialize());
     EXPECT_NO_THROW(module.UnInitialize());
+}
+
+// ============================ maxQueuedRequests 配置加载测试 ============================
+
+/*
+ * 用例描述：LoadConfig 时 maxQueuedRequests 在有效范围 [0, 100000] 内，应正确加载
+ * 测试步骤：
+ * 1.mock 所有 uint32_t 配置项返回 100（在 maxQueuedRequests 有效范围内）
+ * 2.直接调用私有方法 LoadConfig（利用 -fno-access-control）
+ * 预期结果：LoadConfig 成功，config_.maxQueuedRequests == 100
+ */
+TEST_F(TestUbseVipModule, LoadConfig_MaxQueuedRequests_Valid)
+{
+    SetupEnabledConfigMocksWithUint(100);
+    UbseVipModule module;
+    ASSERT_EQ(UBSE_OK, module.LoadConfig());
+    EXPECT_EQ(module.config_.maxQueuedRequests, 100u);
+}
+
+/*
+ * 用例描述：LoadConfig 时 maxQueuedRequests 超出上限 100000，应使用默认值 0
+ * 测试步骤：
+ * 1.mock 所有 uint32_t 配置项返回 100001（超出 maxQueuedRequests 上限）
+ * 2.直接调用私有方法 LoadConfig（利用 -fno-access-control）
+ * 预期结果：LoadConfig 成功，config_.maxQueuedRequests == 0（默认值）
+ */
+TEST_F(TestUbseVipModule, LoadConfig_MaxQueuedRequests_OutOfRange)
+{
+    SetupEnabledConfigMocksWithUint(100001);
+    UbseVipModule module;
+    ASSERT_EQ(UBSE_OK, module.LoadConfig());
+    EXPECT_EQ(module.config_.maxQueuedRequests, 0u) << "Out-of-range maxQueuedRequests should fall back to default 0";
+}
+
+/*
+ * 用例描述：LoadConfig 时 maxQueuedRequests 为边界值 100000，应正确加载
+ * 测试步骤：
+ * 1.mock 所有 uint32_t 配置项返回 100000（maxQueuedRequests 上限边界值）
+ * 2.直接调用私有方法 LoadConfig（利用 -fno-access-control）
+ * 预期结果：LoadConfig 成功，config_.maxQueuedRequests == 100000
+ */
+TEST_F(TestUbseVipModule, LoadConfig_MaxQueuedRequests_Boundary)
+{
+    SetupEnabledConfigMocksWithUint(100000);
+    UbseVipModule module;
+    ASSERT_EQ(UBSE_OK, module.LoadConfig());
+    EXPECT_EQ(module.config_.maxQueuedRequests, 100000u);
 }
 
 } // namespace ubse::ut::vip

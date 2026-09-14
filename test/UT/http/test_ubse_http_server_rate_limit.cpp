@@ -239,12 +239,27 @@ TEST_F(TestUbseHttpServerRateLimit, RateLimit_HasRetryAfterHeader)
 
 /*
  * 用例描述：验证 UbseHttpServer::Config 默认值
- * 备注：仅校验限流默认关闭（rateLimitRps=0），其它字段后续按需扩展
+ * 备注：校验限流与并发连接数默认关闭
  */
 TEST_F(TestUbseHttpServerRateLimit, DefaultConfig_Values)
 {
     UbseHttpServer::Config config;
     EXPECT_EQ(config.rateLimitRps, 0u);
+    EXPECT_EQ(config.maxQueuedRequests, 0u);
+}
+
+/*
+ * 用例描述：验证 maxQueuedRequests 配置可传递至 Config 且默认不限制
+ * 备注：mqr>0 的实际拒绝行为依赖 cpp-httplib（v0.40.0 enqueue 失败即 shutdown(SHUT_RDWR)+close(fd) 发送 FIN），
+ *       由 IT 层过载用例覆盖；此处覆盖字段传递与默认值。
+ */
+TEST_F(TestUbseHttpServerRateLimit, MaxQueuedRequests_DefaultAndConfigured)
+{
+    UbseHttpServer::Config config;
+    EXPECT_EQ(config.maxQueuedRequests, 0u);  // 默认不限制，行为与历史版本一致
+
+    config.maxQueuedRequests = 100000;  // 上边界
+    EXPECT_EQ(config.maxQueuedRequests, 100000u);
 }
 
 } // namespace ubse::ut::http

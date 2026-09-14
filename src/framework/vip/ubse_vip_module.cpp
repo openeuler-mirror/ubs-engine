@@ -150,6 +150,17 @@ UbseResult UbseVipModule::LoadConfig()
         }
     }
 
+    uint32_t maxQueuedRequests = 0;
+    ret = confModule->GetConf(section, "vip.httpServer.maxQueuedRequests", maxQueuedRequests);
+    if (ret == UBSE_OK) {
+        if (maxQueuedRequests <= 100000) {  // 0=不限制，上限 10 万防误配置
+            config_.maxQueuedRequests = maxQueuedRequests;
+        } else {
+            UBSE_LOG_WARN << "[VIP] vip.httpServer.maxQueuedRequests=" << maxQueuedRequests
+                          << " is out of range [0, 100000], using default: " << config_.maxQueuedRequests;
+        }
+    }
+
     ret = confModule->GetConf(section, "vip.httpServer.listen.ip", config_.listenIp);
     if (ret != UBSE_OK || config_.listenIp.empty()) {
         // 容器模式:enable=true 且缺省 listenIp,配置经 UDS 由 helper 注入,不在此处报错。
@@ -170,6 +181,7 @@ UbseResult UbseVipModule::LoadConfig()
     UBSE_LOG_INFO << "[VIP] Config loaded: listenIp=" << config_.listenIp
                   << ", listenPort=" << config_.listenPort
                   << ", rateLimitRps=" << config_.rateLimitRps
+                  << ", maxQueuedRequests=" << config_.maxQueuedRequests
                   << ", arpCount=" << config_.arpCount << ", arpInterval=" << config_.arpInterval;
     return UBSE_OK;
 }
