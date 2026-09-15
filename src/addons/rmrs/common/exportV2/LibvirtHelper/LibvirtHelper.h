@@ -13,6 +13,7 @@
 #ifndef MP_LIBVIRTHELPER_H
 #define MP_LIBVIRTHELPER_H
 
+#include <atomic>
 #include <thread>
 
 #include "export_type.h"
@@ -27,6 +28,7 @@ using mempooling::libvirt::VirDomainPtr;
 class LibvirtHelper {
 public:
     LibvirtHelper() = default;
+    ~LibvirtHelper();
     LibvirtHelper(const LibvirtHelper&) = delete;
     LibvirtHelper& operator=(const LibvirtHelper&) = delete;
 
@@ -56,7 +58,8 @@ public:
 private:
     static inline constexpr size_t VM_UUID_LEN = 37; // 36(UUID位数) + 1(\0)
     VirConnectPtr virConnect{};
-    std::thread* virKeepAliveThread{nullptr};
+    std::thread virKeepAliveThread{};
+    std::atomic<bool> keepAliveStop_{false};
 };
 
 } // namespace mempooling::exportV2

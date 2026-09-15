@@ -65,13 +65,12 @@ uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam& ucacheStrateg
         .moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_UCACHE_SEND_MIGRTIAON_STRATEGY, .address = srcNid};
     RmrsOutStream builder;
     builder << ucacheStrategy;
-    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = FreeMemory};
     UbseRpcSend(endpoint, reqData, &result, UCacheSendMigrationStrategyResHandler);
     if (result != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[Mem_migrate][ucache] Send UCache MigrationStrategy failed, result:" << result;
     }
-    delete[] reqData.data;
     return result;
 }
 
@@ -84,9 +83,8 @@ void CheckAndStopUCacheMigration(const std::string& srcNid)
     builder << blank;
     UbseComEndpoint endpoint = {
         .moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_UCACHE_STOP_MIGRTIAON, .address = srcNid};
-    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = FreeMemory};
     UbseRpcSend(endpoint, reqData, &result, UCacheStopMigrationResHandler);
-    delete[] reqData.data;
     if (result != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[Mem_migrate][ucache] Send CheckAndStopUCacheMigration failed, result:" << result;
@@ -103,9 +101,8 @@ void UpdateUcacheUsageRatio(const std::vector<pid_t>& pids, uint64_t borrowMemKB
     RmrsOutStream builder;
     builder << param;
     UCacheRatioRes res{};
-    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = FreeMemory};
     UbseRpcSend(endpoint, reqData, &res, UpdateUCacheRatioResHandler);
-    delete[] reqData.data;
     if (res.resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[Mem_migrate][ucache] Send UpdateUcacheUsageRatio failed, res=" << res.resCode
