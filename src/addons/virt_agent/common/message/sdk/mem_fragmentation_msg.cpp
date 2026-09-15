@@ -70,6 +70,9 @@ VmResult MemBorrowExecuteResultMsg::Deserialize()
 
     uint32_t borrow_ids_size = 0;
     in >> borrow_ids_size;
+    if (!in.Check() || borrow_ids_size > MAX_BORROW_ID_COUNT) {
+        return VM_ERROR_INVAL;
+    }
     memBorrowResultC_.borrow_ids_size = borrow_ids_size;
 
     for (uint32_t i = 0; i < borrow_ids_size; ++i) {
@@ -86,6 +89,9 @@ VmResult MemBorrowExecuteResultMsg::Deserialize()
 
     uint32_t present_numa_ids_size = 0;
     in >> present_numa_ids_size;
+    if (!in.Check() || present_numa_ids_size > MAX_BORROW_ID_COUNT) {
+        return VM_ERROR_INVAL;
+    }
     memBorrowResultC_.present_numa_ids_size = present_numa_ids_size;
     for (uint32_t i = 0; i < present_numa_ids_size; ++i) {
         in >> memBorrowResultC_.present_numa_ids_ptr[i];
@@ -653,8 +659,8 @@ VmResult MemTaskResultQueryMsg::Deserialize()
 
     mem_borrow_result_c& result = asyncTaskInfoC_.memBorrowResult;
     in >> result.borrow_ids_size;
-    if (!in.Check()) {
-        return VM_ERROR;
+    if (!in.Check() || result.borrow_ids_size > MAX_BORROW_ID_COUNT) {
+        return VM_ERROR_INVAL;
     }
 
     for (uint32_t i = 0; i < result.borrow_ids_size; ++i) {
@@ -671,6 +677,9 @@ VmResult MemTaskResultQueryMsg::Deserialize()
     }
 
     in >> result.present_numa_ids_size;
+    if (!in.Check() || result.present_numa_ids_size > MAX_BORROW_ID_COUNT) {
+        return VM_ERROR_INVAL;
+    }
     for (uint32_t i = 0; i < result.present_numa_ids_size; i++) {
         in >> result.present_numa_ids_ptr[i];
     }
@@ -1321,12 +1330,18 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowResultMsg::Deserialize()
 
     size_t memBorrowRstCsSize{};
     in >> memBorrowRstCsSize;
+    if (!in.Check() || memBorrowRstCsSize > MAX_BORROW_ID_COUNT) {
+        return VM_ERROR_INVAL;
+    }
     memBorrowRstCs.reserve(memBorrowRstCsSize);
     std::string tmpMsg;
     VmResult ret{};
     for (size_t i = 0; i < memBorrowRstCsSize; ++i) {
         mem_borrow_result_c memBorrowRstC{};
         in >> memBorrowRstC.borrow_ids_size;
+        if (!in.Check() || memBorrowRstC.borrow_ids_size > MAX_BORROW_ID_COUNT) {
+            return VM_ERROR_INVAL;
+        }
         for (size_t j = 0; j < memBorrowRstC.borrow_ids_size; ++j) {
             in >> tmpMsg;
             ret = StringToC(memBorrowRstC.borrow_ids_ptr[j], tmpMsg, MAX_BORROW_ID_LENGTH);
@@ -1335,6 +1350,9 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowResultMsg::Deserialize()
             }
         }
         in >> memBorrowRstC.present_numa_ids_size;
+        if (!in.Check() || memBorrowRstC.present_numa_ids_size > MAX_BORROW_ID_COUNT) {
+            return VM_ERROR_INVAL;
+        }
         for (size_t j = 0; j < memBorrowRstC.present_numa_ids_size; ++j) {
             in >> memBorrowRstC.present_numa_ids_ptr[j];
         }

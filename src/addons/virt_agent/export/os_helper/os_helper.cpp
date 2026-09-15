@@ -15,6 +15,7 @@
 
 #include <dirent.h>
 #include <fstream>
+#include <memory>
 #include <regex>
 
 #include <ubse_logger.h>
@@ -23,6 +24,15 @@
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
+
+namespace {
+void CloseDir(DIR* dir)
+{
+    if (dir != nullptr) {
+        closedir(dir);
+    }
+}
+} // namespace
 
 std::string OsHelper::procPathPrefix = "/proc";
 
@@ -36,13 +46,13 @@ std::string OsHelper::procPathPrefix = "/proc";
 VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string>& containerIds,
                                          std::unordered_map<std::string, std::vector<pid_t>>& containerInfos)
 {
-    DIR* dir = opendir(OsHelper::procPathPrefix.c_str());
+    std::unique_ptr<DIR, decltype(&CloseDir)> dir(opendir(OsHelper::procPathPrefix.c_str()), &CloseDir);
     if (dir == nullptr) {
         UBSE_LOG_ERROR << "Read " << OsHelper::procPathPrefix << " failed.";
         return VM_ERROR;
     }
     const struct dirent* ent;
-    while ((ent = readdir(dir)) != nullptr) {
+    while ((ent = readdir(dir.get())) != nullptr) {
         // Only process directories that start with a digit (i.e., PID directories)
         if (ent->d_type != DT_DIR || !isdigit(ent->d_name[0])) {
             continue;
@@ -59,12 +69,10 @@ VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string>& 
                 containerInfos[containerId].emplace_back(pid);
             } catch (const std::exception& e) {
                 UBSE_LOG_ERROR << "containerInfos emplace failed: " << e.what();
-                closedir(dir);
                 return VM_ERROR;
             }
         }
     }
-    closedir(dir);
     return VM_OK;
 }
 

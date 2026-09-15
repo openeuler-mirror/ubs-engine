@@ -13,6 +13,8 @@
 
 #include "mem_container_msg.h"
 
+#include <algorithm>
+
 #include "msg_utils.h"
 #include "vm_serial_util.h"
 
@@ -127,6 +129,9 @@ VmResult MemContainerPidMemInfoOutputMsg::Deserialize()
     if (!in.Check()) {
         return VM_ERROR;
     }
+    if (vecSize > mInputRawDataSize) {
+        return VM_ERROR;
+    }
 
     pidInfos_.clear();
     for (size_t i = 0; i < vecSize; ++i) {
@@ -135,17 +140,22 @@ VmResult MemContainerPidMemInfoOutputMsg::Deserialize()
         in >> info.localUsedMem;
         size_t numaSize = 0;
         in >> numaSize;
+        if (!in.Check()) {
+            return VM_ERROR;
+        }
         for (size_t j = 0; j < numaSize; ++j) {
             uint16_t localNumaId = 0;
             in >> localNumaId;
+            if (!in.Check()) {
+                return VM_ERROR;
+            }
             info.localNumaIds.push_back(localNumaId);
         }
         in >> info.remoteUsedMem;
+        if (!in.Check()) {
+            return VM_ERROR;
+        }
         pidInfos_.push_back(info);
-    }
-
-    if (!in.Check()) {
-        return VM_ERROR;
     }
 
     return VM_OK;
@@ -158,11 +168,8 @@ std::vector<pid_mem_info_for_c> MemContainerPidMemInfoOutputMsg::GetPidInfos()
         pid_mem_info_for_c data{};
         data.pid = info.pid;
         data.localUsedMem = info.localUsedMem;
-        const size_t size = NO_64;
-        data.localNumaCount = info.localNumaIds.size();
-        if (info.localNumaIds.size() <= size) {
-            std::copy(info.localNumaIds.begin(), info.localNumaIds.end(), data.localNumaIds);
-        }
+        data.localNumaCount = std::min(info.localNumaIds.size(), static_cast<size_t>(NO_64));
+        std::copy_n(info.localNumaIds.begin(), data.localNumaCount, data.localNumaIds);
 
         data.remoteUsedMem = info.remoteUsedMem;
         pidInfo.push_back(data);

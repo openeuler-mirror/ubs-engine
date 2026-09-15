@@ -111,11 +111,6 @@ public:
     SpinLock(SpinLock&&) = delete;
     SpinLock& operator=(SpinLock&&) = delete;
 
-    inline void TryLock()
-    {
-        mFlag.test_and_set(std::memory_order_acquire);
-    }
-
     inline void Lock()
     {
         while (mFlag.test_and_set(std::memory_order_acquire)) {}
@@ -187,14 +182,14 @@ class WriteLocker {
 public:
     explicit WriteLocker(T* lock) : mLock(lock)
     {
-        if (mLock != NULL) {
+        if (mLock != nullptr) {
             mLock->LockWrite();
         }
     }
 
     ~WriteLocker()
     {
-        if (mLock != NULL) {
+        if (mLock != nullptr) {
             mLock->UnLock();
         }
     }

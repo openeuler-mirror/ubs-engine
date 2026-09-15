@@ -50,7 +50,10 @@ VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap& numaVmInfoMap, const
         numaLoc.hostId = vmBasicInfo.nodeId;
         numaLoc.hostName = vmBasicInfo.hostName;
         if (isDelete) {
-            numaVmInfoMap[numaLoc].erase(vmBasicInfo.uuid);
+            auto it = numaVmInfoMap.find(numaLoc);
+            if (it != numaVmInfoMap.end()) {
+                it->second.erase(vmBasicInfo.uuid);
+            }
         } else {
             numaVmInfoMap[numaLoc][vmBasicInfo.uuid] = vmBasicInfo;
         }

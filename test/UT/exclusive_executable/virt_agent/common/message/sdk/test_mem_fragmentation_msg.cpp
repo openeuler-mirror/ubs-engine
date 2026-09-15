@@ -626,4 +626,46 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Multiple_Quota
     EXPECT_EQ(resultPairs[0].remoteNumaQuotas.size(), 2);
 }
 
+/*
+ * 用例描述：
+ * 测试三个反序列化接口对线路上超限计数值的拒绝能力（防数组越界索引）
+ * 构造方法：用 VmSerialization 手工构造首字段为超限 count 的恶意流，模拟被篡改的 IPC 响应
+ * 预期结果：均返回 VM_ERROR_INVAL，且不进入循环（不发生越界访问）
+ */
+TEST_F(TestMemFragmentationMsg, MemBorrowExecuteResultMsg_Deserialize_RejectOversizedCount)
+{
+    VmSerialization out;
+    const uint32_t oversizedCount = MAX_BORROW_ID_COUNT + 1;
+    out << oversizedCount;
+    ASSERT_TRUE(out.Check());
+    MemBorrowExecuteResultMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemTaskResultQueryMsg_Deserialize_RejectOversizedCount)
+{
+    VmSerialization out;
+    const std::string taskId = "task";
+    out << taskId;
+    const uint32_t statusValue = 0;
+    out << statusValue;
+    const uint32_t resultCode = 0;
+    out << resultCode;
+    const uint32_t oversizedCount = MAX_BORROW_ID_COUNT + 1;
+    out << oversizedCount;
+    ASSERT_TRUE(out.Check());
+    MemTaskResultQueryMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Deserialize_RejectOversizedCount)
+{
+    VmSerialization out;
+    const size_t oversizedCount = static_cast<size_t>(MAX_BORROW_ID_COUNT) + 1;
+    out << oversizedCount;
+    ASSERT_TRUE(out.Check());
+    mem_fragmentation::MemFragmentationMemBorrowResultMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
 } // namespace ubse::vm::ut

@@ -145,8 +145,15 @@ int CallExternalApiWithTimeout(ubse_api_buffer_t* request_buffer, ubse_api_buffe
         done = true;
         cv.notify_one();
     };
-    std::thread th(task);
-    th.detach();
+
+    try {
+        std::thread th(task);
+        th.detach();
+    } catch (const std::exception& e) {
+        IPC_LOG_ERROR << "Failed to create thread for external api call: " << e.what();
+        SafeDeleteArray(request_buffer->buffer);
+        return VA_ERROR_BASE;
+    }
     auto start = std::chrono::high_resolution_clock::now();
     std::chrono::milliseconds timeout(timeout_time * MILLISECONDS_PER_SECOND); // convert seconds to milliseconds
     std::unique_lock<std::mutex> lock(mtx);
@@ -246,8 +253,14 @@ int RackAsyncSendForHam(HamComByteBuffer* request, HamComCallbackDef* callback)
         return VA_ERROR_BASE;
     }
 
-    std::thread th(backgroundTask, request_buffer);
-    th.detach();
+    try {
+        std::thread th(backgroundTask, request_buffer);
+        th.detach();
+    } catch (const std::exception& e) {
+        IPC_LOG_ERROR << "Failed to create thread for background task: " << e.what();
+        SafeDeleteArray(request_buffer->buffer);
+        return VA_ERROR_BASE;
+    }
 
     return 0;
 }

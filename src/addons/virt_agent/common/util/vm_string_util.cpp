@@ -264,4 +264,18 @@ void VmStringUtil::StrSplit(const std::string& src, const std::string& sep, std:
         out.emplace_back(tmpStr);
     }
 }
+
+std::string VmStringUtil::SanitizeLogStr(const std::string& str, size_t maxLen)
+{
+    std::string sanitized;
+    sanitized.reserve(std::min(str.size(), maxLen));
+    for (const char ch : str) {
+        if (sanitized.size() >= maxLen) {
+            break;
+        }
+        const auto c = static_cast<unsigned char>(ch);
+        sanitized.push_back((c < 0x20 || c == 0x7f) ? ' ' : ch);
+    }
+    return sanitized;
+}
 } // namespace vm

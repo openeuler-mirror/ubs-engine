@@ -17,6 +17,10 @@
 
 virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t* buffer, uint32_t len, case_conf_info_t* case_conf_info)
 {
+    if (buffer == nullptr || case_conf_info == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: buffer or case_conf_info is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
     vm::CaseConfGetMsg msg{buffer, len};
     auto ret = msg.Deserialize();
     if (ret != 0) {
@@ -29,6 +33,10 @@ virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t* buffer, uint32_t len, case_
 
 virt_agent_ret_t ubse_case_conf_set_unpack(uint8_t* buffer, uint32_t len, case_conf_set_info_t* case_conf_info)
 {
+    if (buffer == nullptr || case_conf_info == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: buffer or case_conf_info is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
     vm::CaseConfSetMsg msg{buffer, len};
     auto ret = msg.Deserialize();
     if (ret != 0) {

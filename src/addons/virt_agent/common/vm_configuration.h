@@ -169,6 +169,8 @@ public:
 private:
     VmConfiguration() = default;
     ~VmConfiguration() = default;
+    VmConfiguration(const VmConfiguration&) = delete;
+    VmConfiguration& operator=(const VmConfiguration&) = delete;
     std::string moduleName = "virt_agent_plugin"; // Module Name
     uint16_t moduleCode = 0;                      // Module Code
 

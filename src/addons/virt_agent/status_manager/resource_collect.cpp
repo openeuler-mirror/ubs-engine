@@ -50,9 +50,14 @@ VmResult ResourceCollect::Init()
 VmResult ResourceCollect::VmResourceCollectInfoHandle(vector<HostVmDomainInfo>& vmDomainInfoCollectList,
                                                       vector<HostNumaCpuInfo>& numaInfoCollectList)
 {
-    if (vmDomainInfoCollectList.empty() && numaInfoCollectList.empty()) {
-        UBSE_LOG_ERROR << "vm domain info is empty.";
+    if (vmDomainInfoCollectList.empty() || numaInfoCollectList.empty()) {
+        UBSE_LOG_ERROR << "vm domain info or numa info is empty.";
         return VM_MASTER_EMPTY_VECTOR_ERROR;
+    }
+    if (vmDomainInfoCollectList.size() != numaInfoCollectList.size()) {
+        UBSE_LOG_ERROR << "vm domain info size(" << vmDomainInfoCollectList.size() << ") mismatch numa info size("
+                       << numaInfoCollectList.size() << ").";
+        return VM_ERROR;
     }
     SortByNodeId(vmDomainInfoCollectList);
     SortByNodeId(numaInfoCollectList);

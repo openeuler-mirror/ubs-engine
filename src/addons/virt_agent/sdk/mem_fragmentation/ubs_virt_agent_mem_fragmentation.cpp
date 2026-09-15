@@ -90,13 +90,13 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
     }
 
     const NodeAntiDictionary& node_dict = *dict;
-    size_t buffer_size = sizeof(node_dict);
+    size_t buffer_size = GetNodeAntiDictionarySerializedSize(node_dict);
     uint8_t* buffer = allocate_memory(buffer_size);
     if (buffer == nullptr) {
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
 
-    virt_agent_ret_t res_code = serialize_data(node_dict, buffer);
+    virt_agent_ret_t res_code = serialize_data(node_dict, buffer, buffer_size);
     if (res_code != VA_SUCCESS) {
         SafeDeleteArray(buffer);
         return res_code;
@@ -556,7 +556,7 @@ virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swa
     if (ret != VM_OK) {
         return VA_ERROR_SERIALIZE_FAILED;
     }
-    const ubse_api_buffer_t requestBuffer = {
+    ubse_api_buffer_t requestBuffer = {
         .buffer = reqMsg.SerializedData(),
         .length = reqMsg.SerializedDataSize(),
     };
@@ -564,9 +564,10 @@ virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swa
         .buffer = nullptr,
         .length = 0,
     };
-    if (const uint32_t invokeRet =
-            ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, &requestBuffer, &responseBuffer);
-        invokeRet != UBS_SUCCESS) {
+    const uint32_t invokeRet =
+        ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, &requestBuffer, &responseBuffer);
+    ubse_api_buffer_delete(&requestBuffer);
+    if (invokeRet != UBS_SUCCESS) {
         IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
         ubse_api_buffer_free(&responseBuffer);
         return VA_ERROR_BASE;

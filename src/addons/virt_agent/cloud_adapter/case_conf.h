@@ -15,6 +15,7 @@
 #define VM_CASE_CONF_H
 
 #include <cmath>
+#include <thread>
 
 #include <ubse_def.h>
 
@@ -64,6 +65,7 @@ public:
     static VmResult QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio& caseConf);
     static void CaseRegisterRun();
     static void RunQueryCaseConf();
+    static void Stop();
 
 private:
     CaseConf() = default;
@@ -77,6 +79,7 @@ private:
                                                        CaseAndOvercommitmentRatio& caseAndOvercommitmentRatio);
     static UbseByteBuffer caseConfBuffer;
     static uint64_t index;
+    static std::thread queryThread;
     static bool ConvertOverCommitmentRatioToFloat(const std::string& ratioStr, float_t& ratio);
 };
 } // namespace vm
