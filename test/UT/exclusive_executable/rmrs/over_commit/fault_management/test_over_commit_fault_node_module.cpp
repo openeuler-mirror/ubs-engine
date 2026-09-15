@@ -1263,7 +1263,6 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessPendingMigration_PreCheck_AllNumasI
     state.oldBorrowIds = {"old_borrow_1"};
     state.borrowNodeId = "node0";
     state.pid = 9999;
-    state.remoteTotalSizeKB = 1024;
     state.remoteNumaIds = {1};
     state.remoteNumaSizeMap[1] = 1024;
     state.numaToBorrowIds[1] = {"old_borrow_1"};
@@ -1585,63 +1584,87 @@ TEST_F(TestOverCommitFaultNodeModule, CollectClusterSocketQueue_CollectFailed_Fa
 
 TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_AllFit)
 {
-    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}}},
-                                                                                         {2, {{4096, 0}}}};
+    // 分块初始化：{sizeKB, preferredSocketId, faultNumaId}
+    std::unordered_map<pid_t, std::vector<PidChunkInfo>> pidChunks{{1, {{1024, 0, 2}}}, {2, {{4096, 0, 2}}}};
     std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
-    socketQueueBySocketId[0].push_back({"node4", 8192});
+    socketQueueBySocketId[0].push_back({"node4", 8192, 1024});
     std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
     std::vector<pid_t> unallocatedPids;
 
-    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+    MpResult ret = AllocatePidsToSockets(pidChunks, socketQueueBySocketId, pidAllocMap, unallocatedPids);
 
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(pidAllocMap.size(), 2u);
     ASSERT_EQ(pidAllocMap[1].size(), 1u);
     EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node4");
+    EXPECT_EQ(pidAllocMap[1][0].lendSizeKB, 1024u);
     ASSERT_EQ(pidAllocMap[2].size(), 1u);
     EXPECT_EQ(pidAllocMap[2][0].lendNodeId, "node4");
+    EXPECT_EQ(pidAllocMap[2][0].lendSizeKB, 4096u);
     EXPECT_TRUE(unallocatedPids.empty());
 }
 
 TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_BigProcessNotFit_Unallocated)
 {
-    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}}},
-                                                                                         {2, {{8192, 0}}}};
+    std::unordered_map<pid_t, std::vector<PidChunkInfo>> pidChunks{{1, {{1024, 0, 2}}}, {2, {{8192, 0, 2}}}};
     std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
-    socketQueueBySocketId[0].push_back({"node4", 4096});
+    socketQueueBySocketId[0].push_back({"node4", 4096, 1024});
     std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
     std::vector<pid_t> unallocatedPids;
 
-    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+    MpResult ret = AllocatePidsToSockets(pidChunks, socketQueueBySocketId, pidAllocMap, unallocatedPids);
 
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(pidAllocMap.size(), 1u);
     ASSERT_EQ(pidAllocMap[1].size(), 1u);
     EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node4");
+    EXPECT_EQ(pidAllocMap[1][0].lendSizeKB, 1024u);
     ASSERT_EQ(unallocatedPids.size(), 1u);
     EXPECT_EQ(unallocatedPids[0], 2);
 }
 
 TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_SocketAffinity_MultiSocketChunks)
 {
-    // pid 在 socket0 占 1024KB、在 socket1 占 2048KB：优先从各自 socket 分配
-    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes{{1, {{1024, 0}, {2048, 1}}}};
+    // pid 在 socket0 占 1024KB（故障NUMA2）、在 socket1 占 2048KB（故障NUMA3）：优先从各自 socket 分配
+    std::unordered_map<pid_t, std::vector<PidChunkInfo>> pidChunks{{1, {{1024, 0, 2}, {2048, 1, 3}}}};
     std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
-    socketQueueBySocketId[0].push_back({"node3", 4096});
-    socketQueueBySocketId[1].push_back({"node4", 4096});
+    socketQueueBySocketId[0].push_back({"node3", 4096, 1024});
+    socketQueueBySocketId[1].push_back({"node4", 4096, 1024});
     std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
     std::vector<pid_t> unallocatedPids;
 
-    MpResult ret = AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+    MpResult ret = AllocatePidsToSockets(pidChunks, socketQueueBySocketId, pidAllocMap, unallocatedPids);
 
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(pidAllocMap.size(), 1u);
     ASSERT_EQ(pidAllocMap[1].size(), 2u);
     EXPECT_EQ(pidAllocMap[1][0].lendNodeId, "node3");
     EXPECT_EQ(pidAllocMap[1][0].lendSocketId, 0);
+    EXPECT_EQ(pidAllocMap[1][0].srcFaultNumaId, 2);
+    EXPECT_EQ(pidAllocMap[1][0].lendSizeKB, 1024u);
     EXPECT_EQ(pidAllocMap[1][1].lendNodeId, "node4");
     EXPECT_EQ(pidAllocMap[1][1].lendSocketId, 1);
+    EXPECT_EQ(pidAllocMap[1][1].srcFaultNumaId, 3);
+    EXPECT_EQ(pidAllocMap[1][1].lendSizeKB, 2048u);
     EXPECT_TRUE(unallocatedPids.empty());
+}
+
+TEST_F(TestOverCommitFaultNodeModule, AllocatePidsToSockets_BlockSizeRounding_ZeroTakeUnallocated)
+{
+    // 模拟不变量被破坏的异常输入：chunk 仅 8192KB，目标节点 blockSize=131072KB(128MB)，
+    // take 按 blockSize 向下取整后为 0 -> LOG_ERROR + break -> pid 进 unallocatedPids
+    std::unordered_map<pid_t, std::vector<PidChunkInfo>> pidChunks{{1, {{8192, 0, 2}}}};
+    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>> socketQueueBySocketId;
+    socketQueueBySocketId[0].push_back({"node4", 131072, 131072});
+    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
+    std::vector<pid_t> unallocatedPids;
+
+    MpResult ret = AllocatePidsToSockets(pidChunks, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_TRUE(pidAllocMap.empty());
+    ASSERT_EQ(unallocatedPids.size(), 1u);
+    EXPECT_EQ(unallocatedPids[0], 1);
 }
 
 TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_GetDebtFailed_ResourceCollectError)
@@ -1703,85 +1726,127 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultSimplified_AllUna
 
 // ===== ExecuteBorrowForPid / FinalizePidProcessing / BuildBorrowerData =====
 
-MpResult MemBorrowExecuteForFaultInOverCommitSuccessMock(const SrcMemoryBorrowParam& srcParam,
-                                                         const std::vector<uint64_t>& borrowSizes,
-                                                         const WaterMark& waterMark,
-                                                         MemBorrowExecuteResult& borrowExecuteResult,
-                                                         const ProcessMemUsrInfo& processMemUsrInfo,
-                                                         const std::vector<std::string>& candidateNodes)
+// 捕获 ExecuteBorrowForPid 组装的 splits，验证 (oldNumaId, lendNodeId, lendSocketId, sizeBytes) 组装与 KB→字节换算
+static std::vector<FaultBorrowSplit> gCapturedSplits;
+static MpResult MockMemBorrowExecuteSplitsOk(const SrcMemoryBorrowParam& srcParam,
+                                             const std::vector<FaultBorrowSplit>& splits, const WaterMark& waterMark,
+                                             MemBorrowExecuteResult& borrowExecuteResult,
+                                             const ProcessMemUsrInfo& processMemUsrInfo)
 {
-    for (size_t i = 0; i < borrowSizes.size(); ++i) {
-        borrowExecuteResult.borrowIds.push_back("new_bid_" + std::to_string(i));
-        borrowExecuteResult.presentNumaId.push_back(static_cast<uint16_t>(100 + i));
+    (void)srcParam;
+    (void)waterMark;
+    (void)processMemUsrInfo;
+    gCapturedSplits = splits;
+    for (size_t i = 0; i < splits.size(); ++i) {
+        borrowExecuteResult.borrowIds.push_back("split_bid_" + std::to_string(i));
+        borrowExecuteResult.presentNumaId.push_back(static_cast<uint16_t>(200 + i));
     }
     return MEM_POOLING_OK;
 }
 
-MpResult MemBorrowExecuteForFaultInOverCommitPartialMock(const SrcMemoryBorrowParam& srcParam,
-                                                         const std::vector<uint64_t>& borrowSizes,
-                                                         const WaterMark& waterMark,
-                                                         MemBorrowExecuteResult& borrowExecuteResult,
-                                                         const ProcessMemUsrInfo& processMemUsrInfo,
-                                                         const std::vector<std::string>& candidateNodes)
+// 部分成功语义mock：无论几个split只回填1笔结果，覆盖ExecuteBorrowForPid部分结果硬失败分支
+static MpResult MockMemBorrowExecuteSplitsPartial(const SrcMemoryBorrowParam& srcParam,
+                                                  const std::vector<FaultBorrowSplit>& splits,
+                                                  const WaterMark& waterMark,
+                                                  MemBorrowExecuteResult& borrowExecuteResult,
+                                                  const ProcessMemUsrInfo& processMemUsrInfo)
 {
+    (void)srcParam;
+    (void)splits;
+    (void)waterMark;
+    (void)processMemUsrInfo;
     borrowExecuteResult.borrowIds.push_back("partial_bid");
     borrowExecuteResult.presentNumaId.push_back(100);
     return MEM_POOLING_OK;
 }
 
+/*
+ * 用例描述：量纲决策（含lendSizeKB）走split路径：按target组装FaultBorrowSplit（KB→字节），
+ *           perNuma逐split与borrowIds/presentNumaId下标配对
+ * 测试步骤：
+ * 1. ctx.remoteNumaSizeMap按字节口径设置（2号NUMA 4096KB、3号NUMA 2048KB，与split合计一致）
+ * 2. allocLendTargets：2号NUMA一笔（node4/socket0, lendSizeKB=4096）、3号NUMA一笔（node4/socket0, lendSizeKB=2048）
+ * 3. Mock MemBorrowExecuteSplitsForFaultInOverCommit捕获splits并回填成功结果
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK，splits按决策顺序组装且sizeBytes=lendSizeKB*1024
+ * 2. perNuma两个条目与splits顺序配对，borrowSizeKB=sizeBytes/1024
+ */
 TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_PerNumaPairing_Correct)
 {
     PidBorrowContext ctx;
     ctx.pid = 1234;
     ctx.borrowNodeId = "node2";
     ctx.borrowSocketId = 0;
-    ctx.remoteNumaSizeMap[2] = 1024;
-    ctx.remoteNumaSizeMap[3] = 2048;
-    ctx.allocLendNodeIds = {"node4"};
+    // remoteNumaSizeMap为字节口径（record.size直传）
+    ctx.remoteNumaSizeMap[2] = 4096ULL * 1024;
+    ctx.remoteNumaSizeMap[3] = 2048ULL * 1024;
+    ctx.allocLendTargets = {{"node4", 0, 2, 4096}, {"node4", 0, 3, 2048}};
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&, const std::vector<std::string>&))
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<FaultBorrowSplit>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&))
         .stubs()
-        .will(invoke(MemBorrowExecuteForFaultInOverCommitSuccessMock));
+        .will(invoke(MockMemBorrowExecuteSplitsOk));
 
+    gCapturedSplits.clear();
     BorrowForPidResult result = ExecuteBorrowForPid(ctx);
 
     EXPECT_EQ(result.status, MEM_POOLING_OK);
-    ASSERT_EQ(result.perNuma.size(), 2u);
-    for (const auto& entry : result.perNuma) {
-        auto it = ctx.remoteNumaSizeMap.find(entry.oldNumaId);
-        ASSERT_NE(it, ctx.remoteNumaSizeMap.end());
-        EXPECT_EQ(entry.borrowSizeKB, it->second);
-        EXPECT_FALSE(entry.newBorrowId.empty());
-        EXPECT_NE(entry.newNumaId, 0);
-    }
+    ASSERT_EQ(gCapturedSplits.size(), 2U);
+    EXPECT_EQ(gCapturedSplits[0].oldNumaId, 2);
+    EXPECT_EQ(gCapturedSplits[0].lendNodeId, "node4");
+    EXPECT_EQ(gCapturedSplits[0].lendSocketId, 0);
+    EXPECT_EQ(gCapturedSplits[0].sizeBytes, 4096ULL * 1024); // KB→字节换算
+    EXPECT_EQ(gCapturedSplits[1].oldNumaId, 3);
+    EXPECT_EQ(gCapturedSplits[1].lendNodeId, "node4");
+    EXPECT_EQ(gCapturedSplits[1].lendSocketId, 0);
+    EXPECT_EQ(gCapturedSplits[1].sizeBytes, 2048ULL * 1024);
+
+    ASSERT_EQ(result.perNuma.size(), 2U);
+    EXPECT_EQ(result.perNuma[0].oldNumaId, 2);
+    EXPECT_EQ(result.perNuma[0].newNumaId, 200);
+    EXPECT_EQ(result.perNuma[0].borrowSizeKB, 4096ULL);
+    EXPECT_EQ(result.perNuma[0].newBorrowId, "split_bid_0");
+    EXPECT_EQ(result.perNuma[1].oldNumaId, 3);
+    EXPECT_EQ(result.perNuma[1].newNumaId, 201);
+    EXPECT_EQ(result.perNuma[1].borrowSizeKB, 2048ULL);
+    EXPECT_EQ(result.perNuma[1].newBorrowId, "split_bid_1");
 }
 
+/*
+ * 用例描述：split执行返回部分成功（2笔split只回1笔结果）时按硬失败处理，不返回部分结果
+ * 测试步骤：
+ * 1. 两个量纲target（oldNuma 2/3），remoteNumaSizeMap字节口径与split合计一致
+ * 2. Mock MemBorrowExecuteSplitsForFaultInOverCommit只回填1笔成功结果
+ * 预期结果：
+ * 1. 返回MEM_POOLING_FAULT_BORROW_MEM_ERROR
+ * 2. perNuma为空（缺失split的新NUMA与旧NUMA无关，部分结果无法用于迁移调度）
+ */
 TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_PartialResult_HardFailure)
 {
     PidBorrowContext ctx;
     ctx.pid = 1234;
     ctx.borrowNodeId = "node2";
-    ctx.remoteNumaSizeMap[2] = 1024;
-    ctx.remoteNumaSizeMap[3] = 2048;
+    ctx.remoteNumaSizeMap[2] = 1024ULL * 1024;
+    ctx.remoteNumaSizeMap[3] = 2048ULL * 1024;
+    ctx.allocLendTargets = {{"node4", 0, 2, 1024}, {"node4", 0, 3, 2048}};
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&, const std::vector<std::string>&))
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<FaultBorrowSplit>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&))
         .stubs()
-        .will(invoke(MemBorrowExecuteForFaultInOverCommitPartialMock));
+        .will(invoke(MockMemBorrowExecuteSplitsPartial));
 
     BorrowForPidResult result = ExecuteBorrowForPid(ctx);
 
-    // 部分成功（1/2 借用成功）按硬失败处理，不返回部分结果
-    EXPECT_NE(result.status, MEM_POOLING_OK);
+    // 部分成功（1/2 split有结果）按硬失败处理，不返回部分结果
+    EXPECT_EQ(result.status, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
     EXPECT_TRUE(result.perNuma.empty());
 }
 
@@ -1818,6 +1883,242 @@ TEST_F(TestOverCommitFaultNodeModule, FinalizePidProcessing_ReleasesOnlyMigrated
     ASSERT_EQ(freedOldBorrowIds.size(), 1u);
     EXPECT_TRUE(freedOldBorrowIds.count("old_bid_1") > 0);
     EXPECT_TRUE(freedOldBorrowIds.count("old_bid_2") == 0);
+}
+
+// ===== split 路径（master量纲决策）=====
+
+// 捕获 FinalizePidProcessing 经 MemFreeWithOpsForProcessMem 释放的旧借用id
+static std::vector<std::string> gFreedOldBorrowIds;
+static MpResult MockMemFreeWithOpsForProcessMemOk(MemBorrowExecutor* This, const std::string& name, bool smapBack,
+                                                  bool isFault)
+{
+    (void)This;
+    (void)smapBack;
+    (void)isFault;
+    gFreedOldBorrowIds.push_back(name);
+    return MEM_POOLING_OK;
+}
+
+// 捕获 BorrowIdRedirection::Update 的 (oldBorrowId, newBorrowId) 重定向映射
+static std::vector<std::pair<std::string, std::string>> gCapturedRedirections;
+static MpResult MockBorrowIdRedirectionUpdate(BorrowIdRedirection* This, const std::string key, const std::string value)
+{
+    (void)This;
+    gCapturedRedirections.push_back({key, value});
+    return MEM_POOLING_OK;
+}
+
+/*
+ * 用例描述：量纲决策非空且全带lendSizeKB时走split路径：按target组装FaultBorrowSplit（KB→字节），
+ *           perNuma逐split与borrowIds/presentNumaId下标配对
+ * 测试步骤：
+ * 1. ctx.remoteNumaSizeMap按字节口径设置（2号NUMA 4096KB、3号NUMA 2048KB，与split合计一致）
+ * 2. allocLendTargets：2号NUMA拆两笔（node5/socket1、node7/socket2）、3号NUMA一笔（node5/socket1）
+ * 3. Mock MemBorrowExecuteSplitsForFaultInOverCommit捕获splits并回填成功结果
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK，splits按决策顺序组装且sizeBytes=lendSizeKB*1024
+ * 2. perNuma三个条目与splits顺序配对，borrowSizeKB=sizeBytes/1024
+ */
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_SplitWiring_Correct)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1;
+    ctx.borrowNodeId = "node2";
+    ctx.borrowSocketId = 0;
+    // remoteNumaSizeMap为字节口径（record.size直传）：4096KB / 2048KB
+    ctx.remoteNumaSizeMap[2] = 4096ULL * 1024;
+    ctx.remoteNumaSizeMap[3] = 2048ULL * 1024;
+    ctx.allocLendTargets = {{"node5", 1, 2, 2048}, {"node7", 2, 2, 2048}, {"node5", 1, 3, 2048}};
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<FaultBorrowSplit>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&))
+        .stubs()
+        .will(invoke(MockMemBorrowExecuteSplitsOk));
+
+    gCapturedSplits.clear();
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    EXPECT_EQ(result.status, MEM_POOLING_OK);
+    ASSERT_EQ(gCapturedSplits.size(), 3U);
+    EXPECT_EQ(gCapturedSplits[0].oldNumaId, 2);
+    EXPECT_EQ(gCapturedSplits[0].lendNodeId, "node5");
+    EXPECT_EQ(gCapturedSplits[0].lendSocketId, 1);
+    EXPECT_EQ(gCapturedSplits[0].sizeBytes, 2048ULL * 1024); // KB→字节换算
+    EXPECT_EQ(gCapturedSplits[1].oldNumaId, 2);
+    EXPECT_EQ(gCapturedSplits[1].lendNodeId, "node7");
+    EXPECT_EQ(gCapturedSplits[1].lendSocketId, 2);
+    EXPECT_EQ(gCapturedSplits[1].sizeBytes, 2048ULL * 1024);
+    EXPECT_EQ(gCapturedSplits[2].oldNumaId, 3);
+    EXPECT_EQ(gCapturedSplits[2].lendNodeId, "node5");
+    EXPECT_EQ(gCapturedSplits[2].lendSocketId, 1);
+    EXPECT_EQ(gCapturedSplits[2].sizeBytes, 2048ULL * 1024);
+
+    ASSERT_EQ(result.perNuma.size(), 3U);
+    EXPECT_EQ(result.perNuma[0].oldNumaId, 2);
+    EXPECT_EQ(result.perNuma[1].oldNumaId, 2);
+    EXPECT_EQ(result.perNuma[2].oldNumaId, 3);
+    EXPECT_EQ(result.perNuma[0].newNumaId, 200);
+    EXPECT_EQ(result.perNuma[1].newNumaId, 201);
+    EXPECT_EQ(result.perNuma[2].newNumaId, 202);
+    EXPECT_EQ(result.perNuma[0].borrowSizeKB, 2048ULL);
+    EXPECT_EQ(result.perNuma[1].borrowSizeKB, 2048ULL);
+    EXPECT_EQ(result.perNuma[2].borrowSizeKB, 2048ULL);
+    EXPECT_EQ(result.perNuma[0].newBorrowId, "split_bid_0");
+    EXPECT_EQ(result.perNuma[1].newBorrowId, "split_bid_1");
+    EXPECT_EQ(result.perNuma[2].newBorrowId, "split_bid_2");
+}
+
+/*
+ * 用例描述：split每组合计与remoteNumaSizeMap（KB口径）不一致时仅告警，仍以master split为准继续执行
+ * 测试步骤：
+ * 1. remoteNumaSizeMap[2]=4096字节（4KB），master决策仅一笔2048KB → 合计与预期不一致
+ * 2. Mock MemBorrowExecuteSplitsForFaultInOverCommit返回成功
+ * 预期结果：
+ * 1. 不回退legacy，仍走split路径：gCapturedSplits.size()==1，返回OK
+ * 2. perNuma以master split为准（1笔，oldNumaId=2）
+ */
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_SplitSumMismatch_WarnsAndProceeds)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1;
+    ctx.borrowNodeId = "node2";
+    ctx.remoteNumaSizeMap[2] = 4096; // 字节口径=4KB，与master拆分合计2048KB不一致（WARN-only）
+    ctx.allocLendTargets = {{"node5", 1, 2, 2048}};
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<FaultBorrowSplit>&, const WaterMark&,
+                           MemBorrowExecuteResult&, const ProcessMemUsrInfo&))
+        .stubs()
+        .will(invoke(MockMemBorrowExecuteSplitsOk));
+
+    gCapturedSplits.clear();
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    EXPECT_EQ(result.status, MEM_POOLING_OK);
+    ASSERT_EQ(gCapturedSplits.size(), 1U);
+    EXPECT_EQ(gCapturedSplits[0].oldNumaId, 2);
+    EXPECT_EQ(gCapturedSplits[0].lendNodeId, "node5");
+    EXPECT_EQ(gCapturedSplits[0].sizeBytes, 2048ULL * 1024);
+    ASSERT_EQ(result.perNuma.size(), 1U);
+    EXPECT_EQ(result.perNuma[0].oldNumaId, 2);
+    EXPECT_EQ(result.perNuma[0].newBorrowId, "split_bid_0");
+}
+
+/*
+ * 用例描述：allocLendTargets为空（主节点未下发决策）时直接返回失败，不再回退legacy借用
+ * 测试步骤：
+ * 1. ctx.allocLendTargets保持为空，remoteNumaSizeMap[2]=4096KB（字节口径）
+ * 2. 仅Mock GetWaterMark成功，不mock任何借用执行器
+ * 预期结果：
+ * 1. 返回MEM_POOLING_FAULT_BORROW_MEM_ERROR且perNuma为空
+ */
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_EmptyDecision_ReturnsError)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1234;
+    ctx.borrowNodeId = "node2";
+    ctx.remoteNumaSizeMap[2] = 4096ULL * 1024;
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    EXPECT_EQ(result.status, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
+    EXPECT_TRUE(result.perNuma.empty());
+}
+
+/*
+ * 用例描述：targets存在但存在lendSizeKB==0（未传量纲）时同样直接返回失败
+ * 测试步骤：
+ * 1. ctx.allocLendTargets含一个lendSizeKB=0的target
+ * 2. 仅Mock GetWaterMark成功，不mock任何借用执行器
+ * 预期结果：
+ * 1. 返回MEM_POOLING_FAULT_BORROW_MEM_ERROR且perNuma为空
+ */
+TEST_F(TestOverCommitFaultNodeModule, ExecuteBorrowForPid_ZeroLendSize_ReturnsError)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1235;
+    ctx.borrowNodeId = "node2";
+    ctx.remoteNumaSizeMap[2] = 4096ULL * 1024;
+    ctx.allocLendTargets = {{"node4", 0, 2, 0}};
+
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    BorrowForPidResult result = ExecuteBorrowForPid(ctx);
+
+    EXPECT_EQ(result.status, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
+    EXPECT_TRUE(result.perNuma.empty());
+}
+
+/*
+ * 用例描述：一个旧NUMA拆多笔新借用时，Finalize选borrowSizeKB最大者做BorrowIdRedirection（部分归还语义，
+ *           其余较小split由水线归还）
+ * 测试步骤：
+ * 1. ctx.numaToBorrowIds[2]={"old_bid_1"}，migratedNumaIds={2}
+ * 2. perNumaBorrows两笔：small(1024KB)与large(3072KB)
+ * 3. Mock MemFreeWithOpsForProcessMem与BorrowIdRedirection::Update捕获入参
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK，old_bid_1被释放
+ * 2. 重定向old_bid_1 → large（最大split），而非small
+ */
+TEST_F(TestOverCommitFaultNodeModule, FinalizePidProcessing_Redirection_LargestSplit)
+{
+    PidBorrowContext ctx;
+    ctx.pid = 1234;
+    ctx.numaToBorrowIds[2] = {"old_bid_1"};
+
+    std::vector<PerRemoteNumaBorrowResult> perNumaBorrows;
+    PerRemoteNumaBorrowResult small;
+    small.oldNumaId = 2;
+    small.newNumaId = 10;
+    small.borrowSizeKB = 1024;
+    small.newBorrowId = "small";
+    PerRemoteNumaBorrowResult large;
+    large.oldNumaId = 2;
+    large.newNumaId = 11;
+    large.borrowSizeKB = 3072;
+    large.newBorrowId = "large";
+    perNumaBorrows.push_back(small);
+    perNumaBorrows.push_back(large);
+
+    std::vector<uint16_t> migratedNumaIds{2};
+    std::unordered_set<std::string> freedOldBorrowIds;
+
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool))
+        .stubs()
+        .will(invoke(MockMemFreeWithOpsForProcessMemOk));
+    MOCKER_CPP(&BorrowIdRedirection::Update, MpResult(*)(BorrowIdRedirection*, const std::string, const std::string))
+        .stubs()
+        .will(invoke(MockBorrowIdRedirectionUpdate));
+
+    gFreedOldBorrowIds.clear();
+    gCapturedRedirections.clear();
+    MpResult ret = FinalizePidProcessing(ctx, perNumaBorrows, migratedNumaIds, freedOldBorrowIds);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(freedOldBorrowIds.size(), 1U);
+    EXPECT_TRUE(freedOldBorrowIds.count("old_bid_1") > 0);
+    ASSERT_EQ(gFreedOldBorrowIds.size(), 1U);
+    EXPECT_EQ(gFreedOldBorrowIds[0], "old_bid_1");
+    ASSERT_EQ(gCapturedRedirections.size(), 1U);
+    EXPECT_EQ(gCapturedRedirections[0].first, "old_bid_1");
+    EXPECT_EQ(gCapturedRedirections[0].second, "large");
 }
 
 } // namespace mempooling::over_commit
