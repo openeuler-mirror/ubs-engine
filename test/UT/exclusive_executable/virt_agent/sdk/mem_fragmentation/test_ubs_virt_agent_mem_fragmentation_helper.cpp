@@ -106,7 +106,8 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, allocate_memory_Success)
 TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Fail_NullBuffer)
 {
     NodeAntiDictionary node_dict = CreateTestNodeDict();
-    serialize_data(node_dict, nullptr);
+    auto ret = serialize_data(node_dict, nullptr, 0);
+    EXPECT_NE(ret, VA_SUCCESS);
 }
 
 TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
@@ -117,7 +118,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
 
     EXPECT_NE(buffer, nullptr);
 
-    serialize_data(node_dict, buffer);
+    serialize_data(node_dict, buffer, buffer_size);
 
     uint8_t* ptr = buffer;
     uint32_t entries_count = 0;

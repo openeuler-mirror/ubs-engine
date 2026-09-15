@@ -53,6 +53,7 @@ std::mutex HamMigrate::clearMutex{};
 std::condition_variable HamMigrate::clearCv{};
 std::atomic<bool> HamMigrate::exitFlag(false);
 std::atomic_bool HamMigrate::runFlag(false);
+std::thread HamMigrate::clearThread;
 // Maximum retry count for rollback configuration
 static const int MAX_RETRY_COUNT = 10;
 // Maximum retry interval for rollback configuration
@@ -121,17 +122,22 @@ VmResult HamMigrate::Run()
         UBSE_LOG_INFO << "HamMigrate ClearThread completed successfully.";
         return VM_OK;
     }
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    clearThread = std::thread(&HamMigrate::ClearQueueOperation);
     UBSE_LOG_INFO << "HamMigrate ClearThread start.";
     return VM_OK;
 }
 
 VmResult HamMigrate::Stop()
 {
-    exitFlag.store(true);
+    {
+        std::lock_guard<std::mutex> lock(clearMutex);
+        exitFlag.store(true);
+    }
     runFlag.exchange(false);
     clearCv.notify_all();
+    if (clearThread.joinable() && clearThread.get_id() != std::this_thread::get_id()) {
+        clearThread.join();
+    }
     UBSE_LOG_INFO << "HamMigrate ClearThread end.";
     return VM_OK;
 }
@@ -225,16 +231,17 @@ uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage& req, const UbseReques
         return VM_ERROR;
     }
     std::string body(reinterpret_cast<char*>(req.buffer), req.length);
-    UBSE_LOG_INFO << "HamMigrate request=" << body;
+    UBSE_LOG_INFO << "HamMigrate request received, len=" << body.size()
+                  << ", body=" << VmStringUtil::SanitizeLogStr(body);
     Document msgJson;
     msgJson.Parse(body.c_str());
     if (msgJson.HasParseError()) {
-        UBSE_LOG_ERROR << "Bad Json Format=" << body;
+        UBSE_LOG_ERROR << "Bad Json Format=" << VmStringUtil::SanitizeLogStr(body);
         return VM_ERROR;
     }
     std::string action;
     if (VMJsonUtil::GetString(msgJson, "action", action) != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to get action from json str=" << body;
+        UBSE_LOG_ERROR << "Failed to get action from json str=" << VmStringUtil::SanitizeLogStr(body);
         return VM_ERROR;
     }
     RespInfo respInfo;

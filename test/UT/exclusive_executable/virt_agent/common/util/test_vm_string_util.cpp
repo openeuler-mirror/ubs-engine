@@ -377,4 +377,35 @@ TEST_F(TestVmStringUtil, ValToByteInvalidUnit)
     std::string unit = "Byte";
     EXPECT_EQ(VmStringUtil::ValToByte(val, unit), val);
 }
+
+/**
+ * 测试方法: SanitizeLogStr
+ * 用例场景: 注入字符（换行/回车/制表符/DEL）被替换为空格，正常可打印字符保持不变
+ */
+TEST_F(TestVmStringUtil, SanitizeLogStrShouldReplaceControlChars)
+{
+    std::string input = "abc\r\ndef\tghi\x7fjkl";
+    EXPECT_EQ(VmStringUtil::SanitizeLogStr(input), "abc  def ghi jkl");
+}
+
+/**
+ * 测试方法: SanitizeLogStr
+ * 用例场景: 超长输入按 maxLen 截断，防止日志洪泛
+ */
+TEST_F(TestVmStringUtil, SanitizeLogStrShouldTruncateOverlongInput)
+{
+    std::string input(300, 'a');
+    EXPECT_EQ(VmStringUtil::SanitizeLogStr(input).size(), 128);
+    EXPECT_EQ(VmStringUtil::SanitizeLogStr(input, 16).size(), 16);
+}
+
+/**
+ * 测试方法: SanitizeLogStr
+ * 用例场景: 正常字符串与空串保持原样
+ */
+TEST_F(TestVmStringUtil, SanitizeLogStrShouldKeepNormalString)
+{
+    EXPECT_EQ(VmStringUtil::SanitizeLogStr("normal-case_123"), "normal-case_123");
+    EXPECT_EQ(VmStringUtil::SanitizeLogStr(""), "");
+}
 } // namespace ubse::ut::vm

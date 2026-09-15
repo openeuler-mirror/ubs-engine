@@ -31,6 +31,8 @@ public:
 private:
     EscapeAlgorithmHelper() = default;
     ~EscapeAlgorithmHelper() = default;
+    EscapeAlgorithmHelper(const EscapeAlgorithmHelper&) = delete;
+    EscapeAlgorithmHelper& operator=(const EscapeAlgorithmHelper&) = delete;
 };
 } // namespace vm
 #endif // ESCAPE_ALGORITHM_HELPER_H

@@ -54,6 +54,8 @@ public:
 private:
     AlarmHandler() = default;
     ~AlarmHandler() = default;
+    AlarmHandler(const AlarmHandler&) = delete;
+    AlarmHandler& operator=(const AlarmHandler&) = delete;
     static GlobalNumaInfoMap GetGlobalResource(const AlarmNumaInfo& alarmNumaInfo,
                                                std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos);
     static VmResult BorrowClearEventHandler(const AlarmNumaInfo& alarmNumaInfo);

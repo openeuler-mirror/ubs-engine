@@ -96,6 +96,31 @@ TEST_F(TestMemContainerMsg, MemContainerPidMemInfoOutputMsg_GetPidInfos)
     EXPECT_EQ(pidInfosGet.size(), 2);
 }
 
+TEST_F(TestMemContainerMsg, MemContainerPidMemInfoOutputMsg_Deserialize_RejectHugeVecSize)
+{
+    // 恶意/损坏输入：vecSize 超大而缓冲区极小，应立即失败而非无界循环分配内存（DoS）
+    VmSerialization out;
+    const size_t hugeCount = 0x7FFFFFFF;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemContainerPidMemInfoOutputMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR);
+}
+
+TEST_F(TestMemContainerMsg, MemContainerPidMemInfoOutputMsg_Deserialize_RejectHugeNumaSize)
+{
+    // 恶意/损坏输入：记录中 numaSize 超大且无后续数据，应立即失败而非无界 push_back（DoS）
+    VmSerialization out;
+    const size_t vecSize = 1;
+    const pid_t pid = 1234;
+    const uint64_t localUsedMem = 100;
+    const size_t hugeNumaSize = 0x7FFFFFFF;
+    out << vecSize << pid << localUsedMem << hugeNumaSize;
+    ASSERT_TRUE(out.Check());
+    MemContainerPidMemInfoOutputMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR);
+}
+
 TEST_F(TestMemContainerMsg, UpdateWaterLineForCInputMsg_Serialize_Deserialize)
 {
     WaterMark waterMark{85, 80};

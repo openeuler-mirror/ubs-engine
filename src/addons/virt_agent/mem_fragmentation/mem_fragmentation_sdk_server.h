@@ -114,7 +114,7 @@ private:
     static void AsyncBorrowWorker(std::shared_ptr<AsyncBorrowCtx> ctx, const std::string& taskId,
                                   const MemBorrowStrategyResult& borrowStrategyRst);
     static void AsyncBorrowWatcher(std::shared_ptr<AsyncBorrowCtx> ctx);
-    static void AsyncBorrowCountDown(std::shared_ptr<AsyncBorrowCtx> ctx);
+    static void AsyncBorrowCountDown(std::shared_ptr<AsyncBorrowCtx> ctx, size_t count = 1);
     static VmResult SyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,
                                       std::vector<mem_borrow_result_c>& memBorrowRstCs);
     static VmResult AsyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,

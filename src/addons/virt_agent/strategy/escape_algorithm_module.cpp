@@ -80,8 +80,12 @@ EscapeAlgorithmFunc EscapeAlgorithmModule::GetStrategyAlgorithm()
 
 void EscapeAlgorithmModule::CloseStrategyHandle()
 {
-    if (algorithmHandle != nullptr && dlclose(algorithmHandle) != 0) {
+    if (algorithmHandle == nullptr) {
+        return;
+    }
+    if (dlclose(algorithmHandle) != 0) {
         UBSE_LOG_ERROR << "Failed to close StrategyAlgorithmHandle, error: " << dlerror();
+        return;
     }
     escapeAlgorithmInitFunc = nullptr;
     escapeAlgorithmFunc = nullptr;
