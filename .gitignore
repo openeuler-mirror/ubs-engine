@@ -27,3 +27,12 @@ __pycache__
 .opencode/user.*
 code_review_report
 .codegraph/
+
+# DT Fuzz 构建目录与 gcov 中间产物
+build-ft*
+*.gcov
+# fuzz 运行时生成的崩溃/语料目录（每次运行自动重建）
+ft_corpus_*/
+ft_crash_*/
+# fuzz 运行时生成的结果日志
+/test/Fuzz/results/
