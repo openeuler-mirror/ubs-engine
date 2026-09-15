@@ -303,6 +303,15 @@ std::vector<container_pid_info_for_c> ContainerPidsForCInputMsg::GetContainerPid
     return containerPidInfos;
 }
 
+ContainerPidsForCInputMsg::~ContainerPidsForCInputMsg()
+{
+    if (ownsContainerIds_) {
+        for (auto& info : containerPidInfos_) {
+            SafeDeleteArray(info.containerId);
+        }
+    }
+}
+
 VmResult ContainerPidsForCInputMsg::Serialize()
 {
     VmSerialization out;
@@ -334,10 +343,16 @@ VmResult ContainerPidsForCInputMsg::Deserialize()
     VmDeSerialization in(mInputRawData, mInputRawDataSize);
     size_t vecSize = 0;
     in >> vecSize;
-    if (!in.Check()) {
+    if (!in.Check() || vecSize > MAX_CONTAINER_NUM) {
         return VM_ERROR;
     }
 
+    if (ownsContainerIds_) {
+        for (auto& info : containerPidInfos_) {
+            SafeDeleteArray(info.containerId);
+        }
+        ownsContainerIds_ = false;
+    }
     containerPidInfos_.clear();
     for (size_t i = 0; i < vecSize; ++i) {
         container_pid_info_for_c info{};
@@ -368,6 +383,7 @@ VmResult ContainerPidsForCInputMsg::Deserialize()
         return VM_ERROR;
     }
 
+    ownsContainerIds_ = true;
     return VM_OK;
 }
 

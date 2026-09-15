@@ -14,6 +14,7 @@
 #include "mem_fragmentation_msg.h"
 
 #include <securec.h>
+#include <cstdlib>
 #include "msg_utils.h"
 #include "vm_serial_util.h"
 
@@ -209,13 +210,20 @@ VmResult MemFragmentationMsg::Deserialize()
 VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t>& numaInfo)
 {
     numaInfo.clear();
+    auto releaseNumaInfo = [&numaInfo]() {
+        for (auto& item : numaInfo) {
+            free(item.huge_page_data);
+            item.huge_page_data = nullptr;
+        }
+        numaInfo.clear();
+    };
     for (auto& info : numaInfos_) {
-        numa_info_t data;
+        numa_info_t data{};
         data.timestamp = info.timestamp;
         auto ret = StringToC(data.node_id, info.metaData.nodeId, VIRT_MEM_MAX_NODE_ID_LENGTH);
         ret |= StringToC(data.host_name, info.metaData.hostName, UBS_VA_HOST_NAME_MAX);
         if (ret != VM_OK) {
-            SafeDeleteArray(data.huge_page_data);
+            releaseNumaInfo();
             return ret;
         }
         data.numa_id = info.metaData.numaId;
@@ -225,8 +233,9 @@ VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t>& numaInfo)
         data.mem_free = info.metaData.memFree;
         data.numaPageInfoCount = info.metaData.numaPageInfo.size();
         if (data.numaPageInfoCount != 0) {
-            data.huge_page_data = new (std::nothrow) numa_page_data[data.numaPageInfoCount];
+            data.huge_page_data = static_cast<numa_page_data*>(calloc(data.numaPageInfoCount, sizeof(numa_page_data)));
             if (data.huge_page_data == nullptr) {
+                releaseNumaInfo();
                 return VM_ERROR_NOMEM;
             }
             uint64_t i = 0;
@@ -333,11 +342,18 @@ VmResult MemFragmentationVmInfoMsg::Deserialize()
     return VM_OK;
 }
 
-std::vector<vm_domain_info_for_c> MemFragmentationVmInfoMsg::GetVmInfo()
+VmResult MemFragmentationVmInfoMsg::GetVmInfo(std::vector<vm_domain_info_for_c>& vmInfo)
 {
-    std::vector<vm_domain_info_for_c> vmInfo{};
+    vmInfo.clear();
+    auto releaseVmInfo = [&vmInfo]() {
+        for (auto& item : vmInfo) {
+            free(item.numaInfo);
+            item.numaInfo = nullptr;
+        }
+        vmInfo.clear();
+    };
     for (auto& info : vmInfoList_) {
-        vm_domain_info_for_c data;
+        vm_domain_info_for_c data{};
         data.timestamp = info.timestamp;
         auto ret = StringToC(data.metadata.nodeId, info.metaData.nodeId, VIRT_MEM_MAX_NODE_ID_LENGTH);
         ret |= StringToC(data.metadata.hostName, info.metaData.hostName, UBS_VA_HOST_NAME_MAX);
@@ -345,29 +361,33 @@ std::vector<vm_domain_info_for_c> MemFragmentationVmInfoMsg::GetVmInfo()
         ret |= StringToC(data.metadata.name, info.metaData.name, VIRT_MAX_NAME_LENGTH);
         ret |= StringToC(data.metadata.state, info.metaData.state, VIRT_MAX_STATE_LENGTH);
         if (ret != VM_OK) {
-            return {};
+            releaseVmInfo();
+            return ret;
         }
         data.metadata.vmCreateTime = info.metaData.vmCreateTime;
         data.metadata.maxMem = info.metaData.maxMem;
         data.metadata.pid = info.metaData.pid;
 
         data.numaInfoCount = info.numaInfo.size();
-        data.numaInfo = new (std::nothrow) vm_numa_info_for_c[data.numaInfoCount];
-        if (data.numaInfo == nullptr) {
-            return {};
-        }
-        uint64_t i = 0;
-        for (auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
-            data.numaInfo[i].numaId = vmDomainNumaInfo.numaId;
-            data.numaInfo[i].socketId = vmDomainNumaInfo.socketId;
-            data.numaInfo[i].isLocal = vmDomainNumaInfo.isLocal;
-            data.numaInfo[i].pageSize = vmDomainNumaInfo.pageSize;
-            data.numaInfo[i].usedMem = vmDomainNumaInfo.usedMem;
-            i++;
+        if (data.numaInfoCount != 0) {
+            data.numaInfo = static_cast<vm_numa_info_for_c*>(calloc(data.numaInfoCount, sizeof(vm_numa_info_for_c)));
+            if (data.numaInfo == nullptr) {
+                releaseVmInfo();
+                return VM_ERROR_NOMEM;
+            }
+            uint64_t i = 0;
+            for (auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
+                data.numaInfo[i].numaId = vmDomainNumaInfo.numaId;
+                data.numaInfo[i].socketId = vmDomainNumaInfo.socketId;
+                data.numaInfo[i].isLocal = vmDomainNumaInfo.isLocal;
+                data.numaInfo[i].pageSize = vmDomainNumaInfo.pageSize;
+                data.numaInfo[i].usedMem = vmDomainNumaInfo.usedMem;
+                i++;
+            }
         }
         vmInfo.push_back(data);
     }
-    return vmInfo;
+    return VM_OK;
 }
 
 VmResult MemFragmentationMemBorrowStrategyInputMsg::Serialize()
@@ -966,6 +986,7 @@ VmResult MemFragmentationMemMigrateStrategyOutputMsg::SetOutputMsg(MigrateStrate
     }
     outputMsg.vmInfoListSize = migrateStrategyResult.vmInfoList.size();
     outputMsg.waitingTime = migrateStrategyResult.waitingTime;
+    SafeDeleteArray(outputMsg.vmInfoList);
     outputMsg.vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
     if (outputMsg.vmInfoList == nullptr) {
         return VM_ERROR_NOMEM;
@@ -1024,6 +1045,7 @@ VmResult MemFragmentationMemMigrateStrategyOutputMsg::Deserialize()
     if (outputMsg.vmInfoListSize > MAX_VM_NUM) {
         return VM_ERROR_INVAL;
     }
+    SafeDeleteArray(outputMsg.vmInfoList);
     outputMsg.vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
     if (outputMsg.vmInfoList == nullptr) {
         return VM_ERROR_NOMEM;

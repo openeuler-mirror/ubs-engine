@@ -16,6 +16,7 @@
 #include <securec.h>
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
+#include <cstdlib>
 #include <cstring>
 #include "src/sdk/c/include/ubs_error.h"
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
@@ -264,8 +265,12 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t& response_buffer, c
         IPC_LOG_ERROR << "Response buffer contains empty string";
         return false;
     }
+    if (response_str_len >= MEM_TASK_ID_MAX) {
+        IPC_LOG_ERROR << "Task ID length exceeds maximum allowed: " << response_str_len;
+        return false;
+    }
 
-    *task_id = new (std::nothrow) char[response_str_len + 1];
+    *task_id = static_cast<char*>(calloc(response_str_len + 1, sizeof(char)));
     if (*task_id == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for task_id, length = " << response_str_len;
         return false;
@@ -274,7 +279,7 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t& response_buffer, c
     errno_t result = memcpy_s(*task_id, response_str_len + 1, response_str, response_str_len);
     if (result != 0) {
         IPC_LOG_ERROR << "memcpy_s failed for task_id: " << result;
-        delete[] * task_id;
+        free(*task_id);
         *task_id = nullptr;
         return false;
     }
@@ -512,7 +517,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, cons
         IPC_LOG_ERROR << "MemFragmentationMemBorrowParamMsg Serialize failed, err=" << ret;
         return VA_ERROR_SERIALIZE_FAILED;
     }
-    const ubse_api_buffer_t requestBuffer = {
+    ubse_api_buffer_t requestBuffer = {
         .buffer = reqMsg.SerializedData(),
         .length = reqMsg.SerializedDataSize(),
     };
@@ -522,6 +527,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, cons
     };
     const uint32_t invokeRet =
         ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_BORROW, &requestBuffer, &responseBuffer);
+    ubse_api_buffer_delete(&requestBuffer);
     if (invokeRet != UBS_SUCCESS) {
         IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
         ubse_api_buffer_free(&responseBuffer);

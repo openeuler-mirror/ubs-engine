@@ -442,6 +442,13 @@ void StatusManager::BorrowQueueOperation()
             }
             RemoveTaskFilterSet(curNodeLoc);
             UBSE_LOG_WARN << "[borrow] pid is empty.";
+            if (completionState) {
+                completionState->promise.set_value(VM_ERROR);
+            }
+            {
+                std::scoped_lock lock(g_inFlightBorrowMutex);
+                g_inFlightBorrowMap.erase(curNodeLoc.toString());
+            }
             continue;
         }
         VmResult borrowResult = VM_OK;

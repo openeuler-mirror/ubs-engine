@@ -34,10 +34,27 @@ void convertContainerIdListFromGoSDKToC(container_id_list& containerIdListForGoS
 }
 
 // Conversion from container_pid_info_for_c to container_pid_info_for_go_sdk
-void convertContainerIdInfoFromCToGoSDK(container_pid_info_for_c& containerIdInfoForC,
-                                        container_pid_info& containerIdInfoForGoSDK)
+// Deep-copy containerId to calloc memory to match the outer calloc array allocator,
+// so the Go side can release everything uniformly with C.free.
+int32_t convertContainerIdInfoFromCToGoSDK(container_pid_info_for_c& containerIdInfoForC,
+                                           container_pid_info& containerIdInfoForGoSDK)
 {
     containerIdInfoForGoSDK = *reinterpret_cast<container_pid_info*>(&containerIdInfoForC);
+    if (containerIdInfoForC.containerId == nullptr) {
+        return VA_SUCCESS;
+    }
+    size_t cidLen = strnlen(containerIdInfoForC.containerId, SDK_NO_128) + 1;
+    containerIdInfoForGoSDK.containerId = static_cast<char*>(calloc(cidLen, sizeof(char)));
+    if (containerIdInfoForGoSDK.containerId == nullptr) {
+        return VA_ERROR_MEM_ALLOCATE_FAILED;
+    }
+    errno_t cRet = strcpy_s(containerIdInfoForGoSDK.containerId, cidLen, containerIdInfoForC.containerId);
+    if (cRet != 0) {
+        free(containerIdInfoForGoSDK.containerId);
+        containerIdInfoForGoSDK.containerId = nullptr;
+        return VA_ERROR_MEM_COPY_FAILED;
+    }
+    return VA_SUCCESS;
 }
 
 // Conversion from WaterMarkForGoSDK to WaterMarkForC
@@ -102,7 +119,15 @@ int32_t ubse_output_unpack_for_containerInfos(uint8_t* buffer, uint32_t len, con
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
     for (uint32_t i = 0; i < *InfoSize; ++i) {
-        convertContainerIdInfoFromCToGoSDK(containerPidInfoC[i], (*containerInfos)[i]);
+        auto cRet = convertContainerIdInfoFromCToGoSDK(containerPidInfoC[i], (*containerInfos)[i]);
+        if (cRet != VA_SUCCESS) {
+            for (uint32_t j = 0; j < i; ++j) {
+                free((*containerInfos)[j].containerId);
+            }
+            free(*containerInfos);
+            *containerInfos = nullptr;
+            return cRet;
+        }
         (*containerInfos)[i].pidsCount = containerPidInfoC[i].pidsCount;
     }
     IPC_LOG_INFO << "ubse_output_unpack_for_containerInfos success.";

@@ -50,6 +50,9 @@ class UbsVirtAgentNodeInfo(UbsVirtAgentBase):
             )
         finally:
             if node_info_ptr:
+                for i in range(info_count.value):
+                    if node_info_ptr[i].numaPageInfo:
+                        self.lib_ubse.free(node_info_ptr[i].numaPageInfo)
                 self.lib_ubse.free(node_info_ptr)
 
     def _setup_topo_functions(self):

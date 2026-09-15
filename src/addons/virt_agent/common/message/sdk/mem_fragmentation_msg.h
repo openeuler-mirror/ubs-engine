@@ -198,7 +198,7 @@ public:
         SetInputRawData(rawData, size);
     }
 
-    std::vector<vm_domain_info_for_c> GetVmInfo();
+    VmResult GetVmInfo(std::vector<vm_domain_info_for_c>& vmInfo);
 
     VmResult Serialize() override;
 
