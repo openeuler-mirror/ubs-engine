@@ -999,7 +999,6 @@ bool CollectPidBorrowInfo(const std::vector<BorrowRecord>& records, PidBorrowCon
 
     for (const auto& record : records) {
         ctx.oldBorrowIds.push_back(record.name);
-        ctx.remoteTotalSizeKB += record.size;
         if (record.borrowRemoteNuma >= 0) {
             uint16_t numaId = static_cast<uint16_t>(record.borrowRemoteNuma);
             ctx.remoteNumaIds.push_back(numaId);
@@ -1008,7 +1007,6 @@ bool CollectPidBorrowInfo(const std::vector<BorrowRecord>& records, PidBorrowCon
         }
         if (ctx.borrowNodeId.empty()) {
             ctx.borrowNodeId = record.borrowNode;
-            ctx.borrowLocalNuma = record.borrowLocalNuma;
             ctx.borrowSocketId = record.borrowSocketId;
             ctx.uid = record.uid;
             ctx.username = record.username;
@@ -1035,25 +1033,6 @@ BorrowForPidResult ExecuteBorrowForPid(const PidBorrowContext& ctx)
     srcParam.uid = ctx.uid;
     srcParam.username = ctx.username;
 
-    // Per-NUMA sizes: one independent borrow per old remote NUMA. Sizes are NOT
-    // aggregated: each iteration of remoteNumaSizeMap yields exactly one borrow entry.
-    // Order is preserved by std::unordered_map iteration, but we key each returned
-    // result by its oldNumaId so callers don't rely on iteration order.
-    std::vector<uint16_t> orderedOldNumaIds;
-    std::vector<uint64_t> borrowSizes;
-    orderedOldNumaIds.reserve(ctx.remoteNumaSizeMap.size());
-    borrowSizes.reserve(ctx.remoteNumaSizeMap.size());
-    for (const auto& [oldNumaId, sizeKB] : ctx.remoteNumaSizeMap) {
-        orderedOldNumaIds.push_back(oldNumaId);
-        borrowSizes.push_back(sizeKB);
-    }
-
-    if (borrowSizes.empty()) {
-        LOG_ERROR << "[FaultManager][Simplified] No remote NUMA sizes to borrow for pid=" << ctx.pid << ".";
-        result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
-        return result;
-    }
-
     WaterMark waterMark;
     auto waterMarkRet = OverCommitFaultMemIdModule::Instance().GetWaterMark(waterMark);
     if (waterMarkRet != MEM_POOLING_OK) {
@@ -1061,43 +1040,80 @@ BorrowForPidResult ExecuteBorrowForPid(const PidBorrowContext& ctx)
         result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
         return result;
     }
-
+    auto waterMarkVal =
+        mempooling::WaterMark({.highWaterMark = waterMark.highWaterMark, .lowWaterMark = waterMark.lowWaterMark});
     MemBorrowExecuteResult borrowExecuteResult;
     ProcessMemUsrInfo processMemUsrInfo = {
         .pluginId = UsrInfoPluginType::PROCESS_MEM, .pid = ctx.pid, .startTime = ctx.startTime};
-    auto waterMarkVal =
-        mempooling::WaterMark({.highWaterMark = waterMark.highWaterMark, .lowWaterMark = waterMark.lowWaterMark});
-    // 主节点已通过辗转相减分配目标借出节点：候选借出节点收窄为该节点列表，空则回退现逻辑
-    auto ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
-        srcParam, borrowSizes, waterMarkVal, borrowExecuteResult, processMemUsrInfo, ctx.allocLendNodeIds);
 
-    // The per-numa contract requires all N independent borrows to succeed; a partial
-    // success (some borrowIds returned, some missing) is treated as a hard failure so
-    // the caller can retry with the full set. We do not silently discard the partial
-    // result because the returned borrowIds would otherwise leak: the new remote
-    // NUMAs are unrelated to the old ones and no migration would be scheduled for the
-    // missing ones.
-    if (ret != MEM_POOLING_OK || borrowExecuteResult.borrowIds.size() != borrowSizes.size() ||
-        borrowExecuteResult.presentNumaId.size() != borrowSizes.size()) {
-        LOG_ERROR << "[FaultManager][Simplified] MemBorrowExecuteForFaultInOverCommit failed for pid=" << ctx.pid
-                  << ", expected=" << borrowSizes.size() << ", got borrowIds=" << borrowExecuteResult.borrowIds.size()
-                  << ", presentNumaId=" << borrowExecuteResult.presentNumaId.size() << ".";
-        result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+    // 量纲路径：主节点已决策 (node,socket,size) 拆分；
+    // 空决策或存在 lendSizeKB==0 的目标（无量纲）时直接失败，不回退 legacy 借用
+    const bool hasDimensionedTargets =
+        !ctx.allocLendTargets.empty() &&
+        std::all_of(ctx.allocLendTargets.begin(), ctx.allocLendTargets.end(),
+                    [](const SimplifiedFaultPidAllocTarget& t) { return t.lendSizeKB > 0; });
+    if (hasDimensionedTargets) {
+        // 按 srcFaultNumaId 分组构建 FaultBorrowSplit 列表
+        std::vector<FaultBorrowSplit> splits;
+        splits.reserve(ctx.allocLendTargets.size());
+        // 校验每组 sum vs remoteNumaSizeMap
+        std::unordered_map<uint16_t, uint64_t> splitSum;
+        for (const auto& target : ctx.allocLendTargets) {
+            splits.push_back({target.srcFaultNumaId, target.lendNodeId, target.lendSocketId,
+                              target.lendSizeKB * KB_TO_B}); // KB→字节
+            splitSum[target.srcFaultNumaId] += target.lendSizeKB;
+        }
+        bool sumMismatch = false;
+        for (const auto& [oldNumaId, sumKB] : splitSum) {
+            auto expectedIt = ctx.remoteNumaSizeMap.find(oldNumaId);
+            uint64_t expectedKB = expectedIt != ctx.remoteNumaSizeMap.end() ? expectedIt->second / KB_TO_B : 0;
+            if (sumKB != expectedKB) {
+                LOG_WARN << "[FaultManager][Simplified] Split sum mismatch for oldNumaId=" << oldNumaId
+                         << ", splitSumKB=" << sumKB << ", expectedKB=" << expectedKB << " (use master split).";
+                sumMismatch = true;
+            }
+        }
+        if (sumMismatch) {
+            LOG_WARN << "[FaultManager][Simplified] Split sum mismatch detected, proceeding with master splits.";
+        }
+
+        auto ret = MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(
+            srcParam, splits, waterMarkVal, borrowExecuteResult, processMemUsrInfo);
+
+        // The per-numa contract requires all N independent borrows to succeed; a partial
+        // success (some borrowIds returned, some missing) is treated as a hard failure so
+        // the caller can retry with the full set. We do not silently discard the partial
+        // result because the returned borrowIds would otherwise leak: the new remote
+        // NUMAs are unrelated to the old ones and no migration would be scheduled for the
+        // missing ones.
+        if (ret != MEM_POOLING_OK || borrowExecuteResult.borrowIds.size() != splits.size() ||
+            borrowExecuteResult.presentNumaId.size() != splits.size()) {
+            LOG_ERROR << "[FaultManager][Simplified] MemBorrowExecuteSplits failed for pid=" << ctx.pid
+                      << ", expected=" << splits.size() << ", got borrowIds=" << borrowExecuteResult.borrowIds.size()
+                      << ", presentNumaId=" << borrowExecuteResult.presentNumaId.size() << ".";
+            result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+            return result;
+        }
+
+        result.perNuma.reserve(splits.size());
+        for (size_t i = 0; i < splits.size(); ++i) {
+            PerRemoteNumaBorrowResult entry;
+            entry.oldNumaId = splits[i].oldNumaId;
+            entry.newNumaId = borrowExecuteResult.presentNumaId[i];
+            entry.borrowSizeKB = splits[i].sizeBytes / KB_TO_B; // 字节→KB，存为KB以与现有结构体一致
+            entry.newBorrowId = borrowExecuteResult.borrowIds[i];
+            result.perNuma.push_back(std::move(entry));
+        }
+        result.status = MEM_POOLING_OK;
+        LOG_DEBUG << "[FaultManager][Simplified] Borrow success (master splits), pid=" << ctx.pid
+                  << ", perNumaBorrows.size=" << result.perNuma.size() << ".";
         return result;
     }
 
-    result.perNuma.reserve(borrowSizes.size());
-    for (size_t i = 0; i < borrowSizes.size(); ++i) {
-        PerRemoteNumaBorrowResult entry;
-        entry.oldNumaId = orderedOldNumaIds[i];
-        entry.newNumaId = borrowExecuteResult.presentNumaId[i];
-        entry.borrowSizeKB = borrowSizes[i];
-        entry.newBorrowId = borrowExecuteResult.borrowIds[i];
-        result.perNuma.push_back(std::move(entry));
-    }
-    result.status = MEM_POOLING_OK;
-    LOG_DEBUG << "[FaultManager][Simplified] Borrow success, pid=" << ctx.pid
-              << ", perNumaBorrows.size=" << result.perNuma.size() << ".";
+    // 主节点未下发有效量纲决策（理论不可达，版本偏差防御）：直接失败，由调用方重试
+    LOG_ERROR << "[FaultManager][Simplified] Invalid or empty lend decision from master, pid=" << ctx.pid
+              << ", targetCount=" << ctx.allocLendTargets.size() << ".";
+    result.status = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     return result;
 }
 
@@ -1113,13 +1129,15 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, const std::vector<PerRemoteNuma
         return MEM_POOLING_ERROR;
     }
 
-    // Each entry migrates a single old remote NUMA to its own new remote NUMA. Reserve
-    // every destination independently and lock each; this matches the per-NUMA
-    // contract and avoids two entries fighting for the same FaultNumaReservedLock slot.
+    // Each entry migrates a single old remote NUMA to its own new remote NUMA. With the
+    // master-split path, destination NUMAs may be legitimately shared by multiple splits
+    // and pids (same lender node+socket), so destinations are NOT reserved here.
+    // IsReserved only rejects targeting a NUMA that is currently being evacuated
+    // (reserved by the fault-source pre-check in ProcessSimplifiedFaultPids).
     FaultNumaReservedGuard reservedGuard;
     FaultNumaLockGuard lockGuard;
     for (const auto& entry : perNumaBorrows) {
-        if (!FaultNumaReservedLock::Instance().TryReserve(entry.newNumaId)) {
+        if (FaultNumaReservedLock::Instance().IsReserved(entry.newNumaId)) {
             LOG_ERROR << "[FaultManager][Simplified] Fault target NUMA already reserved, newNumaId=" << entry.newNumaId
                       << ".";
             return MEM_POOLING_ERROR;
@@ -1190,10 +1208,15 @@ MpResult FinalizePidProcessing(const PidBorrowContext& ctx,
     // Build (oldNumaId -> newBorrowId) lookup so we can rewrite the BorrowIdRedirection
     // entry for each released old borrowId to the correct new borrowId. This avoids
     // having a single "newBorrowId" parameter that incorrectly aggregates destinations.
+    // 拆分后一个旧NUMA有多个newBorrowId，选借出量最大的进行redirect（部分归还语义，其余由水线归还）
     std::unordered_map<uint16_t, std::string> newBorrowIdByOldNuma;
-    newBorrowIdByOldNuma.reserve(perNumaBorrows.size());
+    std::unordered_map<uint16_t, uint64_t> maxBorrowSizeByOldNuma;
     for (const auto& entry : perNumaBorrows) {
-        newBorrowIdByOldNuma[entry.oldNumaId] = entry.newBorrowId;
+        auto it = maxBorrowSizeByOldNuma.find(entry.oldNumaId);
+        if (it == maxBorrowSizeByOldNuma.end() || entry.borrowSizeKB > it->second) {
+            maxBorrowSizeByOldNuma[entry.oldNumaId] = entry.borrowSizeKB;
+            newBorrowIdByOldNuma[entry.oldNumaId] = entry.newBorrowId;
+        }
     }
 
     MpResult finalRet = MEM_POOLING_OK;
@@ -1427,7 +1450,6 @@ void RecordPendingMigrationState(const PidBorrowContext& ctx,
     pendingState.oldBorrowIds = ctx.oldBorrowIds;
     pendingState.borrowNodeId = ctx.borrowNodeId;
     pendingState.pid = ctx.pid;
-    pendingState.remoteTotalSizeKB = ctx.remoteTotalSizeKB;
     pendingState.remoteNumaIds = ctx.remoteNumaIds;
     pendingState.remoteNumaSizeMap = ctx.remoteNumaSizeMap;
     pendingState.numaToBorrowIds = ctx.numaToBorrowIds;
@@ -1453,15 +1475,26 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
     PidBorrowContext ctx;
     ctx.pid = pid;
     ctx.startTime = startTime;
-    for (const auto& target : allocTargets) {
-        if (!target.lendNodeId.empty()) {
-            ctx.allocLendNodeIds.push_back(target.lendNodeId);
-        }
-    }
-    // 去重
-    std::sort(ctx.allocLendNodeIds.begin(), ctx.allocLendNodeIds.end());
-    ctx.allocLendNodeIds.erase(std::unique(ctx.allocLendNodeIds.begin(), ctx.allocLendNodeIds.end()),
-                               ctx.allocLendNodeIds.end());
+    // 主节点决策目标（节点+socket+chunk+量纲）：按 srcFaultNumaId 分组排序，保证目标选择确定性
+    ctx.allocLendTargets = allocTargets; // 直接复制（含 lendNodeId/lendSocketId/srcFaultNumaId/lendSizeKB）
+    // 虽然 AllocatePidsToSockets 已保证无严格重复，但防御性去重（键为 nodeId+socketId+srcFaultNumaId）
+    std::sort(ctx.allocLendTargets.begin(), ctx.allocLendTargets.end(),
+              [](const SimplifiedFaultPidAllocTarget& a, const SimplifiedFaultPidAllocTarget& b) {
+                  if (a.srcFaultNumaId != b.srcFaultNumaId) {
+                      return a.srcFaultNumaId < b.srcFaultNumaId;
+                  }
+                  if (a.lendSocketId != b.lendSocketId) {
+                      return a.lendSocketId < b.lendSocketId;
+                  }
+                  return a.lendNodeId < b.lendNodeId;
+              });
+    ctx.allocLendTargets.erase(
+        std::unique(ctx.allocLendTargets.begin(), ctx.allocLendTargets.end(),
+                    [](const SimplifiedFaultPidAllocTarget& a, const SimplifiedFaultPidAllocTarget& b) {
+                        return a.lendNodeId == b.lendNodeId && a.lendSocketId == b.lendSocketId &&
+                               a.srcFaultNumaId == b.srcFaultNumaId;
+                    }),
+        ctx.allocLendTargets.end());
     if (!CollectPidBorrowInfo(records, ctx)) {
         return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
@@ -1646,7 +1679,7 @@ MpResult CollectClusterSocketQueue(
             }
         }
         for (const auto& [socketId, canBorrowMem] : socketCanBorrowMem) {
-            socketQueueBySocketId[static_cast<int>(socketId)].push_back({nodeId, canBorrowMem});
+            socketQueueBySocketId[static_cast<int>(socketId)].push_back({nodeId, canBorrowMem, blockSizeKb});
         }
     }
     // 所有候选节点均无可借内存
@@ -1657,32 +1690,48 @@ MpResult CollectClusterSocketQueue(
     return MEM_POOLING_OK;
 }
 
-MpResult AllocatePidsToSockets(
-    const std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes,
-    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
-    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
-    std::vector<pid_t>& unallocatedPids)
+MpResult AllocatePidsToSockets(const std::unordered_map<pid_t, std::vector<PidChunkInfo>>& pidChunks,
+                               std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
+                               std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
+                               std::vector<pid_t>& unallocatedPids)
 {
     pidAllocMap.clear();
     unallocatedPids.clear();
 
-    // 每个 socketId 的剩余可借容量
-    std::unordered_map<int, uint64_t> socketRemaining;
-    for (const auto& [socketId, nodes] : socketQueueBySocketId) {
-        uint64_t total = 0;
-        for (const auto& node : nodes) {
-            total += node.canBorrowMem;
+    // 每个（节点,socket）的剩余可借容量账本：携带该节点借出粒度 blockSizeKb
+    // （0=节点信息无效，不对齐），用于 take 的 block 取整防御
+    struct NodeSocketKey {
+        int socketId;
+        std::string nodeId;
+        bool operator==(const NodeSocketKey& other) const
+        {
+            return socketId == other.socketId && nodeId == other.nodeId;
         }
-        socketRemaining[socketId] = total;
+    };
+    struct NodeSocketKeyHash {
+        std::size_t operator()(const NodeSocketKey& k) const
+        {
+            return std::hash<int>{}(k.socketId) ^ (std::hash<std::string>{}(k.nodeId) << 1);
+        }
+    };
+    struct NodeLedgerEntry {
+        uint64_t remainingCap = 0;
+        uint64_t blockSizeKb = 0;
+    };
+    std::unordered_map<NodeSocketKey, NodeLedgerEntry, NodeSocketKeyHash> nodeRemaining;
+    for (const auto& [socketId, nodes] : socketQueueBySocketId) {
+        for (const auto& node : nodes) {
+            nodeRemaining[{socketId, node.nodeId}] = {node.canBorrowMem, node.blockSizeKb};
+        }
     }
 
     // 进程按总占用大小升序
     std::vector<pid_t> pidOrder;
     std::unordered_map<pid_t, uint64_t> pidTotalSize;
-    for (const auto& [pid, chunks] : pidSocketSizes) {
+    for (const auto& [pid, chunks] : pidChunks) {
         uint64_t total = 0;
-        for (const auto& [size, socketId] : chunks) {
-            total += size;
+        for (const auto& chunk : chunks) {
+            total += chunk.sizeKB;
         }
         pidTotalSize[pid] = total;
         pidOrder.push_back(pid);
@@ -1695,44 +1744,83 @@ MpResult AllocatePidsToSockets(
     });
 
     LOG_INFO << "[FaultManager][Simplified] AllocatePidsToSockets start, pidCount=" << pidOrder.size()
-             << ", socketCount=" << socketRemaining.size() << ".";
+             << ", nodeSocketCount=" << nodeRemaining.size() << ".";
 
     for (pid_t pid : pidOrder) {
         std::vector<SimplifiedFaultPidAllocTarget> allocTargets;
-        std::unordered_set<int> usedSocketIds;
         bool success = true;
-        for (const auto& [needSize, preferredSocketId] : pidSocketSizes.at(pid)) {
-            uint64_t remaining = needSize;
-            // 优先从 preferredSocketId 分配，耗尽则回退到其他 socket
-            while (remaining > 0 && !socketRemaining.empty()) {
+        for (const auto& chunk : pidChunks.at(pid)) {
+            uint64_t remaining = chunk.sizeKB;
+            // 逐（节点,socket）目标扣减余量账
+            while (remaining > 0 && !nodeRemaining.empty()) {
+                // 选目标 socket：首选 chunk 的 socket，无容量时选总余量最大的 socket
                 int targetSocketId = -1;
-                if (socketRemaining.count(preferredSocketId) > 0 && socketRemaining[preferredSocketId] > 0) {
-                    targetSocketId = preferredSocketId;
-                } else {
-                    // 选剩余容量最大的 socket
-                    uint64_t bestCap = 0;
-                    for (const auto& [sid, cap] : socketRemaining) {
-                        if (cap > bestCap) {
-                            bestCap = cap;
-                            targetSocketId = sid;
+                {
+                    bool preferredAlive = false;
+                    for (const auto& [key, entry] : nodeRemaining) {
+                        if (key.socketId == chunk.preferredSocketId && entry.remainingCap > 0) {
+                            preferredAlive = true;
+                            break;
                         }
                     }
-                    if (targetSocketId == -1) {
-                        break;
+                    if (preferredAlive) {
+                        targetSocketId = chunk.preferredSocketId;
+                    } else {
+                        std::unordered_map<int, uint64_t> socketTotal;
+                        for (const auto& [key, entry] : nodeRemaining) {
+                            if (entry.remainingCap > 0) {
+                                socketTotal[key.socketId] += entry.remainingCap;
+                            }
+                        }
+                        uint64_t bestTotal = 0;
+                        for (const auto& [sid, total] : socketTotal) {
+                            if (total > bestTotal) {
+                                bestTotal = total;
+                                targetSocketId = sid;
+                            }
+                        }
                     }
                 }
-                uint64_t take = std::min(remaining, socketRemaining[targetSocketId]);
+                if (targetSocketId < 0) {
+                    break;
+                }
+
+                // 选该 socket 内余量最大的节点（tie-break 取小 nodeId）
+                std::string bestNode;
+                uint64_t bestNodeCap = 0;
+                for (const auto& [key, entry] : nodeRemaining) {
+                    if (key.socketId != targetSocketId) {
+                        continue;
+                    }
+                    if (entry.remainingCap > bestNodeCap ||
+                        (entry.remainingCap == bestNodeCap && (bestNode.empty() || key.nodeId < bestNode))) {
+                        bestNodeCap = entry.remainingCap;
+                        bestNode = key.nodeId;
+                    }
+                }
+                if (bestNode.empty() || bestNodeCap == 0) {
+                    break;
+                }
+
+                NodeSocketKey nsk{targetSocketId, bestNode};
+                auto& entry = nodeRemaining[nsk];
+                uint64_t take = std::min(remaining, entry.remainingCap);
+                if (entry.blockSizeKb > 0) {
+                    take = take / entry.blockSizeKb * entry.blockSizeKb;
+                }
+                if (take == 0) {
+                    LOG_ERROR << "[FaultManager][Simplified] take floored to zero, node=" << bestNode
+                              << ", blockSizeKb=" << entry.blockSizeKb << ", remaining=" << remaining << ".";
+                    break;
+                }
                 remaining -= take;
-                socketRemaining[targetSocketId] -= take;
+                entry.remainingCap -= take;
                 LOG_DEBUG << "[FaultManager][Simplified] Allocate pid=" << pid << ", take=" << take
-                          << "KB from socketId=" << targetSocketId << " (preferred=" << preferredSocketId << ").";
-                if (usedSocketIds.insert(targetSocketId).second) {
-                    for (const auto& node : socketQueueBySocketId[targetSocketId]) {
-                        allocTargets.push_back({node.nodeId, static_cast<uint16_t>(targetSocketId)});
-                    }
-                }
-                if (socketRemaining[targetSocketId] == 0) {
-                    socketRemaining.erase(targetSocketId);
+                          << "KB from node=" << bestNode << ", socketId=" << targetSocketId
+                          << " (preferred=" << chunk.preferredSocketId << "), blockSizeKb=" << entry.blockSizeKb << ".";
+                allocTargets.push_back({bestNode, static_cast<uint16_t>(targetSocketId), chunk.faultNumaId, take});
+                if (entry.remainingCap == 0) {
+                    nodeRemaining.erase(nsk);
                 }
             }
             if (remaining > 0) {
@@ -1756,9 +1844,9 @@ MpResult AllocatePidsToSockets(
     return MEM_POOLING_OK;
 }
 
-// 按故障 NUMA 聚合每个 pid 的占用大小（字节→KB），并记录每个 NUMA 所属 socketId
-static void BuildPidSocketSizes(const std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
-                                std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes)
+// 按故障 NUMA 聚合每个 pid 的占用大小（字节→KB），并记录每个 NUMA 所属 socketId 与故障 NUMA id
+static void BuildPidChunks(const std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
+                           std::unordered_map<pid_t, std::vector<PidChunkInfo>>& pidChunks)
 {
     for (const auto& [pid, records] : pidBorrowMap) {
         // 每个故障 NUMA 上的总大小及其所属 socket
@@ -1769,11 +1857,11 @@ static void BuildPidSocketSizes(const std::unordered_map<pid_t, std::vector<Borr
             numaSizeMap[faultNuma] += rec.size;
             numaSocketMap[faultNuma] = rec.lentSocketId;
         }
-        std::vector<std::pair<uint64_t, uint16_t>> chunks;
+        std::vector<PidChunkInfo> chunks;
         for (const auto& [faultNuma, size] : numaSizeMap) {
-            chunks.emplace_back(size / KB_TO_B, numaSocketMap[faultNuma]);
+            chunks.push_back({size / KB_TO_B, numaSocketMap[faultNuma], static_cast<uint16_t>(faultNuma)});
         }
-        pidSocketSizes[pid] = std::move(chunks);
+        pidChunks[pid] = std::move(chunks);
     }
 }
 
@@ -1895,14 +1983,14 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultSimplified(const st
         return ret;
     }
 
-    // 2. 按故障 NUMA 聚合每个 pid 的占用，构建 (大小, 首选socketId) 分块
-    std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>> pidSocketSizes;
-    BuildPidSocketSizes(pidBorrowMap, pidSocketSizes);
+    // 2. 按故障 NUMA 聚合每个 pid 的占用，构建分块（大小, 首选socketId, 故障NUMA id）
+    std::unordered_map<pid_t, std::vector<PidChunkInfo>> pidChunks;
+    BuildPidChunks(pidBorrowMap, pidChunks);
 
-    // 3. 按 socketId 亲和分配（每 pid 跨多个 socket，优先分配同 socket）
+    // 3. 按 socketId 亲和分配（每 pid 跨多个 socket，优先分配同 socket；按（节点,socket）扣减并记录量纲）
     std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>> pidAllocMap;
     std::vector<pid_t> unallocatedPids;
-    AllocatePidsToSockets(pidSocketSizes, socketQueueBySocketId, pidAllocMap, unallocatedPids);
+    AllocatePidsToSockets(pidChunks, socketQueueBySocketId, pidAllocMap, unallocatedPids);
     if (!unallocatedPids.empty()) {
         LOG_WARN << "[FaultManager][Simplified] Unallocated pids due to insufficient cluster memory, count="
                  << unallocatedPids.size() << ".";

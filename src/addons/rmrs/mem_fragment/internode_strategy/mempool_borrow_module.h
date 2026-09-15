@@ -232,6 +232,14 @@ struct VMQueryInfo {
     std::map<pid_t, uint64_t> vmMigratableMemMap;
 };
 
+// 简化故障流程按主节点量纲执行：一笔借用拆分对应的目标（需按 (lendNodeId, lendSocketId) 钉住借用）
+struct FaultBorrowSplit {
+    uint16_t oldNumaId = 0;    // 旧远端NUMA id（chunk 绑定），用于配对 perNuma 结果
+    std::string lendNodeId;    // 目标借出节点（master 决策）
+    uint16_t lendSocketId = 0; // 目标借出 socket（master 决策）
+    uint64_t sizeBytes = 0;    // 借用量（字节，record.size 为字节口径）
+};
+
 class MempoolBorrowModule {
 public:
     static MempoolBorrowModule& Instance()
@@ -264,12 +272,6 @@ public:
                                                  const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
                                                  MemBorrowExecuteResult& borrowExecuteResult,
                                                  const bool isFault = false);
-    static MpResult MemBorrowExecuteForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
-                                                         const std::vector<uint64_t>& borrowSizes,
-                                                         const WaterMark& waterMark,
-                                                         MemBorrowExecuteResult& borrowExecuteResult,
-                                                         const ProcessMemUsrInfo& processMemUsrInfo,
-                                                         const std::vector<std::string>& candidateNodes = {});
     // PID粒度故障处理专用借用（容器/虚机场景）: usrInfo按正常借用协议写借入方本地numaId（int16前2字节），
     // 使virt_agent水线检测可正确归属并触发低水线归还；不记入BorrowIdInFaultProcess（该集合服务裸机老链路）
     static MpResult MemBorrowExecuteForPidFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
@@ -280,6 +282,18 @@ public:
     static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
                                                     const UbseMemNumaCandidateOpt& opt, const bool& isFault,
                                                     UbseMemNumaDesc& desc, const bool trackInFaultProcess = true);
+    // 主节点决策路径专用：按指定借出方（节点+socket）借用，numaId=UINT32_MAX无效标记由调度器在socket内选NUMA；usrInfo写入processMemUsrInfo
+    static MpResult ProcessSingleBorrowWithLenderInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                              const std::vector<UbseMemNumaLender>& lenders,
+                                                              const ProcessMemUsrInfo& processMemUsrInfo,
+                                                              UbseMemNumaDesc& desc);
+    // 简化故障借用按 master 决策量纲执行：接收拆分列表，每 split 一笔 WithLender 借用，
+    // 全 split all-or-nothing 回滚；borrowExecuteResult 的 borrowIds/presentNumaId 与 splits 下标配对
+    static MpResult MemBorrowExecuteSplitsForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                               const std::vector<FaultBorrowSplit>& splits,
+                                                               const WaterMark& waterMark,
+                                                               MemBorrowExecuteResult& borrowExecuteResult,
+                                                               const ProcessMemUsrInfo& processMemUsrInfo);
     MpResult MemFree(std::string nodeId);
 
     MpResult SafeUint64To32(uint32_t& targetNum, uint64_t tmp);

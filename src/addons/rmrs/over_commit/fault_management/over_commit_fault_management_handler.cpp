@@ -633,29 +633,13 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records,
         lockGuard.exclusiveNumaIds.push_back(numaId);
     }
 
-    // 进程占用大小升序排序：小占用进程优先处理（RFC 占用大小排序）
-    std::vector<std::pair<pid_t, uint64_t>> pidSizeList;
-    for (const auto& entry : records.pidBorrowMap) {
-        uint64_t totalSize = 0;
-        for (const auto& rec : entry.second) {
-            totalSize += rec.size;
-        }
-        pidSizeList.emplace_back(entry.first, totalSize);
-    }
-    std::sort(pidSizeList.begin(), pidSizeList.end(), [](const auto& a, const auto& b) {
-        if (a.second != b.second) {
-            return a.second < b.second;
-        }
-        return a.first < b.first;
-    });
-
-    // 节点内进程级并行：使用 OverCommitFaultManagementHandler 构造时初始化的线程池（并行度 4）
+    // 节点内进程级并行：使用 OverCommitFaultManagementHandler 构造时初始化的线程池（并行度 4）；
+    // pid 相互独立（借用目标为主节点决策的远端节点），处理顺序不影响结果（RFC 升序决策在主节点）
     std::atomic<int> failCount{0};
     std::atomic<MpResult> highestPriorityError{MEM_POOLING_OK};
-    for (const auto& pidSizePair : pidSizeList) {
-        pid_t pid = pidSizePair.first;
+    for (const auto& [pid, pidBorrowRecords] : records.pidBorrowMap) {
         int64_t startTime = records.pidStartTimeMap.count(pid) ? records.pidStartTimeMap.at(pid) : 0;
-        std::vector<BorrowRecord> borrowRecords = records.pidBorrowMap.at(pid);
+        const std::vector<BorrowRecord>& borrowRecords = pidBorrowRecords;
         std::vector<SimplifiedFaultPidAllocTarget> allocTargets;
         auto allocIt = records.pidAllocMap.find(pid);
         if (allocIt != records.pidAllocMap.end()) {
