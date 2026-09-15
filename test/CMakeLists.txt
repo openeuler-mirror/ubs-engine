@@ -127,6 +127,10 @@ add_subdirectory(UT)
 
 add_subdirectory(IT)
 
+if(ENABLE_FT)
+    add_subdirectory(Fuzz)
+endif()
+
 add_custom_target(
         test
         COMMAND python3 scripts/build/merge_gtest.py ${CMAKE_BINARY_DIR}/coverage
