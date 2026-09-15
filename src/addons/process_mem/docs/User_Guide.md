@@ -267,7 +267,37 @@ ProcessMem 周期性运行三套任务：
 - **root 进程过滤**：`filter_root_process=true`（默认）时 root 进程（uid 0）不参与纳管，按 PID 配置 root 进程会被拒绝；确有需要纳管 root 进程时，可将该参数置为 false 后重启 UBSE 生效。
 - **进程名配置**：进程名匹配的是进程的 comm（进程名），进程名超过 15 字符时无法配置；同名进程新启动时会自动纳管，无需重复配置。
 
-# 6 日志
+# 6 内存开销估算与 MemoryMax 配置
+
+UBSE 以 systemd 服务（`ubse.service`）运行，进程内存上限由 unit 中的 `MemoryMax` 控制（默认 `256M`）。`MemoryMax` 约束的是 cgroup 口径的占用（`memory.current`，含页缓存与内核内存，即 `systemctl status` 的 Memory 行、`systemctl show ubse -p MemoryCurrent` 的读数），与进程 PSS/RSS 口径不同。
+
+- **超出上限的后果**：UBSE 进程会被 cgroup 直接杀死（由 `Restart=on-failure` 重启），内存借用业务随之中断，务必预留余量。
+- **调整方法**：修改 `/usr/lib/systemd/system/ubse.service` 中的 `MemoryMax`（建议用 `systemctl edit ubse` 创建 drop-in，避免升级时被覆盖），执行 `systemctl daemon-reload && systemctl restart ubse` 生效。
+- **是否需要调整**：部署插件后用 `systemctl show ubse -p MemoryCurrent` 观察实际占用，接近 `MemoryMax` 时按实测值并预留余量上调；也可先按下文估算判断。
+
+下文估算为可选参考，用于判断默认 `256M` 是否够用，无需精确。
+
+**基线占用**：未启用插件、空跑 UBSE 时的占用随集群节点数增长，可按 `baseline(MB) ≈ 50 + 24 × (n − 1)` 估算（n 为集群节点数，cgroup 口径）；也可在目标节点停用插件后直接读取 `systemctl show ubse -p MemoryCurrent` 核对。
+
+process_mem + rmrs redis 超分的内存借用场景下，开启插件后相对该基线（未启用任何插件、空跑 UBSE）的内存增量可用下式估算（进程 PSS 口径，由 `/proc/<pid>/smaps_rollup` 汇总实测拟合）：
+
+`ΔPSS(MB) ≈ 5.1MB + 0.101MB/GB × B + 0.196MB × N`
+
+| 变量 | 含义 | 单位 |
+| ---- | ---- | ---- |
+| N | 纳管实例数 | 个 |
+| B | 远端 NUMA 上实际借出的容量 | GB |
+
+该场景下 UBSE 进程的预计总占用为：
+
+`占用(MB) ≈ baseline(n) + 5.1MB + 0.101MB/GB × B + 0.196MB × N`
+
+其中 `baseline(n)` 为上文按集群节点数估算（或目标节点实测）的空跑 UBSE 占用，`5.1MB + 0.101MB/GB × B + 0.196MB × N` 为插件增量。插件增量按 PSS 口径拟合，cgroup 口径的增量通常略高于该值，据此判断 `MemoryMax` 余量时应适当放宽。
+
+- 5.1MB 为插件空载开销（含 mempooling 与 process_mem，本场景两插件同时启用）；其余两项折算约 13KB/128MB 借出块、约 200KB/纳管实例。
+- 判断余量时按 `baseline(n) + 插件增量` 与 `MemoryMax` 比较：如 3 节点（baseline ≈ 98MB）、100 实例、借出 100GB（增量 ≈ 35MB）时约 133MB，默认 `256M` 足够；节点数较多时应按式核算（如 8 节点 baseline ≈ 218MB，加上增量后已接近 256M），必要时提前上调。
+
+# 7 日志
 
 ProcessMem 插件日志文件路径：
 
@@ -275,7 +305,7 @@ ProcessMem 插件日志文件路径：
 /var/log/ubse/process_mem_plugin.log
 ```
 
-# 7 卸载
+# 8 卸载
 
 ```bash
 rpm -evh process_mem
