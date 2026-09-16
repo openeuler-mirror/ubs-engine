@@ -433,6 +433,11 @@ void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void* ctx, c
 uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "FaultNumaProcessRecvHandler start.";
+    if (req.data == nullptr || req.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] FaultNumaProcessRecvHandler req.data is null.";
+        return MEM_POOLING_ERROR;
+    }
     FaultRecordsInNode faultRecordsInNode;
     RmrsInStream builder(req.data, req.len);
     builder >> faultRecordsInNode;
