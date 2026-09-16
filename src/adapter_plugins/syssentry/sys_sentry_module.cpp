@@ -175,25 +175,6 @@ UbseResult GetEids(std::string& clientEid, std::string& serverEids)
     return UBSE_OK;
 }
 
-// 对动态参数转义, 用引号把数据“包裹”起来，shell 不会解析内部的 ;、`
-std::string ShellEscape(const std::string& str)
-{
-    if (str.empty()) {
-        return "''";
-    }
-    std::string result;
-    result += '\'';
-    for (char c : str) {
-        if (c == '\'') {
-            result += "'\\''";
-        } else {
-            result += c;
-        }
-    }
-    result += '\'';
-    return result;
-}
-
 UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas)
 {
     UbseMtiCpuTopoInfoMap topo;
@@ -255,10 +236,11 @@ UbseResult SetSysSentryFaultReporter()
     }
     std::string commandResult;
     std::string commandMonitorSetUid =
-        "sentryctl set sentry_remote_reporter --eid=" + ShellEscape(clientEid) + "  2>&1";
-    std::string commandMonitorSetCna = "sentryctl set sentry_remote_reporter --cna=" + ShellEscape(cna) + " 2>&1";
-    std::string commandSetServerEid = "sentryctl set sentry_urma_comm --server_eid=" + ShellEscape(serverEids) +
-                                      " --client_jetty_id=1000 " + "  2>&1";
+        "sentryctl set sentry_remote_reporter --eid=" + ubse::utils::ShellEscape(clientEid) + "  2>&1";
+    std::string commandMonitorSetCna =
+        "sentryctl set sentry_remote_reporter --cna=" + ubse::utils::ShellEscape(cna) + " 2>&1";
+    std::string commandSetServerEid = "sentryctl set sentry_urma_comm --server_eid=" +
+                                      ubse::utils::ShellEscape(serverEids) + " --client_jetty_id=1000 " + "  2>&1";
     using CommandDescList = std::vector<std::pair<std::string, std::string>>;
     CommandDescList tasks = {
         {commandMonitorSetUid, "commandMonitorSetUid"},
