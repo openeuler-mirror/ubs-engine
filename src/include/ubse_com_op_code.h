@@ -221,7 +221,6 @@ enum class UbseRasOpCode
 {
     UBSE_RAS_BMC_REBOOT = 0x0001,  // BMC重启
     UBSE_RAS_SWITCH_ROLE = 0x0002, // 切换角色
-    UBSE_RAS_OOM = 0x0003,         // OOM处理
 };
 
 // Urma controller模块操作码

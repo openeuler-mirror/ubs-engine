@@ -17,12 +17,10 @@
 #include <gtest/gtest.h>
 #include "ubse_context.h"
 #include "message/ubse_ras_message.h"
-#include "message/ubse_ras_oom_message.h"
 #include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ras::message::ut {
 using namespace ubse::context;
-const int NO_256 = 256;
 
 class TestUbseRasMessage : public testing::Test {
 public:
@@ -35,7 +33,6 @@ private:
 
 private:
     UbseRasMessagePtr rasMessage;
-    UbseRasOomMessagePtr rasOOmMessage;
 };
 } // namespace ubse::ras::message::ut
 #endif // TEST_UBSE_RAS_MESSAGE_H

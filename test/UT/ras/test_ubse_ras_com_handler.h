@@ -20,11 +20,6 @@
 #include "message/ubse_ras_message.h"
 #include "mockcpp/mockcpp.hpp"
 
-namespace ubse::ras {
-UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
-                            const std::string& eventMessage);
-}
-
 namespace ubse::ras::ut {
 using namespace ubse::context;
 
