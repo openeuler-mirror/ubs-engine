@@ -13,7 +13,9 @@
 
 #include "ubs_virt_agent_ham_migrate.h"
 
+#include <chrono>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -113,39 +115,43 @@ int AllocateRequestBuffer(ubse_api_buffer_t* request_buffer, HamComByteBuffer* r
     return VA_SUCCESS;
 }
 
-int CallExternalApiWithTimeout(ubse_api_buffer_t* request_buffer, ubse_api_buffer_t* response_buffer,
-                               uint16_t timeout_time)
-{
+namespace {
+struct TaskState {
     std::mutex mtx;
     std::condition_variable cv;
     bool done = false;
+    bool abandoned = false;
     int result = VA_SUCCESS;
-    auto task = [request_buffer, response_buffer, &done, &result, &mtx, &cv, timeout_time]() {
-        auto startTime = std::chrono::high_resolution_clock::now();
-        ubse_api_buffer_t req = {request_buffer->buffer, request_buffer->length};
+    ubse_api_buffer_t resp = {nullptr, 0};
+};
+} // namespace
+
+int CallExternalApiWithTimeout(ubse_api_buffer_t* request_buffer, ubse_api_buffer_t* response_buffer,
+                               uint16_t timeout_time)
+{
+    auto state = std::make_shared<TaskState>();
+    // Copy request buffer pointer/length before spawning the thread to avoid
+    // dereferencing request_buffer after the caller returns on timeout.
+    auto reqBuffer = request_buffer->buffer;
+    auto reqLength = request_buffer->length;
+    auto task = [state, reqBuffer, reqLength]() {
+        ubse_api_buffer_t req = {reqBuffer, reqLength};
         ubse_api_buffer_t resp = {nullptr, 0};
         uint32_t ret = ubse_invoke_call(UBS_VA_VM_MIGRATE, UBS_VA_HAM_NORTH, &req, &resp);
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-        int64_t call_time = duration.count();
-        int64_t timeout_in_milliseconds = timeout_time * MILLISECONDS_PER_SECOND; // convert seconds to milliseconds
-        if (call_time > timeout_in_milliseconds) {
-            ubse_api_buffer_free(&resp);
-            result = VA_ERROR_TIMEOUT_FAILED;
-        } else {
-            response_buffer->buffer = resp.buffer;
-            response_buffer->length = resp.length;
-        }
-        std::lock_guard<std::mutex> lock(mtx);
+        std::lock_guard<std::mutex> lock(state->mtx);
         SafeDeleteArray(req.buffer);
         if (ret != UBS_SUCCESS) {
             ubse_api_buffer_free(&resp);
-            result = VA_ERROR_BASE;
+            state->result = VA_ERROR_BASE;
+        } else {
+            state->resp = resp;
         }
-        done = true;
-        cv.notify_one();
+        state->done = true;
+        if (state->abandoned && state->resp.buffer != nullptr) {
+            ubse_api_buffer_free(&state->resp);
+        }
+        state->cv.notify_one();
     };
-
     try {
         std::thread th(task);
         th.detach();
@@ -154,17 +160,18 @@ int CallExternalApiWithTimeout(ubse_api_buffer_t* request_buffer, ubse_api_buffe
         SafeDeleteArray(request_buffer->buffer);
         return VA_ERROR_BASE;
     }
-    auto start = std::chrono::high_resolution_clock::now();
-    std::chrono::milliseconds timeout(timeout_time * MILLISECONDS_PER_SECOND); // convert seconds to milliseconds
-    std::unique_lock<std::mutex> lock(mtx);
-    if (cv.wait_for(lock, timeout, [&]() { return done; })) {
-        if (result != VA_SUCCESS) {
-            return result;
+    std::chrono::milliseconds timeout(timeout_time * MILLISECONDS_PER_SECOND);
+    std::unique_lock<std::mutex> lock(state->mtx);
+    if (state->cv.wait_for(lock, timeout, [&]() { return state->done; })) {
+        if (state->result != VA_SUCCESS) {
+            return state->result;
         }
-    } else {
-        return VA_ERROR_TIMEOUT_FAILED;
+        response_buffer->buffer = state->resp.buffer;
+        response_buffer->length = state->resp.length;
+        return VA_SUCCESS;
     }
-    return VA_SUCCESS;
+    state->abandoned = true;
+    return VA_ERROR_TIMEOUT_FAILED;
 }
 
 int ProcessResponse(HamComByteBuffer* response, ubse_api_buffer_t* response_buffer)

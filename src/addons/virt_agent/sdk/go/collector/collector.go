@@ -193,6 +193,10 @@ func convertCContainerPidInfos(cInfos *C.container_pid_info, count int) []Contai
 		}
 
 		cid := C.GoString(ci.containerId)
+		if ci.containerId != nil {
+			C.free(unsafe.Pointer(ci.containerId))
+			ci.containerId = nil
+		}
 
 		results = append(results, ContainerPidInfo{
 			Pids:        pids,

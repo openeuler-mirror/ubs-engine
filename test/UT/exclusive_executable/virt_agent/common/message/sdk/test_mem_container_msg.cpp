@@ -182,6 +182,47 @@ TEST_F(TestMemContainerMsg, ContainerPidsForCInputMsg_GetContainerPidInfos)
     EXPECT_EQ(info.size(), 1);
 }
 
+TEST_F(TestMemContainerMsg, ContainerPidsForCInputMsg_Deserialize_RejectHugeVecSize)
+{
+    // 恶意/损坏输入：vecSize 超过 MAX_CONTAINER_NUM，应立即失败而非无界分配内存（DoS）
+    VmSerialization out;
+    const size_t hugeCount = 0x7FFFFFFF;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    ContainerPidsForCInputMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR);
+}
+
+TEST_F(TestMemContainerMsg, ContainerPidsForCInputMsg_Deserialize_OwnsContainerIds)
+{
+    // 反序列化后 containerId 为内部 calloc 分配，析构时 ownsContainerIds_ 生效应自动释放
+    std::vector<container_pid_info_for_c> containerPidInfos;
+    char cId[10] = "01";
+    containerPidInfos.push_back({{0, 1}, 2, cId});
+    ContainerPidsForCInputMsg msg{containerPidInfos};
+    ASSERT_EQ(msg.Serialize(), VM_OK);
+    ContainerPidsForCInputMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ASSERT_EQ(dmsg.Deserialize(), VM_OK);
+    auto infos = dmsg.GetContainerPidInfos();
+    ASSERT_FALSE(infos.empty());
+    ASSERT_NE(infos[0].containerId, nullptr);
+    // dmsg 析构时释放 containerId，ASAN/LSAN 下应无泄漏报告
+}
+
+TEST_F(TestMemContainerMsg, ContainerPidsForCInputMsg_Deserialize_Twice_NoLeak)
+{
+    // 二次反序列化：第一次的 containerId 应先释放再 clear，不应泄漏
+    std::vector<container_pid_info_for_c> containerPidInfos;
+    char cId[10] = "01";
+    containerPidInfos.push_back({{0, 1}, 2, cId});
+    ContainerPidsForCInputMsg msg{containerPidInfos};
+    ASSERT_EQ(msg.Serialize(), VM_OK);
+    ContainerPidsForCInputMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ASSERT_EQ(dmsg.Deserialize(), VM_OK);
+    EXPECT_EQ(dmsg.Deserialize(), VM_OK);
+    // dmsg 析构时释放第二次反序列化的 containerId
+}
+
 TEST_F(TestMemContainerMsg, MemContainerWaterLineMemBorrowInputMsg_Serialize_Deserialize)
 {
     MemBorrowRequestC param{{"0", {0, 0}, 0}, {100, 200}, 2, {80, 20}};

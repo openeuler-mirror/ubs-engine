@@ -79,7 +79,11 @@ virt_agent_ret_t ubse_vm_info_unpack(uint8_t* buffer, uint32_t len, vm_domain_in
         return VA_ERROR_DESERIALIZE_FAILED;
     }
 
-    std::vector<vm_domain_info_for_c> vmInfoList = msg.GetVmInfo();
+    std::vector<vm_domain_info_for_c> vmInfoList;
+    if (msg.GetVmInfo(vmInfoList) != VM_OK) {
+        IPC_LOG_ERROR << "Failed to get vm info.";
+        return VA_ERROR_BASE;
+    }
     *node_cnt = static_cast<uint32_t>(vmInfoList.size());
     if (*node_cnt == 0) {
         return VA_SUCCESS;
@@ -227,9 +231,12 @@ virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t 
     auto outputMsg = msg.GetOutputMsg();
     (*strategy).vmInfoListSize = outputMsg.vmInfoListSize;
     (*strategy).waitingTime = outputMsg.waitingTime;
-    (*strategy).vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
-    if ((*strategy).vmInfoList == nullptr) {
-        return VA_ERROR_MEM_ALLOCATE_FAILED;
+    if (outputMsg.vmInfoListSize != 0) {
+        (*strategy).vmInfoList =
+            static_cast<VmMigrateStrategy*>(calloc(outputMsg.vmInfoListSize, sizeof(VmMigrateStrategy)));
+        if ((*strategy).vmInfoList == nullptr) {
+            return VA_ERROR_MEM_ALLOCATE_FAILED;
+        }
     }
     for (uint32_t i = 0; i < outputMsg.vmInfoListSize; i++) {
         (*strategy).vmInfoList[i].pid = outputMsg.vmInfoList[i].pid;

@@ -166,8 +166,16 @@ public:
         SetInputRawData(rawData, size);
     }
 
+    ~ContainerPidsForCInputMsg() override;
+
     void SetInputInfos(const std::vector<container_pid_info_for_c>& containerPidInfos)
     {
+        if (ownsContainerIds_) {
+            for (auto& info : containerPidInfos_) {
+                SafeDeleteArray(info.containerId);
+            }
+            ownsContainerIds_ = false;
+        }
         containerPidInfos_ = containerPidInfos;
     }
 
@@ -179,6 +187,7 @@ public:
 
 private:
     std::vector<container_pid_info_for_c> containerPidInfos_{};
+    bool ownsContainerIds_{false};
 };
 
 typedef struct {

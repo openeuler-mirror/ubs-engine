@@ -72,7 +72,9 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationVmInfoMsg_GetVmInfo)
     vmInfoList.push_back({{"0", "0", "0", "0", "0", 0, 1000, 0}, {{0, {0, 0, 0, 0, 0}}}});
     vmInfoList.push_back({{"1", "1", "1", "1", "1", 1, 2000, 1}, {{1, {1, 1, 1, 1, 1}}}});
     MemFragmentationVmInfoMsg msg{vmInfoList};
-    auto info = msg.GetVmInfo();
+    std::vector<vm_domain_info_for_c> info;
+    auto ret = msg.GetVmInfo(info);
+    EXPECT_EQ(ret, VM_OK);
     EXPECT_EQ(info.size(), 2);
 }
 
