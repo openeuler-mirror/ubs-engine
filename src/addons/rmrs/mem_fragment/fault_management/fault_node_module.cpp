@@ -1076,6 +1076,11 @@ void FaultNodeModule::NumaLevelDecisionFill(BorrowGroupResult& group, ClusterSna
                                             std::vector<std::pair<uint16_t, uint64_t>>& allocatedNumas)
 {
     NumaLevelDecision decision;
+    if (group.records.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[NumaLevelDecision] group.records is empty, skip filling numa-level decision.";
+        return;
+    }
     for (const auto& record : group.records) {
         decision.oldNames.push_back(record.name);
     }

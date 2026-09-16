@@ -796,7 +796,7 @@ struct MultiBorrowStrategyParam {
         bool isSamePlane;
     };
     struct Node {
-        Node(std::string nodeId, uint64_t available) : nodeId(nodeId), freeMem(freeMem)
+        Node(std::string nodeId, uint64_t available) : nodeId(nodeId), freeMem(available)
         {
             return;
         }
