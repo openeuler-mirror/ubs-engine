@@ -30,6 +30,8 @@ static std::atomic<int> g_connectOpenFailAfterCount(0); // 大于 0 时，超过
 static std::atomic<int> g_isAliveResult(1);             // virConnectIsAlive 模拟返回值，0 表示连接失活
 static std::atomic<int> g_crashRebootPhase(0);          // 0=正常, 1=libvirtd 崩溃, 2=libvirtd 重启完成
 static std::atomic<int> g_addTimeoutResult(1);          // virEventAddTimeout 模拟返回值，-1 表示注册失败
+static std::atomic<int> g_keepAliveResult(0); // virConnectSetKeepAlive 模拟返回值，-1 表示设置失败
+static std::atomic<bool> g_blockConnectOpen(true); // 默认放行；需要模拟 libvirtd 无响应的用例显式置 false 触发阻塞
 
 void* MockVirConnectOpenSuccess(const char* name)
 {
@@ -52,6 +54,20 @@ void* MockVirConnectOpenCountingSuccess(const char* name)
         return nullptr;
     }
     return g_mockConnHandle;
+}
+
+// 模拟 libvirtd 无响应：首次连接成功，后续 virConnectOpen 阻塞直至放行标志置位
+void* MockVirConnectOpenBlockAfterFirst(const char* name)
+{
+    (void)name;
+    g_connectOpenCallCount++;
+    if (g_connectOpenCallCount.load() == 1) {
+        return g_mockConnHandle;
+    }
+    for (int waited = 0; waited < 15000 && !g_blockConnectOpen.load(); waited += 100) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return nullptr;
 }
 
 int MockVirConnectIsAliveControllable(void* conn)
@@ -135,7 +151,7 @@ int MockVirConnectSetKeepAliveSuccess(void* conn, int interval, unsigned int cou
     (void)conn;
     (void)interval;
     (void)count;
-    return 0;
+    return g_keepAliveResult.load();
 }
 
 char* MockVirDomainGetXMLDescNull(void* dom, unsigned int flags)
@@ -154,6 +170,25 @@ void SetupDlsymSuccessMocks()
     MOCKER(dlsym)
         .stubs()
         .will(returnValue(reinterpret_cast<void*>(MockVirConnectOpenCountingSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirConnectCloseSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirEventRegisterDefaultImplSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirEventRunDefaultImplSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirConnectDomainEventRegisterAnyConditional)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirConnectDomainEventDeregisterAnySuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirDomainGetNameSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirDomainGetXMLDescSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirConnectSetKeepAliveSuccess)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirConnectIsAliveControllable)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirEventAddTimeoutControllable)))
+        .then(returnValue(reinterpret_cast<void*>(MockVirEventRemoveTimeoutSuccess)));
+}
+
+// 与 SetupDlsymSuccessMocks 相同，仅 virConnectOpen 替换为"无响应阻塞"mock
+void SetupDlsymConnectBlockMocks()
+{
+    MOCKER(dlsym)
+        .stubs()
+        .will(returnValue(reinterpret_cast<void*>(MockVirConnectOpenBlockAfterFirst)))
         .then(returnValue(reinterpret_cast<void*>(MockVirConnectCloseSuccess)))
         .then(returnValue(reinterpret_cast<void*>(MockVirEventRegisterDefaultImplSuccess)))
         .then(returnValue(reinterpret_cast<void*>(MockVirEventRunDefaultImplSuccess)))
@@ -214,6 +249,8 @@ void ResetAllMocks()
     g_isAliveResult = 1;
     g_addTimeoutResult = 1;
     g_crashRebootPhase = 0;
+    g_keepAliveResult = 0;
+    g_blockConnectOpen = true;
 }
 
 void TestUbseNpuLibvirtMonitor::SetUp()
@@ -607,17 +644,82 @@ TEST_F(TestUbseNpuLibvirtMonitor, ReconnectAfterLibvirtdCrashReboot)
     g_crashRebootPhase = 2; // 进入重启完成阶段
     g_isAliveResult = 1;    // virConnectIsAlive 返回 1
 
-    // 等待重连成功（注入的重连间隔为 100ms）
-    EXPECT_TRUE(WaitFor([] { return g_connectOpenCallCount.load() >= 3; }, 3000));
+    // 等待重连成功（注入间隔 100ms + 指数退避，留足退避累积余量）
+    EXPECT_TRUE(WaitFor([] { return g_connectOpenCallCount.load() >= 3; }, 5000));
 
     // 验证事件回调被重新注册（Start 注册 2 次 + Reconnect 注册 2 次 = 4 次）
-    EXPECT_TRUE(WaitFor([] { return g_registerAnyCallCount.load() >= 4; }, 3000));
+    EXPECT_TRUE(WaitFor([] { return g_registerAnyCallCount.load() >= 4; }, 5000));
 
     // 验证 monitor 仍在运行
     EXPECT_TRUE(monitor.IsRunning());
 
     monitor.Stop();
     EXPECT_FALSE(monitor.IsRunning());
+}
+
+// Start 阶段 keepalive 失败：视为连接失败，Start 返回 false
+TEST_F(TestUbseNpuLibvirtMonitor, StartFailsWhenKeepAliveFails)
+{
+    LibvirtMonitor monitor("qemu:///system");
+    MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    SetupDlsymSuccessMocks();
+
+    g_keepAliveResult = -1; // 连接成功但 keepalive 设置失败
+    EXPECT_FALSE(monitor.Start());
+    EXPECT_FALSE(monitor.IsRunning());
+    EXPECT_EQ(g_connectOpenCallCount.load(), 1); // 无重复连接尝试
+    EXPECT_EQ(g_registerAnyCallCount.load(), 0); // keepalive 失败后不进入事件注册
+}
+
+// 重连阶段 keepalive 失败：断开重试，keepalive 恢复后重连成功并恢复事件注册
+TEST_F(TestUbseNpuLibvirtMonitor, ReconnectRetriesWhenKeepAliveFails)
+{
+    LibvirtMonitor monitor("qemu:///system", 100);
+    MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    SetupDlsymSuccessMocks();
+
+    // 首次启动成功（keepalive 成功），此后 keepalive 持续失败
+    EXPECT_TRUE(monitor.Start());
+    g_keepAliveResult = -1;
+    g_isAliveResult = 0; // 触发重连
+
+    // 重连因 keepalive 失败被断开重试（connectOpen 增长但 registerAny 不增长）
+    EXPECT_TRUE(WaitFor([] { return g_connectOpenCallCount.load() >= 3; }, 5000));
+    EXPECT_EQ(g_registerAnyCallCount.load(), 2); // 仅 Start 阶段注册的 2 次
+
+    // keepalive 恢复，下一次重试应成功并恢复事件注册
+    g_keepAliveResult = 0;
+    EXPECT_TRUE(WaitFor([] { return g_registerAnyCallCount.load() >= 4; }, 5000));
+
+    EXPECT_TRUE(monitor.IsRunning());
+    monitor.Stop();
+    EXPECT_FALSE(monitor.IsRunning());
+}
+
+// libvirtd 无响应时 virConnectOpen 阻塞：上一连接线程在飞期间应跳过新尝试，不堆积线程
+TEST_F(TestUbseNpuLibvirtMonitor, ReconnectSkipsWhileConnectThreadInFlight)
+{
+    LibvirtMonitor monitor("qemu:///system", 100);
+    MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
+    SetupDlsymConnectBlockMocks();
+
+    // 首次连接成功，此后 virConnectOpen 阻塞（模拟 libvirtd 无响应）
+    EXPECT_TRUE(monitor.Start());
+    g_blockConnectOpen = false; // 仅本用例显式开启阻塞，避免遗留线程跨用例滞留
+    g_isAliveResult = 0;        // 触发重连
+
+    // 第 1 次重连尝试：spawn 的连接线程阻塞，主线程 3s 超时后放弃（connectOpen=2）
+    EXPECT_TRUE(WaitFor([] { return g_connectOpenCallCount.load() >= 2; }, 4000));
+
+    // 等过 attempt 的 3s 轮询超时与重试间隔，后续尝试应因在飞标志被跳过：connectOpen 不再增长
+    std::this_thread::sleep_for(std::chrono::milliseconds(3500));
+    EXPECT_EQ(g_connectOpenCallCount.load(), 2);
+
+    monitor.Stop(); // 在飞线程未返回时 Stop() 仍应及时返回
+    EXPECT_FALSE(monitor.IsRunning());
+
+    // 放行阻塞中的 mock 线程，避免跨用例
+    g_blockConnectOpen = true;
 }
 
 } // namespace ubse::npu::vm_monitor::ut

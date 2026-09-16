@@ -28,6 +28,7 @@ static constexpr unsigned int KEEP_ALIVE_COUNT = 3; // keepalive 探测失败次
 static constexpr int WATCHDOG_INTERVAL_MS = 1000; // 看门狗周期，保证断链后事件循环仍能有界返回
 static constexpr int SLEEP_SLICE_MS = 100; // 睡眠分片时长，保证 Stop() 触发后事件线程能及时退出
 static constexpr int CONNECT_TIMEOUT_MS = 3000; // virConnectOpen 超时阈值，规避 libvirtd 长时间无响应导致 Stop() 挂死
+static constexpr int MAX_RECONNECT_BACKOFF_MS = 60000; // 重连退避上限，连续失败时按 2 倍指数退避并封顶
 
 extern "C" {
 using VirConnectPtr = void*;
@@ -164,6 +165,9 @@ private:
     int reconnectIntervalMs_ =
         LibvirtMonitor::DEFAULT_RECONNECT_INTERVAL_MS; // 重连失败后的重试间隔，可注入（测试加速）
     std::thread eventThread_;
+    // 连接线程在飞标志：同一时刻最多 1 个 detached 连接线程，防止超时放弃的线程在 libvirtd
+    // 长时间无响应期间持续堆积；shared_ptr 使标志生命周期覆盖 detached 线程
+    std::shared_ptr<std::atomic<bool>> connectInFlight_ = std::make_shared<std::atomic<bool>>(false);
 
     bool LoadLibrary()
     {
@@ -224,6 +228,13 @@ private:
     // virConnectOpen 超时封装：detached 线程执行连接，主线程轮询结果，拷贝参数规避 UAF
     VirConnectPtr ConnectWithTimeout()
     {
+        // 同一时刻只允许 1 个连接线程：上一轮超时放弃的线程仍在 virConnectOpen 中阻塞时，
+        // 本轮直接失败，防止长时间故障下 detached 线程持续堆积
+        auto inFlight = connectInFlight_;
+        if (inFlight->exchange(true)) {
+            UBSE_LOG_WARN << "Previous connect thread still in flight, skip this attempt";
+            return nullptr;
+        }
         // 原子交接：线程 CONNECTING→FINISHED，主线程 CONNECTING→ABANDONED
         // exchange 见对方终态者兜底关闭，保证恰好处置一次
         enum class ConnState
@@ -241,7 +252,7 @@ private:
         VirConnectOpen openFn = virConnectOpen_;
         VirConnectClose closeFn = virConnectClose_;
 
-        std::thread([uriCopy, openFn, closeFn, cr]() {
+        std::thread([uriCopy, openFn, closeFn, cr, inFlight]() {
             if (openFn != nullptr) {
                 cr->conn = openFn(uriCopy.c_str());
             }
@@ -249,6 +260,7 @@ private:
                 closeFn != nullptr) {
                 closeFn(cr->conn); // 主线程已放弃，兜底关闭
             }
+            inFlight->store(false);
         }).detach();
 
         // 见 FINISHED 取走连接；stopRequested_ 触发提前放弃
@@ -281,8 +293,12 @@ private:
             UBSE_LOG_ERROR << "Failed to connect to " << uri_;
             return false;
         }
+        // keepalive 是"socket 未断但对端挂死"场景下唯一的判死手段，设置失败视为本次连接失败；
+        // 重连路径由 Reconnect() 循环重试，Start 路径直接启动失败
         if (virConnectSetKeepAlive_(connection_, KEEP_ALIVE_INTERVAL, KEEP_ALIVE_COUNT) < 0) {
-            UBSE_LOG_WARN << "Set keepalive failed, Stop may block until next libvirt event.";
+            UBSE_LOG_ERROR << "Set keepalive failed, treat connection as failed";
+            ReleaseConnection();
+            return false;
         }
         lifecycleCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_LIFECYCLE,
                                                                  reinterpret_cast<void*>(EventCallbackThunk), this,
@@ -326,6 +342,7 @@ private:
     {
         ReleaseConnection();
         int attempt = 0;
+        int backoffMs = reconnectIntervalMs_; // 连续失败按 2 倍指数退避，降低无效尝试频率
         auto reconnectStart = std::chrono::steady_clock::now();
         UBSE_LOG_WARN << "Reconnect start to " << uri_;
         while (running_.load()) {
@@ -348,8 +365,9 @@ private:
             UBSE_LOG_WARN << "Reconnect to " << uri_ << " failed, attempt=" << attempt
                           << ", this attempt cost=" << elapsedMs << "ms"
                           << ", reason=virConnectOpen failed or keepalive/register failed"
-                          << ", retrying in " << reconnectIntervalMs_ << "ms";
-            InterruptibleSleep(reconnectIntervalMs_);
+                          << ", retrying in " << backoffMs << "ms";
+            InterruptibleSleep(backoffMs);
+            backoffMs = std::min(backoffMs * 2, MAX_RECONNECT_BACKOFF_MS);
         }
         UBSE_LOG_WARN << "Reconnect to " << uri_ << " aborted, attempt=" << attempt << ", reason=Stop() called";
     }
