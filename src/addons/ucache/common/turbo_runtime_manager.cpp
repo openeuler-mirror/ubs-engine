@@ -61,6 +61,7 @@ uint32_t TurboRuntimeManager::Init()
     ret = DlsymUcacheInterface();
     if (ret != UCACHE_OK) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "DlsymUcacheInterface failed, ret=" << ret;
+        Deinit(); // 回滚 dlopen，避免句柄和库映射泄漏
         return ret;
     }
 

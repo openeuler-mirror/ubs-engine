@@ -61,7 +61,7 @@ MpResult NumaMemInfoSend::CreateRequestData(UbseByteBuffer& reqData) const
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] Get buffer pointer failed.";
         return MEM_POOLING_ERROR;
     }
-    reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DefaultFreeFunc};
+    reqData = {.data = mOutputRawData, .len = builder.GetSize(), .freeFunc = DefaultFreeFunc};
     return MEM_POOLING_OK;
 }
 

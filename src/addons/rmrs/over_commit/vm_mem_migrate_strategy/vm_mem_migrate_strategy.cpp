@@ -1167,6 +1167,11 @@ MpResult CollectNumaMemInfos(const std::string& srcNid, const std::set<uint16_t>
         OverCommitMsg overCommitMsg;
         UbseByteBuffer respData{};
         auto ret = overCommitMsg.NumaMemInfoCollectRecvHandler(reqData, respData);
+        // 直接本地调用模式：handler 只读不释放 reqData，需调用方统一释放
+        if (reqData.freeFunc != nullptr && reqData.data != nullptr) {
+            reqData.freeFunc(reqData.data);
+            reqData.data = nullptr;
+        }
         if (ret != MEM_POOLING_OK) {
             if (respData.freeFunc) {
                 respData.freeFunc(respData.data);

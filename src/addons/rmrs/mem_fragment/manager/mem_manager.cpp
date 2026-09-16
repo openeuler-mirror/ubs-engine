@@ -47,6 +47,13 @@
 #include "rmrs_serialize.h"
 #include "securec.h"
 
+namespace {
+void DeleteBufferData(uint8_t* data)
+{
+    delete[] data;
+}
+} // namespace
+
 namespace mempooling {
 using namespace ubse::log;
 using namespace ubse::storage;
@@ -1281,16 +1288,18 @@ MpResult BorrowIdsCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
         data.data = new (std::nothrow) uint8_t[data.len];
         if (data.data == nullptr) {
             LOG_ERROR << "[PersistentStore][BorrowIdsCompleted] new data failed.";
+            data.len = 0;
             return MEM_POOLING_ERROR;
         }
         data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][BorrowIdsCompleted] The data of keyPrefix=" << KEYPREFIX_BORROWID_COMPLETED
                   << " is empty.";
         return MEM_POOLING_OK;
     }
     RmrsOutStream builder;
     builder << borrowIdsCompleted;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
     if (data.data == nullptr) {
         LOG_ERROR << "[PersistentStore][BorrowIdsCompleted] GetRawData failed.";
         return MEM_POOLING_ERROR;
@@ -1317,15 +1326,21 @@ MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 
     if (smapEnableCompleted.empty()) {
         data.len = 1;
-        data.data = new uint8_t[data.len];
+        data.data = new (std::nothrow) uint8_t[data.len];
+        if (data.data == nullptr) {
+            LOG_ERROR << "[PersistentStore][SmapEnableCompleted] new data failed.";
+            data.len = 0;
+            return MEM_POOLING_ERROR;
+        }
         data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] The data of keyPrefix=" << KEYPREFIX_SMAPENABLE_COMPLETED
                   << " is empty.";
         return MEM_POOLING_OK;
     }
     RmrsOutStream builder;
     builder << smapEnableCompleted;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
 
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] GetSmapEnableCompletedRawData end.";
     return MEM_POOLING_OK;
@@ -1350,18 +1365,21 @@ MpResult PidSmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 
     if (loadedSet.empty()) {
         data.len = 1;
-        data.data = new uint8_t[data.len];
+        data.data = new (std::nothrow) uint8_t[data.len];
+        if (data.data == nullptr) {
+            LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] new data failed.";
+            data.len = 0;
+            return MEM_POOLING_ERROR;
+        }
         data.data[0] = ' ';
-        data.freeFunc = [](uint8_t* p) {
-            delete[] p;
-        };
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Data is empty.";
         return MEM_POOLING_OK;
     }
 
     RmrsOutStream builder;
     builder << loadedSet;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
     LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] GetRawData end, size=" << data.len;
     return MEM_POOLING_OK;
 }
@@ -1377,11 +1395,14 @@ MpResult FaultHandleBorrowedDecision::GetRawData(UbseByteBuffer& data, bool need
 
     if (borrowedDecisionMap.empty()) {
         data.len = 1;
-        data.data = new uint8_t[data.len];
+        data.data = new (std::nothrow) uint8_t[data.len];
+        if (data.data == nullptr) {
+            LOG_ERROR << "[FaultHandleBorrowedDecision] new data failed.";
+            data.len = 0;
+            return MEM_POOLING_ERROR;
+        }
         data.data[0] = ' '; // 数据清空标致
-        data.freeFunc = [](uint8_t* p) {
-            delete[] p;
-        };
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[FaultHandleBorrowedDecision] The data of keyPrefix=" << KEYPREFIX_BORROWED_DECISION
                   << " is empty.";
         return MEM_POOLING_OK;
@@ -1389,7 +1410,7 @@ MpResult FaultHandleBorrowedDecision::GetRawData(UbseByteBuffer& data, bool need
 
     RmrsOutStream builder;
     builder << borrowedDecisionMap;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
     LOG_DEBUG << "[FaultHandleBorrowedDecision] GetBorrowedDecisionRawData end.";
     return MEM_POOLING_OK;
 }
@@ -1411,15 +1432,21 @@ MpResult BorrowIdInFaultProcess::GetRawData(UbseByteBuffer& data, bool needLock)
 
     if (borrowIdInFaultProcess.empty()) {
         data.len = 1;
-        data.data = new uint8_t[data.len];
+        data.data = new (std::nothrow) uint8_t[data.len];
+        if (data.data == nullptr) {
+            LOG_ERROR << "[PersistentStore][BorrowIdInFaultProcess] new data failed.";
+            data.len = 0;
+            return MEM_POOLING_ERROR;
+        }
         data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] The data of keyPrefix="
                   << KEYPREFIX_FAULT_PROCESS_BORROWID << " is empty.";
         return MEM_POOLING_OK;
     }
     RmrsOutStream builder;
     builder << borrowIdInFaultProcess;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
 
     LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] GetBorrowIdInFaultProcessRawData end.";
     return MEM_POOLING_OK;
@@ -1437,15 +1464,21 @@ MpResult RemovePidCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
     // 直接从缓存removePidCompleted中取
     if (removePidCompleted.empty()) {
         data.len = 1;
-        data.data = new uint8_t[data.len];
+        data.data = new (std::nothrow) uint8_t[data.len];
+        if (data.data == nullptr) {
+            LOG_ERROR << "[PersistentStore][RemovePidCompleted] new data failed.";
+            data.len = 0;
+            return MEM_POOLING_ERROR;
+        }
         data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][RemovePidCompleted] The data of keyPrefix=" << KEYPREFIX_REMOVEPID_COMPLETED
                   << " is empty.";
         return MEM_POOLING_OK;
     }
     RmrsOutStream builder;
     builder << removePidCompleted;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
 
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] GetRemovePidCompletedRawData end.";
     return MEM_POOLING_OK;
@@ -1470,9 +1503,11 @@ MpResult VmInfosCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
         data.data = new (std::nothrow) uint8_t[data.len];
         if (data.data == nullptr) {
             LOG_ERROR << "[PersistentStore][VmInfosCompleted] new data failed.";
+            data.len = 0;
             return MEM_POOLING_ERROR;
         }
         data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = DeleteBufferData;
         LOG_DEBUG << "[PersistentStore][VmInfosCompleted] The data of keyPrefix(" << KEYPREFIX_VMINFO_COMPLETED
                   << ") is empty.";
         return MEM_POOLING_OK;
@@ -1480,7 +1515,7 @@ MpResult VmInfosCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 
     RmrsOutStream builder;
     builder << vmMap;
-    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DeleteBufferData};
     if (data.data == nullptr) {
         LOG_ERROR << "[PersistentStore][VmInfosCompleted] GetRawData failed.";
         return MEM_POOLING_ERROR;

@@ -293,6 +293,8 @@ uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqD
         UbseComEndpoint newEndPoint = UbseComEndpoint{endpoint.moduleId, endpoint.serviceId, masterNode};
         return UbseComHelper::UbseSyncCallFunc(newEndPoint, reqData, ctx, handler);
     }
+    FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                ", service_ID=" + std::to_string(endpoint.serviceId));
     return UBSE_ERROR_INVAL;
 }
 
@@ -319,12 +321,16 @@ uint32_t UbseRpcAsyncSend(const UbseComEndpoint& endpoint, const UbseByteBuffer&
     if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
         std::string masterNode = GetMasterNodeId();
         if (masterNode.empty()) {
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
             UBSE_LOG_ERROR << "Can't get ubse master node id";
             return UBSE_ERROR_INVAL;
         }
         UbseComEndpoint newEndPoint = UbseComEndpoint{endpoint.moduleId, endpoint.serviceId, masterNode};
         return UbseComHelper::UbseAsyncCallFunc(newEndPoint, reqData, ctx, handler);
     }
+    FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                ", service_ID=" + std::to_string(endpoint.serviceId));
     return UBSE_ERROR_INVAL;
 }
 } // namespace ubse::com
