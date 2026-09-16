@@ -234,6 +234,24 @@ std::string RemoveDashes(const std::string& str)
     return ret;
 }
 
+std::string ShellEscape(const std::string& str)
+{
+    if (str.empty()) {
+        return "''";
+    }
+    std::string result;
+    result += '\'';
+    for (char c : str) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += '\'';
+    return result;
+}
+
 int HexCharToInt(char c)
 {
     if (c >= '0' && c <= '9') {

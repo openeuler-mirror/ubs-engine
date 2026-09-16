@@ -20,6 +20,7 @@
 #include "ubse_error.h"
 #include "ubse_os_util.h"
 #include "ubse_security_module.h"
+#include "ubse_str_util.h"
 
 namespace ubse::log {
 using namespace ubse::common::def;
@@ -183,29 +184,11 @@ bool UbseLoggerFilesink::OpenFile(const std::string& fileName)
     }
 }
 
-std::string ShellEscape(const std::string& str)
-{
-    if (str.empty()) {
-        return "''";
-    }
-    std::string result;
-    result += '\'';
-    for (char c : str) {
-        if (c == '\'') {
-            result += "'\\''";
-        } else {
-            result += c;
-        }
-    }
-    result += '\'';
-    return result;
-}
-
 bool UbseLoggerFilesink::CompressFile(const std::string& fileName, const std::string& sourceFilename,
                                       const std::string& destFilename)
 {
-    std::string command = "tar -czf " + ShellEscape(destFilename) + " -C " + ShellEscape(basePath_) + " " +
-                          ShellEscape(fileName + ".log");
+    std::string command = "tar -czf " + ubse::utils::ShellEscape(destFilename) + " -C " +
+                          ubse::utils::ShellEscape(basePath_) + " " + ubse::utils::ShellEscape(fileName + ".log");
     std::string result;
     auto ret = ubse::utils::UbseOsUtil::Exec(command, result);
     if (ret != UBSE_OK) {

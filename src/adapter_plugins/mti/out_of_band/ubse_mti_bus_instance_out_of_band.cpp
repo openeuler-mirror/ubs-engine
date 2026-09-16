@@ -103,7 +103,7 @@ std::vector<std::string> ParseGetSubDeviceOutput(const std::string& output)
 
 UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseMtiBusInstSubDevice>& subDeviceList)
 {
-    auto cmd = "lsub -b -E " + eidStr;
+    auto cmd = "lsub -b -E " + utils::ShellEscape(eidStr);
     std::string cmdResult{};
     auto ret = utils::UbseOsUtil::Exec(cmd, cmdResult);
     if (ret != UBSE_OK) {
