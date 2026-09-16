@@ -133,43 +133,65 @@ uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
     return ret;
 }
 
-void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+namespace {
+// 同步 RPC 的回包不能为空: 0 长度 resp 会让调用方一直等不到回包, 直到默认 60s 超时
+void FillReturnAck(UbseByteBuffer& resp, uint32_t result)
+{
+    ubse::serial::UbseSerialization serial;
+    serial << result;
+    if (!serial.Check()) {
+        UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: serialize ack failed, result=" << result;
+        return;
+    }
+    resp.len = serial.GetLength();
+    resp.data = serial.GetBuffer(true); // 移交所有权, 回复后由 RPC 框架释放
+    resp.freeFunc = [](uint8_t* data) {
+        delete[] data;
+    };
+}
+
+uint32_t ForwardReturnRequest(const UbseByteBuffer& req, const std::string& targetNodeId,
+                              ubse::serial::common_len itemCount)
+{
+    auto endpoint = GetProcessMemReturnEndpoint(
+        static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), targetNodeId);
+    UbseByteBuffer forwardReq{.data = req.data, .len = req.len, .freeFunc = nullptr};
+    auto ret = ubse::com::UbseRpcSend(endpoint, forwardReq, nullptr, [](void*, const UbseByteBuffer&, uint32_t) {});
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: forward failed to target=" << targetNodeId
+                       << ", ret=" << ret;
+    } else {
+        UBSE_LOG_INFO << "ProcessMemReturnRequestHandler: forwarded to target=" << targetNodeId
+                      << ", items=" << itemCount;
+    }
+    return ret;
+}
+
+uint32_t ProcessReturnRequest(const UbseByteBuffer& req)
 {
     ubse::serial::UbseDeSerialization deserializer{req.data, req.len};
     std::string targetNodeId;
-    deserializer >> targetNodeId;
     ubse::serial::common_len itemCount = 0;
+    deserializer >> targetNodeId;
     deserializer >> ubse::serial::array_len_capture(itemCount);
     if (!deserializer.Check()) {
         UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: deserialize failed";
-        return;
+        return UBSE_ERROR;
     }
     // 借出节点非主节点时请求先到主节点, 主节点不是目标借入节点则按消息携带的目标转发
     auto currentNode = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
     if (targetNodeId != currentNode) {
-        auto endpoint = GetProcessMemReturnEndpoint(
-            static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_RETURN_REQUEST), targetNodeId);
-        UbseByteBuffer forwardReq{.data = req.data, .len = req.len, .freeFunc = nullptr};
-        auto fwdRet =
-            ubse::com::UbseRpcSend(endpoint, forwardReq, nullptr, [](void*, const UbseByteBuffer&, uint32_t) {});
-        if (fwdRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: forward failed to target=" << targetNodeId
-                           << ", ret=" << fwdRet;
-        } else {
-            UBSE_LOG_INFO << "ProcessMemReturnRequestHandler: forwarded to target=" << targetNodeId
-                          << ", items=" << itemCount;
-        }
-        return;
+        return ForwardReturnRequest(req, targetNodeId, itemCount);
     }
     if (itemCount == 0) {
         UBSE_LOG_WARN << "ProcessMemReturnRequestHandler: empty item list, ignore";
-        return;
+        return UBSE_OK;
     }
     constexpr ubse::serial::common_len MAX_RETURN_ITEMS = 4096;
     if (itemCount > MAX_RETURN_ITEMS) {
         UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: invalid itemCount=" << itemCount
                        << ", max=" << MAX_RETURN_ITEMS;
-        return;
+        return UBSE_ERROR;
     }
     std::vector<def::ReturnRequestItem> items;
     items.reserve(static_cast<size_t>(itemCount));
@@ -178,7 +200,7 @@ void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& r
         deserializer >> item.name >> item.size;
         if (!deserializer.Check()) {
             UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: deserialize failed at item " << i;
-            return;
+            return UBSE_ERROR;
         }
         items.push_back(std::move(item));
     }
@@ -186,6 +208,13 @@ void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& r
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: HandleReturnRequest failed, ret=" << ret;
     }
+    return ret;
+}
+} // namespace
+
+void ProcessMemPidBridge::ProcessMemReturnRequestHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    FillReturnAck(resp, ProcessReturnRequest(req));
 }
 
 uint32_t SendPidSetResponse(int successCode, const std::string& errorMsg, uint64_t requestId)

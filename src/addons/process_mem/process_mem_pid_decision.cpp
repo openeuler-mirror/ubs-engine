@@ -2680,10 +2680,12 @@ uint32_t ProcessMemPidDecision::DeleteOldReturnDebt(const std::string& debtId)
         // 不能只删 ubse 债务条目而把块留在原位
         delRet = pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(debtId);
     }
-    if (IsFaultHandling(delRet)) {
-        // 故障处理中: 旧债由 rmrs 救援, 不 fallback 到 ubse 删除, 上层周期重试
+    if (IsFaultHandling(delRet) || IsConcurrencyConflict(delRet)) {
+        // 故障处理中由 rmrs 救援; 并发冲突(同 numa 在飞操作)等冲突消解后重试。两者都不 fallback 到
+        // ubse 删除(只删条目会把旧债块留在原位), 插 pending 由上层周期重试
         UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << debtId
-                      << " old debt delete blocked by fault handling, skip ubse fallback";
+                      << " old debt delete blocked by fault handling or concurrency conflict ret=" << delRet
+                      << ", skip ubse fallback";
         std::lock_guard<std::mutex> lock(pendingOldDebtDeletesMutex_);
         pendingOldDebtDeletes_.insert(debtId);
         return UBSE_ERROR;
