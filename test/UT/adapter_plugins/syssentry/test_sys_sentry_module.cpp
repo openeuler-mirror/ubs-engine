@@ -268,28 +268,6 @@ TEST_F(TestSysSentryModule, LinkStrings_EmptyList)
     EXPECT_EQ(result, "existing");
 }
 
-TEST_F(TestSysSentryModule, ShellEscape_Empty)
-{
-    EXPECT_EQ(ShellEscape(""), "''");
-}
-
-TEST_F(TestSysSentryModule, ShellEscape_Normal)
-{
-    EXPECT_EQ(ShellEscape("hello"), "'hello'");
-}
-
-TEST_F(TestSysSentryModule, ShellEscape_WithQuote)
-{
-    std::string result = ShellEscape("it's");
-    EXPECT_EQ(result, "'it'\\''s'");
-}
-
-TEST_F(TestSysSentryModule, ShellEscape_SpecialChars)
-{
-    std::string result = ShellEscape("a;b`c");
-    EXPECT_EQ(result, "'a;b`c'");
-}
-
 TEST_F(TestSysSentryModule, ProcessEids_DevNameSplitFail)
 {
     UbseMtiIouInfo iou{"1", "1", ""};

@@ -734,4 +734,134 @@ TEST_F(TestUbseNodeController, CollectSysSentryState)
     EXPECT_EQ(nodeInfo.sysSentryState, UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_OK);
 }
 
+TEST_F(TestUbseNodeController, RestoreNodeInfoFromMirror_EmptyNodeId)
+{
+    UbseNodeInfo info{};
+    EXPECT_EQ(UbseNodeController::GetInstance().RestoreNodeInfoFromMirror(info, 0), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNodeController, RestoreNodeInfoFromMirror_NonFault)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    UbseNodeInfo info{};
+    info.nodeId = "1";
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    EXPECT_EQ(ctrl.RestoreNodeInfoFromMirror(info, 0), UBSE_OK);
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_WORKING);
+    EXPECT_TRUE(ctrl.faultUpdateTimes.empty());
+    EXPECT_TRUE(ctrl.faultUpdateTimeSysMs.empty());
+}
+
+TEST_F(TestUbseNodeController, RestoreNodeInfoFromMirror_FaultNoTime)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    UbseNodeInfo info{};
+    info.nodeId = "1";
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    EXPECT_EQ(ctrl.RestoreNodeInfoFromMirror(info, 0), UBSE_OK);
+    // 无镜像时刻：faultUpdateTimeSysMs记当前时间，faultUpdateTimes不登记（防抖不生效）
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("1"), 0);
+    EXPECT_EQ(ctrl.faultUpdateTimeSysMs.count("1"), 1);
+    EXPECT_GT(ctrl.faultUpdateTimeSysMs["1"], 0);
+}
+
+TEST_F(TestUbseNodeController, RestoreNodeInfoFromMirror_FaultInheritWindow)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    uint64_t nowMs = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
+    uint64_t faultTimeMs = nowMs - 1000; // 1秒前，仍在60s保护窗口内
+    UbseNodeInfo info{};
+    info.nodeId = "1";
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    EXPECT_EQ(ctrl.RestoreNodeInfoFromMirror(info, faultTimeMs), UBSE_OK);
+    // 继承剩余窗口：faultUpdateTimes登记，faultUpdateTimeSysMs保留镜像时刻
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("1"), 1);
+    EXPECT_EQ(ctrl.faultUpdateTimeSysMs["1"], faultTimeMs);
+}
+
+TEST_F(TestUbseNodeController, RestoreNodeInfoFromMirror_FaultWindowExpired)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    uint64_t nowMs = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
+    uint64_t faultTimeMs = nowMs - static_cast<uint64_t>(FAULT_STATE_PROTECT_SECONDS) * 1000 - 1000; // 61秒前，窗口已过
+    UbseNodeInfo info{};
+    info.nodeId = "1";
+    info.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    EXPECT_EQ(ctrl.RestoreNodeInfoFromMirror(info, faultTimeMs), UBSE_OK);
+    // 窗口已过：faultUpdateTimes不登记，faultUpdateTimeSysMs仍保留镜像时刻
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("1"), 0);
+    EXPECT_EQ(ctrl.faultUpdateTimeSysMs["1"], faultTimeMs);
+}
+
+TEST_F(TestUbseNodeController, UpdateClusterState_GhostFaultNode)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    MOCKER(GenerateFaultUbseNode).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseNodeControllerMaster::SyncPushNodeToStandby).stubs().will(ignoreReturnValue());
+
+    EXPECT_EQ(ctrl.UpdateNodeInfoClusterState("9", UbseNodeClusterState::UBSE_NODE_FAULT), UBSE_OK);
+    EXPECT_EQ(ctrl.nodeInfos.count("9"), 1);
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("9"), 1);
+    EXPECT_GT(ctrl.faultUpdateTimeSysMs["9"], 0);
+}
+
+TEST_F(TestUbseNodeController, UpdateClusterState_ToFault)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    ctrl.nodeInfos["1"].clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    MOCKER(ExecClusterStateHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseNodeControllerMaster::SyncPushNodeToStandby).stubs().will(ignoreReturnValue());
+
+    EXPECT_EQ(ctrl.UpdateNodeInfoClusterState("1", UbseNodeClusterState::UBSE_NODE_FAULT), UBSE_OK);
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_FAULT);
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("1"), 1);
+    EXPECT_GT(ctrl.faultUpdateTimeSysMs["1"], 0);
+}
+
+TEST_F(TestUbseNodeController, UpdateClusterState_FromFault)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    ctrl.nodeInfos["1"].clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    ctrl.faultUpdateTimes["1"] =
+        std::chrono::steady_clock::now() - std::chrono::seconds(FAULT_STATE_PROTECT_SECONDS + 1); // 保护期已过
+    ctrl.faultUpdateTimeSysMs["1"] = 123456789;
+    MOCKER(ExecClusterStateHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseNodeControllerMaster::SyncPushNodeToStandby).stubs().will(ignoreReturnValue());
+
+    EXPECT_EQ(ctrl.UpdateNodeInfoClusterState("1", UbseNodeClusterState::UBSE_NODE_SMOOTHING), UBSE_OK);
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    EXPECT_EQ(ctrl.faultUpdateTimes.count("1"), 0);
+    EXPECT_EQ(ctrl.faultUpdateTimeSysMs.count("1"), 0);
+}
+
+TEST_F(TestUbseNodeController, GetFaultUpdateTimeSysMs_ReturnsMap)
+{
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.faultUpdateTimeSysMs.clear();
+    ctrl.faultUpdateTimeSysMs["1"] = 111;
+    ctrl.faultUpdateTimeSysMs["3"] = 333;
+    auto faultMap = ctrl.GetFaultUpdateTimeSysMs();
+    EXPECT_EQ(faultMap.size(), 2);
+    EXPECT_EQ(faultMap["1"], 111);
+    EXPECT_EQ(faultMap["3"], 333);
+}
+
 } // namespace ubse::node_controller::ut
