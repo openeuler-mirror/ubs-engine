@@ -45,6 +45,22 @@ Ref<UbseTaskExecutor> MockAgentCreateNullTaskPtr(const std::string& name, uint16
     return nullptr;
 }
 
+// Initialize 会注册捕获 this 的全局选举 handler（CHANGE_TO_STANDBY/CHANGE_TO_AGENT），
+// 而 agent 是栈对象，用例结束即销毁；若不解除注册，后续任何用例触发 SwitchRole 时，
+// RoleChangeNotifyAsync 的分离线程会调用悬挂 handler（ClearMirror），
+// 破坏主线程栈，表现为随机的 stack smashing / double free。必须在 agent 析构前解除注册。
+static void DetachNodeAgentElectionHandlers()
+{
+    UbseElectionChangeDeAttachHandler(UbseElectionHandlerBuilder()
+                                          .SetType(UbseElectionEventType::CHANGE_TO_STANDBY)
+                                          .SetName(UBSE_NODE_STANDBY_PULL_HANDLER)
+                                          .Build());
+    UbseElectionChangeDeAttachHandler(UbseElectionHandlerBuilder()
+                                          .SetType(UbseElectionEventType::CHANGE_TO_AGENT)
+                                          .SetName(UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER)
+                                          .Build());
+}
+
 TEST_F(TestUbseNodeControllerAgent, Initialize_Fail)
 {
     UbseNodeControllerAgent agent{};
@@ -54,6 +70,8 @@ TEST_F(TestUbseNodeControllerAgent, Initialize_Fail)
 
     EXPECT_EQ(agent.Initialize(), UBSE_ERROR);
     EXPECT_EQ(agent.Initialize(), UBSE_ERROR_NULLPTR);
+    // 第2次 Initialize 已注册全局 handler 后才失败，需解除注册
+    DetachNodeAgentElectionHandlers();
 }
 
 TEST_F(TestUbseNodeControllerAgent, Initialize)
@@ -62,6 +80,7 @@ TEST_F(TestUbseNodeControllerAgent, Initialize)
     MOCKER(RegAgentMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(agent.Initialize(), UBSE_OK);
+    DetachNodeAgentElectionHandlers();
 }
 
 TEST_F(TestUbseNodeControllerAgent, CollectBaseInfo)

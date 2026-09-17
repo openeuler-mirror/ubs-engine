@@ -160,12 +160,15 @@ TEST_F(TestUbseElectionRoleStandby, GetMasterStatus)
 
 TEST_F(TestUbseElectionRoleStandby, GetStandbyStatus)
 {
-    MOCKER(&ubse::context::UbseContext::GetWorkReadiness).stubs().will(returnValue(1));
+    // 不要 mock UbseContext::GetWorkReadiness：RoleChangeNotifyAsync 的分离线程在 mock
+    // 重置后仍可能调用该接口（经过悬挂的 mockcpp hook 导致崩溃），真实实现只是读单例成员
+    ubse::context::UbseContext::GetInstance().SetWorkReadiness(1);
     RoleContext ctx;
     ctx.masterId = "NODE0";
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
     EXPECT_EQ(standby.GetStandbyStatus(), 1);
+    ubse::context::UbseContext::GetInstance().SetWorkReadiness(0);
 }
 } // namespace ubse::event::election

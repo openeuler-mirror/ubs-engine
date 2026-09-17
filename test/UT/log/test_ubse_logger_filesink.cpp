@@ -335,6 +335,8 @@ TEST_F(TestUbseLoggerFileSink, NonexistentFilePath)
     GTEST_SKIP() << "/noexist directory is not isolated across runs; under ASAN the file-creation timing causes "
                     "intermittent failures";
 #endif
+    // 清理上次运行残留，避免历史 run.log 干扰本轮断言
+    fs::remove_all(currentPath + "/noexist");
     UbseLoggerFilesink sink(currentPath + "/noexist", 1024, 16); // 1024设置为文件最大大小，16设置为文件最大数量
     // 设置ubseLoggerEntry的行数为1
     UbseLoggerEntry ubseLoggerEntry("test_log", UbseLogLevel::INFO, "Test.log", "TestFunction", 1);
@@ -342,6 +344,7 @@ TEST_F(TestUbseLoggerFileSink, NonexistentFilePath)
     std::string fileName = currentPath + "/noexist/" + FILE_NAME + ".log";
     std::ifstream logFile(fileName);
     ASSERT_TRUE(logFile.is_open());
+    fs::remove_all(currentPath + "/noexist");
 }
 
 /*

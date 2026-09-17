@@ -337,20 +337,14 @@ TEST_F(TestUbseCom, UbseRpcAsySendFailWhenNoRole)
  */
 TEST_F(TestUbseCom, UbseComHandle)
 {
-    MockUbseBaseMessage* mockReq = new MockUbseBaseMessage;
-    MockUbseBaseMessage* mockResp = new MockUbseBaseMessage;
+    // DeConvert 是无类型检查的 static_cast，req/rsp 必须是真实的 UbseComBaseBufferMessage，
+    // 传 gmock 派生对象会让 Handle 越界读取派生类成员
+    uint8_t* reqData = new uint8_t[16]();
+    UbseBaseMessagePtr req = new UbseComBaseBufferMessage(reqData, 16);
+    UbseBaseMessagePtr resp = new UbseComBaseBufferMessage();
     uint16_t testOpCode = 0;
     uint16_t testModuleCode = 1;
-    UbseBaseMessagePtr req = mockReq;
-    UbseBaseMessagePtr resp = mockResp;
-    UbseByteBuffer testReq{};
-    testReq.data = new uint8_t;
-    testReq.len = 1;
     UbseNetMessageHandler ubseHandler(testOpCode, testModuleCode, TestUBSHcomHandler);
-    MOCKER(&UbseBaseMessage::InputRawData).stubs().will(returnValue(testReq.data));
-    MOCKER(&UbseBaseMessage::InputRawDataSize).stubs().will(returnValue(testReq.len));
-    UbseByteBuffer testResp{};
-    MOCKER(&UbseBaseMessage::SetInputRawData).stubs().will(returnValue(UBSE_OK));
 
     std::string testEngine = "test";
     uint64_t testChannelId = 1;
@@ -363,6 +357,7 @@ TEST_F(TestUbseCom, UbseComHandle)
     MOCKER(&UbseComBase::ReplyMsg).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, ubseHandler.Handle(req, resp, handlerCtx));
     delete handlerCtx;
+    delete[] reqData;
 }
 
 /*

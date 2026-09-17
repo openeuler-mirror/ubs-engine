@@ -29,6 +29,14 @@ void TestUbseRasHandler::SetUp()
 void TestUbseRasHandler::TearDown()
 {
     Test::TearDown();
+    // HandleBMCFault 系列用例会启动 BMC 故障定时器线程，到期后回调 OnBmcFaultTimerExpired
+    // 会调用被 mock 的 ReportAckToSysSentry；若定时器跨用例存活，到期时 mock 已被重置，
+    // 分离线程访问已释放的 mockcpp hook 会导致堆破坏/double free。
+    // StopAllBmcFaultTimers 会取消并 join 全部定时器线程，保证 mock 重置前无在途回调。
+    UbseRasHandler::GetInstance().StopAllBmcFaultTimers();
+    // SwitchRole 相关用例会留下 RoleChangeNotifyAsync 的分离线程，其回调链（handler、mock）
+    // 在 TearDown 后即失效；等待在途线程退出后再重置 mock，避免分离线程访问已释放对象
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     GlobalMockObject::verify();
 }
 

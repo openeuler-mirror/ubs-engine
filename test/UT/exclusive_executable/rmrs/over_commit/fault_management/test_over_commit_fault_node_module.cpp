@@ -536,7 +536,8 @@ MpResult GetVmInfoImmediatelyMock(std::vector<mempooling::exportV2::VmDomainInfo
 }
 
 // Mock: Smap enable/disable process migration
-int SmapEnableProcessMigrateHelperMock(pid_t* pids, size_t size, int enable, int flags)
+// 第二参须与真实声明一致为 int，size_t 会让 mockcpp any_cast 越界读
+int SmapEnableProcessMigrateHelperMock(pid_t* pids, int size, int enable, int flags)
 {
     return MEM_POOLING_OK;
 }
@@ -705,7 +706,8 @@ TEST_F(TestOverCommitFaultNodeModule, ConvertVminfoFormat_Succeed)
 TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsExecute_Succeed)
 {
     // Stub: SmapEnableProcessMigrateHelperMock
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+    // 注意：签名必须与真实声明 int(pid_t*, int, int, int) 一致，size_t 会让 mockcpp any_cast 越界读
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
         .stubs()
         .will(invoke(SmapEnableProcessMigrateHelperMock));
 
@@ -859,7 +861,7 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_Succeed)
         .will(invoke(GetSmapGetRemoteProcessesFuncMock));
 
     // 2. Stub: Smap migration switch control
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
         .stubs()
         .will(invoke(SmapEnableProcessMigrateHelperMock));
 
