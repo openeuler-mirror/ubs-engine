@@ -622,4 +622,266 @@ TEST_F(TestUbseNodeControllerMaster, CollectRemoteNodeInfo_RpcSendFail)
 
     EXPECT_EQ(ret, UBSE_ERROR);
 }
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_ElectionNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("1"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_NotLeader)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("1"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_NoStandby)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    ubse::election::Node standby{};
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("1"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_NodeNotFound)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    ubse::election::Node standby{.id = "2"};
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+
+    UbseNodeController::GetInstance().nodeInfos.clear();
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("not-exist"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_FaultCarriesTime)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    ubse::election::Node standby{.id = "2"};
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    UbseNodeInfo faultInfo{};
+    faultInfo.nodeId = "1";
+    faultInfo.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    ctrl.nodeInfos.clear();
+    ctrl.nodeInfos["1"] = faultInfo;
+    ctrl.faultUpdateTimeSysMs.clear();
+    ctrl.faultUpdateTimeSysMs["1"] = 123456789;
+
+    MOCKER(GetUbseNodeInfoOffset).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("1"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, SyncPushNodeToStandby_NormalNoFaultTime)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    ubse::election::Node standby{.id = "2"};
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    UbseNodeInfo normalInfo{};
+    normalInfo.nodeId = "1";
+    normalInfo.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    ctrl.nodeInfos.clear();
+    ctrl.nodeInfos["1"] = normalInfo;
+    ctrl.faultUpdateTimeSysMs.clear();
+
+    MOCKER(GetUbseNodeInfoOffset).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.SyncPushNodeToStandby("1"));
+}
+
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_EmptyMirror)
+{
+    auto& agent = UbseNodeControllerAgent::GetInstance();
+    agent.nodeInfoMirror_.clear();
+    agent.faultProtectMirror_.clear();
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.nodeInfos.clear();
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.ConsumeMirrorOnPromote());
+    // 空镜像：仅清空镜像并返回，不回填任何节点
+    EXPECT_TRUE(agent.nodeInfoMirror_.empty());
+    EXPECT_TRUE(ctrl.nodeInfos.empty());
+}
+
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_WorkingNodeResetInit)
+{
+    auto& agent = UbseNodeControllerAgent::GetInstance();
+    agent.nodeInfoMirror_.clear();
+    agent.faultProtectMirror_.clear();
+    UbseNodeInfo working{};
+    working.nodeId = "1";
+    working.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    agent.nodeInfoMirror_["1"] = working;
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.nodeInfos.clear();
+    MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.ConsumeMirrorOnPromote());
+    // WORKING不可直接继承：恢复时降级为INIT等待重新对账
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_INIT);
+}
+
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_FaultNodeInheritProtect)
+{
+    auto& agent = UbseNodeControllerAgent::GetInstance();
+    agent.nodeInfoMirror_.clear();
+    agent.faultProtectMirror_.clear();
+    UbseNodeInfo faultInfo{};
+    faultInfo.nodeId = "1";
+    faultInfo.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    agent.nodeInfoMirror_["1"] = faultInfo;
+    agent.faultProtectMirror_["1"] = 123456789;
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.nodeInfos.clear();
+    ctrl.faultUpdateTimes.clear();
+    ctrl.faultUpdateTimeSysMs.clear();
+    MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
+
+    UbseNodeControllerMaster master{};
+    master.faultReportCounters_.clear();
+    EXPECT_NO_THROW(master.ConsumeMirrorOnPromote());
+    // FAULT直接继承：节点恢复为FAULT、保留保护窗口时刻、补建故障上报计数器
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_FAULT);
+    EXPECT_EQ(ctrl.faultUpdateTimeSysMs["1"], 123456789);
+    EXPECT_EQ(master.faultReportCounters_["1"], 0);
+}
+
+TEST_F(TestUbseNodeControllerMaster, UbseNodeSyncFullTimer_ElectionNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.UbseNodeSyncFullTimerHandler());
+}
+
+TEST_F(TestUbseNodeControllerMaster, UbseNodeSyncFullTimer_NotLeader)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.UbseNodeSyncFullTimerHandler());
+}
+
+TEST_F(TestUbseNodeControllerMaster, UbseNodeSyncFullTimer_NoStandby)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    ubse::election::Node standby{};
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.UbseNodeSyncFullTimerHandler());
+}
+
+TEST_F(TestUbseNodeControllerMaster, NodeInfoSyncReqHandler_GlobalStop)
+{
+    ubse::context::g_globalStop.store(true);
+    UbseByteBuffer req{};
+    UbseByteBuffer resp{};
+    EXPECT_EQ(NodeInfoSyncReqHandler(req, resp), UBSE_ERROR);
+    ubse::context::g_globalStop.store(false);
+}
+
+TEST_F(TestUbseNodeControllerMaster, NodeInfoSyncReqHandler_ElectionNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    UbseByteBuffer req{};
+    UbseByteBuffer resp{};
+    EXPECT_EQ(NodeInfoSyncReqHandler(req, resp), UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+
+TEST_F(TestUbseNodeControllerMaster, NodeInfoSyncReqHandler_NotLeader)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+    UbseByteBuffer req{};
+    UbseByteBuffer resp{};
+    EXPECT_EQ(NodeInfoSyncReqHandler(req, resp), UBSE_ERROR);
+}
+
+TEST_F(TestUbseNodeControllerMaster, NodeInfoSyncReqHandler_NormalReplyFullSnapshot)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+
+    // 序列化请求体：requestorNodeId 字符串
+    ubse::serial::UbseSerialization ser;
+    ser << std::string("9");
+    UbseByteBuffer req{ser.GetBuffer(), ser.GetLength(), nullptr};
+    UbseByteBuffer resp{};
+
+    // 验证点：文件级 static 自由函数 BuildNodeInfoSyncFullPayload 能否被 mockcpp 打桩
+    MOCKER(BuildNodeInfoSyncFullPayload).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(NodeInfoSyncReqHandler(req, resp), UBSE_OK);
+}
+
+TEST_F(TestUbseNodeControllerMaster, PullNodeInfoFromMaster_NotStandbyNode)
+{
+    MOCKER(&UbseNodeControllerAgent::IsStandbyNode).stubs().will(returnValue(false));
+    EXPECT_NO_THROW(UbseNodeControllerAgent::GetInstance().PullNodeInfoFromMaster());
+}
+
+TEST_F(TestUbseNodeControllerMaster, PullNodeInfoFromMaster_ElectionNull)
+{
+    MOCKER(&UbseNodeControllerAgent::IsStandbyNode).stubs().will(returnValue(true));
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    EXPECT_NO_THROW(UbseNodeControllerAgent::GetInstance().PullNodeInfoFromMaster());
+}
+
+TEST_F(TestUbseNodeControllerMaster, PullNodeInfoFromMaster_NoMasterNode)
+{
+    MOCKER(&UbseNodeControllerAgent::IsStandbyNode).stubs().will(returnValue(true));
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    ubse::election::Node master{};
+    MOCKER_CPP(&UbseElectionModule::UbseGetMasterNode).stubs().with(outBound(master)).will(returnValue(UBSE_OK));
+    EXPECT_NO_THROW(UbseNodeControllerAgent::GetInstance().PullNodeInfoFromMaster());
+}
+
+TEST_F(TestUbseNodeControllerMaster, PullNodeInfoFromMaster_SendFailed)
+{
+    MOCKER(&UbseNodeControllerAgent::IsStandbyNode).stubs().will(returnValue(true));
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    ubse::election::Node master{.id = "1"};
+    MOCKER_CPP(&UbseElectionModule::UbseGetMasterNode).stubs().with(outBound(master)).will(returnValue(UBSE_OK));
+    MOCKER(UbseRpcSend).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(UbseNodeControllerAgent::GetInstance().PullNodeInfoFromMaster());
+}
 } // namespace ubse::node_controller::ut
