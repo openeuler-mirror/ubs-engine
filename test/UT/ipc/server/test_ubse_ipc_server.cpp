@@ -44,6 +44,17 @@ static std::string GetSocketPath()
 
 const uint32_t TIMEOUT = 5; // 超时时间，单位秒
 
+// 本地 UDS 往返应在毫秒级完成。同步调用必须显式限制总超时：
+// 服务端偶发竞态不回包时，若走默认 30 分钟超时(ubse_uds_client.h DEFAULT_TOTAL_TIMEOUT)，
+// 单个用例会阻塞流水线 30 分钟
+constexpr uint32_t INVOKE_TIMEOUT_MS = 10000;
+
+static uint32_t InvokeCall(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                           ubse_api_buffer_t* response_data)
+{
+    return ubse_invoke_call_timeout(module_code, op_code, request_data, response_data, INVOKE_TIMEOUT_MS);
+}
+
 static std::string g_stubUserName = "root";
 
 static UbseResult StubUserName(uid_t, std::string& userName)
@@ -106,7 +117,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = InvokeCall(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
     delete[] data;
@@ -125,7 +136,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = InvokeCall(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
     delete[] data;
@@ -144,7 +155,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenRequestDataInvailed)
     ubse_api_buffer_t requestData{nullptr, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = InvokeCall(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
     ubse_api_buffer_free(&responseData);
     delete[] data;
@@ -178,7 +189,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = InvokeCall(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(requestData.length, 10 * 1024 * 1024); // 10MB
     ubse_api_buffer_free(&responseData);
@@ -205,7 +216,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = InvokeCall(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(requestData.length, 10); // 数据长度为10
     ubse_api_buffer_free(&responseData);
@@ -274,7 +285,7 @@ TEST_F(TestUbseIpcServer, ShortLinkRequestWhenPermissionDenied)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(2, 2, &requestData, &responseData);
+    auto ret = InvokeCall(2, 2, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_PERMISSION_DENIED);
     ubse_api_buffer_free(&responseData);
     delete[] data;

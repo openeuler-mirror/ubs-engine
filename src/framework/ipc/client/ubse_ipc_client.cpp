@@ -106,11 +106,15 @@ void ubse_socket_path_set(const char* socket_path)
     ubseSocketPath = std::string(socket_path);
 }
 
-uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
-                          ubse_api_buffer_t* response_data)
+static uint32_t InvokeCallInternal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                   ubse_api_buffer_t* response_data, uint32_t totalTimeout)
 {
     if (request_data == nullptr || response_data == nullptr) {
         IPC_LOG_ERROR << "Request_data or response_data pointer is null";
+        return UBSE_ERROR_INVAL;
+    }
+    if (totalTimeout == 0) {
+        IPC_LOG_ERROR << "Invalid totalTimeout=0, expect a positive value in milliseconds";
         return UBSE_ERROR_INVAL;
     }
     response_data->buffer = nullptr;
@@ -132,7 +136,7 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     UbseResponseMessage responseMessage{};
     // Send request
     IPC_LOG_INFO << "Sending request, module_code=" << module_code << ", op_code=" << op_code;
-    ret = client->Send(requestMessage, responseMessage);
+    ret = client->Send(requestMessage, responseMessage, totalTimeout);
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "Failed to send request, error code: " << ret;
         client->Disconnect();
@@ -151,6 +155,18 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     }
     client->Disconnect();
     return responseMessage.header.statusCode;
+}
+
+uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                          ubse_api_buffer_t* response_data)
+{
+    return InvokeCallInternal(module_code, op_code, request_data, response_data, ubse::ipc::DEFAULT_TOTAL_TIMEOUT);
+}
+
+uint32_t ubse_invoke_call_timeout(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                  ubse_api_buffer_t* response_data, uint32_t timeout_ms)
+{
+    return InvokeCallInternal(module_code, op_code, request_data, response_data, timeout_ms);
 }
 
 void ubse_api_buffer_free(ubse_api_buffer_t* apiBuffer)
