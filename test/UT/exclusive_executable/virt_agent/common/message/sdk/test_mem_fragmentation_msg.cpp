@@ -670,4 +670,99 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Deserialize_R
     EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
 }
 
+TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Deserialize_RejectHugeNodeCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    const size_t hugeCount = static_cast<size_t>(MAX_NODE_NUM) + 1;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationNodeInfoListMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Deserialize_RejectHugeNumaCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    const size_t nodeCount = 1;
+    out << nodeCount;
+    out << std::string("n");
+    const size_t hugeNumaCount = static_cast<size_t>(MAX_NUMA_NUM) + 1;
+    out << hugeNumaCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationNodeInfoListMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Deserialize_RejectHugeNumaMetaCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    out << std::string("n");
+    const uint32_t hugeCount = MAX_NUMA_NUM + 1;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationMemBorrowParamMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Deserialize_RejectHugePairsCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    const pid_t pid = 12345;
+    out << pid;
+    const uint32_t hugeCount = MAX_NUMA_NUM + 1;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationPageSwapEnableMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Deserialize_RejectHugeLocalQuotaCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    const pid_t pid = 12345;
+    out << pid;
+    const uint32_t pairsCount = 1;
+    out << pairsCount;
+    const uint32_t hugeCount = MAX_NUMA_NUM + 1;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationPageSwapEnableMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Deserialize_RejectHugeRemoteQuotaCount)
+{
+    using namespace ::vm::mem_fragmentation;
+    VmSerialization out;
+    const pid_t pid = 12345;
+    out << pid;
+    const uint32_t pairsCount = 1;
+    out << pairsCount;
+    const uint32_t localCount = 0;
+    out << localCount;
+    const uint32_t hugeCount = MAX_NUMA_NUM + 1;
+    out << hugeCount;
+    ASSERT_TRUE(out.Check());
+    MemFragmentationPageSwapEnableMsg dmsg{out.GetBuffer(), static_cast<uint32_t>(out.GetLength())};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR_INVAL);
+}
+
+TEST_F(TestMemFragmentationMsg, MemMigrateStrategyOutputMsg_Deserialize_TruncatedWaitingTime)
+{
+    MemMigrateStrategy srcParam{};
+    srcParam.vmInfoListSize = 0;
+    srcParam.vmInfoList = nullptr;
+    srcParam.waitingTime = 999;
+    MemFragmentationMemMigrateStrategyOutputMsg msg{srcParam};
+    ASSERT_EQ(msg.Serialize(), VM_OK);
+    uint32_t truncLen = msg.SerializedDataSize() - sizeof(uint64_t);
+    MemFragmentationMemMigrateStrategyOutputMsg dmsg{msg.SerializedData(), truncLen};
+    EXPECT_EQ(dmsg.Deserialize(), VM_ERROR);
+}
+
 } // namespace ubse::vm::ut
