@@ -15,6 +15,8 @@
 #include "mockcpp/mockcpp.hpp"
 
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "ubse_vip_manager.h"
 #include "ubse_vip_injection_handler.h"
@@ -35,6 +37,26 @@ namespace {
 constexpr uint32_t kTestAddr = 0xC0A864C8u;
 constexpr const char *kTestAddrStr = "192.168.100.200";
 constexpr uint16_t kTestPort = 10002;
+
+// 10.10.10.99 的 host 序整数表示，用于热更新场景的新地址
+constexpr uint32_t kNewAddr = 0x0A0A0A63u;
+constexpr const char *kNewAddrStr = "10.10.10.99";
+
+// 记录 Exec 拦截到的 shell 命令序列。mockcpp 的 invoke 不接受带捕获的 lambda，
+// 故使用文件级变量 + 普通函数指针
+std::vector<std::string> g_execCmds;
+
+UbseResult MockExecCapture(const std::string &cmd, std::string &result)
+{
+    g_execCmds.push_back(cmd);
+    result.clear();
+    return UBSE_OK;
+}
+
+// mockcpp 的 returnValue 不支持无参调用，void 函数用 invoke 空函数桩
+void MockNopVoid()
+{
+}
 
 UbseVipConfig MakeContainerModeConfig()
 {
@@ -138,6 +160,73 @@ TEST_F(TestUbseVipInjection, InjectConfig_MasterUnbound_Unchanged_HeartbeatRebin
     MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, UbseVipManager::GetInstance().InjectConfig(kTestAddr, kTestPort, 24, "eth0"));
     EXPECT_TRUE(UbseVipManager::GetInstance().IsVipBound());
+}
+
+/*
+ * 用例描述：master 已绑定时热更新配置，必须先按旧配置（旧地址/旧网卡）解绑旧 VIP，
+ *          再按新配置（新地址/新网卡）绑定，锁定 InjectConfig 的顺序契约：
+ *          UnbindVipL2 依赖 config_，必须发生在 config_ 覆写之前
+ * 测试步骤：
+ * 1.容器模式 Init + BindVip（延迟绑定）置 active_=true
+ * 2.注入旧配置 192.168.100.200@eth0 并绑定成功（vipBound_=true）
+ * 3.重置 mock，用 invoke 桩记录 Exec 命令序列
+ * 4.注入新配置 10.10.10.99@eth1 触发热更新
+ * 预期结果：第一条 ip addr del 携带旧地址与旧网卡 eth0；随后出现携带新地址与 eth1 的
+ *          ip addr add，且 del 先于 add
+ */
+TEST_F(TestUbseVipInjection, InjectConfig_MasterBound_HotUpdate_UnbindOldBeforeOverwrite)
+{
+    UbseVipConfig cfg = MakeContainerModeConfig();
+    cfg.arpCount = 1;
+    cfg.arpInterval = 0;
+    ASSERT_EQ(UBSE_OK, UbseVipManager::GetInstance().Init(cfg));
+    // BindVip 使 active_=true，容器模式未注入走延迟绑定分支
+    ASSERT_EQ(UBSE_OK, UbseVipManager::GetInstance().BindVip());
+
+    // 首次注入旧配置并绑定成功，构造 active_ + vipBound_ 状态
+    MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
+    ASSERT_EQ(UBSE_OK, UbseVipManager::GetInstance().InjectConfig(kTestAddr, kTestPort, 24, "eth0"));
+    ASSERT_TRUE(UbseVipManager::GetInstance().IsVipBound());
+
+    // mockcpp 对同一函数的二次 MOCKER_CPP 不会覆盖先前 stub，需先重置再设置命令记录桩
+    GlobalMockObject::reset();
+    g_execCmds.clear();
+    MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(invoke(MockExecCapture));
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
+    // 热更新后 StopHttpServer 会对伪造的 httpServer_ 调 Stop，一并 mock 掉避免触达真实 socket
+    MOCKER_CPP(&UbseHttpServer::Stop).stubs().will(invoke(MockNopVoid));
+
+    // 热更新：变更为新地址/新网卡
+    EXPECT_EQ(UBSE_OK, UbseVipManager::GetInstance().InjectConfig(kNewAddr, kTestPort, 24, "eth1"));
+    EXPECT_TRUE(UbseVipManager::GetInstance().IsVipBound());
+
+    // 断言：解绑命令先于绑定命令，且解绑命令携带旧地址与旧接口（证明 config_ 覆写前解绑）
+    ASSERT_GE(g_execCmds.size(), 2U);
+    size_t delIdx = 0;
+    size_t addIdx = 0;
+    bool foundDel = false;
+    bool foundAdd = false;
+    for (size_t i = 0; i < g_execCmds.size(); ++i) {
+        if (!foundDel && g_execCmds[i].find("ip addr del") != std::string::npos) {
+            delIdx = i;
+            foundDel = true;
+        }
+        if (!foundAdd && g_execCmds[i].find("ip addr add") != std::string::npos) {
+            addIdx = i;
+            foundAdd = true;
+        }
+    }
+    ASSERT_TRUE(foundDel) << "no 'ip addr del' command executed";
+    ASSERT_TRUE(foundAdd) << "no 'ip addr add' command executed";
+    EXPECT_LT(delIdx, addIdx) << "unbind must happen before re-bind";
+    EXPECT_NE(g_execCmds[delIdx].find(kTestAddrStr), std::string::npos);   // 旧地址
+    EXPECT_NE(g_execCmds[delIdx].find("eth0"), std::string::npos);         // 旧接口
+    EXPECT_EQ(g_execCmds[delIdx].find(kNewAddrStr), std::string::npos);    // 不应携带新地址
+    EXPECT_NE(g_execCmds[addIdx].find(kNewAddrStr), std::string::npos);    // 新地址
+    EXPECT_NE(g_execCmds[addIdx].find("eth1"), std::string::npos);         // 新接口
+    EXPECT_EQ(std::string(kNewAddrStr), UbseVipManager::GetInstance().GetConfig().address);
+    EXPECT_EQ(std::string("eth1"), UbseVipManager::GetInstance().GetConfig().interface);
 }
 
 // ==================== UbseVipInjectionHandler ====================

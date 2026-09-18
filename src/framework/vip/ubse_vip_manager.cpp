@@ -300,6 +300,17 @@ UbseResult UbseVipManager::InjectConfig(uint32_t addr, uint16_t port, uint8_t pr
         return UBSE_OK;
     }
 
+    // master 热更新:先按旧配置解绑旧 VIP,再落地新配置。
+    // UnbindVipL2/DelIpAddress 依赖 config_, 在覆写前执行构造删除命令
+    if (active_ && vipBound_) {
+        StopHttpServer();
+        auto ret = UnbindVipL2();   // 此时 config_ 仍是旧值
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[VIP] Unbind old VIP failed before hot update, stale VIP may remain on NIC";
+        }
+        vipBound_ = false;
+    }
+
     // 落地新配置
     config_.address = std::move(newAddr);
     config_.listenPort = port;
@@ -314,12 +325,6 @@ UbseResult UbseVipManager::InjectConfig(uint32_t addr, uint16_t port, uint8_t pr
         return UBSE_OK;
     }
 
-    // master 热更新:先解绑旧 VIP 再绑新 VIP
-    if (vipBound_) {
-        StopHttpServer();
-        UnbindVipL2();
-        vipBound_ = false;
-    }
     return BindVipLocked();
 }
 
