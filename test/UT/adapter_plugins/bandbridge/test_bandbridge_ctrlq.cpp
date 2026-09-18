@@ -319,3 +319,49 @@ TEST_F(BandbridgeCtrlqTest, Init_IoremapFail_RegMapFails)
     mock_set_ioremap_fail(true);
     EXPECT_NE(bandbridge_ctrlq_init(), 0);
 }
+
+// ==================== 缓冲区安全校验回归测试 ====================
+
+// bb_num(255)超过rq实际深度(2), 即使未超过用户传入的recvbuf_size也应拒绝;
+// 修复前read_data_from_rq会按8160字节越界读rq缓冲区(64字节)
+TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_BbNumExceedsRqDepth_ReturnsNospc)
+{
+    int depth = 2;
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
+    memset(base, 0, depth * CTRLQ_BB_SIZE);
+    setup_rq(depth, base);
+    g_ctrlq_info.rq.ci = 0;
+    mock_set_reg(CTRLQ_RX_TAIL_REG, 255);
+
+    write_msg_header(base, 0x0042, 255);
+
+    char* recvbuf = (char*)malloc(255 * CTRLQ_BB_SIZE);
+    int recvbuf_size = 255 * CTRLQ_BB_SIZE;
+    EXPECT_EQ(bandbridge_ctrlq_receive_from_rq(recvbuf, &recvbuf_size, 0x0042), -ENOSPC);
+    free(recvbuf);
+
+    free(base);
+    g_ctrlq_info.rq.base_addr = NULL;
+}
+
+// 成功时回写实际接收长度bb_num*CTRLQ_BB_SIZE
+TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_Success_WritesBackActualRecvSize)
+{
+    int depth = 8;
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
+    memset(base, 0, depth * CTRLQ_BB_SIZE);
+    setup_rq(depth, base);
+    g_ctrlq_info.rq.ci = 0;
+    mock_set_reg(CTRLQ_RX_TAIL_REG, 3);
+
+    write_msg_header(base, 0x0042, 3);
+
+    char recvbuf[8 * CTRLQ_BB_SIZE] = {0};
+    int recvbuf_size = 8 * CTRLQ_BB_SIZE;
+    int ret = bandbridge_ctrlq_receive_from_rq(recvbuf, &recvbuf_size, 0x0042);
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(recvbuf_size, 3 * CTRLQ_BB_SIZE);
+
+    free(base);
+    g_ctrlq_info.rq.base_addr = NULL;
+}

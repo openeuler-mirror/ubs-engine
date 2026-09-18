@@ -162,6 +162,9 @@ int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t* alloc_info)
 
 void ubs_npu_device_list_free(ubs_ub_devices_list_t* device_list)
 {
+    if (device_list == nullptr) {
+        return;
+    }
     FreeBusi(*device_list);
     FreeNpu(*device_list);
     FreeUbctrl(*device_list);

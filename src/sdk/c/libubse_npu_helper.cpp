@@ -524,6 +524,9 @@ ubs_error_t UbseNpuAllocInfoIsValid(const ubs_ub_alloc_devices_info_t* allocInfo
     if (allocInfo->ub_dev_list_count == 0) {
         return UBS_ERR_INVALID_ARG;
     }
+    if (allocInfo->ub_dev_list == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
     return UBS_SUCCESS;
 }
 

@@ -206,6 +206,14 @@ unsigned long copy_to_user(void __user* to, const void* from, unsigned long n);
 int misc_register(struct miscdevice* misc);
 void misc_deregister(struct miscdevice* misc);
 char* d_path(const struct path* path, char* buf, int buflen);
+struct mm_struct* get_task_mm(struct task_struct* task);
+void mmput(struct mm_struct* mm);
+void rcu_read_lock(void);
+void rcu_read_unlock(void);
+/* kernel 6.6: get_file_rcu(x) is a macro taking struct file* and bumping f_count */
+#define get_file_rcu(x) ((x) != NULL)
+#define rcu_dereference(p) (p)
+void fput(struct file* file);
 void mutex_init(struct mutex* m);
 void mutex_lock(struct mutex* m);
 void mutex_unlock(struct mutex* m);
