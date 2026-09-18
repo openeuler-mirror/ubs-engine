@@ -1575,6 +1575,14 @@ void VirtMemFragSdk::GetRemoteNodeInfoSrcHandler(void* ctx, const UbseByteBuffer
     const auto nodeInfos = repMsg.GetNodeInfoList();
     const auto nodeInfoListPtr = static_cast<std::vector<mem_fragmentation::NodeInfo>*>(ctx);
     nodeInfoListPtr->clear();
+    if (nodeInfos.empty()) {
+        UBSE_LOG_ERROR << "Remote node numa info is empty, deserialized count=0.";
+        // Clean up the copied data on empty list
+        if (respData.freeFunc != nullptr && respData.data != nullptr) {
+            respData.freeFunc(const_cast<uint8_t*>(respData.data));
+        }
+        return;
+    }
     nodeInfoListPtr->emplace_back(*nodeInfos.begin());
     // Clean up the copied data after successful use
     if (respData.freeFunc != nullptr && respData.data != nullptr) {
