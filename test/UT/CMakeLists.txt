@@ -130,6 +130,7 @@ add_subdirectory(sdk)
 add_subdirectory(controllers/npu)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
+add_subdirectory(adapter_plugins/bandbridge)
 
 add_independent_exec_ut(${UT_BINARY})
 

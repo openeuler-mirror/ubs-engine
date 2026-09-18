@@ -236,3 +236,23 @@ void init_waitqueue_head(struct wait_queue_head* q)
 {
     (void)q;
 }
+
+/* mock impls for kernel ref-count interfaces used by check_permission */
+struct mm_struct* get_task_mm(struct task_struct* task)
+{
+    return task->mm;
+}
+
+void rcu_read_lock(void) {}
+
+void rcu_read_unlock(void) {}
+
+void mmput(struct mm_struct* mm)
+{
+    (void)mm;
+}
+
+void fput(struct file* file)
+{
+    (void)file;
+}

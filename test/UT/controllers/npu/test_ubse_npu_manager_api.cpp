@@ -2793,4 +2793,92 @@ TEST_F(TestUbseNpuManagerApi, SetStateRollbackBg)
     EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
 }
 
+/*
+ * ============================================================================
+ * 空指针防护与部分失败错误码回归测试
+ * ============================================================================
+ */
+// P_IDEV未挂VFE子设备时应跳过该设备，而不是对空vector下标访问导致崩溃
+TEST_F(TestUbseNpuManagerApi, BindVfeDavidSkipsPfeWithoutVfe)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 2;
+    pfeLoc.dieId = 0;
+    pfeLoc.pfeId = 1;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    david->SetBondingIdev(pfe); // P_IDEV未挂任何VFE子设备
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {david};
+    // 修复前：pfe->GetSubDevVfe()[0]空vector下标访问崩溃；修复后：跳过该设备返回成功
+    EXPECT_EQ(manager.BindVfeDavid(1, devList), UBSE_OK);
+}
+
+// RpcSend返回OK但resList存在失败项时，BindVfeDavid应返回错误而不是UBSE_OK
+TEST_F(TestUbseNpuManagerApi, BindVfeDavidPartialFailureReturnsError)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 2;
+    pfeLoc.dieId = 0;
+    pfeLoc.pfeId = 1;
+    CollectDeviceLoc vfeLoc = pfeLoc;
+    vfeLoc.vfeId = 1;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    pfe->SetSubDevIdev(vfe);
+    david->SetBondingIdev(pfe);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {david};
+    std::vector<bool> resList = {false}; // 部分绑定失败
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::BindDavid)
+        .stubs()
+        .with(any(), any(), outBound(resList))
+        .will(returnValue(UBSE_OK));
+    // 修复前：res==UBSE_OK直接返回成功，部分失败被当作成功；修复后：返回UBSE_ERROR
+    EXPECT_EQ(manager.BindVfeDavid(1, devList), UBSE_ERROR);
+}
+
+// RpcSend返回OK但resList存在失败项时，UnbindVfeDavid应返回错误而不是UBSE_OK
+TEST_F(TestUbseNpuManagerApi, UnbindVfeDavidPartialFailureReturnsError)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 1;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    david->SetBondingIdev(vfe); // V_IDEV直接挂在David上
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {david};
+    std::vector<bool> resList = {false}; // 部分解绑失败
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::UnBindDavid)
+        .stubs()
+        .with(any(), any(), outBound(resList))
+        .will(returnValue(UBSE_OK));
+    // 修复前：res==UBSE_OK直接返回成功，部分失败被当作成功；修复后：返回UBSE_ERROR
+    EXPECT_EQ(manager.UnbindVfeDavid(1, devList), UBSE_ERROR);
+}
+
 } // namespace ubse::npu::controller::ut
