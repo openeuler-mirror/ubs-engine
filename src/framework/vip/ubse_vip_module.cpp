@@ -116,29 +116,6 @@ UbseResult UbseVipModule::LoadConfig()
         return UBSE_OK;
     }
 
-    // arpCount/arpInterval 与 listenIp 无依赖,须在容器模式提前 return 之前读取,保证容器模式同样可调优
-    uint32_t arpCount = 5;
-    ret = confModule->GetConf(section, "vip.arpCount", arpCount);
-    if (ret == UBSE_OK) {
-        if (arpCount >= 1 && arpCount <= 10) {
-            config_.arpCount = arpCount;
-        } else {
-            UBSE_LOG_WARN << "[VIP] vip.arpCount=" << arpCount << " is out of range [1, 10], using default: "
-                          << config_.arpCount;
-        }
-    }
-
-    uint32_t arpInterval = 200;
-    ret = confModule->GetConf(section, "vip.arpInterval", arpInterval);
-    if (ret == UBSE_OK) {
-        if (arpInterval >= 100 && arpInterval <= 5000) {
-            config_.arpInterval = arpInterval;
-        } else {
-            UBSE_LOG_WARN << "[VIP] vip.arpInterval=" << arpInterval << " is out of range [100, 5000], using default: "
-                          << config_.arpInterval;
-        }
-    }
-
     uint32_t rateLimitRps = 0;
     ret = confModule->GetConf(section, "vip.httpServer.rateLimitRps", rateLimitRps);
     if (ret == UBSE_OK) {
@@ -181,8 +158,7 @@ UbseResult UbseVipModule::LoadConfig()
     UBSE_LOG_INFO << "[VIP] Config loaded: listenIp=" << config_.listenIp
                   << ", listenPort=" << config_.listenPort
                   << ", rateLimitRps=" << config_.rateLimitRps
-                  << ", maxQueuedRequests=" << config_.maxQueuedRequests
-                  << ", arpCount=" << config_.arpCount << ", arpInterval=" << config_.arpInterval;
+                  << ", maxQueuedRequests=" << config_.maxQueuedRequests;
     return UBSE_OK;
 }
 

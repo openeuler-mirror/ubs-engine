@@ -31,6 +31,7 @@ struct UbseVipConfig {
     uint32_t listenPort{10002};    // HTTP server listening port
     uint32_t rateLimitRps{0};      // 0=不限流（默认），>0 表示每秒最大请求数
     uint32_t maxQueuedRequests{0};    // 0=不限制（默认），>0 表示北向 HTTP 等待队列上限（mqr）
+    // 免费 ARP 发送参数（内部固定默认值，不从配置读取）
     uint32_t arpCount{5};
     uint32_t arpInterval{200};
 
