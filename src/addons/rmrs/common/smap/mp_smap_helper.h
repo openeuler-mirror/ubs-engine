@@ -114,11 +114,7 @@ public:
 
     static void FilterValidPidsByLocalNode(std::vector<pid_t>& pidList);
 
-    static void FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList);
-
     static void RollBackSmapEnablePids(std::vector<pid_t>& pids);
-
-    static MpResult SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList);
 
     static MpResult SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId);
 

@@ -73,8 +73,7 @@ uint32_t UbseUDSClient::Connect()
     // Set non-blocking mode for connection timeout
     SetNonBlocking(true);
 
-    struct sockaddr_un addr {
-    };
+    struct sockaddr_un addr = {};
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         IPC_LOG_ERROR << "Failed to initialize address structure, err=" << ret;
@@ -147,7 +146,7 @@ uint32_t UbseUDSClient::HandleInProgressConnection()
                 Disconnect();
                 return UBSE_ERR_IPC_CONNECTION_FAILED;
             }
-            timeoutMs = remaining.count();
+            timeoutMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count());
             continue;
         }
         if (result <= 0) {
@@ -253,7 +252,8 @@ uint32_t UbseUDSClient::WaitForDataReadable(uint32_t timeoutMs)
             if (remaining.count() <= 0) {
                 ready = 0; // 超时处理
             } else {
-                timeoutMs = remaining.count();
+                timeoutMs =
+                    static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count());
                 IPC_LOG_INFO << "poll interrupted, remaining time: " << timeoutMs << "ms";
                 continue;
             }
@@ -369,8 +369,7 @@ uint32_t UbseUDSClient::WaitAndReceive(UbseResponseMessage& response, std::chron
 void UbseUDSClient::SetSocketOptions() const
 {
     // Set receive timeout
-    struct timeval tv {
-    };
+    struct timeval tv = {};
     tv.tv_sec = DEFAULT_RECEIVE_TIMEOUT / MILLISECOND_TO_SECOND;
     tv.tv_usec = (DEFAULT_RECEIVE_TIMEOUT % MILLISECOND_TO_SECOND) * MILLISECOND_TO_SECOND;
     setsockopt(sockFd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
@@ -782,8 +781,7 @@ uint32_t UbseUDSClient::LongLinkConnect()
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
     SetNonBlocking(true);
-    struct sockaddr_un addr {
-    };
+    struct sockaddr_un addr = {};
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         Disconnect();

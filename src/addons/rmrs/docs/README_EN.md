@@ -1,5 +1,7 @@
 # UBS RMRS
 
+<p> English | <a href="README.md">简体中文</a></p>
+
 ## Introduction
 
 UBS RMRS is an intra-node resource management service plugin designed for virtualization scenarios. As a part of the UBS Engine framework, it provides cluster-level memory resource scheduling services, specifically for scenarios involving VM memory fragmentation, VM memory overcommitment, and container memory overcommitment.
@@ -8,7 +10,6 @@ UBS RMRS is an intra-node resource management service plugin designed for virtua
 
 ```sh
 UBS RMRS/
-├── 3rdparty                    // Third-party source code library
 ├── benchmark                   // CLI tool
 ├── conf                        // Configuration file
 ├── doc                         // Document

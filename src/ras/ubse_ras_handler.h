@@ -132,6 +132,12 @@ public:
 
     UbseResult RegisterFaultHandleResultClearTimer();
 
+    /**
+     * 进程退出前停止所有BMC故障重试计时器，确保计时线程被join，避免静态map析构时
+     * 仍处于joinable状态的std::thread触发std::terminate
+     */
+    void StopAllBmcFaultTimers();
+
 private:
     /*
      * 私有默认构造函数

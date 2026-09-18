@@ -85,7 +85,7 @@ struct CtrlQReqMessage {
         blocks.resize(1); // default size 1
     }
 
-    explicit CtrlQReqMessage(uint8_t bbNum)
+    explicit CtrlQReqMessage(uint32_t bbNum)
     {
         blocks.resize(bbNum);
     }

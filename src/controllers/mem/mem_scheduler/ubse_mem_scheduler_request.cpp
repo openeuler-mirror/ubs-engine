@@ -42,7 +42,10 @@ uint64_t AlignRequestSize(uint64_t size, uint32_t blockSizeMb)
     return (aligned / blockBytes) * blockBytes;
 }
 
-uint32_t GetRequestNodeBlockSize(const NodeId& importNodeId, const NodeId& requestNodeId, SchedulerNodeManager* info)
+} // namespace
+
+uint32_t SchedulerRequest::GetRequestNodeBlockSize(const NodeId& importNodeId, const NodeId& requestNodeId,
+                                                   SchedulerNodeManager* info)
 {
     if (info == nullptr) {
         return 0;
@@ -56,7 +59,6 @@ uint32_t GetRequestNodeBlockSize(const NodeId& importNodeId, const NodeId& reque
     }
     return reqNode->GetBlockSize();
 }
-} // namespace
 
 SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req,
                                                      SchedulerNodeManager* info)

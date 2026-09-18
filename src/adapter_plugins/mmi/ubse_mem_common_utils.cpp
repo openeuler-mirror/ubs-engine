@@ -78,7 +78,7 @@ void CopyObmmMemDescValue(const obmm_mem_desc* src, ubse_mem_obmm_mem_desc& des)
 UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std::string& name,
                                  UbseMemLocalObmmCustomMeta& customMeta, const bool isAppendNodeId)
 {
-    if (algoResult.exportNumaInfos.size() < algoResult.importNumaInfos.size() ||
+    if (algoResult.exportNumaInfos.empty() || algoResult.exportNumaInfos.size() < algoResult.importNumaInfos.size() ||
         TOPOLOGY_MAX_NUMA_PER_SOCKET < algoResult.exportNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "exportNumaInfos.size=" << algoResult.exportNumaInfos.size()
                        << ", importNumaInfos.size=" << algoResult.importNumaInfos.size();

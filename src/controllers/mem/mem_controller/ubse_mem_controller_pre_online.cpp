@@ -43,7 +43,8 @@ const uint32_t TIMEOUT_CHECK_DURATION = 60000;    // 预上线超时检查器，
 // 主节点等待节点预上线超时时间20分钟，当前每G最大上线耗时3s， 最大预上线内存 预计需要12.8分钟.
 // 若主节点等到20分钟还未执行完毕，将对应节点状态置为 offline.
 const uint64_t PRE_ONLINE_TIMEOUT = 12000;
-const uint32_t SEND_PRE_ONLINE_MSG_TIMES = 5; // master发送消息失败后重试次数
+const uint32_t SEND_PRE_ONLINE_MSG_TIMES = 5;  // master发送消息失败后重试次数
+const uint32_t REPLY_PRE_ONLINE_MSG_TIMES = 5; // 回复预上线消息失败后重试次数
 const uint32_t MB_SIZE = 1024 * 1024;
 constexpr int MAX_CNA_LIST_SIZE = 256;
 
@@ -518,12 +519,18 @@ void OperatePreOnLine(PreOnLineReq req)
         if (module == nullptr) {
             UBSE_LOG_ERROR << "mmi module not load.";
             resp.ret = ret;
-            while (true) {
-                if (PreOnLineReply(resp) == UBSE_OK) {
+            UbseResult replyRet = UBSE_OK;
+            for (uint32_t i = 0; i < REPLY_PRE_ONLINE_MSG_TIMES; i++) {
+                replyRet = PreOnLineReply(resp);
+                if (replyRet == UBSE_OK) {
                     break;
                 }
                 UBSE_LOG_ERROR << "reply failed, task=" << req.taskName << ", will retry.";
                 sleep(PRE_ONLINE_MSG_RETRY_DURATION);
+            }
+            if (replyRet != UBSE_OK) {
+                UBSE_LOG_ERROR << "reply pre online msg failed after retry, task=" << req.taskName << ", "
+                               << FormatRetCode(replyRet);
             }
             return;
         }
@@ -540,12 +547,18 @@ void OperatePreOnLine(PreOnLineReq req)
         } else {
             UBSE_LOG_ERROR << "operate pre online failed, " << FormatRetCode(ret) << ", task=" << req.taskName;
         }
-        while (true) {
-            if (PreOnLineReply(resp) == UBSE_OK) {
+        UbseResult replyRet = UBSE_OK;
+        for (uint32_t i = 0; i < REPLY_PRE_ONLINE_MSG_TIMES; i++) {
+            replyRet = PreOnLineReply(resp);
+            if (replyRet == UBSE_OK) {
                 break;
             }
             UBSE_LOG_ERROR << "reply failed, task=" << req.taskName << ", will retry.";
             sleep(PRE_ONLINE_MSG_RETRY_DURATION);
+        }
+        if (replyRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "reply pre online msg failed after retry, task=" << req.taskName << ", "
+                           << FormatRetCode(replyRet);
         }
     });
 }

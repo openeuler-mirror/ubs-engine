@@ -355,6 +355,7 @@ void StatusManager::MemoryReturnOperation(EscapeAction& escapeAction)
     const auto UBSRMRSMemReturn = MempoolingModule::UBSRMRSMemReturn();
     if (UBSRMRSMemReturn == nullptr) {
         UBSE_LOG_ERROR << "[return] UBSRMRSMemReturn is nullptr.";
+        VmTaskCounter::CompleteTask("memoryReturn");
         return;
     }
     if (const auto res = UBSRMRSMemReturn(borrowParam, escapeAction.returnMemNames, pids); VmResultFail(res)) {
@@ -432,8 +433,22 @@ void StatusManager::BorrowQueueOperation()
         std::lock_guard lockGuard(ResourceCollect::mAllLock);
         std::vector<pid_t> pids = ResourceCollect.GetPidsOnNuma(curNodeLoc, "withOutMigrating");
         if (pids.empty()) {
+            if (completionState) {
+                completionState->promise.set_value(VM_OK);
+            }
+            {
+                std::scoped_lock lock(g_inFlightBorrowMutex);
+                g_inFlightBorrowMap.erase(curNodeLoc.toString());
+            }
             RemoveTaskFilterSet(curNodeLoc);
             UBSE_LOG_WARN << "[borrow] pid is empty.";
+            if (completionState) {
+                completionState->promise.set_value(VM_ERROR);
+            }
+            {
+                std::scoped_lock lock(g_inFlightBorrowMutex);
+                g_inFlightBorrowMap.erase(curNodeLoc.toString());
+            }
             continue;
         }
         VmResult borrowResult = VM_OK;
@@ -449,6 +464,27 @@ void StatusManager::BorrowQueueOperation()
             std::scoped_lock lock(g_inFlightBorrowMutex);
             g_inFlightBorrowMap.erase(curNodeLoc.toString());
         }
+    }
+}
+
+void StatusManager::StartBorrowQueueThread()
+{
+    if (borrowThread.joinable()) {
+        borrowThread.join();
+    }
+    borrowThread = std::thread(&StatusManager::BorrowQueueOperation);
+    UBSE_LOG_INFO << "borrowThread start ";
+}
+
+void StatusManager::StopBorrowQueueThread()
+{
+    {
+        std::lock_guard<std::mutex> lock(borrowMutex);
+        VmConfiguration::exitFlag.store(true);
+    }
+    borrowCv.notify_all();
+    if (borrowThread.joinable() && borrowThread.get_id() != std::this_thread::get_id()) {
+        borrowThread.join();
     }
 }
 

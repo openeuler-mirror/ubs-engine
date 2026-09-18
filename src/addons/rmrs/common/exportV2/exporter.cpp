@@ -105,11 +105,6 @@ void Exporter::Shutdown(bool wait)
     LOG_INFO << "Exporter shutdown done.";
 }
 
-time_t Exporter::NowTimeT()
-{
-    return std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-}
-
 void Exporter::StartGate::wait()
 {
     std::unique_lock<std::mutex> lk(mu_);
@@ -142,6 +137,7 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string& vmName)
     VmDomainInfo info;
     info.timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     info.metaData.name = vmName;
+    VirDomainPtr dom = nullptr;
     try {
         info.metaData.nodeId = MpConfiguration::GetInstance().GetNodeId();
         auto ret = OsHelper::GetHostName(info.metaData.hostName);
@@ -157,24 +153,31 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string& vmName)
             fillErrorVmDomainInfo(info);
             return info;
         }
-        VirDomainPtr dom = nullptr;
         ret = LibvirtHelper::GetInstance().GetDomainByName(vmName, dom);
         ret |= LibvirtHelper::GetInstance().GetVmUuidByDomain(dom, info.metaData.uuid);
         ret |= LibvirtHelper::GetInstance().GetVmStateAndMaxMemByDomain(dom, info);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "Gen vm domain info by LibvirtHelper failed, vm name: " << vmName;
             LibvirtHelper::GetInstance().FreeDomain(dom);
+            dom = nullptr;
             fillErrorVmDomainInfo(info);
             return info;
         }
         LibvirtHelper::GetInstance().FreeDomain(dom);
+        dom = nullptr;
         return info;
     } catch (const std::exception& e) {
         LOG_ERROR << "Gen vm domain info threw std::exception, vm name: " << vmName << ", what=" << e.what();
+        if (dom != nullptr) {
+            LibvirtHelper::GetInstance().FreeDomain(dom);
+        }
         fillErrorVmDomainInfo(info);
         return info;
     } catch (...) {
         LOG_ERROR << "Gen vm domain info threw unknown exception, vm name: " << vmName;
+        if (dom != nullptr) {
+            LibvirtHelper::GetInstance().FreeDomain(dom);
+        }
         fillErrorVmDomainInfo(info);
         return info;
     }

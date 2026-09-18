@@ -102,6 +102,9 @@ struct OverCommitFaultContext {
     std::unordered_map<std::string, std::unordered_map<uint16_t, std::vector<std::string>>> nodeToNumaBorrowIds;
     // 按借入节点分组的借用方用户信息（master代借时使用）
     std::unordered_map<std::string, BorrowUserInfo> nodeToBorrowUser;
+    // 按借入节点分组的禁用冷热迁移的pid名单（Query阶段禁用，各失败出口恢复）
+    // 仅记录稳态占用>0的纳管pid（泄漏收尾已恢复的pid不在此列）；对端业务失败但响应体带回时同样提取
+    std::unordered_map<std::string, std::vector<pid_t>> nodeToDisabledPids;
 };
 
 // ==================== Phase 2 任务形成相关结构体 ====================

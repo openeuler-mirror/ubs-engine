@@ -2890,31 +2890,6 @@ MpResult MockProcessSingleBorrowForFault(const SrcMemoryBorrowParam& srcParam, c
     return MEM_POOLING_OK;
 }
 
-TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_PassThroughSizeAboveMin)
-{
-    SrcMemoryBorrowParam srcParam;
-    srcParam.srcNid = "Node0";
-    srcParam.srcSocketId = 0;
-    srcParam.srcNumaId = 0;
-
-    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
-    MemBorrowExecuteResult borrowExecuteResult;
-    ProcessMemUsrInfo usrInfo{};
-
-    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const UbseMemNumaCandidateOpt&, const bool&, UbseMemNumaDesc&,
-                           const bool))
-        .stubs()
-        .will(invoke(MockProcessSingleBorrowForFault));
-
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
-                                                                             borrowExecuteResult, usrInfo, {"Node1"});
-    GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_OK);
-    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 1);
-    EXPECT_EQ(gFaultBorrowCapturedSizeBytes, 8ULL * 1024);
-}
-
 // ==================== PID粒度故障专用借用（容器/虚机场景） ====================
 
 // 真实创建调用mock: 回填desc并捕获usrInfo，验证usrInfo协议真正落到UBSE创建入参
@@ -2930,25 +2905,43 @@ UbseResult MockUbseMemNumaCreateWithCandidateOk(const std::string& name, const U
 }
 
 // 账本查询mock: 按name回填实际借用量（账本Σ exportNumaInfos[].size口径）
+using DebtQueryByNameResult = mempooling::DebtQueryResult;
 static uint64_t gPidDebtMockActualSizeBytes = 0;
-MpResult MockGetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+// 全量账本查询mock: 回填与MockProcessSingleBorrowForFault一致的borrowId（bid-fault）及实际借用量
+MpResult MockGetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     UbseNumaMemoryDebtInfo info{};
-    info.name = name;
+    info.name = "bid-fault";
     info.size = gPidDebtMockActualSizeBytes;
     info.remoteNumaId = 2;
     debtInfos = {info};
     return MEM_POOLING_OK;
 }
-
-// 账本查询失败mock: 验证兜底请求值路径（同时供只关注其他协议的用例避免真实查询阻塞）
-MpResult MockGetDebtInfoByNameWithRetryFail(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+DebtQueryByNameResult MockGetDebtInfoByNameWithRetry(const std::string& name, const std::string& nodeId,
+                                                     std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                     UbseNumaMemoryDebtInfo& matchedDebtInfo)
 {
-    (void)name;
-    debtInfos.clear();
-    return MEM_POOLING_ERROR;
+    (void)nodeId;
+    UbseNumaMemoryDebtInfo info{};
+    info.name = name;
+    info.size = gPidDebtMockActualSizeBytes;
+    info.remoteNumaId = 2;
+    debtInfos = {info};
+    matchedDebtInfo = info;
+    return {MEM_POOLING_OK, MEM_POOLING_ERROR};
 }
 
+// 账本查询失败mock: 验证兜底请求值路径（同时供只关注其他协议的用例避免真实查询阻塞）
+DebtQueryByNameResult MockGetDebtInfoByNameWithRetryFail(const std::string& name, const std::string& nodeId,
+                                                         std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                         UbseNumaMemoryDebtInfo& matchedDebtInfo)
+{
+    (void)name;
+    (void)nodeId;
+    (void)matchedDebtInfo;
+    debtInfos.clear();
+    return {MEM_POOLING_ERROR, MEM_POOLING_ERROR};
+}
 /*
  * 用例描述：PID专用借用usrInfo按正常借用协议写借入方本地numaId（int16前2字节），
  *           不写裸机process_mem的ProcessMemUsrInfo（virt_agent水线归还可见性前提）
@@ -2974,7 +2967,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_UsrInfoWriteSrcNumaI
         .will(invoke(MockUbseMemNumaCreateWithCandidateOk));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注usrInfo协议
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
@@ -3012,7 +3006,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_LiftSmallSizeToMin4M
         .will(invoke(MockProcessSingleBorrowForFault));
     // 账本查询走失败兜底路径（避免真实查询阻塞），本用例只关注KB取整与换算口径
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
@@ -3050,9 +3045,13 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_ActualBorrowSizeFrom
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetry));
+    MOCKER_CPP(&MemBorrowExecutor::GetDebtInfosWithRetry, MpResult(*)(std::vector<UbseNumaMemoryDebtInfo>&))
+        .stubs()
+        .will(invoke(MockGetDebtInfosWithRetry));
 
     MpResult ret = MempoolBorrowModule::MemBorrowExecuteForPidFaultInOverCommit(srcParam, {1794ULL * 1024}, waterMark,
                                                                                 borrowExecuteResult, {"Node1"});
@@ -3083,7 +3082,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbac
         .stubs()
         .will(invoke(MockProcessSingleBorrowForFault));
     MOCKER_CPP(&MemBorrowExecutor::GetDebtInfoByNameWithRetry,
-               MpResult(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+               DebtQueryByNameResult(*)(const std::string&, const std::string&, std::vector<UbseNumaMemoryDebtInfo>&,
+                                        UbseNumaMemoryDebtInfo&))
         .stubs()
         .will(invoke(MockGetDebtInfoByNameWithRetryFail));
 
@@ -3093,32 +3093,6 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_DebtQueryFailFallbac
     EXPECT_EQ(ret, MEM_POOLING_OK);
     ASSERT_EQ(borrowExecuteResult.borrowedSizesKB.size(), 1U);
     EXPECT_EQ(borrowExecuteResult.borrowedSizesKB[0], 1794ULL * 1024);
-}
-
-/*
- * 用例描述：裸机Simplified故障借用保持原行为——记入BorrowIdInFaultProcess（Update失败则借用失败）
- * 预期：返回MEM_POOLING_FAULT_BORROW_MEM_ERROR，与PID链路不记入形成对照
- */
-TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForFault_TrackInFaultProcess)
-{
-    SrcMemoryBorrowParam srcParam;
-    srcParam.srcNid = "Node0";
-    srcParam.srcSocketId = 0;
-    srcParam.srcNumaId = 0;
-
-    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
-    MemBorrowExecuteResult borrowExecuteResult;
-    ProcessMemUsrInfo usrInfo{};
-
-    MOCKER_CPP(&BorrowIdInFaultProcess::Update, MpResult(*)(const std::string))
-        .stubs()
-        .will(returnValue(MEM_POOLING_ERROR));
-
-    MpResult ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(srcParam, {8192}, waterMark,
-                                                                             borrowExecuteResult, usrInfo, {"Node1"});
-    GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
-    EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);
 }
 
 /*
@@ -3140,6 +3114,198 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteForPidFault_NoCandidateNode)
     GlobalMockObject::verify();
     EXPECT_EQ(ret, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
     EXPECT_EQ(borrowExecuteResult.borrowIds.size(), 0U);
+}
+
+// ==================== 按master拆分执行（split）借用 ====================
+
+// 计数mock: 按调用序回填desc（name="mock-{i}"、numaId=30+i），gSplitBorrowFailFrom>=0时从第N笔起失败
+static int gSplitBorrowCallCount = 0;
+static int gSplitBorrowFailFrom = -1;
+// 捕获每笔split构造的lender，验证(nodeId,socketId,sizeBytes)到UbseMemNumaLender的映射
+static std::vector<UbseMemNumaLender> gCapturedSplitLenders;
+static MpResult MockProcessSingleBorrowWithLenderSeq(const SrcMemoryBorrowParam& srcParam,
+                                                     const std::vector<UbseMemNumaLender>& lenders,
+                                                     const ProcessMemUsrInfo& processMemUsrInfo, UbseMemNumaDesc& desc)
+{
+    (void)srcParam;
+    (void)processMemUsrInfo;
+    gCapturedSplitLenders.insert(gCapturedSplitLenders.end(), lenders.begin(), lenders.end());
+    int i = gSplitBorrowCallCount++;
+    if (gSplitBorrowFailFrom >= 0 && i >= gSplitBorrowFailFrom) {
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+    }
+    desc.name = "mock-" + std::to_string(i);
+    desc.numaId = 30 + i;
+    return MEM_POOLING_OK;
+}
+
+// 捕获回滚释放的borrowId（MemFreeWithOps为非静态成员，invoke首参为This）
+static std::vector<std::string> gSplitRollbackFreedBids;
+static MpResult MockMemFreeWithOpsCapture(MemBorrowExecutor* This, const std::string& name, bool isForceDelete,
+                                          bool smapBack, bool isFault)
+{
+    (void)This;
+    (void)isForceDelete;
+    (void)smapBack;
+    (void)isFault;
+    gSplitRollbackFreedBids.push_back(name);
+    return MEM_POOLING_OK;
+}
+
+/*
+ * 用例描述：全split借用成功时结果按下标配对回填（borrowIds/presentNumaId与splits顺序一致），
+ *           且每笔split构造的lender为slotId=SafeStoul(nodeId)、socketId=决策socket、numaId无效标记、size字节直传
+ * 测试步骤：
+ * 1. splits两笔：{2,"5",1,2097152}、{3,"7",2,1048576}
+ * 2. Mock ProcessSingleBorrowWithLenderInOverCommit按序成功并捕获lender
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK，borrowIds=["mock-0","mock-1"]，presentNumaId=[30,31]
+ * 2. 捕获的lender与split决策逐笔一致
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteSplits_AllSuccess)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    std::vector<FaultBorrowSplit> splits = {{2, "5", 1, 2097152}, {3, "7", 2, 1048576}};
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowWithLenderInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<UbseMemNumaLender>&, const ProcessMemUsrInfo&,
+                           UbseMemNumaDesc&))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowWithLenderSeq));
+
+    gSplitBorrowCallCount = 0;
+    gSplitBorrowFailFrom = -1;
+    gCapturedSplitLenders.clear();
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(srcParam, splits, waterMark,
+                                                                                   borrowExecuteResult, usrInfo);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(borrowExecuteResult.borrowIds.size(), 2U);
+    EXPECT_EQ(borrowExecuteResult.borrowIds[0], "mock-0");
+    EXPECT_EQ(borrowExecuteResult.borrowIds[1], "mock-1");
+    ASSERT_EQ(borrowExecuteResult.presentNumaId.size(), 2U);
+    EXPECT_EQ(borrowExecuteResult.presentNumaId[0], 30);
+    EXPECT_EQ(borrowExecuteResult.presentNumaId[1], 31);
+
+    ASSERT_EQ(gCapturedSplitLenders.size(), 2U);
+    EXPECT_EQ(gCapturedSplitLenders[0].slotId, 5);
+    EXPECT_EQ(gCapturedSplitLenders[0].socketId, 1);
+    EXPECT_EQ(gCapturedSplitLenders[0].numaId, UINT32_MAX);
+    EXPECT_EQ(gCapturedSplitLenders[0].size, 2097152ULL);
+    EXPECT_EQ(gCapturedSplitLenders[1].slotId, 7);
+    EXPECT_EQ(gCapturedSplitLenders[1].socketId, 2);
+    EXPECT_EQ(gCapturedSplitLenders[1].numaId, UINT32_MAX);
+    EXPECT_EQ(gCapturedSplitLenders[1].size, 1048576ULL);
+}
+
+/*
+ * 用例描述：任一split借用失败时已成功的borrowId被回滚（all-or-nothing），结果清空并透传失败码
+ * 测试步骤：
+ * 1. splits两笔，mock第一笔成功（name="mock-0"）、第二笔返回MEM_POOLING_FAULT_BORROW_MEM_ERROR
+ * 2. Mock MemFreeWithOps捕获回滚入参
+ * 预期结果：
+ * 1. 返回MEM_POOLING_FAULT_BORROW_MEM_ERROR，borrowIds/presentNumaId为空
+ * 2. 仅第一笔的"mock-0"被回滚释放
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteSplits_RollbackOnFailure)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    std::vector<FaultBorrowSplit> splits = {{2, "5", 1, 2097152}, {3, "7", 2, 1048576}};
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowWithLenderInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<UbseMemNumaLender>&, const ProcessMemUsrInfo&,
+                           UbseMemNumaDesc&))
+        .stubs()
+        .will(invoke(MockProcessSingleBorrowWithLenderSeq));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(invoke(MockMemFreeWithOpsCapture));
+
+    gSplitBorrowCallCount = 0;
+    gSplitBorrowFailFrom = 1; // 第二笔失败
+    gCapturedSplitLenders.clear();
+    gSplitRollbackFreedBids.clear();
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(srcParam, splits, waterMark,
+                                                                                   borrowExecuteResult, usrInfo);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
+    EXPECT_TRUE(borrowExecuteResult.borrowIds.empty());
+    EXPECT_TRUE(borrowExecuteResult.presentNumaId.empty());
+    ASSERT_EQ(gSplitRollbackFreedBids.size(), 1U);
+    EXPECT_EQ(gSplitRollbackFreedBids[0], "mock-0");
+}
+
+/*
+ * 用例描述：splits为空时早退成功（不发起任何借用）
+ * 预期：返回MEM_POOLING_OK，结果为空
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteSplits_EmptySplits)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(srcParam, {}, waterMark,
+                                                                                   borrowExecuteResult, usrInfo);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_TRUE(borrowExecuteResult.borrowIds.empty());
+    EXPECT_TRUE(borrowExecuteResult.presentNumaId.empty());
+}
+
+/*
+ * 用例描述：lendNodeId非数字导致SafeStoul失败时，在任何UBSE调用前失败返回借用不足错误码
+ * 测试步骤：
+ * 1. split的lendNodeId="node5"（非纯数字）
+ * 2. Mock ProcessSingleBorrowWithLenderInOverCommit返回MEM_POOLING_ERROR（若被误调用则错误码为ERROR而非
+ *    FAULT_BORROW_MEM_ERROR，以此区分失败来源）
+ * 预期：返回MEM_POOLING_FAULT_BORROW_MEM_ERROR，borrowIds为空
+ */
+TEST_F(TestMemPoolBorrowModule, MemBorrowExecuteSplits_SafeStoulFail)
+{
+    SrcMemoryBorrowParam srcParam;
+    srcParam.srcNid = "Node0";
+    srcParam.srcSocketId = 0;
+    srcParam.srcNumaId = 0;
+
+    WaterMark waterMark({.highWaterMark = 92, .lowWaterMark = 80});
+    MemBorrowExecuteResult borrowExecuteResult;
+    ProcessMemUsrInfo usrInfo{};
+
+    std::vector<FaultBorrowSplit> splits = {{2, "node5", 1, 2097152}};
+
+    MOCKER_CPP(&MempoolBorrowModule::ProcessSingleBorrowWithLenderInOverCommit,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<UbseMemNumaLender>&, const ProcessMemUsrInfo&,
+                           UbseMemNumaDesc&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(srcParam, splits, waterMark,
+                                                                                   borrowExecuteResult, usrInfo);
+    GlobalMockObject::verify();
+    EXPECT_EQ(ret, MEM_POOLING_FAULT_BORROW_MEM_ERROR);
+    EXPECT_TRUE(borrowExecuteResult.borrowIds.empty());
 }
 
 } // namespace mempooling

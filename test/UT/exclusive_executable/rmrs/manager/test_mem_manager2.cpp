@@ -56,10 +56,11 @@ class TestMemManager2 : public ::testing::Test {
 
 std::string borrowStrList = R"({"boring":[1],})";
 
-TEST_F(TestMemManager2, UpdateBorrowRecordsSucceed)
+TEST_F(TestMemManager2, FetchBorrowRecordsSucceed)
 {
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
-    auto ret = obj.UpdateBorrowRecords();
+    std::vector<mempooling::BorrowRecord> records;
+    auto ret = obj.FetchBorrowRecords(records);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 

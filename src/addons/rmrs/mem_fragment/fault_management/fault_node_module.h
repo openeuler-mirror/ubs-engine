@@ -227,7 +227,6 @@ public:
     MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType);
     MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType& nodeType);
     MpResult FragmentHandleFault(std::string nodeId);
-    bool CheckUBTurboIsAliveRpc(std::string nodeId);
     MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
 
     MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
@@ -257,7 +256,6 @@ public:
     bool AllocateHugePage(uint16_t numaId, uint64_t hugePageMemSize);
     bool SwitchMigrateForNumaVm(std::vector<pid_t> pidList, int enable);
     bool GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg>& msgList);
-    MpResult DealRes(NumaReplaceReturnMsg msg);
     bool ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg> msgList);
     void DoExecuteBorrow(std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
                          std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
@@ -316,7 +314,6 @@ private:
 
 // RPC Handler
 uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
                                   uint64_t& hugePageMemSize);
 uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
@@ -326,23 +323,24 @@ void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, u
 uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
+// 判定持久化 NUMA 级借用决策与本轮实采的故障 numa 组是否属于同一续做上下文。
+// 仅当 (决策 pids ∩ 本轮实采虚机 pid) 非空 且 (决策 oldName ∩ 本轮账本 oldName) 非空时才认定为有效续做，
+// 否则视为陈旧孤儿（虚机已换/已退出，或 present numaId 被回收复用于另一笔借用），应回退为重新决策。
+bool IsNumaLevelDecisionMatchGroup(const BorrowGroupResult& group, const NumaLevelBorrowedDecision& decision);
+// borrowId 级同上，逐条决策判定。
+bool IsBorrowIdLevelDecisionMatchGroup(const BorrowGroupResult& group, const BorrowIdLevelBorrowedDecision& decision);
+// 判定持久化借用决策是否仍存活：其新借用 newName 仍在本节点账本中（未被正常归还流程释放）。
+// newName 已不在账本 = 对应 present numa 已消失，续做必然失败，应剔除并删除该孤儿决策。
+bool IsBorrowedDecisionAlive(const BorrowedDecision& decision);
+
 MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId);
 class MpFaultNodeSubModule : public MpSubModule {
 public:
     MpResult Init() override
     {
-        // 注册ubturbo探活消息
-        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
-        auto ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
-        if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
-            return ret;
-        }
-
         // 注册 NUMA 级别执行 handler
-        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_NUMA_LEVEL_EXECUTE};
-        ret = UbseRegRpcService(endpoint, NumaLevelExecuteHandler);
+        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_NUMA_LEVEL_EXECUTE};
+        auto ret = UbseRegRpcService(endpoint, NumaLevelExecuteHandler);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] NumaLevelExecuteHandler reg failed, ret=" << ret;

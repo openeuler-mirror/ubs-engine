@@ -177,6 +177,8 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnSuccessTest)
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnSendFailedTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
+    MOCKER(&WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowExportObj exportObj;
     UbseMemDebtNumaInfo numaInfo{};
     numaInfo.nodeId = NODE_ONE;
@@ -194,22 +196,26 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnSendFailedTest)
 
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED, UbseMemFdReturn(req, resp, NODE_ONE));
 }
 
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnNotExistTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
+    MOCKER(&WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemReturnReq req;
     UbseMemOperationResp resp;
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, UbseMemFdReturn(req, resp, NODE_ONE));
 }
 
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnCheckPermissionFailedTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
+    MOCKER(&WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowExportObj exportObj;
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = NODE_TWO;
@@ -227,12 +233,14 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnCheckPermissionFailedTest)
     UbseMemOperationResp resp;
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_AUTH_FAILED, UbseMemFdReturn(req, resp, NODE_ONE));
 }
 
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnImportNotExistTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
+    MOCKER(&WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowExportObj exportObj;
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = NODE_TWO;
@@ -248,7 +256,7 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnImportNotExistTest)
 
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, UbseMemFdReturn(req, resp, NODE_ONE));
 
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     AddToExportObjMap(name, NODE_ONE, exportObj);
@@ -260,6 +268,8 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnImportNotExistTest)
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnExistTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&IsMemBorrowFeatureSupported).stubs().will(returnValue(true));
+    MOCKER(&WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowExportObj exportObj;
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = NODE_TWO;
@@ -277,13 +287,13 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnExistTest)
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
 
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, UbseMemFdReturn(req, resp, NODE_ONE));
 
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     AddToExportObjMap(name, NODE_ONE, exportObj);
     AddToImportObjMap(name, NODE_ONE, importObj);
-    EXPECT_EQ(UBSE_OK, UbseMemFdReturn(req, resp, NODE_ONE));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, UbseMemFdReturn(req, resp, NODE_ONE));
 
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     AddToExportObjMap(name, NODE_ONE, exportObj);

@@ -106,7 +106,8 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, allocate_memory_Success)
 TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Fail_NullBuffer)
 {
     NodeAntiDictionary node_dict = CreateTestNodeDict();
-    serialize_data(node_dict, nullptr);
+    auto ret = serialize_data(node_dict, nullptr, 0);
+    EXPECT_NE(ret, VA_SUCCESS);
 }
 
 TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
@@ -117,7 +118,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
 
     EXPECT_NE(buffer, nullptr);
 
-    serialize_data(node_dict, buffer);
+    serialize_data(node_dict, buffer, buffer_size);
 
     uint8_t* ptr = buffer;
     uint32_t entries_count = 0;
@@ -159,7 +160,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_migrate_strategy_msg_unp
 {
     MemMigrateStrategy strategy = {0};
     strategy.vmInfoListSize = 2;
-    strategy.vmInfoList = (VmMigrateStrategy*)malloc(strategy.vmInfoListSize * sizeof(VmMigrateStrategy));
+    strategy.vmInfoList = new VmMigrateStrategy[strategy.vmInfoListSize];
     strategy.vmInfoList[0].destNumaId = 1;
     strategy.vmInfoList[0].memSize = 2048;
     strategy.vmInfoList[0].pid = 1234;
@@ -173,6 +174,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_migrate_strategy_msg_unp
     auto ret =
         ubse_mem_migrate_strategy_msg_unpack(msg.SerializedData(), msg.SerializedDataSize(), &memMigrateStrategy);
     EXPECT_EQ(ret, 0);
+    free(memMigrateStrategy.vmInfoList);
 }
 
 TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_borrow_strategy_msg_unpack)

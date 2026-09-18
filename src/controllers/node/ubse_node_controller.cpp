@@ -28,6 +28,7 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_collector.h"
+#include "ubse_node_controller_master.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_serial_util.h"
 #include "ubse_smbios.h"
@@ -49,11 +50,20 @@ using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
+const uint32_t LOCAL_HANDLER_MAX_RETRY_TIMES = 300; // 最大重试300次(约10分钟)，避免handler持续失败导致线程永久阻塞
 const uint32_t IPV4_LENGTH = 4;
 const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
 constexpr size_t MAX_IP_ADDR_NUM = 1024;
 constexpr uint32_t FAULT_STATE_PROTECT_SECONDS = 60;
+
+// 当前system_clock epoch毫秒时刻，用于FAULT节点登记时刻同步（镜像继承剩余保护窗口）
+static uint64_t GetSysEpochMs()
+{
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
+}
 
 /**
  * 从 LCNE 模块获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
@@ -365,12 +375,19 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
 void ExecLocalStateHandler(const UbseNodeInfo& nodeInfo, const std::vector<UbseLocalStateNotifyHandler>& handlers)
 {
     for (auto handler : handlers) {
+        uint32_t retryTimes = 0;
         while (true) {
             if (handler == nullptr) {
                 break;
             }
             auto ret = handler(nodeInfo);
             if (ret == UBSE_OK) {
+                break;
+            }
+            if (++retryTimes >= LOCAL_HANDLER_MAX_RETRY_TIMES) {
+                // handler 持续失败时放弃重试，避免调用线程被永久阻塞
+                UBSE_LOG_ERROR << "local node exec handler retry times exceeded " << LOCAL_HANDLER_MAX_RETRY_TIMES
+                               << ", when update local state to " << static_cast<uint32_t>(nodeInfo.localState);
                 break;
             }
             UBSE_LOG_WARN << "local node exec handler failed, when update local state to "
@@ -456,6 +473,39 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string& nodeId, UbseNodeI
     // 使用numaInfos更新拓扑数据中的本端信息
     UbseSocketIdChange(nodeId);
     rwMutex.unlock();
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeController::RestoreNodeInfoFromMirror(const UbseNodeInfo& info, uint64_t faultTimeSysMs)
+{
+    if (info.nodeId.empty()) {
+        return UBSE_ERROR_INVAL;
+    }
+    rwMutex.lock();
+    nodeInfos[info.nodeId] = info;
+    if (info.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        // 折算剩余保护窗口：用镜像携带的故障登记时刻（system_clock epoch ms）换算steady起点，
+        // 而非重置为满窗口。窗口已过/无镜像时刻时不登记防抖，保证升主后FAULT节点可恢复
+        // （NODE_UP/周期上报不被保护窗口吞掉，避免继承FAULT后节点永久卡死）。
+        faultUpdateTimes.erase(info.nodeId);
+        if (faultTimeSysMs != 0) {
+            uint64_t sysNowMs = GetSysEpochMs();
+            if (sysNowMs > faultTimeSysMs) {
+                uint64_t elapsedMs = sysNowMs - faultTimeSysMs;
+                if (elapsedMs < static_cast<uint64_t>(FAULT_STATE_PROTECT_SECONDS) * 1000) {
+                    faultUpdateTimes[info.nodeId] =
+                        std::chrono::steady_clock::now() - std::chrono::milliseconds(elapsedMs);
+                }
+            }
+        }
+        faultUpdateTimeSysMs[info.nodeId] = faultTimeSysMs != 0 ? faultTimeSysMs : GetSysEpochMs();
+    }
+    // 使用numaInfos更新拓扑数据中的本端信息
+    UbseSocketIdChange(info.nodeId);
+    rwMutex.unlock();
+    UBSE_LOG_INFO << "nodeId=" << info.nodeId
+                  << " restored from mirror, state=" << NodeClusterStateToStr(info.clusterState)
+                  << ", faultUpdateTimeSysMs=" << faultTimeSysMs;
     return UBSE_OK;
 }
 
@@ -740,8 +790,11 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
         (void)GenerateFaultUbseNode(nodeId, faultNodeInfo);
         nodeInfos[nodeId] = faultNodeInfo;
         faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
+        faultUpdateTimeSysMs[nodeId] = GetSysEpochMs();
         rwMutex.unlock();
         UBSE_LOG_WARN << "nodeId=" << nodeId << " cluster node info not collect, set default item.";
+        // 幽灵故障节点同步给备节点，携带faultUpdateTimeSysMs供镜像继承剩余保护窗口
+        UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
         return UBSE_OK;
     }
 
@@ -773,8 +826,10 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
 
     if (curState != UbseNodeClusterState::UBSE_NODE_FAULT && state == UbseNodeClusterState::UBSE_NODE_FAULT) {
         faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
+        faultUpdateTimeSysMs[nodeId] = GetSysEpochMs();
     } else if (state != UbseNodeClusterState::UBSE_NODE_FAULT) {
         faultUpdateTimes.erase(nodeId);
+        faultUpdateTimeSysMs.erase(nodeId);
     }
 
     nodeInfos[nodeId].clusterState = state;
@@ -792,6 +847,8 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
         UBSE_LOG_ERROR << "nodeId=" << nodeId << " update state=" << static_cast<uint32_t>(state)
                        << " exec handler failed, " << FormatRetCode(ret);
     }
+    // 主节点状态变更实时单点推送，备节点镜像同步；非主节点在SyncPushNodeToStandby内短路
+    UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
     return ret;
 }
 
@@ -815,6 +872,12 @@ void UbseNodeController::CleanAfterMasterSwitchRole()
             ++it;
         }
     }
+}
+
+std::unordered_map<std::string, uint64_t> UbseNodeController::GetFaultUpdateTimeSysMs()
+{
+    std::shared_lock<std::shared_mutex> lock(rwMutex);
+    return faultUpdateTimeSysMs;
 }
 
 std::map<std::string, PhysicalLink> UbseNodeController::UbseGetDirConnectInfo()
@@ -1161,7 +1224,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
         item >> info.chipId >> info.dieId >> info.eid >> info.guid >> info.busNodeCna;
         size_t portNum = 0;
         item >> portNum;
-        if (!inStream.Check()) {
+        if (!item.Check()) {
             UBSE_LOG_ERROR << "Ubse deserialize cpu info vec failed";
             return UBSE_ERROR;
         }
@@ -1172,7 +1235,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization& inStream, UbseNodeInfo& nodeInfo)
             port >> portInfo.portId >> portInfo.ifName >> portInfo.portRole >> enum_v(portInfo.portStatus) >>
                 portInfo.portCna >> portInfo.urmaEid >> portInfo.remoteSlotId >> portInfo.remoteChipId >>
                 portInfo.remoteDieId >> portInfo.remoteIfName >> portInfo.remotePortId;
-            if (!inStream.Check()) {
+            if (!item.Check()) {
                 UBSE_LOG_ERROR << "Ubse deserialize portInfo failed";
                 return UBSE_ERROR;
             }
@@ -1232,10 +1295,12 @@ uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo>& infos, uint8_t* buff
     UbseDeSerialization inStream(buffer, size);
     size_t num = 0;
     inStream >> num;
-    infos.reserve(num);
     if (!inStream.Check()) {
         return UBSE_ERROR;
     }
+    // num来自对端报文，限制预分配上限，避免异常超大值触发内存分配失败
+    constexpr size_t MAX_NODE_INFO_RESERVE = 1024;
+    infos.reserve(std::min(num, MAX_NODE_INFO_RESERVE));
     for (size_t i = 0; i < num; i++) {
         UbseDeSerialization item;
         inStream >> item;

@@ -81,11 +81,6 @@ public:
     MpResult ClearFaultState(const std::string& faultNodeId);
 
     /**
-     * @brief 检查指定task是否有历史状态（用于RESUME判断）
-     */
-    bool HasTaskState(const std::string& faultNodeId, const std::string& taskId);
-
-    /**
      * @brief 获取指定task的历史状态
      */
     MpResult GetTaskState(const std::string& faultNodeId, const std::string& taskId, TaskPersistState& taskState);

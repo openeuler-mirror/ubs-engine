@@ -23,7 +23,7 @@ public:
 
     ICtrlQReqMsg() = delete;
 
-    explicit ICtrlQReqMsg(uint8_t opCode, uint8_t bbNum = 1);
+    explicit ICtrlQReqMsg(uint8_t opCode, uint32_t bbNum = 1);
 
     virtual UbseResult EncodeReqMsg() = 0;
 
@@ -42,7 +42,7 @@ protected:
 
     void SetServiceType(uint8_t serviceType);
 
-    void SetBBNum(uint8_t bbNum);
+    void SetBBNum(uint32_t bbNum);
 
     CtrlQReqMessage reqMsg_;
 };

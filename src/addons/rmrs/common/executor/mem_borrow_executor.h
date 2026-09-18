@@ -16,6 +16,7 @@
 #include <fstream>
 #include <ostream>
 #include <string>
+#include <utility>
 
 #include "ubse_mem_controller.h"
 #include "mem_json_def.h"
@@ -27,6 +28,17 @@ namespace mempooling {
 
 using namespace mempooling::smap;
 using namespace ubse::mem::controller;
+
+// GetDebtInfoByNameWithRetry查询结果：validEntry=有效条目(remoteNumaId>=0)存在性(OK=存在)；
+// releasedEntry=remoteNumaId<0条目存在性(OK=存在,导入方已释放,后续ubse会自动清理)
+struct DebtQueryResult {
+    MpResult validEntry{MEM_POOLING_ERROR};
+    MpResult releasedEntry{MEM_POOLING_ERROR};
+    bool operator==(const DebtQueryResult& other) const
+    {
+        return validEntry == other.validEntry && releasedEntry == other.releasedEntry;
+    }
+};
 
 class MemBorrowExecutor {
 public:
@@ -46,7 +58,8 @@ public:
 
     MpResult MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault = false);
 
-    MpResult MemFreeWithOpsBySmapForProcessMem(const std::string& name, const std::string& deleteName,
+    MpResult MemFreeWithOpsBySmapForProcessMem(const UbseNumaMemoryDebtInfo& matchedDebtInfo,
+                                               const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
                                                bool isFault = false);
 
     MpResult MemFreeWithOpsByMemfabric(const std::string& name, const std::string& deleteName, bool isFault = false);
@@ -55,8 +68,8 @@ public:
 
     MpResult GetBorrowRecordForSmapParams(const std::string& name, BorrowRecord& record, bool isFault);
 
-    MpResult GenerateSmapParamsForProcessMem(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgs,
-                                             EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
+    MpResult GenerateSmapParamsForProcessMem(const UbseNumaMemoryDebtInfo& matchedDebtInfo,
+                                             std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg);
 
     MpResult GenerateSmapParams(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgList,
                                 EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
@@ -71,12 +84,15 @@ public:
                                         UbseMemBorrower& borrower, std::vector<UbseMemNumaLender>& lenders,
                                         uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN]);
 
-    static MpResult UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std::string& name, const std::string& deleteName,
-                                                              bool isFault);
+    static MpResult UpdateSmapRemoteNumaInfoBeforeMigrateBack(const UbseNumaMemoryDebtInfo& matchedDebtInfo,
+                                                              const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
 
     static bool IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo);
     static MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
-    static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    // borrowid节点唯一，需传入节点id; debtInfos输出过滤后的全量账本供上层复用; matchedDebtInfo为有效条目
+    static DebtQueryResult GetDebtInfoByNameWithRetry(const std::string& name, const std::string& nodeId,
+                                                      std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                      UbseNumaMemoryDebtInfo& matchedDebtInfo);
     static std::vector<UbseNumaMemoryDebtInfo> FilterValidDebtInfos(
         const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     static uint64_t SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
@@ -84,9 +100,7 @@ public:
     static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
 
 private:
-    static MpResult FindCurrentDebtInfoAndSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
-                                                  const std::string& name,
-                                                  const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo, int& outSrcNuma);
+    static MpResult FindCurrentDebtInfoAndSrcNuma(const UbseNumaMemoryDebtInfo& matchedDebtInfo, int& outSrcNuma);
 
     static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo, uint64_t totalSizeBytes,
                                                  int srcNuma, const std::string& name);

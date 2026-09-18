@@ -1594,6 +1594,11 @@ ubs_error_t ubse_mem_shm_desc_unpack(unpack_ctx_t* ctx, ubs_mem_shm_desc_t* shm_
         IPC_LOG_ERROR << "Failed to unpack import_desc_cnt. Error code: " << ret;
         return ret;
     }
+    // 数组超范围
+    if (shm_desc->import_desc_cnt > UBS_TOPO_MAX_NODE_NUM) {
+        IPC_LOG_ERROR << "Invalid import desc count value: " << shm_desc->import_desc_cnt;
+        return UBS_ERR_OUT_OF_RANGE;
+    }
     // 解包export部分
     ret = ubse_mem_shm_desc_export_unpack(ctx, shm_desc);
     if (ret != UBS_SUCCESS) {

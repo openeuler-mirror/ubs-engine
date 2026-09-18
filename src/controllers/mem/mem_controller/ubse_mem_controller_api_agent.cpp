@@ -224,7 +224,7 @@ UbseResult DealLinkInfo(const std::string& linkInfo, UbseMemNumaBorrowReq& numaB
             UBSE_LOG_ERROR << "Failed to conver str to int.";
             return ret;
         }
-        if (auto ret = FillLinkInfo(secondLink, numaBorrowReq) != UBSE_OK) {
+        if (auto ret = FillLinkInfo(secondLink, numaBorrowReq); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill link info.";
             return ret;
         }
@@ -235,7 +235,7 @@ UbseResult DealLinkInfo(const std::string& linkInfo, UbseMemNumaBorrowReq& numaB
             UBSE_LOG_ERROR << "Failed to conver str to int.";
             return ret;
         }
-        if (auto ret = FillLinkInfo(firstLink, numaBorrowReq) != UBSE_OK) {
+        if (auto ret = FillLinkInfo(firstLink, numaBorrowReq); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill link info.";
             return ret;
         }
@@ -555,6 +555,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp
     UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     resp = respFuture.get();
+    UBSE_LOG_INFO << "numa borrow resp received, name=" << req.name << ", errorCode=" << resp.errorCode
+                  << ", requestId=" << resp.requestId;
     return ret;
 }
 
@@ -839,6 +841,10 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
         BorrowFailedAdvice({MemFault::RETURN_TIME_OUT, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
+        if (memBorrowWaitTimeOutExecutor == nullptr) {
+            UBSE_LOG_ERROR << "Get memBorrowWaitTimeOutExecutor is nullptr";
+            return UBSE_ERROR_NULLPTR;
+        }
         memBorrowWaitTimeOutExecutor->Execute([req, resp] { SendRpcRequestForShareDetach(req); });
         return UBSE_ERROR;
     }

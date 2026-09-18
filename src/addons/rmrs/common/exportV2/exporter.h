@@ -55,7 +55,6 @@ public:
 private:
     static VmDomainInfo genVmDomainInfo(const std::string& vmName);
     static NumaInfo genNumaInfo(const std::uint16_t& numaId);
-    static time_t NowTimeT();
 
     class StartGate {
     public:
@@ -69,6 +68,18 @@ private:
     };
 
     static ThreadPool& Pool();
+
+    // 等待已放行任务结束，避免其继续访问 parallel_collect 的栈对象
+    static void DrainFutures(std::vector<std::future<void>>& futs)
+    {
+        for (auto& f : futs) {
+            try {
+                f.get();
+            } catch (...) {
+            }
+        }
+    }
+
     template <typename IdT, typename OutT, typename WorkerFn>
     static void parallel_collect(const std::vector<IdT>& ids, std::vector<OutT>& outs, WorkerFn&& worker,
                                  const char* tag_prefix = nullptr)
@@ -105,10 +116,15 @@ private:
             } catch (const std::exception& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "submit threw exception: " << e.what() << " (tag=" << (tag_cstr ? tag_cstr : "<unnamed>") << ")";
+                // 已提交的任务阻塞在 gate.wait()，异常提前退出前必须先放行，否则线程被永久占死
+                gate.release();
+                DrainFutures(futs);
                 throw;
             } catch (...) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "submit threw unknown exception (tag=" << (tag_cstr ? tag_cstr : "<unnamed>") << ")";
+                gate.release();
+                DrainFutures(futs);
                 throw;
             }
         }

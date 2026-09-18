@@ -14,6 +14,7 @@
 #define MEMPOOLING_OVER_COMMIT_PID_FAULT_PIPELINE_H
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "mp_error.h"
 
@@ -37,9 +38,12 @@ public:
     /**
      * @brief 执行PID粒度故障处理全流程
      * @param faultNodeId 故障借出节点ID
+     * @param outDisabledPids [out] Query阶段禁用冷热迁移的pid名单（按借入节点分组），
+     *                         供上层在流程失败时统一恢复enable
      * @return MEM_POOLING_OK 全部成功; MEM_POOLING_ERROR 部分/全部失败（UBSE会重新触发）
      */
-    static MpResult ProcessBorrowOutNodeFaultByPid(const std::string& faultNodeId);
+    static MpResult ProcessBorrowOutNodeFaultByPid(
+        const std::string& faultNodeId, std::unordered_map<std::string, std::vector<pid_t>>& outDisabledPids);
 
 private:
     /**

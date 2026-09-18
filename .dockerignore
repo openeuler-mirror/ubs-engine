@@ -1,0 +1,38 @@
+# Docker build context 仅应包含源码（docker build 不读取 .gitignore）
+
+# 本地构建产物
+cmake-build-*
+/build/
+/deps
+install
+output
+code_review_report
+
+# Git / IDE / 本地工具目录
+/.git
+.idea
+.vscode
+.cache
+.agents
+.codex
+.opencode
+.omo
+.codegraph/
+
+# 日志与临时文件
+*.log
+*.swp
+*.swa
+comp.cmake
+coverage.info
+test.info
+.clion.source.upload.marker
+__pycache__/
+
+# 测试运行产生的目录
+/test/IT/manager_log
+/test/IT/cli_log
+/test/IT/store
+/test/IT/uds
+/test/build/
+/test/UT/data_sync/test_log

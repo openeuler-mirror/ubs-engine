@@ -23,7 +23,7 @@ SuperPodId（超节点ID）是SMBIOS中新增的字段，位于CLOS组网类型�
 
 #### 单节点查询（`ubs_topo_node_local_get`）
 
-```
+```text
 ┌──────────────────┐  ┌──────────────┐
 │  node_base_data  │  │ superPodId   │
 │  (原有字段)       │  │ (uint16_t)   │
@@ -32,7 +32,7 @@ SuperPodId（超节点ID）是SMBIOS中新增的字段，位于CLOS组网类型�
 
 #### 节点列表查询（`ubs_topo_node_list`）
 
-```
+```text
 ┌────────┐  ┌────────────┐  ┌────────────┐       ┌──────────────┐
 │ count  │  │ node1_data │  │ node2_data │  ...  │ superPodId   │
 │(uint32)│  │ (原有字段)  │  │ (原有字段)  │       │ (uint16_t)   │

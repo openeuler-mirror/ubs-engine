@@ -19,6 +19,7 @@
 #include <memory>
 #include <queue>
 #include <set>
+#include <thread>
 #include "mempooling_module.h"
 #include "vm_lock.h"
 #include "vm_struct.h"
@@ -62,6 +63,10 @@ public:
 
     static void BorrowQueueOperation();
 
+    static void StartBorrowQueueThread();
+
+    static void StopBorrowQueueThread();
+
     static void WhetherEnterBorrowQueue(const EscapeAction& escapeAction);
 
     // Thread-local borrow state for OOM event result waiting
@@ -98,6 +103,7 @@ private:
     static inline std::mutex borrowMutex{};
     static inline std::mutex returnMutex{};
     static std::atomic<bool> firstMigFlag;
+    static inline std::thread borrowThread{};
 
     static inline ReadWriteLock taskFilterSetLock_{};
     static inline std::set<std::string> g_taskFilterSet{};

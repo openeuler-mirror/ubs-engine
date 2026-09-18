@@ -97,6 +97,15 @@ RMRS_MEMBER_TUPLE_HELPER(16);
 
 class RmrsOutStream {
 public:
+    RmrsOutStream() = default;
+    ~RmrsOutStream()
+    {
+        // RAII 兜底：未被调用方接管的缓冲在析构时释放
+        delete[] ptr;
+        ptr = nullptr;
+    }
+    RmrsOutStream(const RmrsOutStream&) = delete;
+    RmrsOutStream& operator=(const RmrsOutStream&) = delete;
     template <typename T>
     RmrsOutStream& operator<<(const T& data);
     template <typename T>
@@ -119,21 +128,24 @@ public:
         return outStream;
     }
 
+    // Release 语义：返回缓冲指针的同时将成员 ptr 置空，所有权唯一转移给调用方。
+    // 未转移场景由析构函数 RAII 兜底，已转移场景不会双重释放。
+    // 注意：多次调用会重新分配新缓冲，调用方应只调用一次并接管返回指针的释放责任。
     uint8_t* GetBufferPointer()
     {
-        if (ptr != nullptr) {
-            return ptr;
-        }
-        ptr = new (std::nothrow) uint8_t[outStream.length()];
         if (ptr == nullptr) {
-            mFlag = false;
-            return nullptr;
+            ptr = new (std::nothrow) uint8_t[outStream.length()];
+            if (ptr == nullptr) {
+                mFlag = false;
+                return nullptr;
+            }
+            if (memcpy_s(ptr, outStream.length(), outStream.c_str(), outStream.length()) != 0) {
+                mFlag = false;
+            }
         }
-        if (memcpy_s(ptr, outStream.length(), outStream.c_str(), outStream.length()) != 0) {
-            mFlag = false;
-            return ptr;
-        }
-        return ptr;
+        uint8_t* tmp = ptr;
+        ptr = nullptr; // 转移所有权，析构时不再释放
+        return tmp;
     }
 
     size_t GetSize()

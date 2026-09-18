@@ -21,6 +21,7 @@
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "mem_manager.h"
+#include "mempool_borrow_module.h"
 #include "mp_error.h"
 #include "over_commit_fault_memid_module.h"
 #include "rmrs_serialize.h"
@@ -40,11 +41,13 @@ struct FaultRecordsInNode {
     std::vector<BorrowRecord> faultRecords;
 };
 
-// 主节点辗转相减分配结果：pid -> 目标借出节点/socket
+// 主节点分配结果：pid -> 目标借出节点/socket（含预算量纲与来源故障NUMA）
 // 注意：保持聚合类型（无自定义构造函数），便于 rmrs_serialize 成员反射序列化
 struct SimplifiedFaultPidAllocTarget {
-    std::string lendNodeId;    // 目标借出节点
-    uint16_t lendSocketId = 0; // 目标借出socket
+    std::string lendNodeId;      // 目标借出节点
+    uint16_t lendSocketId = 0;   // 目标借出socket
+    uint16_t srcFaultNumaId = 0; // 所属chunk（旧远端NUMA id），借入侧按此分组执行
+    uint64_t lendSizeKB = 0;     // 主节点预算的量（KB），0 表示未传量纲（兼容旧行为）
 };
 
 struct SimplifiedFaultRecordsInNode {
@@ -98,7 +101,6 @@ struct PendingMigrationState {
     std::vector<std::string> oldBorrowIds;
     std::string borrowNodeId;
     pid_t pid = 0;
-    uint64_t remoteTotalSizeKB = 0;
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
     std::unordered_map<uint16_t, std::vector<std::string>> numaToBorrowIds;
@@ -190,23 +192,30 @@ struct PidBorrowContext {
     pid_t pid = 0;
     int64_t startTime = 0;
     std::vector<std::string> oldBorrowIds;
-    uint64_t remoteTotalSizeKB = 0;
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
     std::unordered_map<uint16_t, std::vector<std::string>> numaToBorrowIds;
     std::string borrowNodeId;
-    int16_t borrowLocalNuma = -1;
     uint16_t borrowSocketId = 0;
     uid_t uid = 0;
     std::string username;
-    // 主节点分配的目标借出节点列表（去重；空表示不约束，回退现逻辑）
-    std::vector<std::string> allocLendNodeIds;
+    // 主节点决策的借出目标列表（节点+socket+chunk+量纲，按 srcFaultNumaId 分组排序去重）；
+    // 空表示未下发决策，回退 legacy 借用逻辑
+    std::vector<SimplifiedFaultPidAllocTarget> allocLendTargets;
 };
 
 // 集群 socket 可用内存视图（主节点侧）
 struct SimplifiedSocketCapacity {
     std::string nodeId;
-    uint64_t canBorrowMem = 0; // KB
+    uint64_t canBorrowMem = 0; // KB，已按 blockSize 向下取整
+    uint64_t blockSizeKb = 0;  // 该节点借出粒度（KB），0=节点信息无效（退化为不对齐）
+};
+
+// 故障 NUMA 分块：大小（KB）+ 首选 socket + 所属故障 NUMA id
+struct PidChunkInfo {
+    uint64_t sizeKB = 0;
+    uint16_t preferredSocketId = 0;
+    uint16_t faultNumaId = 0;
 };
 
 // 采集集群可借出内存视图：排除故障节点与借入节点，输出按 socketId 分组的节点列表
@@ -214,13 +223,15 @@ MpResult CollectClusterSocketQueue(
     const std::string& faultNodeId, const std::unordered_set<std::string>& borrowerNodes,
     std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId);
 
-// 按 socketId 亲和分配：每个 pid 的每块（大小, 故障NUMA所属socketId）优先从相同 socketId 的队列分配，
-// 该 socketId 队列耗尽则回退到其他 socket。进程按总占用大小升序处理。
-MpResult AllocatePidsToSockets(
-    const std::unordered_map<pid_t, std::vector<std::pair<uint64_t, uint16_t>>>& pidSocketSizes,
-    std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
-    std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
-    std::vector<pid_t>& unallocatedPids);
+// 按 socketId 亲和分配：每个 pid 的每个分块优先从相同 socketId 的队列分配，
+// 该 socketId 队列耗尽则回退到其他 socket；按（节点,socket）粒度扣减可借余量，
+// take 量按目标节点 blockSizeKb 向下取整（block 整数倍；聚合账本天然 block 倍数，取整为不变量防御，
+// 取整后为 0 视为异常并终止该分块分配走 unallocated）；并在每个目标上记录预算量纲 lendSizeKB 与
+// 来源故障NUMA id。进程按总占用大小升序处理。
+MpResult AllocatePidsToSockets(const std::unordered_map<pid_t, std::vector<PidChunkInfo>>& pidChunks,
+                               std::unordered_map<int, std::vector<SimplifiedSocketCapacity>>& socketQueueBySocketId,
+                               std::unordered_map<pid_t, std::vector<SimplifiedFaultPidAllocTarget>>& pidAllocMap,
+                               std::vector<pid_t>& unallocatedPids);
 
 // Multi-remote-NUMA migration. The vector describes the per-old-NUMA destination
 // mapping produced by ExecuteBorrowForPid; each entry independently migrates its source

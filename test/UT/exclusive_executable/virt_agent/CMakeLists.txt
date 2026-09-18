@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 add_ut(virtagent)
 
 target_compile_options(${CMAKE_PROJECT_NAME}_virtagent_ut PRIVATE
@@ -39,5 +41,5 @@ add_custom_target(
 add_dependencies(ubse_virtagent_ut "${CMAKE_PROJECT_NAME}_virtagent_ut")
 target_link_libraries(
         ${CMAKE_PROJECT_NAME}_virtagent_ut
-        PUBLIC test_exclusive_main rapidjson GTest::gmock_main mockcpp boundscheck)
+        PUBLIC test_exclusive_main GTest::gmock_main mockcpp boundscheck)
 add_independent_exec_ut(${CMAKE_PROJECT_NAME}_virtagent_ut)

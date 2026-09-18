@@ -103,7 +103,7 @@ rpm -ivh rmrs-*.aarch64.rpm
 
 ### 2.3 修改配置文件
 
-**1) `/etc/ubse/plugins/plugin_mempooling.conf`**
+**`/etc/ubse/plugins/plugin_mempooling.conf`**
 
 ```ini
 ubse.plugin.name=mempooling
@@ -128,7 +128,7 @@ rmrs.fault.simplified=false
 
 ```ini
 rmrs.fragment.mustSamePlane=false
-rmrs.fragmemt.enableBorrowSplit=false
+rmrs.fragment.enableBorrowSplit=false
 ```
 
 裸机redis场景下，需调整为：
@@ -137,7 +137,8 @@ rmrs.fragmemt.enableBorrowSplit=false
 rmrs.fault.simplified=true
 ```
 
-**2) `/etc/ubse/ubse_plugin_admission.conf`**
+**`/etc/ubse/ubse_plugin_admission.conf`**
+
 取消 `mempooling=777` 的注释，示例如下：
 
 ```ini

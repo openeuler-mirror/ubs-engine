@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 file(
   GLOB_RECURSE UCACHE_TEST_SOURCES
   LIST_DIRECTORIES false
@@ -53,7 +55,7 @@ target_compile_definitions(
 
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_ucache_plugin_ut
-  PUBLIC test_exclusive_main ucache_plugin_static rapidjson GTest::gmock_main mockcpp
+  PUBLIC test_exclusive_main ucache_plugin_static GTest::gmock_main mockcpp
          boundscheck ubse_log)
 
 add_independent_exec_ut(${CMAKE_PROJECT_NAME}_ucache_plugin_ut)

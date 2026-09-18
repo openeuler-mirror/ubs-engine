@@ -55,6 +55,7 @@ void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdI
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
                                << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                isNormal = false;
                 return;
             }
         }
@@ -156,6 +157,7 @@ void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exp
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
                                << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                isNormal = false;
                 return;
             }
         }
@@ -551,6 +553,7 @@ void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
                                << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                isNormal = false;
                 return;
             }
         }

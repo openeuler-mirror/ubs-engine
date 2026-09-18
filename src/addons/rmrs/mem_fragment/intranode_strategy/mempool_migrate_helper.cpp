@@ -82,6 +82,8 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
         std::string inputBorrowId = pair.first;
         std::string redirectNameKey = inputBorrowId;
         std::string redirectNameVal = inputBorrowId;
+        constexpr int MAX_REDIRECT_COUNT = 64; // borrowid重定向最大次数，防止死循环
+        int redirectCount = 0;
         do {
             redirectNameKey = redirectNameVal;
             redirectNameVal.clear();
@@ -90,6 +92,12 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << inputBorrowId << " failed.";
                 return retDirect;
+            }
+            if (++redirectCount > MAX_REDIRECT_COUNT) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemFree][MemFreeExecute] Redirection chain too long for borrow_id=" << inputBorrowId
+                    << " chainLength=" << redirectCount << ".";
+                return MEM_POOLING_ERROR;
             }
         } while (!redirectNameVal.empty());
         if (redirectNameKey != inputBorrowId) {

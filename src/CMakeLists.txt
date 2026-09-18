@@ -63,7 +63,6 @@ target_link_libraries(ubse PRIVATE
         syssentry
         cert_api_static
         api_server
-        rapidjson
         trace_context
         ubse_urma_uvs
         ubse_urma_controller

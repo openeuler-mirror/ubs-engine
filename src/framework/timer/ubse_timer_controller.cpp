@@ -184,28 +184,31 @@ uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler hand
 
 void UbseTimerHandlerUnregister(const std::string& name)
 {
-    g_handlersMtx.lock();
-    UBSE_LOG_INFO << "Unregister handler=" << name;
-    auto it = g_handlers.find(name);
-    if (it != g_handlers.end()) {
-        g_handlers.erase(it);
-    }
-    if (g_handlers.empty()) {
-        UBSE_LOG_INFO << "Handlers empty, start to exit";
-        {
-            std::lock_guard<std::mutex> lock(g_handlerExecCheckCvMutex);
-            g_isTimerRunning.store(false, std::memory_order_release);
+    {
+        std::unique_lock<std::shared_mutex> lock(g_handlersMtx);
+        UBSE_LOG_INFO << "Unregister handler=" << name;
+        auto it = g_handlers.find(name);
+        if (it != g_handlers.end()) {
+            g_handlers.erase(it);
         }
-        // 通知超时检查线程退出
-        g_handlerExecCheckCv.notify_all();
-        if (g_checkHandlerThread.joinable()) {
-            g_checkHandlerThread.join();
+        if (g_handlers.empty()) {
+            UBSE_LOG_INFO << "Handlers empty, start to exit";
+            {
+                std::lock_guard<std::mutex> lock(g_handlerExecCheckCvMutex);
+                g_isTimerRunning.store(false, std::memory_order_release);
+            }
+            // 通知超时检查线程退出
+            g_handlerExecCheckCv.notify_all();
+            if (g_checkHandlerThread.joinable()) {
+                g_checkHandlerThread.join();
+            }
+            {
+                std::unique_lock<std::shared_mutex> startLock(g_handlerExecStartMtx);
+                g_handlerExecStartRecord.clear();
+            }
         }
-        g_handlerExecStartMtx.lock();
-        g_handlerExecStartRecord.clear();
-        g_handlerExecStartMtx.unlock();
     }
-    g_handlersMtx.unlock();
+    // 锁作用域已结束：避免持 g_handlersMtx 写锁调用 Stop()，与定时线程 ExecTimerHandler 取共享锁形成 ABBA 死锁
     if (!g_isTimerRunning.load(std::memory_order_acquire)) {
         UBSE_LOG_INFO << "Handlers empty, stopping ubse timer...";
         g_ubseTimer.Stop();

@@ -4,17 +4,17 @@
 
 ### 1.1 UDS 文件路径
 
-- **默认路径**：`/var/run/ubse/ubse.sock`
+**默认路径**：`/var/run/ubse/ubse.sock`
 
 ### 1.2 使用方式
 
-不涉及
+不涉及。
 
 ### 1.3 权限要求
 
-- **文件权限**：UDS 文件需要有读写权限，通常设置为 `0660`
-- **用户权限**：客户端进程需要有访问 UDS 文件的权限，通常需要属于特定的用户组（如 `ubse` 组）
-- **目录权限**：UDS 文件所在的目录（如 `/var/run/ubse/`）需要有执行权限，确保进程可以访问该目录
+- **文件权限**：UDS 文件需要有读写权限，通常设置为 `0660`。
+- **用户权限**：客户端进程需要有访问 UDS 文件的权限，通常需要属于特定的用户组（如 `ubse` 组）。
+- **目录权限**：UDS 文件所在的目录（如 `/var/run/ubse/`）需要有执行权限，确保进程可以访问该目录。
 
 ## 2. module_code 和 op_code 清单
 
@@ -25,7 +25,7 @@
 | UBSE_MEM | 0x0001 | UBSE内存基础模块 |
 | UBSE_ELECTION | 0x0002 | 选举模块 |
 | UBSE_NODE | 0x0003 | 节点模块 |
-| UBSE_LONG_LINK_REGISTER | 0x0004 | 向服务端注册监听长连接事件 |
+| UBSE_LONG_LINK_REGISTER | 0x0004 | 向服务端注册侦听长连接事件 |
 | UBSE_URMA | 0x0005 | URMA模块 |
 
 ### 2.2 URMA 操作码 (op_code)
@@ -142,7 +142,7 @@ const uint32_t totalLength = sizeof(bool) + sizeof(UbseRequestHeader) + requestM
 
 - 接收isResp标志失败：返回UBSE_IPC_ERROR_RECV_FAILED
 - 接收响应头失败：返回UBSE_IPC_ERROR_RECV_FAILED
-- 响应体长度超过最大消息大小（10M）：返回UBSE_IPC_ERROR_RECV_FAILED
+- 响应体长度超过最大消息大小（10MB）：返回UBSE_IPC_ERROR_RECV_FAILED
 - 内存分配失败：返回UBSE_IPC_ERROR_RECV_FAILED
 - 接收响应体失败：返回UBSE_IPC_ERROR_RECV_FAILED
 - 超时：返回UBSE_ERR_TIMED_OUT
@@ -178,11 +178,11 @@ struct UbseResponseHeader {
 
 ## 6. 注意事项
 
-- 所有字段使用小端序
-- 所有字段连续存储，无填充
-- 消息最大长度为10M（UBSE_MESSAGE_SIZE）
-- 序列化和反序列化过程中需要处理内存分配和释放
-- 接收过程中需要处理超时情况
+- 所有字段使用小端序。
+- 所有字段连续存储，无填充。
+- 消息最大长度为10MB（UBSE_MESSAGE_SIZE）。
+- 序列化和反序列化过程中需要处理内存分配和释放。
+- 接收过程中需要处理超时情况。
 
 ## 7. 字符串解析规则 (unpackString)
 
@@ -195,10 +195,10 @@ struct UbseResponseHeader {
 
 ### 7.2 解析步骤
 
-1. 读取字符串长度（4字节）
-2. 检查字符串长度是否合法（不超过最大长度，不超过剩余数据长度）
-3. 读取字符串数据（strLen字节）
-4. 移动数据指针到字符串结束位置
+1. 读取字符串长度（4字节）。
+2. 检查字符串长度是否合法（不超过最大长度，不超过剩余数据长度）。
+3. 读取字符串数据（strLen字节）。
+4. 移动数据指针到字符串结束位置。
 
 ### 7.3 错误处理
 

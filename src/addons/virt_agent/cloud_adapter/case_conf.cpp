@@ -33,6 +33,8 @@ using namespace mempooling;
 
 uint64_t CaseConf::index = 0;
 
+std::thread CaseConf::queryThread;
+
 UbseByteBuffer CaseConf::caseConfBuffer{};
 
 CaseConf& CaseConf::GetInstance()
@@ -154,14 +156,20 @@ VmResult CaseConf::CaseAndOvercommitmentRatioDeserial(const std::string& data,
 
 void CaseConf::CaseRegisterRun()
 {
+    if (queryThread.joinable()) {
+        queryThread.join();
+    }
     // Start query scenario sub-thread
-    std::thread eventThread = std::thread(&CaseConf::RunQueryCaseConf);
-    eventThread.detach();
+    queryThread = std::thread(&CaseConf::RunQueryCaseConf);
 }
 
 void CaseConf::RunQueryCaseConf()
 {
     while (true) {
+        if (VmConfiguration::exitFlag.load()) {
+            UBSE_LOG_INFO << "[caseConf] RunQueryCaseConf exit, flag = " << VmConfiguration::exitFlag.load();
+            return;
+        }
         CaseAndOvercommitmentRatio caseConf{};
         auto res = QueryCaseAndOverCommitmentRatio(caseConf);
         if (res != VM_OK || caseConf.curCase.empty()) {
@@ -180,17 +188,20 @@ void CaseConf::RunQueryCaseConf()
             res = StrategyInit();
             if (res != VM_OK) {
                 UBSE_LOG_ERROR << "Failed to init vm strategy. " << FormatRetCode(res);
-                UbsePluginDeInit();
+                if (!VmConfiguration::exitFlag.load()) {
+                    UbsePluginDeInit();
+                }
                 break;
             }
             UBSE_LOG_INFO << "StrategyInit success.";
             break;
         } else if (caseConf.curCase == MEM_FRAGMENTATION_CASE) {
-            // Register non-overcommitment scenario routes and handlers
             res = MemFragRegister();
             if (res != VM_OK) {
                 UBSE_LOG_ERROR << "Failed to init memFragmentation router and handler. " << FormatRetCode(res);
-                UbsePluginDeInit();
+                if (!VmConfiguration::exitFlag.load()) {
+                    UbsePluginDeInit();
+                }
                 break;
             }
             UBSE_LOG_INFO << "Set case and overCommitmentRatio success, curCase=" << caseConf.curCase
@@ -203,6 +214,20 @@ void CaseConf::RunQueryCaseConf()
     }
 }
 
+void CaseConf::Stop()
+{
+    if (queryThread.get_id() == std::this_thread::get_id()) {
+        if (queryThread.joinable()) {
+            queryThread.detach();
+        }
+        return;
+    }
+    if (queryThread.joinable()) {
+        queryThread.join();
+    }
+    UBSE_LOG_INFO << "[caseConf] query thread stopped.";
+}
+
 /**
  * Inject scenarios and watermarks into the MemPooling side.
  *
@@ -213,6 +238,10 @@ void CaseConf::SetMemPoolingParams(const std::string& curCase)
     bool runMode = false;
     bool waterMark = false;
     while (true) {
+        if (VmConfiguration::exitFlag.load()) {
+            UBSE_LOG_INFO << "[caseConf] SetMemPoolingParams exit, flag = " << VmConfiguration::exitFlag.load();
+            return;
+        }
         if (!runMode) {
             runMode = SetMemPoolingRunMode(curCase);
         }

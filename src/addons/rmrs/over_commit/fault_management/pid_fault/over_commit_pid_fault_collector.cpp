@@ -209,6 +209,22 @@ static void FaultPidQueryResHandler(void* ctx, const UbseByteBuffer& respData, u
     }
 }
 
+// 提取Query阶段已禁用冷热迁移的pid名单（faultNumaUsages非空=稳态占用>0的纳管pid），
+// 非空时记录到context.nodeToDisabledPids，供master出口统一恢复冷热流动
+static void RecordDisabledPids(OverCommitFaultContext& context, const std::string& nodeId,
+                               const FaultPidQueryResponse& response)
+{
+    std::vector<pid_t> disabledPids;
+    for (const auto& pidInfo : response.pidMemDistribution) {
+        if (!pidInfo.faultNumaUsages.empty()) {
+            disabledPids.push_back(pidInfo.pid);
+        }
+    }
+    if (!disabledPids.empty()) {
+        context.nodeToDisabledPids[nodeId] = std::move(disabledPids);
+    }
+}
+
 MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNodeId, OverCommitFaultContext& context)
 {
     MpResult overallRet = MEM_POOLING_OK;
@@ -260,6 +276,9 @@ MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNode
             LOG_WARN << "PID query to node " << borrowInNodeId << " failed, rpcRet=" << rpcRet
                      << ", respRet=" << response.retCode << ".";
             if (rpcRet == MEM_POOLING_OK) {
+                // 对端业务失败但RpcSend成功即有完整响应体: 仍提取禁用pid名单供master失败出口统一
+                // 恢复冷热流动；数据面明细不入context，本轮不对该节点构建下发任务
+                RecordDisabledPids(context, borrowInNodeId, response);
                 // RPC通信正常但对端采集失败（如libvirt停）: 透传对端业务错误码，非通信面问题
                 errRecords.push_back(
                     {response.retCode, "node=" + borrowInNodeId +
@@ -276,6 +295,7 @@ MpResult PidFaultCollector::QueryPidMemDistribution(const std::string& faultNode
 
         // 存储PID内存分布
         context.nodeToPidMemInfos[borrowInNodeId] = response.pidMemDistribution;
+        RecordDisabledPids(context, borrowInNodeId, response);
         // 待恢复故障numa（smap纳管查询失败且采集占用非0）: task_builder本轮对其不建task不归还
         if (!response.pendingFaultNumaIds.empty()) {
             context.nodeToPendingFaultNumaIds[borrowInNodeId].insert(response.pendingFaultNumaIds.begin(),

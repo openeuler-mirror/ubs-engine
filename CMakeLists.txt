@@ -101,6 +101,12 @@ else ()
 endif ()
 
 # coverage option
+# DT Fuzz 覆盖率统计：隐式开启全局 gcov 插桩（src/ 库与 FT 目标一起插桩），
+# fuzz 结束后运行 test/Fuzz/scripts/ft_coverage.sh 汇总 lines/funcs 覆盖率
+option(FT_COVERAGE "DT Fuzz: build fuzz targets with gcov instrumentation (implies ENABLE_COVERAGE)" OFF)
+if (FT_COVERAGE)
+    set(ENABLE_COVERAGE ON)
+endif ()
 option(ENABLE_COVERAGE "Use gcov" OFF)
 message(DEBUG ENABLE_COVERAGE=${ENABLE_COVERAGE})
 if (ENABLE_COVERAGE)
@@ -118,12 +124,14 @@ include_directories(
 )
 option(BUILD_TESTS "Build tests" OFF)
 
+option(ENABLE_FT "Build DT fuzz tests (test/Fuzz)" OFF)
+
 option(ENABLE_UB "Enable UB optimization" ON)
 if (ENABLE_UB)
     add_definitions(-DUB_ENVIRONMENT)
 endif ()
 
-add_subdirectory(3rdparty)
+include(check_requirements)
 add_subdirectory(src)
 
 set(ENABLE_UBSE_TESTING 0)

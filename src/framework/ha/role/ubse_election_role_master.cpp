@@ -219,7 +219,12 @@ void Master::ProcTimer()
         }
         PrepareElectionPkt(pkt);
         ReplaceStandbyNode(pkt);
-        std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
+        auto commMgr = RoleMgr::GetInstance().GetCommMgr();
+        if (commMgr == nullptr) {
+            UBSE_LOG_ERROR << "[ELECTION] ProcTimer: commMgr is null.";
+            return;
+        }
+        std::vector<UBSE_ID_TYPE> allNodes = commMgr->GetConnectedNodes();
         for (const auto& id : allNodes) {
             UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id=" << id;
             pkt.broadcast = static_cast<uint8_t>(broadcast_[id].masterOnlineBcStatus);

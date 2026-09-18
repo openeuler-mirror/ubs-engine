@@ -22,6 +22,7 @@
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_utils.h"
 #include "ubse_event_module.h"
+#include "ubse_net_util.h"
 #include "role/ubse_election_role_mgr.h"
 namespace ubse::election {
 using namespace ubse::context;
@@ -69,13 +70,13 @@ uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE& dstIp)
     option.channelType = UbseChannelType::NORMAL;
     auto ret = UbseElectionNodeMgr::GetInstance().GetPortByIp(option.ip, option.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to fetch node information id : " << option.nodeId;
+        UBSE_LOG_ERROR << "[ELECTION] Failed to fetch node information id : " << UbseNetUtil::MaskIp(option.nodeId);
         return UBSE_ERROR;
     }
     std::string remoteId;
     auto retCode = ubseComModule->ConnectWithOption(option, remoteId);
     if (retCode != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] Connect failed: " << option.ip;
+        UBSE_LOG_WARN << "[ELECTION] Connect failed: " << UbseNetUtil::MaskIp(option.ip);
     } else {
         {
             std::unique_lock<std::shared_mutex> writeLock(mtx_);
@@ -267,7 +268,8 @@ UbseResult UbseElectionCommMgr::NewChannelCB(const std::string& remoteIp, const 
         return UBSE_ERROR;
     }
     if (nodeIpMap.find(remoteIp) != nodeIpMap.end()) {
-        UBSE_LOG_DEBUG << "[ELECTION] Updating for ip = " << remoteIp << " to id = " << remoteNodeId;
+        UBSE_LOG_DEBUG << "[ELECTION] Updating for ip = " << UbseNetUtil::MaskIp(remoteIp)
+                       << " to id = " << remoteNodeId;
         UbseElectionNodeMgr::GetInstance().UpdateNodeIdWithConnect(remoteIp, remoteNodeId);
         return UBSE_OK;
     }

@@ -222,7 +222,7 @@ TEST_F(TestStatusManager, TestMemoryReturnOperationFailed)
     MOCKER(MempoolingModule::UBSRMRSMemReturn).stubs().will(returnValue(static_cast<UBSRMRSMemReturnFunc>(nullptr)));
     MOCKER(&ResourceCollect::GetPidsOnNuma).stubs().will(returnValue(pids));
     MOCKER(ResourceCollect::GetInstance().DeleteGlobalBorrowMap).expects(never());
-    MOCKER(VmTaskCounter::CompleteTask).expects(never());
+    MOCKER(VmTaskCounter::CompleteTask).expects(once());
     StatusManager::GetInstance().MemoryReturnOperation(escapeAction);
     MOCKER(&ResourceCollect::GetPidsOnNuma).reset();
     MOCKER(MempoolingModule::UBSRMRSMemReturn).reset();

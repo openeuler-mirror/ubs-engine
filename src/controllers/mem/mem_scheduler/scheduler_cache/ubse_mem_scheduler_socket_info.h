@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_MEM_SCHEDULER_SOCKET_INFO_H
 #define UBS_ENGINE_UBSE_MEM_SCHEDULER_SOCKET_INFO_H
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <set>
@@ -132,12 +133,17 @@ public:
         }
         return total;
     }
-    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine) const
+
+    [[nodiscard]] uint64_t GetAvailableLendSize(uint64_t waterLine, uint64_t blockSizeByte) const
     {
+        if (blockSizeByte == 0) {
+            return 0;
+        }
         uint64_t total = 0;
         for (const auto& [_, numaInfo] : numaInfoMap_) {
             uint64_t result = 0;
-            if (ubse::utils::SafeAdd(total, numaInfo->GetAvailableLendSize(waterLine), result)) {
+            auto availableLendSize = numaInfo->GetAvailableLendSize(waterLine) / blockSizeByte * blockSizeByte;
+            if (ubse::utils::SafeAdd(total, availableLendSize, result)) {
                 total = result;
             }
         }

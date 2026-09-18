@@ -11,6 +11,8 @@
  */
 #include "ubse_mem_scheduler_filter_manager.h"
 
+#include <any>
+
 #include "ubse_error.h"
 #include "ubse_logger.h"
 
@@ -89,9 +91,17 @@ UbseResult SchedulerFilterManager::FilterByNames(std::vector<NodeInfo>& nodes,
                                                  const std::vector<std::string>& filterNames,
                                                  const SchedulerRequest& request)
 {
-    UBSE_LOG_INFO << "[FilterChain] start"
-                  << ", importNode=" << request.requestNodeId_ << ", requestSize=" << request.requestSize_
-                  << ", initialNodes=" << nodes.size();
+    bool silentReplay = false;
+    if (auto it = request.params_.find(kSilentReplayParam); it != request.params_.end()) {
+        if (auto* flag = std::any_cast<bool>(&it->second); flag != nullptr) {
+            silentReplay = *flag;
+        }
+    }
+    if (!silentReplay) {
+        UBSE_LOG_INFO << "[FilterChain] start"
+                      << ", importNode=" << request.requestNodeId_ << ", requestSize=" << request.requestSize_
+                      << ", initialNodes=" << nodes.size();
+    }
 
     for (const auto& name : filterNames) {
         SchedulerFilter* filter = FindFilterByName(name);
@@ -116,18 +126,20 @@ UbseResult SchedulerFilterManager::FilterByNames(std::vector<NodeInfo>& nodes,
             return ret;
         }
 
-        for (const auto& rec : filter->GetWarnings()) {
-            UBSE_LOG_WARN << "[" << filter->GetName() << "] warning: " << rec;
+        if (!silentReplay) {
+            for (const auto& rec : filter->GetWarnings()) {
+                UBSE_LOG_WARN << "[" << filter->GetName() << "] warning: " << rec;
+            }
+            for (const auto& rec : filter->GetRejectedNodes()) {
+                UBSE_LOG_WARN << "[" << filter->GetName() << "] node=" << rec.nodeId << ", removed: " << rec.reason;
+            }
         }
-
-        for (const auto& rec : filter->GetRejectedNodes()) {
-            UBSE_LOG_WARN << "[" << filter->GetName() << "] node=" << rec.nodeId << ", removed: " << rec.reason;
-        }
-
         filter->ClearLogRecords();
     }
 
-    UBSE_LOG_INFO << "[FilterChain] finished, finalNodes=" << nodes.size() << ", requestName=" << request.name_;
+    if (!silentReplay) {
+        UBSE_LOG_INFO << "[FilterChain] finished, finalNodes=" << nodes.size() << ", requestName=" << request.name_;
+    }
     return UBSE_OK;
 }
 

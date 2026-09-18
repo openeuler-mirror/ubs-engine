@@ -18,6 +18,7 @@
 
 #include "ubse_common_def.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -47,6 +48,12 @@ using namespace ubse::adapter_plugins::smbios;
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
 std::string UBSE_TOPOLOGY_CHANGE_EVENT = UBSE_EVENT_TOPOLOGY_CHANGE;
+// 备侧同步事件处理器序列号：需在节点建链后触发（建链优先级100）
+const uint32_t AGENT_STANDBY_PULL_SEQUENCE = 102;
+const std::string UBSE_NODE_STANDBY_PULL_HANDLER = "UbseStandbyPullNodeInfo";
+const std::string UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER = "UbseAgentClearMirror";
+// 全量快照节点数上限（防恶意/异常报文导致 reserve 异常）
+constexpr size_t MAX_MIRROR_NODE_NUM = 1024;
 
 // Agent端消息处理注册
 UbseResult RegAgentMsgHandler()
@@ -54,12 +61,44 @@ UbseResult RegAgentMsgHandler()
     const ubse::com::UbseComEndpoint collectEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_COLLECT)};
-
+    const ubse::com::UbseComEndpoint reportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_REPORT)};
     const ubse::com::UbseComEndpoint nodeChangeEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_CHANGE)};
 
-    auto ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "get com module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    // SYNC/FULL端点使用自定义handler（继承UbseComBaseMessageHandler），
+    // 以便在Handle中通过ctx获取发送方节点Id并校验其为主节点（防任意节点注入镜像状态）
+    UbseComBaseMessageHandlerPtr nodeInfoSyncHandler = new (std::nothrow) UbseNodeInfoSyncMsgHandler();
+    if (nodeInfoSyncHandler == nullptr) {
+        UBSE_LOG_ERROR << "new node info sync handler failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = comModule->RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>(nodeInfoSyncHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register node info sync endpoint failed";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr nodeInfoSyncFullHandler = new (std::nothrow) UbseNodeInfoSyncFullMsgHandler();
+    if (nodeInfoSyncFullHandler == nullptr) {
+        UBSE_LOG_ERROR << "new node info sync full handler failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = comModule->RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>(nodeInfoSyncFullHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register node info sync full endpoint failed";
+        return ret;
+    }
+
+    ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register collect endpoint failed";
         return ret;
@@ -85,6 +124,32 @@ UbseResult UbseNodeControllerAgent::Initialize()
         UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
         return ret;
     }
+
+    // 升备：主动拉取全量快照重建镜像（唯一拉取触发点，覆盖委派新备/主降备/重启即备/从转备）
+    UbseElectionHandlerBuilder standbyBuilder;
+    standbyBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE) -> UbseResult {
+        if (taskExecutor_ != nullptr) {
+            taskExecutor_->Execute([this]() -> void { PullNodeInfoFromMaster(); });
+        }
+        return UBSE_OK;
+    });
+    standbyBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    standbyBuilder.SetSequenceId(AGENT_STANDBY_PULL_SEQUENCE);
+    standbyBuilder.SetType(UbseElectionEventType::CHANGE_TO_STANDBY);
+    standbyBuilder.SetName(UBSE_NODE_STANDBY_PULL_HANDLER);
+    UbseElectionChangeAttachHandler(standbyBuilder.Build());
+
+    // 备降从：清空镜像与lastSyncSeq，再次升备时由拉取重建
+    UbseElectionHandlerBuilder agentBuilder;
+    agentBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE) -> UbseResult {
+        ClearMirror();
+        return UBSE_OK;
+    });
+    agentBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    agentBuilder.SetSequenceId(AGENT_STANDBY_PULL_SEQUENCE);
+    agentBuilder.SetType(UbseElectionEventType::CHANGE_TO_AGENT);
+    agentBuilder.SetName(UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER);
+    UbseElectionChangeAttachHandler(agentBuilder.Build());
 
     // 创建任务执行器
     taskExecutor_ = UbseTaskExecutor::Create("UbseNodeAgent", NO_1, NO_1024);
@@ -474,6 +539,392 @@ UbseResult nodeChangeHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
     }
 
     return CreateErrorResponse(ret, resp);
+}
+
+namespace {
+// 校验SYNC/FULL消息发送方是否为当前主节点，防止任意集群节点构造消息注入镜像状态（S2-01）
+bool VerifySyncSenderIsMaster(const std::string& senderNodeId)
+{
+    std::string masterNodeId;
+    if (UbseGetMasterNodeId(masterNodeId) != UBSE_OK) {
+        UBSE_LOG_WARN << "[NODE_SYNC] get master node id failed, reject sync msg, sender=" << senderNodeId;
+        return false;
+    }
+    if (senderNodeId.empty() || senderNodeId != masterNodeId) {
+        UBSE_LOG_WARN << "[NODE_SYNC] reject sync msg from non-master node, sender=" << senderNodeId
+                      << ", master=" << masterNodeId;
+        return false;
+    }
+    return true;
+}
+
+// 将同步处理结果回填RPC响应体（与UbseNetMessageHandler的响应回填方式一致）
+UbseResult WriteSyncResp(const ubse::message::UbseBaseMessagePtr& rsp, UbseByteBuffer& respData)
+{
+    auto respPtr = ubse::message::UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(rsp);
+    if (respPtr.Get() == nullptr) {
+        UBSE_LOG_ERROR << "[NODE_SYNC] deconvert response message failed";
+        if (respData.freeFunc != nullptr) {
+            respData.freeFunc(respData.data);
+        }
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (respPtr->SetInputRawData(respData.data, static_cast<uint32_t>(respData.len)) != UBSE_OK) {
+        std::string tmpData = UbseReplyResultToString(UbseReplyResult::ERR_NO_REPLY);
+        respPtr->SetInputRawData(reinterpret_cast<uint8_t*>(tmpData.data()),
+                                 static_cast<uint32_t>(tmpData.size())); // NOLINT
+    }
+    respPtr->Deserialize();
+    if (respData.freeFunc != nullptr) {
+        respData.freeFunc(respData.data);
+    }
+    return UBSE_OK;
+}
+} // namespace
+
+UbseResult UbseNodeInfoSyncMsgHandler::Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                              const ubse::message::UbseBaseMessagePtr& rsp,
+                                              com::UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "ubse is stopped, ignore node info sync msg";
+        return UBSE_OK;
+    }
+    // 校验发送方身份：ctx->GetDstId()为发送方节点Id（通信层ParseContextMsg按对端channel设置）
+    if (ctx == nullptr || !VerifySyncSenderIsMaster(ctx->GetDstId())) {
+        return UBSE_ERROR;
+    }
+    auto reqPtr = ubse::message::UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(req);
+    if (reqPtr.Get() == nullptr) {
+        UBSE_LOG_ERROR << "[NODE_SYNC] deconvert request message failed, req is nullptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseByteBuffer reqData{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
+    UbseByteBuffer respData{};
+    auto ret = UbseNodeControllerAgent::GetInstance().HandleNodeInfoSync(reqData, respData);
+    auto writeRet = WriteSyncResp(rsp, respData);
+    return writeRet != UBSE_OK ? writeRet : ret;
+}
+
+UbseResult UbseNodeInfoSyncFullMsgHandler::Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                                  const ubse::message::UbseBaseMessagePtr& rsp,
+                                                  com::UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "ubse is stopped, ignore node info sync full msg";
+        return UBSE_OK;
+    }
+    // 校验发送方身份：ctx->GetDstId()为发送方节点Id（通信层ParseContextMsg按对端channel设置）
+    if (ctx == nullptr || !VerifySyncSenderIsMaster(ctx->GetDstId())) {
+        return UBSE_ERROR;
+    }
+    auto reqPtr = ubse::message::UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(req);
+    if (reqPtr.Get() == nullptr) {
+        UBSE_LOG_ERROR << "[NODE_SYNC] deconvert request message failed, req is nullptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseByteBuffer reqData{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
+    UbseByteBuffer respData{};
+    auto ret = UbseNodeControllerAgent::GetInstance().HandleNodeInfoSyncFull(reqData, respData);
+    auto writeRet = WriteSyncResp(rsp, respData);
+    return writeRet != UBSE_OK ? writeRet : ret;
+}
+
+uint16_t UbseNodeInfoSyncMsgHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER);
+}
+
+uint16_t UbseNodeInfoSyncMsgHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC);
+}
+
+uint16_t UbseNodeInfoSyncFullMsgHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER);
+}
+
+uint16_t UbseNodeInfoSyncFullMsgHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC_FULL);
+}
+
+bool UbseNodeControllerAgent::IsStandbyNode() const
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return false;
+    }
+    ubse::election::Node standbyNode{};
+    if (module->UbseGetStandbyNode(standbyNode) != UBSE_OK || standbyNode.id.empty()) {
+        return false;
+    }
+    return standbyNode.id == UbseNodeController::GetInstance().GetCurrentNodeId();
+}
+
+void UbseNodeControllerAgent::ClearMirror()
+{
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    nodeInfoMirror_.clear();
+    faultProtectMirror_.clear();
+    lastSyncSeq_ = 0;
+    UBSE_LOG_INFO << "node info mirror cleared";
+}
+
+void UbseNodeControllerAgent::GetMirrorSnapshot(std::unordered_map<std::string, UbseNodeInfo>& mirror,
+                                                std::unordered_map<std::string, uint64_t>& faultProtect)
+{
+    std::shared_lock<std::shared_mutex> lock(mirrorMutex_);
+    mirror = nodeInfoMirror_;
+    faultProtect = faultProtectMirror_;
+}
+
+UbseResult UbseNodeControllerAgent::HandleNodeInfoSync(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    // 非备角色（已升主/从节点）忽略残留推送，防旧主残余消息污染
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, ignore node info sync";
+        return UBSE_OK;
+    }
+    if (req.data == nullptr || req.len == 0) {
+        return UBSE_ERROR;
+    }
+
+    UbseDeSerialization inStream(req.data, req.len);
+    uint64_t syncSeq = 0;
+    uint64_t faultUpdateTimeMs = 0;
+    UbseNodeInfo nodeInfo{};
+    inStream >> syncSeq >> faultUpdateTimeMs;
+    UbseDeSerialization item;
+    inStream >> item;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync head failed";
+        return UBSE_ERROR;
+    }
+    auto ret = ParseNodeInfo(nodeInfo, item);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "parse node info sync node failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    // 双过滤：主节点自己/备节点自己不落镜像（旧主倒换后不在镜像，升主不会对其对账，防卡SMOOTHING）
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubse::election::Node masterNode{};
+    (void)module->UbseGetMasterNode(masterNode);
+    auto selfId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (nodeInfo.nodeId == masterNode.id || nodeInfo.nodeId == selfId) {
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << " is master/self, skip mirror";
+        return UBSE_OK;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    // syncSeq乱序过滤：仅应用seq > lastSyncSeq的消息
+    if (syncSeq <= lastSyncSeq_) {
+        UBSE_LOG_DEBUG << "node info sync out of order, syncSeq=" << syncSeq << ", lastSyncSeq=" << lastSyncSeq_;
+        return UBSE_OK;
+    }
+    nodeInfoMirror_[nodeInfo.nodeId] = nodeInfo;
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT && faultUpdateTimeMs != 0) {
+        faultProtectMirror_[nodeInfo.nodeId] = faultUpdateTimeMs;
+    } else if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
+        faultProtectMirror_.erase(nodeInfo.nodeId);
+    }
+    lastSyncSeq_ = syncSeq;
+    UBSE_LOG_INFO << "[NODE_SYNC] standby upsert mirror, nodeId=" << nodeInfo.nodeId
+                  << ", state=" << NodeClusterStateToStr(nodeInfo.clusterState)
+                  << ", faultUpdateTimeMs=" << faultUpdateTimeMs << ", syncSeq=" << syncSeq;
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeControllerAgent::HandleNodeInfoSyncFull(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    if (req.data == nullptr || req.len == 0) {
+        return UBSE_ERROR;
+    }
+    return ProcessNodeInfoSyncFull(req.data, req.len);
+}
+
+UbseResult UbseNodeControllerAgent::ProcessNodeInfoSyncFull(const uint8_t* data, uint32_t len)
+{
+    // 非备角色忽略（拉取回调与周期收包共用本函数）
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, ignore node info sync full";
+        return UBSE_OK;
+    }
+
+    UbseDeSerialization inStream(data, len);
+    uint64_t syncSeq = 0;
+    size_t num = 0;
+    inStream >> syncSeq >> num;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync full head failed";
+        return UBSE_ERROR;
+    }
+    if (num > MAX_MIRROR_NODE_NUM) {
+        UBSE_LOG_ERROR << "node info sync full node num too large, num=" << num;
+        return UBSE_ERROR;
+    }
+
+    std::vector<UbseNodeInfo> nodeList;
+    nodeList.reserve(num);
+    for (size_t i = 0; i < num; i++) {
+        UbseDeSerialization item;
+        inStream >> item;
+        if (!inStream.Check()) {
+            UBSE_LOG_ERROR << "deserialize node info sync full item failed, index=" << i;
+            return UBSE_ERROR;
+        }
+        UbseNodeInfo info{};
+        auto ret = ParseNodeInfo(info, item);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "parse node info sync full item failed, index=" << i << ", " << FormatRetCode(ret);
+            return ret;
+        }
+        nodeList.push_back(info);
+    }
+    std::map<std::string, uint64_t> faultProtectMap;
+    inStream >> faultProtectMap;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync full fault map failed";
+        return UBSE_ERROR;
+    }
+
+    // 双过滤：主节点自己/备节点自己不落镜像
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubse::election::Node masterNode{};
+    (void)module->UbseGetMasterNode(masterNode);
+    auto selfId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    std::unordered_map<std::string, UbseNodeInfo> filteredMap;
+    std::unordered_map<std::string, uint64_t> filteredFaultMap;
+    for (const auto& node : nodeList) {
+        if (node.nodeId == masterNode.id || node.nodeId == selfId) {
+            continue;
+        }
+        filteredMap[node.nodeId] = node;
+        auto iter = faultProtectMap.find(node.nodeId);
+        if (iter != faultProtectMap.end()) {
+            filteredFaultMap[node.nodeId] = iter->second;
+        }
+    }
+
+    // FULL全量快照豁免seq过滤：全量覆盖天然幂等，无条件落地。
+    // 防止主节点重启后syncSeq归零、而本侧lastSyncSeq保留重启前大值时，快照被误判乱序丢弃导致镜像冻结。
+    // 单点推送SYNC仍按seq严格过滤防乱序覆盖。
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    nodeInfoMirror_ = std::move(filteredMap);
+    faultProtectMirror_ = std::move(filteredFaultMap);
+    lastSyncSeq_ = syncSeq;
+    // 观测日志：全量快照落地（含镜像节点状态摘要）
+    std::string stateSummary;
+    for (const auto& iter : nodeInfoMirror_) {
+        stateSummary += iter.first + ":" + NodeClusterStateToStr(iter.second.clusterState) + " ";
+    }
+    UBSE_LOG_INFO << "[NODE_SYNC_FULL] standby apply full snapshot, syncSeq=" << syncSeq
+                  << ", mirrorSize=" << nodeInfoMirror_.size() << ", nodes=[" << stateSummary << "]";
+    return UBSE_OK;
+}
+
+void UbseNodeControllerAgent::PullNodeInfoFromMaster()
+{
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, skip pull node info";
+        return;
+    }
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "election module not load";
+        return;
+    }
+    ubse::election::Node masterNode{};
+    if (module->UbseGetMasterNode(masterNode) != UBSE_OK || masterNode.id.empty()) {
+        UBSE_LOG_WARN << "get master node failed, skip pull node info";
+        return;
+    }
+
+    // 清理镜像并重置lastSyncSeq，防止拉回的全量seq小于清理前的lastSyncSeq被乱序过滤丢弃
+    ClearMirror();
+
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC_REQ),
+        .address = masterNode.id,
+    };
+
+    UbseSerialization outStream;
+    outStream << UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "serialize node info sync req failed";
+        return;
+    }
+    size_t size = outStream.GetLength();
+    uint8_t* buffer = outStream.GetBuffer(true);
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t* p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
+
+    // 回调共享数据：与 UbseNodeReportNodeInfo/LcneChangeReportNodeInfo 的 SyncData 模式保持一致，
+    // 回调按值捕获 shared_ptr 延长生命周期，避免捕获栈引用依赖"同步内联回调"的隐含语义。
+    struct SyncData {
+        UbseResult pullRet = UBSE_OK;
+        bool callbackCalled = false;
+        std::mutex mtx;
+        std::condition_variable cv;
+    };
+    auto syncData = std::make_shared<SyncData>();
+
+    auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+                           [this, syncData](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) {
+                               if (resCode != UBSE_OK) {
+                                   UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(resCode);
+                                   syncData->pullRet = resCode;
+                               } else if (respData.data != nullptr && respData.len != 0) {
+                                   syncData->pullRet = ProcessNodeInfoSyncFull(respData.data, respData.len);
+                               } else {
+                                   syncData->pullRet = UBSE_ERROR_NULLPTR;
+                               }
+                               {
+                                   std::lock_guard<std::mutex> lock(syncData->mtx);
+                                   syncData->callbackCalled = true;
+                               }
+                               syncData->cv.notify_one();
+                           });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "send node info sync req failed, " << FormatRetCode(ret);
+        return;
+    }
+    // 等待回调完成：必须带超时。agent工作线程为单线程，若主节点RPC无响应而无限等待，
+    // 会永久阻塞周期上报/节点采集等全部任务（与UbseNodeReportNodeInfo超时策略保持一致）
+    {
+        std::unique_lock<std::mutex> lock(syncData->mtx);
+        auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
+        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
+            UBSE_LOG_WARN << "pull node info from master timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
+            return;
+        }
+    }
+    if (syncData->pullRet != UBSE_OK) {
+        UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(syncData->pullRet);
+        return;
+    }
+    // 观测日志：备节点首次全量拉取成功（含镜像节点状态摘要）
+    std::string stateSummary;
+    size_t mirrorSize = 0;
+    {
+        std::shared_lock<std::shared_mutex> lock(mirrorMutex_);
+        mirrorSize = nodeInfoMirror_.size();
+        for (const auto& iter : nodeInfoMirror_) {
+            stateSummary += iter.first + ":" + NodeClusterStateToStr(iter.second.clusterState) + " ";
+        }
+    }
+    UBSE_LOG_INFO << "[NODE_SYNC_REQ] standby pull full snapshot success, masterId=" << masterNode.id
+                  << ", mirrorSize=" << mirrorSize << ", nodes=[" << stateSummary << "]";
 }
 
 // 向Master节点请求全量节点列表

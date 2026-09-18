@@ -489,6 +489,11 @@ int main(void)
         return -1;
     }
     /* Do your work here... */
+    /* param[i].containerId 与 param 均为 calloc 分配，由调用方负责 free */
+    for (uint32_t i = 0; i < InfoSize; i++) {
+        free(param[i].containerId);
+    }
+    free(param);
     return 0;
 }
 ```

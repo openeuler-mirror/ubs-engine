@@ -25,14 +25,12 @@
 ###     -C | --coverage         Generate coverage report files
 ###     -H | --http-server      Start http server for coverage report
 ###     -c | --clean            Clean build directory
-###     -S | --source-compiling Source compiling for 3rdparty
 ###     -j | --jobs             Specifying running jobs for make
 ###     -v | --verbose          Verbose output
 ###     -V | --deploy-version   Release version for deploy
 ###     -t | --target           Specifying build target, default is `all`
 ###                             Supported targets:
 ###                                 all             build all target in source code
-###                                 3rdparty        build 3rdparty libs
 ###                                 test            build all tests in test/ directory
 ###     -T | --type             Build type
 ###                             Supported targets:
@@ -97,13 +95,13 @@ generator="Unix Makefiles"
 enable_coverage="OFF"
 enable_test="OFF"
 enable_it_tests="OFF"
+enable_ft="OFF"
 skip_run_tests="OFF"
 force_colored_output="OFF"
 deploy_version="2.0.0.B098"
 enable_ub="ON"
 enable_pre_commit="OFF"
 enable_http_server="OFF"
-enable_source_compiling="OFF"
 enable_asan="OFF"
 enable_lsan="OFF"
 enable_tsan="OFF"
@@ -203,10 +201,6 @@ function parse_args() {
             enable_clean='ON'
             shift
             ;;
-        -S | --source-compiling)
-            enable_source_compiling='ON'
-            shift
-            ;;
         -j | --jobs)
             if [[ $# -gt 1 && "$2" != "-"* ]]; then
                 jobs="$2"
@@ -298,9 +292,6 @@ function parse_args() {
 function clean() {
     local target_dirs=()
     case "$1" in
-    "3rdparty")
-        target_dirs+=("${PROJECT_ROOT_DIR}/deps")
-        ;;
     "package")
         target_dirs+=("${build_dir}")
         target_dirs+=("${output_dir}")
@@ -401,9 +392,9 @@ function build_cmake() {
         -DCMAKE_BUILD_TYPE="${build_type}"
         -DCMAKE_CXX_STANDARD="${std}"
         -DBUILD_TESTS="${enable_test}"
+        -DENABLE_FT="${enable_ft}"
         -DENABLE_IT_TESTS=${enable_it_tests} \
         -DENABLE_COVERAGE="${enable_coverage}"
-        -DSOURCE_COMPILING="${enable_source_compiling}"
         -DSKIP_RUN_TESTS="${skip_run_tests}"
         -DASAN_BUILD="${enable_asan}"
         -DENABLE_HTTP_SERVER="${enable_http_server}"

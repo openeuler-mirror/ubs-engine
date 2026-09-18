@@ -53,6 +53,9 @@ bool StrToUint(const std::string& src, uint32_t& value);
 
 std::string RemoveDashes(const std::string& str);
 
+// 对动态参数做shell单引号转义，防止popen命令注入
+std::string ShellEscape(const std::string& str);
+
 // 16进制字符转换辅助函数
 int HexCharToInt(char c);
 

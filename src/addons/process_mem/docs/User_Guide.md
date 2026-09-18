@@ -7,6 +7,7 @@ ProcessMem 是 UBS Engine 的一款进程级内存调度插件。通过周期性
 - **进程纳管与发现**：支持按 PID 或进程名（comm）配置纳管进程；按进程名配置的进程调度配置持久化保存，同名进程启动时自动重新纳管；已纳管进程的调度参数按 PID 保存为配置快照，进程仍在但无法按名匹配（如进程改名、父进程已退出的子进程）或 UBSE 重启后仍可恢复纳管；自动发现纳管进程的子进程并继承父进程的调度参数；root 进程（uid 0）默认被过滤，不参与纳管。
 - **进程 NUMA 内存采集**：周期性读取 `/proc/<pid>/numa_maps` 与 `/proc/<pid>/status`，获取进程在各 NUMA 节点上的内存分布与 VmRSS，并采集本地/远端 NUMA 内存水位快照。
 - **自动借用与迁出**：本地 NUMA 总空闲内存低于 `pressing_free_threshold` 时，从纳管进程中筛选候选进程，向远端 NUMA 借用内存并通过 SMAP 迁移进程页面。
+- **债务块容量复用**：超分比下调或进程内存回落后，再平衡将超出的远端页面迁回本地，债务槽容量保留而远端占用归零；进程内存再次上涨需要借用时优先复用这部分空闲容量，不新建债务。
 - **自动迁回与归还**：空闲内存观测窗口最小值回升超过水位阈值时触发主动归还；借出节点空闲内存不足时向借入节点广播被动归还请求；本地空闲充足时页面迁回本地后归还，不足时支持远端到远端（R2R）迁移归还。
 - **故障处理**：借出/归还受故障处理影响时保留借用、不误删，由后续周期自动重试回收；UBSE 重启或故障恢复后自动核对并恢复借用状态（补录未记录的借用、清理失效记录、按实测远端占用量校准），无法归属的借用自动归还。
 - **配置持久化**：PID/进程名调度配置及进程配置快照通过 UbseStorage 持久化，UBSE 重启后自动恢复。
@@ -49,33 +50,44 @@ cp libprocess_mem.so /usr/lib64/
 ### 2.3.1 插件主配置 `/etc/ubse/plugins/plugin_process_mem.conf`
 
 ```ini
+# Name of the process_mem plugin. Fixed value: process_mem.
 ubse.plugin.name=process_mem
+# Name of the SO file on which the process_mem module depends. Fixed value: libprocess_mem.so.
 ubse.plugin.pkg=libprocess_mem.so
 
 [process_mem]
-# 进程发现/采集周期（/proc 扫描），默认 5，范围 [1, 3600]
+# Collect cycle: interval between /proc scans (valid range 1-3600s, fallback default 5)
 collect_process_interval=5
-# 是否过滤 root 进程（uid 0），默认开启
+# Default on: root processes (uid 0) are skipped when matching managed pids
 filter_root_process=true
-# 调度决策周期（超时检查/借用/被动归还），默认 5，范围 [1, 3600]
+# Decision cycle: interval between borrow rounds (timeout check / borrow / passive return),
+# valid range 1-3600s, fallback default 5
 schedule_interval=5
-# 本地 NUMA 空闲内存借用阈值，默认 15，范围 [1, 4096]（单位 GB）
+# Free-memory threshold that triggers borrowing: borrow starts when total free of all local NUMA nodes
+# drops below f, derived from capacity planning as f = S - k x d x r (valid range 1-4096 GB,
+# fallback default 15; should not exceed total local memory and should be greater than
+# emergency_free_threshold)
 pressing_free_threshold=15
-# 借用超时时间，默认 1000，范围 [1, 1800000]（每 128MB 借用量对应的毫秒数）
+# Borrow timeout per 128MB block (ms), valid range 1-1800000 (30 min), fallback default 1000
 borrow.timeout=1000
-# 借用是否必须同平面，true=必须（严格过滤），false=软偏好（评分加权）
+# Whether borrowing must stay on the same plane: true=must (strict filtering),
+# false=prefer (soft, score-weighted)
 borrow.must_same_plane=false
 
-# 主动归还配置（可选，使用默认值即可）
+# Active return (optional, defaults apply)
 [process_mem.return]
-# 紧急快轮询观测窗口采样次数，默认 300（300×200ms≈60s 观测窗口）
+# Number of consecutive fast-poll cycles: node free is sampled only during emergency fast polling (200ms);
+# every n samples the window minimum is settled, and active return is triggered when the window minimum
+# exceeds pressing_free_threshold (default 300 x 200ms = 60s observation window);
+# valid range 1-4096, fallback default 300
 observe_cycles=300
 
-# OOM 快速检测配置（可选，使用默认值即可）
+# OOM fast detection (optional, defaults apply)
 [process_mem.oom]
-# 紧急快轮询间隔，默认 200，范围 [50, 60000]（单位 毫秒）
+# Emergency fast-poll interval (ms), valid range 50-60000, fallback default 200
 collect_node_interval=200
-# 紧急借用/被动归还阈值，默认 5，范围 [1, 4096]（单位 GB）；空闲回升时配合观测窗口触发主动归还
+# Emergency borrow/pass-off threshold (GB), valid range 1-4096, fallback default 5;
+# should be less than pressing_free_threshold
 emergency_free_threshold=5
 ```
 
@@ -83,17 +95,29 @@ emergency_free_threshold=5
 
 | 参数名称 | 默认值 | 单位 | 配置范围 | 说明 |
 | -------- | ------ | ---- | -------- | ---- |
-| ubse.plugin.name | process_mem | - | - | 插件名称。 |
-| ubse.plugin.pkg | libprocess_mem.so | - | - | 插件动态库包名。 |
+| ubse.plugin.name | process_mem | - | - | 插件名称。固定值：process_mem。 |
+| ubse.plugin.pkg | libprocess_mem.so | - | - | 插件依赖的动态库文件名。固定值：libprocess_mem.so。 |
 | collect_process_interval | 5 | 秒 | [1, 3600] | 进程发现与采集周期，周期内扫描 `/proc`、采集 VmRSS 与 NUMA 内存分布。参数不在配置范围内则采用默认值。 |
 | filter_root_process | true | - | true/false | 是否过滤 root 进程（uid 0）。开启后 root 进程不纳管、不参与借用；PID 配置了 root 进程将被拒绝。 |
 | schedule_interval | 5 | 秒 | [1, 3600] | 调度决策周期，周期内执行借用超时检查、借用决策与被动归还广播。参数不在配置范围内则采用默认值。 |
-| pressing_free_threshold | 15 | GB | [1, 4096] | 本地 NUMA 总空闲内存低于该阈值时触发借用。应小于本地总内存，且大于 emergency_free_threshold。参数不在配置范围内则采用默认值。 |
-| borrow.timeout | 1000 | 毫秒/128MB | [1, 1800000] | 每 128MB 借用量对应的超时时间，超时未完成的借用将被清理并归还。参数为 0 或超出范围则采用默认值。 |
+| pressing_free_threshold | 15 | GB | [1, 4096] | 本地所有 NUMA 节点总空闲内存低于 pressing_free_threshold 时触发借用，由容量规划推导：pressing_free_threshold = S − k × d × r。不应超过本地总内存，且应大于 emergency_free_threshold。参数不在配置范围内则采用默认值。 |
+| borrow.timeout | 1000 | 毫秒/128MB | [1, 1800000]（30 分钟） | 每 128MB 借用量对应的超时时间，超时未完成的借用将被清理并归还。参数为 0 或超出范围则采用默认值。 |
 | borrow.must_same_plane | false | - | true/false | true 表示借用必须落在同平面节点（严格过滤）；false 表示软偏好，按评分加权选择借出节点。 |
-| observe_cycles | 300 | 次 | [1, 4096] | OOM 快速轮询观测窗口采样次数，窗口内空闲内存最小值高于 pressing_free_threshold 时触发主动归还。参数不在配置范围内则采用默认值。 |
+| observe_cycles | 300 | 次 | [1, 4096] | 连续快速轮询周期数：仅在紧急快速轮询（200ms）期间采样节点空闲内存，每 n 次采样结算一次观测窗口，窗口内空闲内存最小值高于 pressing_free_threshold 时触发主动归还（默认 300 × 200ms = 60s 观测窗口）。参数不在配置范围内则采用默认值。 |
 | collect_node_interval | 200 | 毫秒 | [50, 60000] | OOM 紧急快速轮询间隔，用于本地空闲内存的持续监控。参数不在配置范围内则采用默认值。 |
 | emergency_free_threshold | 5 | GB | [1, 4096] | 本地空闲内存低于该阈值时触发紧急借用并向借入节点广播被动归还请求；与 OOM 观测窗口配合，空闲内存回升（观测窗口最小值高于 pressing_free_threshold）时触发主动归还。应小于 pressing_free_threshold。参数不在配置范围内则采用默认值。 |
+
+`pressing_free_threshold` 由容量规划推导，各变量含义：
+
+| 变量 | 含义 | 单位 |
+| ---- | ---- | ---- |
+| S | 单节点可对外借出上限（nodeMaxLend），即 ubse.conf `[ubse.memory]` 段的 `scheduler.node_lending_limit` | GB |
+| k | 单节点纳管实例数 | 个 |
+| d | 单实例突发增量 = maxMemory − 基线内存 | GB/实例 |
+| r | 同时突发的实例比例 | - |
+
+- 简化形式：`pressing_free_threshold = S − k × d × r`
+- 精确形式：`pressing_free_threshold = S − d × ⌈k × r⌉`（实例数向上取整）
 
 ### 2.3.2 插件准入配置 `/etc/ubse/ubse_plugin_admission.conf`
 
@@ -198,7 +222,7 @@ ProcessMem 周期性运行三套任务：
 1. 检查本地 NUMA 总空闲内存，低于 `pressing_free_threshold` 时计算缺口。计算时扣除**在途迁移量**：页面迁移需要时间，已发起但尚未到达远端的内存实际仍占用本地，这部分计入已借出量，避免缺口重复计算、借出超出实际需要。
 2. 从纳管进程中筛选可借用候选：单个进程可迁移到远端的内存上限 = 当前内存占用 × `remoteRatio`，再减去已位于远端的内存和在途迁移部分；不足一个迁移块（blockSize）或未配置（maxMemory/remoteRatio 非法）的进程不参与。
 3. 候选进程按优先级排序：普通进程优先于子进程、当前无在途借用优先、最近 60s 内未迁移过优先、实际占用超过预期（内存占用 > maxMemory × remoteRatio）优先、内存占用大的优先。
-4. 按序为候选进程借出内存，直到缺口填满或候选耗尽。借出量按整块（blockSize）向上取整：缺口不足一块时也按一块借出（前提是进程仍有可迁移内存），因此实际借出量可能略大于缺口。
+4. 按序为候选进程借出内存，直到缺口填满或候选耗尽。借出量按整块（blockSize）向上取整：缺口不足一块时也按一块借出（前提是进程仍有可迁移内存），因此实际借出量可能略大于缺口。借出前优先复用进程已有债务槽的空闲容量（见 4.2），复用成功时不新建债务。
 5. 借用超时检查：借用发起后按借出量计算超时时间（每 128MB 对应 `borrow.timeout`），超时未完成的借用将被取消并归还。
 
 - **OOM 快速检测**（间隔 `collect_node_interval`，默认 200ms）：持续快速轮询本地 NUMA 空闲内存，并以 `observe_cycles` 次采样（默认 300 次，约 60s）为一个观测窗口，记录窗口内空闲内存的最小值：
@@ -207,9 +231,10 @@ ProcessMem 周期性运行三套任务：
 
 ## 4.2 借用与迁出
 
-1. 为候选进程确定借用量，向远端 NUMA 借出内存，随后将进程页面迁移到远端。
-2. 借出成功后，进程的远端占用随之增加。同一进程的迁移、迁回、归还操作串行执行，避免并发操作互相覆盖。
-3. 迁移失败时：若借出节点正处于故障处理状态，本次借用予以保留（不撤销），待故障恢复后由归还流程自动回收；其他原因失败则撤销借用并归还已借出的内存。
+1. **优先复用空闲容量**：借用前先检查本进程已完成债务槽的空闲容量（槽容量 − 已迁移量）。超分比下调或进程内存回落后，再平衡按「内存占用 × 超分比」削减各远端 NUMA 的迁出目标，超出部分页面迁回本地，债务槽容量保留、远端占用归零，即形成空闲容量。仅当空闲容量足以**完全覆盖**本次借用需求时复用：在 pid 锁内直接补齐账本占用，并按各远端 NUMA 的全量目标重新下发一次迁移，全程不新建债务；空闲容量不足以覆盖时不做部分复用，整体走新建债务流程（避免账本迁移量非块大小整数倍）。本进程存在其他在途借用时本轮跳过复用，留待下一轮重试；复用后下发失败时账本已更新而 smap 未生效，由对账流程按账本期望全量对齐自愈。
+2. 为候选进程确定借用量，向远端 NUMA 借出内存，随后将进程页面迁移到远端。
+3. 借出成功后，进程的远端占用随之增加。同一进程的迁移、迁回、归还操作串行执行，避免并发操作互相覆盖。
+4. 迁移失败时：若借出节点正处于故障处理状态，本次借用予以保留（不撤销），待故障恢复后由归还流程自动回收；其他原因失败则撤销借用并归还已借出的内存。
 
 ## 4.3 归还与迁回
 
@@ -242,7 +267,37 @@ ProcessMem 周期性运行三套任务：
 - **root 进程过滤**：`filter_root_process=true`（默认）时 root 进程（uid 0）不参与纳管，按 PID 配置 root 进程会被拒绝；确有需要纳管 root 进程时，可将该参数置为 false 后重启 UBSE 生效。
 - **进程名配置**：进程名匹配的是进程的 comm（进程名），进程名超过 15 字符时无法配置；同名进程新启动时会自动纳管，无需重复配置。
 
-# 6 日志
+# 6 内存开销估算与 MemoryMax 配置
+
+UBSE 以 systemd 服务（`ubse.service`）运行，进程内存上限由 unit 中的 `MemoryMax` 控制（默认 `256M`）。`MemoryMax` 约束的是 cgroup 口径的占用（`memory.current`，含页缓存与内核内存，即 `systemctl status` 的 Memory 行、`systemctl show ubse -p MemoryCurrent` 的读数），与进程 PSS/RSS 口径不同。
+
+- **超出上限的后果**：UBSE 进程会被 cgroup 直接杀死（由 `Restart=on-failure` 重启），内存借用业务随之中断，务必预留余量。
+- **调整方法**：修改 `/usr/lib/systemd/system/ubse.service` 中的 `MemoryMax`（建议用 `systemctl edit ubse` 创建 drop-in，避免升级时被覆盖），执行 `systemctl daemon-reload && systemctl restart ubse` 生效。
+- **是否需要调整**：部署插件后用 `systemctl show ubse -p MemoryCurrent` 观察实际占用，接近 `MemoryMax` 时按实测值并预留余量上调；也可先按下文估算判断。
+
+下文估算为可选参考，用于判断默认 `256M` 是否够用，无需精确。
+
+**基线占用**：未启用插件、空跑 UBSE 时的占用随集群节点数增长，可按 `baseline(MB) ≈ 50 + 24 × (n − 1)` 估算（n 为集群节点数，cgroup 口径）；也可在目标节点停用插件后直接读取 `systemctl show ubse -p MemoryCurrent` 核对。
+
+process_mem + rmrs redis 超分的内存借用场景下，开启插件后相对该基线（未启用任何插件、空跑 UBSE）的内存增量可用下式估算（进程 PSS 口径，由 `/proc/<pid>/smaps_rollup` 汇总实测拟合）：
+
+`ΔPSS(MB) ≈ 5.1MB + 0.101MB/GB × B + 0.196MB × N`
+
+| 变量 | 含义 | 单位 |
+| ---- | ---- | ---- |
+| N | 纳管实例数 | 个 |
+| B | 远端 NUMA 上实际借出的容量 | GB |
+
+该场景下 UBSE 进程的预计总占用为：
+
+`占用(MB) ≈ baseline(n) + 5.1MB + 0.101MB/GB × B + 0.196MB × N`
+
+其中 `baseline(n)` 为上文按集群节点数估算（或目标节点实测）的空跑 UBSE 占用，`5.1MB + 0.101MB/GB × B + 0.196MB × N` 为插件增量。插件增量按 PSS 口径拟合，cgroup 口径的增量通常略高于该值，据此判断 `MemoryMax` 余量时应适当放宽。
+
+- 5.1MB 为插件空载开销（含 mempooling 与 process_mem，本场景两插件同时启用）；其余两项折算约 13KB/128MB 借出块、约 200KB/纳管实例。
+- 判断余量时按 `baseline(n) + 插件增量` 与 `MemoryMax` 比较：如 3 节点（baseline ≈ 98MB）、100 实例、借出 100GB（增量 ≈ 35MB）时约 133MB，默认 `256M` 足够；节点数较多时应按式核算（如 8 节点 baseline ≈ 218MB，加上增量后已接近 256M），必要时提前上调。
+
+# 7 日志
 
 ProcessMem 插件日志文件路径：
 
@@ -250,7 +305,7 @@ ProcessMem 插件日志文件路径：
 /var/log/ubse/process_mem_plugin.log
 ```
 
-# 7 卸载
+# 8 卸载
 
 ```bash
 rpm -evh process_mem

@@ -11,6 +11,9 @@
  */
 
 #include "test_ubse_election.h"
+#include <chrono>
+#include <thread>
+
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
@@ -70,6 +73,9 @@ void TestUbseElection::SetUp()
 void TestUbseElection::TearDown()
 {
     Test::TearDown();
+    // 触发过 SwitchRole 的用例会留下 RoleChangeNotifyAsync 的分离线程，通知路径会调用
+    // 被 mock 的 UbseContext 接口；等待在途线程退出后再重置 mock，避免访问已释放的桩对象
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     GlobalMockObject::verify();
 }
 

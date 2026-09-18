@@ -10,10 +10,11 @@ UBS RMRS 的英文全名为 UB Server Core RackMemoryResourceSchedule，是用�
 - 初始安装需保证环境纯净，否则可能使用环境中的配置导致业务异常。
 - 依赖 UBTurbo 服务启动正常，否则无法启动 UBSE。
 
-## 安装 RMRS
+## 安装RMRS
 
 - 仅有libmempooling.so文件
-从 `memorypooling` 仓库构建出对应包并安装 `mempooling`，将 `libmempooling.so` 放到 `/usr/lib64`。
+
+    从 `memorypooling` 仓库构建出对应包并安装 `mempooling`，将 `libmempooling.so` 放到 `/usr/lib64`。
 
 - RPM包安装
 
@@ -48,7 +49,7 @@ rmrs.fault.simplified=false
 
 ```ini
 rmrs.fragment.mustSamePlane=false
-rmrs.fragmemt.enableBorrowSplit=false
+rmrs.fragment.enableBorrowSplit=false
 ```
 
 裸机redis场景下，需调整为：

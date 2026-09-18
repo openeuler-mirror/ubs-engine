@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "ubse_common_def.h"
+#include "ubse_npu_resource_collection_def.h"
 #include "ubse_npu_source_def.h"
 
 namespace ubse::npu::controller {
@@ -31,6 +32,8 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo);
 UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>>& devList);
 
 UbseResult QueryUbaTidSizeImpl(const std::string& busInstanceGuid, UbaTidSize& info);
+
+UbseResult GetProductTypeImpl(ProductType& productType);
 
 } // namespace ubse::npu::controller
 

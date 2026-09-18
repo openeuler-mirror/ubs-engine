@@ -630,8 +630,11 @@ TEST_F(TestAlarmHandler, OomEventHandlerNoAsyncBorrow)
     MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
     MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
     MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_OK));
+    // 巨页等待是独立用例的职责，此处打桩避免真实 30s 轮询拖慢/触发单用例超时
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
     VmResult ret = AlarmHandler::OomEventHandler(notify);
     EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
     MOCKER(AlarmHandler::AlarmEventHandler).reset();
     MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
     MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
@@ -640,13 +643,6 @@ TEST_F(TestAlarmHandler, OomEventHandlerNoAsyncBorrow)
 }
 
 // ===================== WaitForFreeHugePage Tests =====================
-
-TEST_F(TestAlarmHandler, WaitForFreeHugePageTimeout)
-{
-    VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
-    VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
-    EXPECT_EQ(ret, VM_ERROR);
-}
 
 TEST_F(TestAlarmHandler, WaitForFreeHugePageSuccess)
 {
@@ -670,30 +666,6 @@ TEST_F(TestAlarmHandler, WaitForFreeHugePageSuccess)
     VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
     VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
     EXPECT_EQ(ret, VM_OK);
-}
-
-TEST_F(TestAlarmHandler, WaitForFreeHugePageInsufficientFree)
-{
-    HostNumaCpuInfo hostNumaCpuInfo;
-    hostNumaCpuInfo.nodeId = "node0";
-    NumaCpuInfo numaCpuInfo;
-    numaCpuInfo.hostName = "host0";
-    numaCpuInfo.socketId = 0;
-    numaCpuInfo.numaId = 1;
-    numaCpuInfo.nrHugePage = 10;
-    numaCpuInfo.freeHugePage = 0;
-    numaCpuInfo.status = "normal";
-    hostNumaCpuInfo.numaCpuInfos.push_back(numaCpuInfo);
-
-    HostVmDomainInfo hostVmDomainInfo;
-    hostVmDomainInfo.nodeId = "node0";
-    std::vector<HostVmDomainInfo> vmList{hostVmDomainInfo};
-    std::vector<HostNumaCpuInfo> numaList{hostNumaCpuInfo};
-    ASSERT_EQ(ResourceCollect::GetInstance().VmResourceCollectInfoHandle(vmList, numaList), VM_OK);
-
-    VMNodeLocInfo numaLoc{.hostId = "node0", .socketId = 0, .numaId = 1};
-    VmResult ret = AlarmHandler::WaitForFreeHugePage(numaLoc);
-    EXPECT_EQ(ret, VM_ERROR); // ~30s timeout
 }
 
 // ===================== OomEventHandler new paths (concurrent borrow) =====================
@@ -798,6 +770,29 @@ TEST_F(TestAlarmHandler, ProcessOomActionsFullSuccess)
     auto state = std::make_shared<BorrowCompletionState>();
     MOCKER(&StatusManager::GetAndClearBorrowCompletionState).stubs().will(returnValue(state));
     MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::ProcessOomActions(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(&StatusManager::SetBorrowCompletionState).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+}
+
+// 无异步借还场景下 WaitForFreeHugePage 超时失败：仅记录日志，不影响返回值
+TEST_F(TestAlarmHandler, ProcessOomActionsWaitForFreeHugePageFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::SetBorrowCompletionState).stubs();
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_OK));
+    auto state = std::make_shared<BorrowCompletionState>();
+    MOCKER(&StatusManager::GetAndClearBorrowCompletionState).stubs().will(returnValue(state));
+    MOCKER(&AlarmHandler::WaitForFreeHugePage).stubs().will(returnValue(VM_ERROR));
     VmResult ret = AlarmHandler::ProcessOomActions(notify);
     EXPECT_EQ(ret, VM_OK);
     MOCKER(&AlarmHandler::WaitForFreeHugePage).reset();

@@ -11,6 +11,9 @@
  */
 
 #include "test_ubse_election_module.h"
+#include <chrono>
+#include <thread>
+
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
@@ -30,6 +33,10 @@ void TestUbseElectionModule::SetUp()
 void TestUbseElectionModule::TearDown()
 {
     Test::TearDown();
+    // RoleChangeNotifyAsync 会以分离线程异步执行通知，且通知路径会调用被 mock 的
+    // UbseContext 接口；等待在途线程退出后再重置 mock，否则分离线程会访问已释放的
+    // mockcpp 桩内部对象导致崩溃
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     GlobalMockObject::verify();
 }
 

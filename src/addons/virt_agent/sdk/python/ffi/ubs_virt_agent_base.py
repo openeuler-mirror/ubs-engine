@@ -17,7 +17,7 @@ from enum import IntEnum
 from ubse.ffi.ubs_virt_agent_exceptions import UbsVirtAgentError, UbsVABaseError, UbsVAInvalidParamError, \
     UbsVANullPointerError, UbsVAMemAllocError, UbsVAMemCopyError, UbsVASerializeError, UbsVADeserializeError
 
-LIB_PATH = '/usr/lib64/libubs-virt-agent.so'
+LIB_PATH = '/usr/lib64/libubs-virt-agent.so.1.0.1'
 
 
 class UbsVirtAgentErrorCode(IntEnum):

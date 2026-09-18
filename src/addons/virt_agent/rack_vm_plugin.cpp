@@ -79,8 +79,9 @@ void StopThread()
 {
     VmConfiguration::exitFlag.store(true);
     StatusManager::migrateCv.notify_all();
-    StatusManager::borrowCv.notify_all();
     HamMigrate::Stop();
+    CaseConf::Stop();
+    StatusManager::StopBorrowQueueThread();
 }
 
 uint32_t CommonInit()
@@ -157,9 +158,7 @@ uint32_t StrategyInit()
         return res;
     }
 
-    std::thread borrowThread(&StatusManager::BorrowQueueOperation);
-    UBSE_LOG_INFO << "borrowThread start ";
-    borrowThread.detach();
+    StatusManager::StartBorrowQueueThread();
     // Initialize the memory handler module
     res = MemHandler::GetInstance().Init();
     if (res != VM_OK) {

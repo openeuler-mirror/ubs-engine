@@ -460,30 +460,8 @@ uint64_t GenerateHwResId(const UbseMtiFeInfo& lcneFe)
     return (iouId << NO_32) | entityId;
 }
 
-std::string UbseUrmaControllerManager::GenerateUrmaDevName(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
-                                                           const UbseMtiFeInfo& lcneFe1, const size_t idx)
+std::string UbseUrmaControllerManager::GenerateUrmaDevName()
 {
-    if (UbseSmbios::GetInstance().IsClosType() && lcneFe0.fetype == UbseMtiFeType::PHYSICAL_TYPE) {
-        // 1 PFE + 5VFE 或者 6 PFE场景，需要把原bonding_dev_0所在pfe的第6组EID组成bonding_dev_96，兼容此前版本，避免容器重建
-        std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-        if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
-            hostUrmaInfos.empty()) {
-            UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
-            return "";
-        }
-        bool isSame0 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe0);
-        bool isSame1 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe1);
-        if (isSame0 != isSame1) {
-            UBSE_LOG_ERROR << "Failed to check if lcneFe0 and lcneFe1 are same with host urma dev, nodeId=" << nodeId
-                           << ", fe0's ubpuId=" << lcneFe0.ubpuId << ", entityId=" << lcneFe0.entityId
-                           << ", fe1's ubpuId=" << lcneFe1.ubpuId << ", entityId=" << lcneFe1.entityId;
-            return "";
-        }
-        const uint32_t targetPfeEidGroupIdx = 15; // 下标从0开始
-        if (isSame0 && idx == targetPfeEidGroupIdx) {
-            return "bonding_dev_96";
-        }
-    }
     return "bonding_dev_" + std::to_string(UbseUrmaControllerManager::GetInstance().GenerateUrmaDevId());
 }
 
@@ -536,7 +514,7 @@ UbseResult UbseUrmaControllerManager::ConstructAndInsertUrmaBonding(
         UbseUrmaInfo urmaInfo{.urmaDevEid = devEid, .urmaDevType = devType, .state = UrmaDevState::UNKNOWN};
         urmaInfo.eidGroups.push_back(MakeEidGroup(lcneFe0.eidGroups[idx], urmaFe0));
         urmaInfo.eidGroups.push_back(MakeEidGroup(lcneFe1.eidGroups[idx], urmaFe1));
-        const std::string urmaName = GenerateUrmaDevName(nodeId, lcneFe0, lcneFe1, idx);
+        const std::string urmaName = GenerateUrmaDevName();
         if (urmaName.empty()) {
             UBSE_LOG_ERROR << "Failed to generate urma name, nodeId=" << nodeId
                            << ", fe0's entityId=" << lcneFe0.entityId << ", fe1's entityId=" << lcneFe1.entityId;
@@ -651,13 +629,14 @@ bool UbseUrmaControllerManager::IsLcneFeUsed(
     return false;
 }
 
+const size_t MAX_EID_GROUPS_PER_FE = 33;
 UbseResult SplitFeInfosForClos(const std::string& nodeId, const std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
                                std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
                                std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
 {
     // CLOS组网下，保留所有FE，将每个FE的eidGroups按用途拆分：
-    // - 前16组EID组成可分配给容器的bonding → containerFeInfos
-    // - 第17组EID组成留在主机的bonding，用于向URMA下发共享CTP拓扑 → hostFeInfos
+    // - 前MAX_EID_GROUPS_PER_FE - 1组EID组成可分配给容器的bonding → containerFeInfos
+    // - 第MAX_EID_GROUPS_PER_FE组EID组成留在主机的bonding，用于向URMA下发共享CTP拓扑 → hostFeInfos
     containerFeInfos.clear();
     hostFeInfos.clear();
     containerFeInfos.resize(feInfos.size());
@@ -670,21 +649,21 @@ UbseResult SplitFeInfosForClos(const std::string& nodeId, const std::vector<std:
         return UBSE_ERROR;
     }
     auto& hostUrmaInfo = hostUrmaInfos[0];
-    constexpr size_t hostEidGroupIdx = 16; // 第17组EID的索引（0-based）
+    constexpr size_t hostEidGroupIdx = MAX_EID_GROUPS_PER_FE - 1; // 第MAX_EID_GROUPS_PER_FE组EID的索引（0-based）
     for (size_t iouIdx = 0; iouIdx < feInfos.size(); ++iouIdx) {
         for (const auto& fe : feInfos[iouIdx]) {
             if (fe.eidGroups.empty()) {
                 UBSE_LOG_WARN << "Fe has no eidGroups, skip it, entityId=" << fe.entityId;
                 continue;
             }
-            if (fe.eidGroups.size() <= hostEidGroupIdx) {
-                // 不足17组，全部归容器侧
+            if (fe.eidGroups.size() < MAX_EID_GROUPS_PER_FE) {
+                // 不足MAX_EID_GROUPS_PER_FE组，全部归容器侧
                 containerFeInfos[iouIdx].push_back(fe);
                 continue;
             }
-            // >=17组：前16组归容器侧，第17组归主机侧
+            // >=MAX_EID_GROUPS_PER_FE组：前MAX_EID_GROUPS_PER_FE - 1组归容器侧，第MAX_EID_GROUPS_PER_FE组归主机侧
             UbseMtiFeInfo workingFe = fe;
-            // 如果通信bonding（原bonding_dev_0）在当前FE上，第17组EID使用通信bonding，方便拓扑下发
+            // 如果通信bonding（原bonding_dev_0）在当前FE上，第MAX_EID_GROUPS_PER_FE组EID使用通信bonding，方便拓扑下发
             if (IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfo, workingFe)) {
                 SwapCommEidGroupToHostPosition(workingFe.eidGroups, hostUrmaInfo.devList[0].feList[iouIdx].primaryEid,
                                                hostEidGroupIdx);
@@ -793,7 +772,7 @@ void CalculateFeTopoType(const std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     FeTopoType topoType = FeTopoType::INVALID;
     const uint32_t pfeVfeHybridPfeCnt = 1;
     const uint32_t pfeVfeHybridVfeCnt = 5;
-    const uint32_t allPfeCnt = 6;
+    const uint32_t allPfeCnt = 3;
     for (size_t iouIdx = 0; iouIdx < feInfos.size(); ++iouIdx) {
         auto& feInfoIou = feInfos[iouIdx];
         uint32_t pfeCnt = 0;

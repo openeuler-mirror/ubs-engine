@@ -47,6 +47,8 @@ public:
     // 清理所有加载的配置
     void clear();
 
+    std::string GetVsockUserNameByCid(int cid) const;
+
 private:
     // 初始化内置权限
     void InitializeBuiltinAuth();
@@ -60,6 +62,7 @@ private:
 
     uint32_t ParseRoleConfig(const std::shared_ptr<UbseConfModule>& confModule, const std::string& configSection);
     uint32_t ParseUserConfig(const std::shared_ptr<UbseConfModule>& confModule, const std::string& configSection);
+    uint32_t ParseCid2UserConfig(const std::shared_ptr<UbseConfModule>& confModule, const std::string& configSection);
     static std::vector<std::string> ParseObjects(const std::string& objectsStr);
 
     // 内置常量
@@ -72,10 +75,12 @@ private:
     static const std::string AUTH_ROLE_DEFAULT;
     static const std::string AUTH_USER;
     static const std::string AUTH_ROLE;
+    static const std::string AUTH_VSOCK_CID2USER;
 
     // 存储结构
     std::unordered_map<std::string, std::string> userToRole_;                        // 用户->角色映射
     std::unordered_map<std::string, std::unordered_set<std::string>> roleToObjects_; // 角色->对象集合映射
+    std::unordered_map<int, std::string> cidToUser_;                                 // vsock CID->用户名映射
 
     UbseApiServerObjectManager objectManager_{};
 };

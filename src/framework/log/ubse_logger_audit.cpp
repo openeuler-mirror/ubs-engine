@@ -84,6 +84,7 @@ void InitializeAuditFunctions()
         dlclose(g_auditLibHandle);
         g_auditLibHandle = nullptr;
         std::cerr << "Unable to find symbol 'audit_open': " << error << std::endl;
+        return; // 符号缺失，禁止继续在已卸载的库句柄上操作
     }
 
     // 加载 audit_close 函数
@@ -93,6 +94,7 @@ void InitializeAuditFunctions()
         dlclose(g_auditLibHandle);
         g_auditLibHandle = nullptr;
         std::cerr << "Unable to find symbol 'audit_close': " << error << std::endl;
+        return; // 符号缺失，禁止继续在已卸载的库句柄上操作
     }
 
     // 加载 audit_log_user_message 函数
@@ -102,6 +104,7 @@ void InitializeAuditFunctions()
         dlclose(g_auditLibHandle);
         g_auditLibHandle = nullptr;
         std::cerr << "Unable to find symbol 'audit_log_user_message': " << error << std::endl;
+        return; // 符号缺失，禁止继续在已卸载的库句柄上操作
     }
     if (g_auditOpenFunc) {
         g_auditfd = g_auditOpenFunc();
@@ -168,8 +171,8 @@ std::string AuditLoggerEntry::RecordToString(RecordType& recordType)
 }
 void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string& logMessage, int result)
 {
-    // libaudit.so加载失败
-    if (!g_loaded) {
+    // libaudit.so加载失败或函数符号未解析成功
+    if (!g_loaded || g_auditLogUserMessageFunc == nullptr) {
         // audit功能退化为syslog
         syslog(LOG_INFO, "%s", logMessage.c_str());
         return;

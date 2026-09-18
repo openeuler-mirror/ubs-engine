@@ -79,7 +79,11 @@ virt_agent_ret_t ubse_vm_info_unpack(uint8_t* buffer, uint32_t len, vm_domain_in
         return VA_ERROR_DESERIALIZE_FAILED;
     }
 
-    std::vector<vm_domain_info_for_c> vmInfoList = msg.GetVmInfo();
+    std::vector<vm_domain_info_for_c> vmInfoList;
+    if (msg.GetVmInfo(vmInfoList) != VM_OK) {
+        IPC_LOG_ERROR << "Failed to get vm info.";
+        return VA_ERROR_BASE;
+    }
     *node_cnt = static_cast<uint32_t>(vmInfoList.size());
     if (*node_cnt == 0) {
         return VA_SUCCESS;
@@ -105,50 +109,69 @@ uint8_t* allocate_memory(size_t buffer_size)
     return buffer;
 }
 
-virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer)
+size_t GetNodeAntiDictionarySerializedSize(const NodeAntiDictionary& node_dict)
 {
+    size_t size = sizeof(uint32_t);
+    for (size_t i = 0; i < node_dict.entry_count; ++i) {
+        const struct KeyValuePair& entry = node_dict.entries[i];
+        size += sizeof(uint32_t) + strnlen(entry.key, VIRT_MEM_MAX_NODE_ID_LENGTH) + 1;
+        size += sizeof(uint32_t);
+        for (size_t j = 0; j < entry.value_count; ++j) {
+            size += sizeof(uint32_t) + strnlen(entry.value[j], VIRT_MEM_MAX_NODE_ID_LENGTH) + 1;
+        }
+    }
+    return size;
+}
+
+virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer, size_t buffer_size)
+{
+    if (buffer == nullptr) {
+        return VA_ERROR_INVALID_PARAM;
+    }
+    size_t offset = 0;
     uint32_t entries_count = node_dict.entry_count;
-    if (memcpy_s(buffer, sizeof(uint32_t), &entries_count, sizeof(uint32_t)) != 0) {
+
+    if (memcpy_s(buffer + offset, buffer_size - offset, &entries_count, sizeof(uint32_t)) != 0) {
         IPC_LOG_ERROR << "Failed to copy entries_count.";
         return VA_ERROR_MEM_COPY_FAILED;
     }
-    buffer += sizeof(uint32_t);
+    offset += sizeof(uint32_t);
     for (size_t i = 0; i < node_dict.entry_count; ++i) {
         const struct KeyValuePair& entry = node_dict.entries[i];
 
-        uint32_t key_length = strlen(entry.key) + 1;
-        if (memcpy_s(buffer, sizeof(uint32_t), &key_length, sizeof(uint32_t)) != 0) {
+        uint32_t key_length = strnlen(entry.key, VIRT_MEM_MAX_NODE_ID_LENGTH) + 1;
+        if (memcpy_s(buffer + offset, buffer_size - offset, &key_length, sizeof(uint32_t)) != 0) {
             IPC_LOG_ERROR << "Failed to copy key_length.";
             return VA_ERROR_MEM_COPY_FAILED;
         }
-        buffer += sizeof(uint32_t);
+        offset += sizeof(uint32_t);
 
-        if (memcpy_s(buffer, key_length, entry.key, key_length) != 0) {
+        if (memcpy_s(buffer + offset, buffer_size - offset, entry.key, key_length) != 0) {
             IPC_LOG_ERROR << "Failed to copy key.";
             return VA_ERROR_MEM_COPY_FAILED;
         }
-        buffer += key_length;
+        offset += key_length;
 
         uint32_t value_count = entry.value_count;
-        if (memcpy_s(buffer, sizeof(uint32_t), &value_count, sizeof(uint32_t)) != 0) {
+        if (memcpy_s(buffer + offset, buffer_size - offset, &value_count, sizeof(uint32_t)) != 0) {
             IPC_LOG_ERROR << "Failed to copy value_count.";
             return VA_ERROR_MEM_COPY_FAILED;
         }
-        buffer += sizeof(uint32_t);
+        offset += sizeof(uint32_t);
 
         for (size_t j = 0; j < value_count; ++j) {
-            uint32_t value_length = strlen(entry.value[j]) + 1;
-            if (memcpy_s(buffer, sizeof(uint32_t), &value_length, sizeof(uint32_t)) != 0) {
+            uint32_t value_length = strnlen(entry.value[j], VIRT_MEM_MAX_NODE_ID_LENGTH) + 1;
+            if (memcpy_s(buffer + offset, buffer_size - offset, &value_length, sizeof(uint32_t)) != 0) {
                 IPC_LOG_ERROR << "Failed to copy value_length.";
                 return VA_ERROR_MEM_COPY_FAILED;
             }
-            buffer += sizeof(uint32_t);
+            offset += sizeof(uint32_t);
 
-            if (memcpy_s(buffer, value_length, entry.value[j], value_length) != 0) {
+            if (memcpy_s(buffer + offset, buffer_size - offset, entry.value[j], value_length) != 0) {
                 IPC_LOG_ERROR << "Failed to copy value.";
                 return VA_ERROR_MEM_COPY_FAILED;
             }
-            buffer += value_length;
+            offset += value_length;
         }
     }
     return VA_SUCCESS;
@@ -208,9 +231,12 @@ virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t 
     auto outputMsg = msg.GetOutputMsg();
     (*strategy).vmInfoListSize = outputMsg.vmInfoListSize;
     (*strategy).waitingTime = outputMsg.waitingTime;
-    (*strategy).vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
-    if ((*strategy).vmInfoList == nullptr) {
-        return VA_ERROR_MEM_ALLOCATE_FAILED;
+    if (outputMsg.vmInfoListSize != 0) {
+        (*strategy).vmInfoList =
+            static_cast<VmMigrateStrategy*>(calloc(outputMsg.vmInfoListSize, sizeof(VmMigrateStrategy)));
+        if ((*strategy).vmInfoList == nullptr) {
+            return VA_ERROR_MEM_ALLOCATE_FAILED;
+        }
     }
     for (uint32_t i = 0; i < outputMsg.vmInfoListSize; i++) {
         (*strategy).vmInfoList[i].pid = outputMsg.vmInfoList[i].pid;

@@ -116,7 +116,7 @@ UbseResult GetStateByObjExist(const bool& importObjExist, const bool& exportObjE
 
     return UBSE_ERR_NOT_EXIST;
 }
-void ClearNodeMap();
+UbseResult ClearNodeMap();
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_CONTROLLER_API_H

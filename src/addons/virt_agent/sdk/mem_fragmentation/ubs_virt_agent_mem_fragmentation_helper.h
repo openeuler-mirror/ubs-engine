@@ -30,7 +30,9 @@ virt_agent_ret_t ubse_vm_info_unpack(uint8_t* buffer, uint32_t len, vm_domain_in
 
 uint8_t* allocate_memory(size_t buffer_size);
 
-virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer);
+size_t GetNodeAntiDictionarySerializedSize(const NodeAntiDictionary& node_dict);
+
+virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer, size_t buffer_size);
 
 virt_agent_ret_t ubse_mem_borrow_strategy_msg_unpack(uint8_t* buffer, uint32_t len, borrow_strategy_c* borrow_strategy);
 

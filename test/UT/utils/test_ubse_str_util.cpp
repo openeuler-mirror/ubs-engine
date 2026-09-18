@@ -201,4 +201,12 @@ TEST_F(TestUbseStrUtil, StrToULong_ValidInput)
     EXPECT_TRUE(StrToULong(str, value));
     EXPECT_EQ(value, 123456789);
 }
+
+// 动态参数 shell 转义：单引号/特殊字符/空串/普通串
+TEST_F(TestUbseStrUtil, ShellEscapeMetaChars)
+{
+    EXPECT_EQ(ShellEscape("a'; rm -rf /"), "'a'\\''; rm -rf /'");
+    EXPECT_EQ(ShellEscape(""), "''");
+    EXPECT_EQ(ShellEscape("normal-eid"), "'normal-eid'");
+}
 } // namespace ubse::ut::utils

@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 add_subdirectory(default_strategy)
 add_subdirectory(common/message)
 add_subdirectory(sdk)
@@ -20,6 +22,6 @@ target_include_directories(virtagent PUBLIC ${VM_INCLUDE}
         ${PROJECT_SOURCE_DIR}/src/framework/config
         ${PROJECT_SOURCE_DIR}/src/framework/serde
         )
-target_link_libraries(virtagent PUBLIC rapidjson boundscheck)
+target_link_libraries(virtagent PUBLIC boundscheck)
 
 file(COPY conf/plugin_virt_agent.conf DESTINATION ${CMAKE_BINARY_DIR}/expand_conf FILE_PERMISSIONS OWNER_READ OWNER_WRITE)

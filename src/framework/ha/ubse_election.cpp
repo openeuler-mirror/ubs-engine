@@ -244,7 +244,6 @@ uint32_t UbseGetNodeStatus(const std::string& role, uint8_t& status)
             return ret;
         }
     } else if (role == ELECTION_ROLE_AGENT) {
-        auto& ubseContext = ubse::context::UbseContext::GetInstance();
         currentStatus = ubseContext.GetWorkReadiness();
     } else {
         UBSE_LOG_WARN << "[ELECTION] Invalid role";

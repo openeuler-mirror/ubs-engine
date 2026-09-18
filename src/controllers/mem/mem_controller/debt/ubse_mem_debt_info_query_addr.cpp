@@ -53,7 +53,7 @@ uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest& request, UbseMemAddrDesc&
     }
     desc.numaId = importObjPtr->status.importResults[0].numaId;
     // 填充导入信息
-    ubse::nodeController::def::UbseNode importNode;
+    ubse::nodeController::def::UbseNode importNode{};
     ubse::nodeController::UbseNodeGetByNodeId(importNodeId, importNode);
     desc.importNode.slotId = importNode.slotId;
     desc.importNode.hostName = importNode.hostName;

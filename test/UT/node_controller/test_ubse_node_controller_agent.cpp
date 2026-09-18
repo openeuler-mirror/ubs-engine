@@ -20,15 +20,45 @@ void TestUbseNodeControllerAgent::TearDown()
 
 TEST_F(TestUbseNodeControllerAgent, RegAgentMsgHandler)
 {
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> nullModule = nullptr;
+    std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
 
+    // 第1次：comModule为nullptr
+    EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR_NULLPTR);
+
+    // 第2次：SYNC handler注册失败
+    const auto funcNodeInfoSync = &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
+    MOCKER(funcNodeInfoSync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR);
+
+    // 第3次：SYNC/SYNC_FULL注册成功，后续UbseRegRpcService失败
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(RegAgentMsgHandler(), UBSE_ERROR);
+
+    // 第4次：全部注册成功
     EXPECT_EQ(RegAgentMsgHandler(), UBSE_OK);
 }
 
 Ref<UbseTaskExecutor> MockAgentCreateNullTaskPtr(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
 {
     return nullptr;
+}
+
+// Initialize 会注册捕获 this 的全局选举 handler（CHANGE_TO_STANDBY/CHANGE_TO_AGENT），
+// 而 agent 是栈对象，用例结束即销毁；若不解除注册，后续任何用例触发 SwitchRole 时，
+// RoleChangeNotifyAsync 的分离线程会调用悬挂 handler（ClearMirror），
+// 破坏主线程栈，表现为随机的 stack smashing / double free。必须在 agent 析构前解除注册。
+static void DetachNodeAgentElectionHandlers()
+{
+    UbseElectionChangeDeAttachHandler(UbseElectionHandlerBuilder()
+                                          .SetType(UbseElectionEventType::CHANGE_TO_STANDBY)
+                                          .SetName(UBSE_NODE_STANDBY_PULL_HANDLER)
+                                          .Build());
+    UbseElectionChangeDeAttachHandler(UbseElectionHandlerBuilder()
+                                          .SetType(UbseElectionEventType::CHANGE_TO_AGENT)
+                                          .SetName(UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER)
+                                          .Build());
 }
 
 TEST_F(TestUbseNodeControllerAgent, Initialize_Fail)
@@ -40,6 +70,8 @@ TEST_F(TestUbseNodeControllerAgent, Initialize_Fail)
 
     EXPECT_EQ(agent.Initialize(), UBSE_ERROR);
     EXPECT_EQ(agent.Initialize(), UBSE_ERROR_NULLPTR);
+    // 第2次 Initialize 已注册全局 handler 后才失败，需解除注册
+    DetachNodeAgentElectionHandlers();
 }
 
 TEST_F(TestUbseNodeControllerAgent, Initialize)
@@ -48,6 +80,7 @@ TEST_F(TestUbseNodeControllerAgent, Initialize)
     MOCKER(RegAgentMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(agent.Initialize(), UBSE_OK);
+    DetachNodeAgentElectionHandlers();
 }
 
 TEST_F(TestUbseNodeControllerAgent, CollectBaseInfo)

@@ -352,6 +352,126 @@ TEST_F(TestProcessMemPidDecision, OomEmergencyAllowsExistingDebt)
     EXPECT_EQ(it->second.borrow.slots.size(), 2u);
 }
 
+// 整笔 2GB 超所有可借节点容量(>1GB 返回 803)触发拆分: 折半 1GB+1GB 由两个借出节点凑足
+TEST_F(TestProcessMemPidDecision, EmergencyBorrowSplitWhenWholeExceedsNodeCapacity)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    ubse::mem::controller::MockSetNumaCreateFailAboveSize(GB);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomPollOnce();
+
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 3u); // 整笔 2GB + 两块 1GB
+    EXPECT_EQ(migrateCalls, 2);
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(1001);
+    ASSERT_NE(it, snapshot.end());
+    EXPECT_EQ(it->second.borrow.currentRemote, 2 * GB);
+    ASSERT_EQ(it->second.borrow.slots.size(), 2u);
+    std::set<std::string> debtIds;
+    for (const auto& slot : it->second.borrow.slots) {
+        EXPECT_EQ(slot.status, BorrowSlotStatus::COMPLETED);
+        EXPECT_EQ(slot.migratedBytes, GB);
+        debtIds.insert(slot.debtId);
+    }
+    EXPECT_EQ(debtIds.size(), 2u);
+}
+
+// 所有节点容量 512MB: 整笔 2GB/1GB 均 803, 折半到 512MB 后连续 4 块凑足
+TEST_F(TestProcessMemPidDecision, EmergencyBorrowSplitHalvesUntilFits)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    ubse::mem::controller::MockSetNumaCreateFailAboveSize(GB / 2);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomPollOnce();
+
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 7u); // 整笔 + 1GB×2 失败, 512MB×4
+    EXPECT_EQ(migrateCalls, 4);
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(1001);
+    ASSERT_NE(it, snapshot.end());
+    EXPECT_EQ(it->second.borrow.currentRemote, 2 * GB);
+    ASSERT_EQ(it->second.borrow.slots.size(), 4u);
+    for (const auto& slot : it->second.borrow.slots) {
+        EXPECT_EQ(slot.status, BorrowSlotStatus::COMPLETED);
+        EXPECT_EQ(slot.migratedBytes, GB / 2);
+    }
+}
+
+// 任何节点连最小粒度(1 个 blockSize)都无法借出: 折半到最小块失败后停止, 无状态残留, 留待下轮决策
+TEST_F(TestProcessMemPidDecision, EmergencyBorrowSplitSkipsWhenEvenMinBlockFails)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    ubse::mem::controller::MockSetNumaCreateError(UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomPollOnce();
+
+    // 整笔 + 递归折半树(到最小粒度 1 个 blockSize 叶子为止)均失败, 证明确实走入了拆分而非静默失败
+    EXPECT_GE(ubse::mem::controller::MockGetNumaCreateCallCount(), 4u);
+    EXPECT_EQ(migrateCalls, 0);
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(1001);
+    ASSERT_NE(it, snapshot.end());
+    EXPECT_EQ(it->second.borrow.currentRemote, 0u);
+    EXPECT_TRUE(it->second.borrow.slots.empty());
+}
+
+// 谓词收窄回归: 801(无可用借出节点=候选被状态/角色等 filter 剔光且容量足够)不触发拆分, 维持原失败语义
+TEST_F(TestProcessMemPidDecision, EmergencyBorrowNoSplitOnNoNodeCanLend)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    ubse::mem::controller::MockSetNumaCreateError(UBSE_SCHEDULER_ERROR_NO_NODE_CAN_LEND);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomPollOnce();
+
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u); // 仅整笔一次, 无拆分尝试
+    EXPECT_EQ(migrateCalls, 0);
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(1001);
+    ASSERT_NE(it, snapshot.end());
+    EXPECT_EQ(it->second.borrow.currentRemote, 0u);
+    EXPECT_TRUE(it->second.borrow.slots.empty());
+}
+
 TEST_F(TestProcessMemPidDecision, OomLenderEmergencyNotify)
 {
     ProcessMemPidDecision::localNumaFreeKbReader = []() {

@@ -34,6 +34,14 @@ static std::map<unsigned char, std::string> VirStateStringMap = {{0, "NOSTATE"},
                                                                  {3, "PAUSED"},  {4, "SHUTDOWN"},    {5, "SHUTOFF"},
                                                                  {6, "CRASHED"}, {7, "PMSUSPENDED"}, {8, "LAST"}};
 
+LibvirtHelper::~LibvirtHelper()
+{
+    keepAliveStop_.store(true, std::memory_order_release);
+    if (virKeepAliveThread.joinable()) {
+        virKeepAliveThread.join();
+    }
+}
+
 MpResult LibvirtHelper::Init()
 {
     auto ret = LibvirtModule::Init();
@@ -69,7 +77,7 @@ void LibvirtHelper::KeepAlive()
     if (virEventRunDefaultImplFunc == nullptr) {
         return;
     }
-    while (true) {
+    while (!keepAliveStop_.load(std::memory_order_acquire)) {
         if (virEventRunDefaultImplFunc() < 0) {
             LOG_ERROR << "VirEventRunDefaultImplFunc failed.";
             return;
@@ -186,8 +194,12 @@ MpResult LibvirtHelper::ConnectSetKeepAlive()
         return MEM_POOLING_ERROR;
     }
 
-    virKeepAliveThread = new std::thread([this]() { this->KeepAlive(); });
-    virKeepAliveThread->detach();
+    if (virKeepAliveThread.joinable()) {
+        keepAliveStop_.store(true, std::memory_order_release);
+        virKeepAliveThread.join();
+    }
+    keepAliveStop_.store(false, std::memory_order_release);
+    virKeepAliveThread = std::thread([this]() { this->KeepAlive(); });
     return MEM_POOLING_OK;
 }
 
@@ -292,6 +304,10 @@ void LibvirtHelper::FreeDomain(VirDomainPtr domain)
 
 void LibvirtHelper::Shutdown()
 {
+    keepAliveStop_.store(true, std::memory_order_release);
+    if (virKeepAliveThread.joinable()) {
+        virKeepAliveThread.join();
+    }
     LibvirtModule::CloseLibvirtHandle();
     auto ret = CloseConn();
     if (ret != MEM_POOLING_OK) {

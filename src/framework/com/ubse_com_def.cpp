@@ -719,6 +719,10 @@ bool CheckMessageBodyLen(UBSHcomServiceContext& context, UbseComMessage& msg)
 
 uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext& context)
 {
+    if (context.Channel() == nullptr) {
+        UBSE_LOG_DEBUG << "Channel is nullptr";
+        return 0;
+    }
     return context.Channel()->GetId();
 }
 
@@ -838,7 +842,7 @@ std::unordered_map<std::string, std::string> GetClusterIpListFromConf()
     }
     std::sort(ips.begin(), ips.end());
     for (size_t i = 0; i < ips.size(); ++i) {
-        UBSE_LOG_INFO << "Put ip " << ips[i] << ", id " << i;
+        UBSE_LOG_INFO << "Put ip " << UbseNetUtil::MaskIp(ips[i]) << ", id " << i;
         ipMap.emplace(ips[i], std::to_string(i + 1));
     }
     return ipMap;

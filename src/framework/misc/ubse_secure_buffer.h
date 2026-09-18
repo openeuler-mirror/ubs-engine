@@ -56,6 +56,9 @@ public:
 
         // 分配原始内存
         auto ptr = static_cast<pointer>(::operator new(n * sizeof(T), std::nothrow));
+        if (ptr == nullptr) {
+            throw std::bad_alloc(); // 分配失败不可返回空指针，否则vector会按成功构造元素
+        }
         SecureZeroMemory(ptr, n * sizeof(T));
         return ptr;
     }

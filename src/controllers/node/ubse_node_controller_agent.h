@@ -13,6 +13,8 @@
 #ifndef UBS_ENGINE_UBSE_NODE_CONTROLLER_AGENT_H
 #define UBS_ENGINE_UBSE_NODE_CONTROLLER_AGENT_H
 
+#include <shared_mutex>
+
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
@@ -38,6 +40,38 @@ public:
 
     void Stop();
 
+    /**
+     * 处理主节点NODE_INFO_SYNC单点推送：seq校验+双过滤后upsert镜像
+     * @param req 消息体（seq + faultUpdateTimeSysMs + 节点）
+     * @param resp 响应（空）
+     */
+    UbseResult HandleNodeInfoSync(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+    /**
+     * 处理主节点NODE_INFO_SYNC_FULL全量快照：seq校验+双过滤后覆盖镜像
+     * @param req 消息体（seq + 节点列表 + FAULT保护map）
+     * @param resp 响应（空）
+     */
+    UbseResult HandleNodeInfoSyncFull(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+    /**
+     * 清空镜像并重置lastSyncSeq（备降从、升主消费后调用）
+     */
+    void ClearMirror();
+
+    /**
+     * 升主消费：读取镜像快照副本（含FAULT保护窗口登记时刻），供回填nodeInfos
+     * @param mirror 输出参数，节点信息镜像副本
+     * @param faultProtect 输出参数，FAULT节点保护窗口登记时刻(system_clock epoch ms)
+     */
+    void GetMirrorSnapshot(std::unordered_map<std::string, UbseNodeInfo>& mirror,
+                           std::unordered_map<std::string, uint64_t>& faultProtect);
+
+    /**
+     * 成为备角色时向主节点主动拉取全量快照，覆盖重建镜像
+     */
+    void PullNodeInfoFromMaster();
+
 private:
     /**
      * 周期采集上报节点内存&拓扑回调
@@ -53,6 +87,20 @@ private:
     static UbseResult UbseNodeInfoLcneNotifyHandler(std::string& eventId, std::string& eventMessage);
 
     void StartExec();
+
+    // 解析并应用NODE_INFO_SYNC_FULL负载（RPC收包与主动拉取响应共用）
+    UbseResult ProcessNodeInfoSyncFull(const uint8_t* data, uint32_t len);
+
+    // 当前节点是否为主节点委派的备节点（非备角色忽略同步消息）
+    bool IsStandbyNode() const;
+
+    // 备节点镜像：主节点内存中除"主/备自己"外的存量节点快照
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMirror_;
+    // FAULT节点保护窗口登记时刻(system_clock epoch ms)
+    std::unordered_map<std::string, uint64_t> faultProtectMirror_;
+    // 已应用的最大同步序号（乱序过滤）
+    uint64_t lastSyncSeq_{0};
+    std::shared_mutex mirrorMutex_;
 
     UbseTaskExecutorPtr taskExecutor_{};
 };
@@ -74,9 +122,7 @@ UbseResult GetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseN
 UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
                                            std::map<std::string, PhysicalLink>& devDirConnectInfoRemote);
 
-/**
- * 注册Agent端消息处理器
- */
+// 注册Agent端消息处理器
 UbseResult RegAgentMsgHandler();
 
 /**
@@ -86,6 +132,24 @@ UbseResult RegAgentMsgHandler();
  * @return UbseResult 处理结果
  */
 UbseResult CollectNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+// 主→备 单点增量端点处理器：校验发送方为当前主节点后调用HandleNodeInfoSync（经ctx获取发送方Id，防任意节点注入）
+class UbseNodeInfoSyncMsgHandler : public com::UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const ubse::message::UbseBaseMessagePtr& req, const ubse::message::UbseBaseMessagePtr& rsp,
+                      com::UbseComBaseMessageHandlerCtxPtr ctx) override;
+    uint16_t GetOpCode() override;
+    uint16_t GetModuleCode() override;
+};
+
+// 主→备 全量快照端点处理器：校验发送方为当前主节点后调用HandleNodeInfoSyncFull
+class UbseNodeInfoSyncFullMsgHandler : public com::UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const ubse::message::UbseBaseMessagePtr& req, const ubse::message::UbseBaseMessagePtr& rsp,
+                      com::UbseComBaseMessageHandlerCtxPtr ctx) override;
+    uint16_t GetOpCode() override;
+    uint16_t GetModuleCode() override;
+};
 
 /**
  * Agent向Master周期上报节点信息

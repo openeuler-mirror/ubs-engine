@@ -1,5 +1,11 @@
 # UBS-Engine (UBSE) 安装指南
 
+当前 UBSE 提供两种环境部署方式：RPM 包安装、容器镜像部署。环境部署流程包含以下主要步骤：
+
+1. 环境准备与安装
+2. 构建项目与单元测试
+3. 运行示例与验证
+
 ## 环境要求
 
 |部件|版本|
@@ -7,7 +13,7 @@
 |操作系统|openEuler 24.03 LTS 或更高版本|
 |CPU架构|aarch64|
 |内存|64GB及以上|
-|磁盘|SSD，IOPS 500MB/s|
+|磁盘|SSD，吞吐量不低于500MB/s|
 |芯片互联|UB|
 |网卡|可选依赖（可选使用TCP辅助UB建链，默认采用UB自举建链）|
 |用户权限|安装与管理需 <code>root</code> 权限|
@@ -25,49 +31,190 @@
 
 ## 执行安装
 
-- 在线安装
+### RPM 包安装
 
-  > [!NOTE]说明
-  >
-  > 在线安装过程中，所需依赖会自动进行安装。
+**在线安装**
 
-  ```bash
-  # 注：需要系统配置了openEuler release 24.03 (LTS-SP3)镜像源
-  # 安装主程序包
-  # 智算场景，执行如下命令：
-  sudo env ENABLE_AI=true dnf install -y ubs-engine
-  # 通算场景，执行如下命令：
-  sudo dnf install -y ubs-engine
-  # 安装客户端运行时库（第三方集成必需）
-  sudo dnf install -y ubs-engine-client-libs
-  # 安装python 模块（可选，使用UBSE Python API时需要安装）
-  sudo dnf install -y python3-ubs-engine
-  ```
+> [!IMPORTANT] 须知
+>
+> - 在线安装过程中，所需依赖会自动进行安装。
+> - 需要系统配置了openEuler release 24.03 (LTS-SP3)镜像源。
 
-- 离线安装
+1. 安装主程序包。
+    * 智算场景，执行如下命令。
 
-  > [!WARNING]说明
-  >
-  > 离线安装需要提前安装所需依赖。
-  > ubs-engine运行依赖信息记录在spec文件（[ubs-engine.spec](https://atomgit.com/openeuler/ubs-engine/blob/master/ubs-engine.spec)）中。
-  > 运行依赖所需系统库，通常由包管理器自动安装。
+    ```bash
+    sudo env ENABLE_AI=true dnf install -y ubs-engine
+    ```
 
-  ```bash
-  # 通过rpm包安装运行包
-  # 安装主程序包
-  # 智算场景，执行如下命令：
-  sudo env ENABLE_AI=true dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
-  # 通算场景，执行如下命令：
-  sudo dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
-  # 安装客户端运行时库（第三方集成必需）
-  sudo dnf install -y ubs-engine-client-libs-<version>-<release>.aarch64.rpm
-  # 安装python 模块（可选，使用UBSE Python API时需要安装）
-  sudo dnf install -y python3-ubs-engine-<version>-<release>.aarch64.rpm
-  ```
+    * 通算场景，执行如下命令。
+
+    ```bash
+    sudo dnf install -y ubs-engine
+        ```
+
+2. 安装客户端运行时库（第三方集成必需）。
+
+    ```bash
+    sudo dnf install -y ubs-engine-client-libs
+    ```
+
+3. 安装python 模块（可选，使用UBSE Python API时需要安装）。
+
+    ```bash
+    sudo dnf install -y python3-ubs-engine
+    ```
+
+**离线安装**
+
+> [!IMPORTANT] 须知
+>
+> - 离线安装需要提前安装所需依赖。
+> - ubs-engine运行依赖信息记录在spec文件（[ubs-engine.spec](https://atomgit.com/openeuler/ubs-engine/blob/master/ubs-engine.spec)）中。
+> - 运行依赖所需系统库，通常由包管理器自动安装。
+
+通过rpm包安装运行包。
+
+1. 安装主程序包。
+
+    * 智算场景，执行如下命令。
+
+    ```bash
+    sudo env ENABLE_AI=true dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
+    ```
+
+    * 通算场景，执行如下命令。
+
+    ```bash
+    sudo dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
+    ```
+
+2. 安装客户端运行时库（第三方集成必需）。
+
+    ```bash
+    sudo dnf install -y ubs-engine-client-libs-<version>-<release>.aarch64.rpm
+    ```
+
+3. 安装python 模块（可选，使用UBSE Python API时需要安装）。
+
+    ```bash
+    sudo dnf install -y python3-ubs-engine-<version>-<release>.aarch64.rpm
+    ```
+
+### 容器镜像部署（可选）
+
+容器环境部署有两种方式：
+
+- 基于镜像构建容器环境
+- 基于 openEuler 基础环境从零安装
+
+#### 方式一：基于镜像构建容器环境
+
+基于镜像构建容器环境，首先需要获取镜像。获取镜像有两种方式：
+
+- 直接从镜像仓库拉取预构建镜像
+- 从 Dockerfile 构建镜像
+
+**步骤 1：获取镜像**
+
+选项一：直接拉取预构建镜像
+
+```bash
+docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
+```
+
+选项二：从 Dockerfile 构建镜像
+
+Dockerfile 位于仓库 `docker/ubs-engine.Dockerfile`，内容如下：
+
+```dockerfile
+ARG BASE_IMAGE=hub.oepkgs.net/openeuler/openeuler:24.03-lts-sp3
+FROM ${BASE_IMAGE}
+
+ARG BUILD_TYPE=Release
+ARG ENABLE_UT=OFF
+ARG JOBS=8
+ARG REPO_DIR=/workspace
+
+COPY ubs-engine.spec /tmp/ubs-engine.spec
+RUN dnf install -y "dnf-command(builddep)" \
+        gcc gcc-c++ make cmake git python3 python3-pip \
+    && dnf builddep -y /tmp/ubs-engine.spec \
+    && dnf install -y numactl-devel gtest gtest-devel gmock gmock-devel \
+        python3-setuptools util-linux-user patch bc bash coreutils sudo tar \
+    && dnf clean all
+
+WORKDIR ${REPO_DIR}
+COPY . ${REPO_DIR}
+
+RUN bash build.sh -T ${BUILD_TYPE} -j ${JOBS} \
+    && if [ "${ENABLE_UT}" = "ON" ]; then \
+           bash build.sh ut -j ${JOBS} \
+               || echo "WARNING: unit tests FAILED, image built without UT verification"; \
+       fi \
+    && BUILD_DIR="cmake-build-$(echo "${BUILD_TYPE}" | tr 'A-Z' 'a-z')" \
+    && cmake --install "${BUILD_DIR}" --component ubse_sdk --prefix /usr
+
+WORKDIR ${REPO_DIR}
+CMD ["/bin/bash"]
+```
+
+构建镜像：
+
+```bash
+cd ubs-engine
+docker build -f docker/Dockerfile.openeuler -t ubs-engine:24.03-sp3-1.0.1 .
+```
+
+**步骤 2：创建容器**
+
+以 x86_64 服务器为例，创建容器：
+
+```bash
+docker run -d --privileged --name ubs-engine-ttfhw \
+    -v /home/workspace/ubs-engine-verify:/workspace \
+    swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1 \
+    sleep infinity
+```
+
+构建/UT 场景无需挂载 NPU 设备；镜像默认工作目录为 `/workspace`，不建议挂载整个 `/home` 目录。
+
+**步骤 3：进入容器**
+
+```bash
+docker exec -it ubs-engine-ttfhw bash
+```
+
+#### 方式二：基于 openEuler 基础环境从零安装
+
+不使用镜像时，可通过仓库内一键式环境配置脚本自动安装全部依赖并构建：
+
+```bash
+cd ubs-engine
+bash docker/build_env.sh
+```
+
+脚本会安装全部构建/UT 依赖（openEuler 仓库无 `ubs-comm-devel` 时按《构建指导》2.1.2 源码编译），并执行 Release 构建与 SDK 安装；仅安装依赖可执行 `bash docker/build_env.sh --skip-build`。该方式耗时较长，推荐使用方式一。
+
+### 容器卸载与清理
+
+步骤 1. 停止并删除容器
+
+```bash
+docker ps -a
+docker stop <container_id>
+docker rm <container_id>
+```
+
+步骤 2. 删除镜像
+
+```bash
+docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
+```
 
 ## 安装结果
 
- ubs-engine 主程序安装结果：
+- **ubs-engine 主程序安装结果**
 
   | 路径                                  | 用途          |
   |-------------------------------------| -------------|
@@ -83,41 +230,42 @@
   | /lib/modules/ubse/bandbridge.ko              | NPU直通虚机和LCNE进行带外通信 |
   | /lib/modules/$(uname -r)/extra/bandbridge.ko | 软链接，指向/lib/modules/ubse/bandbridge.ko             |
 
-- ubs-engine 客户端运行库安装结果：
+- **ubs-engine 客户端运行库安装结果**
 
-  | 文件                                 | 其它说明                                          |
-  | ------------------------------------ | ------------------------------------------------- |
-  | `/usr/lib64/libubse-client.so.1.0.0` | 二进制动态库实体                                  |
-  | `/usr/lib64/libubse-client.so.1`     | 软链接，指向 `/usr/lib64/libubse-client.so.1.0.0` |
+    | 文件                                 | 其它说明                                          |
+    | ------------------------------------ | ------------------------------------------------- |
+    | `/usr/lib64/libubse-client.so.1.0.0` | 二进制动态库实体                                  |
+    | `/usr/lib64/libubse-client.so.1`     | 软链接，指向 `/usr/lib64/libubse-client.so.1.0.0` |
 
-- ubs-engine Python API 包安装结果：
+- **ubs-engine Python API 包安装结果**
 
-| 文件/目录                      | 其它说明                                 |
-| ------------------------------ | ---------------------------------------- |
-| `/usr/lib/python3.11/site-packages/ubse` | 内部文件（`*.py`）权限：`644`         |
-| `/usr/lib/python3.11/site-packages/ubse-xx.xx.xx-py3.11.egg-info` | 内部文件权限：`644`，Python包相关信息    |
+    | 文件/目录                      | 其它说明                                 |
+    | ------------------------------ | ---------------------------------------- |
+    | `/usr/lib/python3.11/site-packages/ubse` | 内部文件（`*.py`）权限：`644`         |
+    | `/usr/lib/python3.11/site-packages/ubse-xx.xx.xx-py3.11.egg-info` | 内部文件权限：`644`，Python包相关信息。    |
 
 ## （可选）修改配置
 
-1. 编辑配置文件：
+1. 编辑配置文件。
 
     ```bash
     sudo vi /etc/ubse/ubse.conf
     ```
 
-2. 修改以下配置项(默认无此配置项,打开此配置时，使用tcp通信，否则默认使用urma通信)：
+2. 修改以下配置项(默认无此配置项，打开此配置时，使用tcp通信，否则默认使用urma通信)。
 
     ```ini
     [ubse.rpc]
     cluster.ipList=192.168.100.100-192.168.100.102
     ```
 
-    > [!NOTE]说明
-    > 支持配置IP地址范围, 例如：192.168.100.100-192.168.100.102
+    > [!NOTE] 说明
+    > 支持配置IP地址范围，例如：192.168.100.100-192.168.100.102。
     > 默认使用urma通信时，需已安装urma。
     > 未配置 `cluster.ipList` 且未开启 URMA 特性时，UBSE 无可用建链方式，服务启动失败。
+    > `cert.use=true`（默认）开启 TLS 证书认证，需导入证书；测试环境可置 `false` 关闭。
 
-    ubs engine支持两种通信模式，可根据硬件和网络环境选择：
+    ubs engine支持两种通信模式，可根据硬件和网络环境选择。
 
     | 通信方式   | URMA(默认)             | TCP                    |
     | ---------- | ---------------------- | ---------------------- |
@@ -125,8 +273,8 @@
     | 硬件要求   | 需支持 URMA 的智能网卡 | 普通以太网卡即可       |
     | 配置复杂度 | 免配置，自动发现节点   | 需手动配置 IP 列表     |
     | 使用场景   | 高性能计算、金融交易   | 普通数据中心、开发测试 |
-  
-3. 启动ubs engine服务
+
+3. 启动ubs engine服务。
 
     ```bash
     sudo systemctl start ubse
@@ -137,24 +285,24 @@
 
 默认使用urma通信时需确保部署环境中已安装URMA驱动和运行时库，并开启URMA特性；如果未配置 `cluster.ipList` 且未开启 URMA 特性，服务将无法启动。
 
-```python
+```bash
 # 示例：安装 URMA 运行时包（具体包名根据发行版可能不同）
 sudo yum install -y umdk-urma-lib    # OpenEuler
 sudo yum install -y umdk-urma-kmod
 ```
 
-安装后重启ubs engine服务
+安装后重启ubs engine服务。
 
-    ```bash
-    sudo systemctl restart ubse
-    ```
+```bash
+sudo systemctl restart ubse
+```
 
 ## （可选）安装Bash Completion脚本库
 
 使用ubsectl工具进行命令补全时依赖该脚本库。
 
-> [!NOTE] 须知
-> 
+> [!NOTE] 说明
+>
 >- 安装完成后，当前终端窗口不会立即生效。
 >- 新建终端窗口将自动加载Bash Completion，无需额外操作。
 

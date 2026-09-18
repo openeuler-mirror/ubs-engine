@@ -2203,6 +2203,314 @@ TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_QueryAllSuccessEmpty_Retu
     }
 }
 
+// ============ 陈旧借用决策防线：(pid, oldName) 复合身份 + newName 存活校验 ============
+
+static BorrowGroupResult MakeGroup(uint16_t remoteNumaId, const std::vector<pid_t>& pids,
+                                   const std::vector<std::string>& oldNames)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node2";
+    group.remoteNumaId = remoteNumaId;
+    for (pid_t pid : pids) {
+        FaultNumaVmInfo vm{};
+        vm.pid = pid;
+        vm.remoteNumaId = remoteNumaId;
+        group.vmInfos.push_back(vm);
+    }
+    for (const auto& name : oldNames) {
+        BorrowRecord rec;
+        rec.name = name;
+        group.records.push_back(rec);
+    }
+    return group;
+}
+
+// ---- IsNumaLevelDecisionMatchGroup ----
+TEST_F(TestFaultNodeModule, IsNumaLevelDecisionMatchGroup_PidAndOldNameHit_ReturnsTrue)
+{
+    auto group = MakeGroup(16, {438641}, {"2-oldA"});
+    NumaLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_TRUE(IsNumaLevelDecisionMatchGroup(group, decision));
+}
+
+TEST_F(TestFaultNodeModule, IsNumaLevelDecisionMatchGroup_PidChanged_ReturnsFalse)
+{
+    // 复现线上场景：旧决策 pid=438641，本轮实采虚机已换为 441909（oldName 仍在）
+    auto group = MakeGroup(16, {441909}, {"2-oldA"});
+    NumaLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_FALSE(IsNumaLevelDecisionMatchGroup(group, decision));
+}
+
+TEST_F(TestFaultNodeModule, IsNumaLevelDecisionMatchGroup_OldNameRecycled_ReturnsFalse)
+{
+    // numaId 回收：同一故障 numa 上旧借用已换成另一笔 borrowId（pid 相同）
+    auto group = MakeGroup(16, {438641}, {"2-oldB"});
+    NumaLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_FALSE(IsNumaLevelDecisionMatchGroup(group, decision));
+}
+
+TEST_F(TestFaultNodeModule, IsNumaLevelDecisionMatchGroup_EmptyVmInfos_ReturnsFalse)
+{
+    auto group = MakeGroup(16, {}, {"2-oldA"});
+    NumaLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_FALSE(IsNumaLevelDecisionMatchGroup(group, decision));
+}
+
+// ---- IsBorrowIdLevelDecisionMatchGroup ----
+TEST_F(TestFaultNodeModule, IsBorrowIdLevelDecisionMatchGroup_Hit_ReturnsTrue)
+{
+    auto group = MakeGroup(16, {438641}, {"2-oldA"});
+    BorrowIdLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.oldName = "2-oldA";
+    EXPECT_TRUE(IsBorrowIdLevelDecisionMatchGroup(group, decision));
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowIdLevelDecisionMatchGroup_PidChanged_ReturnsFalse)
+{
+    auto group = MakeGroup(16, {441909}, {"2-oldA"});
+    BorrowIdLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.oldName = "2-oldA";
+    EXPECT_FALSE(IsBorrowIdLevelDecisionMatchGroup(group, decision));
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowIdLevelDecisionMatchGroup_OldNameMismatch_ReturnsFalse)
+{
+    auto group = MakeGroup(16, {438641}, {"2-oldB"});
+    BorrowIdLevelBorrowedDecision decision;
+    decision.pids = {438641};
+    decision.oldName = "2-oldA";
+    EXPECT_FALSE(IsBorrowIdLevelDecisionMatchGroup(group, decision));
+}
+
+// ---- IsBorrowedDecisionAlive (mock FetchBorrowRecords 提供账本快照) ----
+// 账本含 newName=2-newA → 决策存活
+static MpResult FetchLedgerWithNewA(BorrowRecordHelper* This, std::vector<BorrowRecord>& out, bool allWithFault,
+                                    bool isFilter)
+{
+    out.clear();
+    BorrowRecord rec;
+    rec.name = "2-newA";
+    out.push_back(rec);
+    return MEM_POOLING_OK;
+}
+
+// 账本为空（newName 已被正常归还流程释放）→ 决策已死
+static MpResult FetchLedgerEmpty(BorrowRecordHelper* This, std::vector<BorrowRecord>& out, bool allWithFault,
+                                 bool isFilter)
+{
+    out.clear();
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowedDecisionAlive_NewNameInLedger_ReturnsTrue)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(FetchLedgerWithNewA));
+    BorrowedDecision dec;
+    dec.isNumaLevel = true;
+    dec.numaBorrowedDecision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_TRUE(IsBorrowedDecisionAlive(dec));
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowedDecisionAlive_NewNameReturned_ReturnsFalse)
+{
+    // 线上场景：newName 已被正常归还流程释放 → 不再在账本 → 决策已死
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(FetchLedgerEmpty));
+    BorrowedDecision dec;
+    dec.isNumaLevel = true;
+    dec.numaBorrowedDecision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_FALSE(IsBorrowedDecisionAlive(dec));
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowedDecisionAlive_BorrowIdLevel_NewNameReturned_ReturnsFalse)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(FetchLedgerEmpty));
+    BorrowedDecision dec;
+    dec.isNumaLevel = false;
+    BorrowIdLevelBorrowedDecision bdec;
+    bdec.oldName = "2-oldA";
+    bdec.newName = "2-newA";
+    dec.borrowIdBorrowedDecisions.push_back(bdec);
+    EXPECT_FALSE(IsBorrowedDecisionAlive(dec));
+}
+
+TEST_F(TestFaultNodeModule, IsBorrowedDecisionAlive_FetchFailed_FailSafeReturnsTrue)
+{
+    // fail-safe：账本采集失败时视为存活，避免误删存活决策导致新借用泄漏
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    BorrowedDecision dec;
+    dec.isNumaLevel = true;
+    dec.numaBorrowedDecision.borrowResultMap["2-oldA"] = "2-newA";
+    EXPECT_TRUE(IsBorrowedDecisionAlive(dec));
+}
+
+// ---- Guard 1 端到端：RebuildBorrowGroup 按 (pid, oldName) 决定是否续做 ----
+static MpResult FillOneStaleNumaDecision(FaultNodeModule* This, const std::string& nodeId,
+                                         std::vector<BorrowedDecision>& outDecisions)
+{
+    outDecisions.clear();
+    BorrowedDecision dec;
+    dec.borrowNodeId = "Node2";
+    dec.remoteNumaId = 16;
+    dec.isNumaLevel = true;
+    dec.numaBorrowedDecision.presentNumaId = 15;
+    dec.numaBorrowedDecision.oldNumaId = 16;
+    dec.numaBorrowedDecision.pids = {438641};
+    dec.numaBorrowedDecision.totalBorrowSize = 524288;
+    dec.numaBorrowedDecision.borrowResultMap["2-oldA"] = "2-newA";
+    outDecisions.push_back(dec);
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestFaultNodeModule, RebuildBorrowGroup_StalePid_NotBorrowedFallbackRedecide)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultNodeModule::GetBorrowedDecisionRpc,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(invoke(FillOneStaleNumaDecision));
+    // 当前实采虚机 441909，与决策存量 pid 438641 不吻合
+    std::vector<BorrowGroupResult> groups;
+    groups.push_back(MakeGroup(16, {441909}, {"2-oldA"}));
+    FaultNodeModule::Instance().RebuildBorrowGroup(groups);
+    EXPECT_FALSE(groups[0].numaDecision.isBorrowed);
+    EXPECT_EQ(groups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+TEST_F(TestFaultNodeModule, RebuildBorrowGroup_PidAndOldNameHit_MarkedBorrowed)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultNodeModule::GetBorrowedDecisionRpc,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(invoke(FillOneStaleNumaDecision));
+    // 当前实采虚机仍为 438641，oldName 也吻合 → 应续做
+    std::vector<BorrowGroupResult> groups;
+    groups.push_back(MakeGroup(16, {438641}, {"2-oldA"}));
+    FaultNodeModule::Instance().RebuildBorrowGroup(groups);
+    EXPECT_TRUE(groups[0].numaDecision.isBorrowed);
+    EXPECT_EQ(groups[0].strategyType, BorrowStrategyType::NUMA_LEVEL_STRATEGY);
+}
+
+// ---- Guard 2 端到端：GetBorrowedDecisionHandler 剔除 newName 已归还的孤儿决策 ----
+static MpResult FillOneNumaDecision(FaultHandleBorrowedDecision* This, std::vector<BorrowedDecision>& decisionList)
+{
+    decisionList.clear();
+    BorrowedDecision dec;
+    dec.borrowNodeId = "Node2";
+    dec.remoteNumaId = 16;
+    dec.isNumaLevel = true;
+    dec.numaBorrowedDecision.presentNumaId = 15;
+    dec.numaBorrowedDecision.oldNumaId = 16;
+    dec.numaBorrowedDecision.pids = {438641};
+    dec.numaBorrowedDecision.borrowResultMap["2-oldA"] = "2-newA";
+    decisionList.push_back(dec);
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_StaleDecision_DroppedAndRemoved)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultHandleBorrowedDecision::QueryAll,
+               MpResult(*)(FaultHandleBorrowedDecision*, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(invoke(FillOneNumaDecision));
+    // newName 已归还 → 账本快照为空
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(FetchLedgerEmpty));
+    MOCKER_CPP(&FaultHandleBorrowedDecision::Remove, MpResult(*)(FaultHandleBorrowedDecision*, const uint16_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    UbseByteBuffer req;
+    req.data = new uint8_t[4];
+    req.len = 4;
+    req.freeFunc = nullptr;
+    UbseByteBuffer resp{};
+    uint32_t ret = GetBorrowedDecisionHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    std::vector<BorrowedDecision> out;
+    RmrsInStream in(resp.data, resp.len);
+    in >> out;
+    EXPECT_EQ(out.size(), 0u); // 陈旧决策已在源头剔除
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_AliveDecision_Returned)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultHandleBorrowedDecision::QueryAll,
+               MpResult(*)(FaultHandleBorrowedDecision*, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(invoke(FillOneNumaDecision));
+    // newName 仍在账本 → 决策存活
+    MOCKER_CPP(&BorrowRecordHelper::FetchBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, std::vector<BorrowRecord>&, bool, bool))
+        .stubs()
+        .will(invoke(FetchLedgerWithNewA));
+
+    UbseByteBuffer req;
+    req.data = new uint8_t[4];
+    req.len = 4;
+    req.freeFunc = nullptr;
+    UbseByteBuffer resp{};
+    uint32_t ret = GetBorrowedDecisionHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    std::vector<BorrowedDecision> out;
+    RmrsInStream in(resp.data, resp.len);
+    in >> out;
+    EXPECT_EQ(out.size(), 1u); // 存活决策正常下发
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+// ---- Guard 3：QueryAll 空表返回 OK（修复前为 MEM_POOLING_ERROR=99）----
+TEST_F(TestFaultNodeModule, FaultHandleBorrowedDecisionQueryAll_EmptyMap_ReturnsOk)
+{
+    // 先清空单例内存态（Remove 先 erase 内存再落盘，落盘失败不影响内存清空）
+    std::vector<BorrowedDecision> existing;
+    FaultHandleBorrowedDecision::Instance().QueryAll(existing);
+    for (const auto& dec : existing) {
+        FaultHandleBorrowedDecision::Instance().Remove(dec.remoteNumaId);
+    }
+    std::vector<BorrowedDecision> decisionList;
+    MpResult ret = FaultHandleBorrowedDecision::Instance().QueryAll(decisionList);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_TRUE(decisionList.empty());
+}
+
 // ==================== GenerateNumaLevelDecision ====================
 
 TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_EmptyGroups_NoOp)

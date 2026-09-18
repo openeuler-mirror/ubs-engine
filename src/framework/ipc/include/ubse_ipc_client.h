@@ -47,6 +47,26 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
                           ubse_api_buffer_t* response_data);
 
 /**
+ * @brief Invokes a remote API interface with an explicit total timeout
+ *
+ * Same as ubse_invoke_call(), but the caller bounds the whole
+ * request/response round trip (including waiting for the response).
+ * Recommended for tests and callers that must not block for long.
+ *
+ * @param [in] moduleCode Module identifier
+ * @param [in] opCode Operation command code
+ * @param [in] requestData Request data buffer (input payload)
+ * @param [out] responseData Response data buffer (output payload).
+ * Must be freed by calling ubse_api_buffer_free() after use.
+ * @param [in] timeoutMs Total timeout in milliseconds, must be > 0 (0 is
+ * rejected with UBSE_ERROR_INVAL); returns UBSE_ERR_TIMED_OUT when the
+ * response does not arrive in time.
+ * @return uint32_t API status code (0 = success, non-zero = error code)
+ */
+uint32_t ubse_invoke_call_timeout(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                  ubse_api_buffer_t* response_data, uint32_t timeout_ms);
+
+/**
  * @brief Releases memory resources for API data buffers
  *
  * This function deallocates memory allocated by API operations to prevent memory leaks.

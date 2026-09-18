@@ -193,7 +193,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowChangeHandlerFailed)
     MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>)
         .stubs()
         .will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_ERR_ALLOCATE);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
@@ -220,7 +220,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     MasterSendAddrExpoprtObjMockSetError();
     MOCKER_CPP(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_ERR_INTERNAL);
 }
 
 // 辅助函数，设置公共的mock配置
@@ -905,7 +905,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackSendUnexportFailed)
     ExportCallbackCommonSetup(currentInfo, masterInfo, module);
     BuildOperationMockSet();
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
-    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ERR_UNIMPORT_SUCCESS, ret);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackNoExport)
@@ -927,7 +927,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackNoExport)
     ExportCallbackCommonSetup(currentInfo, masterInfo, module);
     BuildOperationMockSet();
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
-    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ERR_UNIMPORT_SUCCESS, ret);
 }
 /*
 * 用例描述
@@ -1058,7 +1058,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessNotExist)
     UbseMemOperationResp resp;
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
-    EXPECT_EQ(UBSE_ERROR, ret);
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, ret);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
@@ -1074,7 +1074,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     AddToExportObjMap(req.name, NODE_ONE, exportObj);
     auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
-    EXPECT_EQ(UBSE_ERROR, ret);
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, ret);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, DeleteAddrExport)

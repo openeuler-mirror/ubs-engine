@@ -41,7 +41,10 @@ class LibvirtMonitorImpl;
 
 class LibvirtMonitor {
 public:
-    explicit LibvirtMonitor(const std::string& uri = "qemu:///system");
+    static constexpr int DEFAULT_RECONNECT_INTERVAL_MS = 5000; // 默认重连间隔（毫秒）
+
+    explicit LibvirtMonitor(const std::string& uri = "qemu:///system",
+                            int reconnectIntervalMs = DEFAULT_RECONNECT_INTERVAL_MS);
 
     ~LibvirtMonitor();
 

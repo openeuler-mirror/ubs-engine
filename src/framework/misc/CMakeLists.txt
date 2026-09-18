@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 add_library(ubse_utils STATIC
         ubse_str_util.cpp
         ubse_file_util.cpp
@@ -8,7 +10,7 @@ add_library(ubse_utils STATIC
         ubse_json_util.cpp
         ubse_fs.cpp
 )
-target_link_libraries(ubse_utils PUBLIC rapidjson boundscheck)
+target_link_libraries(ubse_utils PUBLIC boundscheck)
 
 target_include_directories(ubse_utils PUBLIC 
         ${CMAKE_CURRENT_SOURCE_DIR}

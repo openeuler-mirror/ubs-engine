@@ -12,7 +12,6 @@
 
 #include "ubse_ipc_socket.h"
 
-#include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <cerrno>
@@ -25,28 +24,6 @@
 #include "ubse_ipc_log.h"
 
 namespace ubse::ipc {
-static inline bool SetNonBlocking(int fd, int& flags)
-{
-    flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0) {
-        IPC_LOG_ERROR << "Failed to get fd flags: " << strerror(errno);
-        return false;
-    }
-
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        IPC_LOG_ERROR << "Failed to set non-blocking mode: " << strerror(errno);
-        return false;
-    }
-    return true;
-}
-
-static inline void RestoreFlags(int fd, int flags)
-{
-    if (fcntl(fd, F_SETFL, flags) < 0) {
-        IPC_LOG_ERROR << "Failed to restore fd flags: " << strerror(errno);
-    }
-}
-
 static inline int ComputeRemainingTime(const std::chrono::steady_clock::time_point& deadline)
 {
     auto ms =
@@ -90,12 +67,12 @@ uint32_t TrySendOnce(int fd, const uint8_t* buf, uint32_t len, int remainingMs, 
         return UBSE_OK; // 非错误但不可写, 重试
     }
 
-    ssize_t n = send(fd, buf, len, 0);
+    ssize_t n = send(fd, buf, len, MSG_DONTWAIT | MSG_NOSIGNAL);
     if (n > 0) {
         outBytes = static_cast<uint32_t>(n);
         return UBSE_OK; // 发送成功
     }
-    if (errno == EINTR || errno == EAGAIN) {
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         IPC_LOG_WARN << "send retryable error: " << strerror(errno);
         return UBSE_OK; // 可重试
     }
@@ -140,7 +117,7 @@ uint32_t TryRecvOnce(int fd, uint8_t* buf, uint32_t len, int remainingMs, uint32
         return UBSE_OK; // 非错误但不可读, 重试
     }
 
-    ssize_t n = recv(fd, buf, len, 0);
+    ssize_t n = recv(fd, buf, len, MSG_DONTWAIT);
     if (n > 0) {
         outBytes = static_cast<uint32_t>(n);
         return UBSE_OK; // 接收成功
@@ -150,7 +127,7 @@ uint32_t TryRecvOnce(int fd, uint8_t* buf, uint32_t len, int remainingMs, uint32
         IPC_LOG_ERROR << "recv failed: peer closed";
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
-    if (errno == EINTR || errno == EAGAIN) {
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         IPC_LOG_WARN << "recv retryable error: " << strerror(errno);
         return UBSE_OK; // 可重试
     }
@@ -211,17 +188,12 @@ uint32_t SendMsg(int fd, const void* buffer, uint32_t length, int timeoutMs)
         IPC_LOG_ERROR << "SendMsg invalid argument";
         return UBSE_ERROR_INVAL;
     }
-    // 设置socket为非阻塞模式
-    int flags = 0;
-    if (!SetNonBlocking(fd, flags)) {
-        IPC_LOG_ERROR << "send failed: set nonBlocking failed";
+    if (fd < 0) {
+        IPC_LOG_ERROR << "SendMsg invalid fd";
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
-
     const auto* ptr = static_cast<const uint8_t*>(buffer);
-    auto ret = SendMsgLoop(fd, ptr, length, timeoutMs);
-    RestoreFlags(fd, flags);
-    return ret;
+    return SendMsgLoop(fd, ptr, length, timeoutMs);
 }
 
 uint32_t RecvMsg(int fd, void* buffer, uint32_t length, int timeoutMs)
@@ -230,15 +202,11 @@ uint32_t RecvMsg(int fd, void* buffer, uint32_t length, int timeoutMs)
         IPC_LOG_ERROR << "RecvMsg invalid argument";
         return UBSE_ERROR_INVAL;
     }
-    int flags = 0;
-    if (!SetNonBlocking(fd, flags)) {
-        IPC_LOG_ERROR << "recv failed: set nonBlocking failed";
+    if (fd < 0) {
+        IPC_LOG_ERROR << "RecvMsg invalid fd";
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
-
     auto* ptr = static_cast<uint8_t*>(buffer);
-    auto ret = RecvMsgLoop(fd, ptr, length, timeoutMs);
-    RestoreFlags(fd, flags);
-    return ret;
+    return RecvMsgLoop(fd, ptr, length, timeoutMs);
 }
 } // namespace ubse::ipc

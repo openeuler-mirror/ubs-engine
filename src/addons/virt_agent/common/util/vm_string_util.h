@@ -36,6 +36,7 @@ public:
     static uint64_t SafeNotEmptyStoull(const std::string& str);
     static pid_t SafeNotEmptyStopid(const std::string& str);
     static void StrSplit(const std::string& src, const std::string& sep, std::vector<std::string>& out);
+    static std::string SanitizeLogStr(const std::string& str, size_t maxLen = 128);
 
 private:
     static std::unordered_map<std::string, uint64_t> unitMap;

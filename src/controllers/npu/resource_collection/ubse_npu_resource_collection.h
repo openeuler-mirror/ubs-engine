@@ -11,7 +11,6 @@
  */
 #ifndef UBSE_NPU_RESOURCE_COLLECTION_H
 #define UBSE_NPU_RESOURCE_COLLECTION_H
-#include <array>
 #include <atomic>
 #include <map>
 #include <regex>
@@ -21,7 +20,6 @@
 #include "ubse_npu_resource_collection_def.h"
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::npu::controller {
 using CollectionDevIdToDevice = std::map<CollectionDevId, std::shared_ptr<CollectionDevice>>;
 using CollectionGuidToDevice = CollectionDevIdToDevice;
@@ -66,6 +64,13 @@ public:
     UbseResult GetDevicesByType(const CollectionDeviceType& type, CollectionDevIdToDevice& devices);
     std::shared_ptr<CollectionDeviceBusi> GetDeviceHostBusInstance();
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> GetDeviceAllComSharedIdevVfe();
+    /**
+     * NIC数据校验与实时刷新：查ctrlq最新1825设备列表，增量合并到本地容器
+     * 重跑bus instance和david affinity绑定（幂等安全）
+     * @return 获取1825列表失败时透传相应错误码（由调用方按非致命处理，沿用本地已有数据）；
+     *         其余失败仅记日志并返回UBSE_OK
+     */
+    UbseResult ValidateAndRefreshNic();
     UbseResult SetDevice(std::shared_ptr<CollectionDevice>& dev);
     UbseResult RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice>& device);
     /**
@@ -107,6 +112,10 @@ private:
     UbseResult BindVfeToNpu();
 
     UbseResult CollectDavidAffinityNic();
+
+    std::vector<std::string> DiffMissingNicGuids(const std::vector<mti::_1825::UbseMti1825Pf>& latestPfList);
+
+    void MergeMissingNicDevices(const std::vector<mti::_1825::UbseMti1825Pf>& latestPfList);
 
     UbseResult GenerateDavidNicMap(ProductType productType, CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId);
 

@@ -106,6 +106,10 @@ UbseCtrlQRegDavidFeToBusInstanceReqMsg::UbseCtrlQRegDavidFeToBusInstanceReqMsg(
 static UbseResult WriteIdevReqMsg(const UbseMtiBusInst& busInstance, const std::vector<IdevRegInfo>& regInfoList,
                                   CtrlQReqMessage& msg)
 {
+    if (msg.blocks.empty()) {
+        UBSE_LOG_ERROR << "Encode request message failed, the blocks is empty";
+        return UBSE_ERROR;
+    }
     if (SetIdevBusInstance(busInstance, msg) != UBSE_OK) {
         UBSE_LOG_ERROR << "Set businstance failed";
         return UBSE_ERROR;
@@ -131,6 +135,10 @@ static UbseResult WriteIdevReqMsg(const UbseMtiBusInst& busInstance, const std::
 static UbseResult WriteDevReqMsg(const UbseMtiBusInst& busInstance, uint8_t slotId,
                                  const std::vector<DevRegInfo>& regInfoList, CtrlQReqMessage& msg)
 {
+    if (msg.blocks.empty()) {
+        UBSE_LOG_ERROR << "Encode request message failed, the blocks is empty";
+        return UBSE_ERROR;
+    }
     if (SetDevBusInstance(busInstance, msg) != UBSE_OK) {
         UBSE_LOG_ERROR << "Set businstance failed";
         return UBSE_ERROR;

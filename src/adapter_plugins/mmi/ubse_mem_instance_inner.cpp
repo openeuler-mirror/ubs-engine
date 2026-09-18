@@ -582,6 +582,12 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
             return UBSE_MMI_OBMM_OP_FAILED;
         }
         memIds.emplace_back(memid);
+        if (addrRemoteNumaId != addrRemoteNumaIds.back()) {
+            // ObmmImport可能回写与预留守值不同的实际远端NUMA ID，同步预留集合，
+            // 避免预留守值永久残留在addrRemoteNumaIdSet中无法重用
+            DeleteAddrRemoteNuma(addrRemoteNumaIds.back());
+            AddAddrRemoteNuma(addrRemoteNumaId);
+        }
         importObj.status.importResults.push_back({memid, addrRemoteNumaId});
     }
     return UBSE_OK;

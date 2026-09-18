@@ -24,6 +24,7 @@
 #include "mem_manager.h"
 #include "mempool_migrate_module.h"
 #include "mp_default_struct.h"
+#include "mp_string_util.h"
 #include "rmrs_serialize.h"
 
 namespace mempooling {
@@ -55,8 +56,8 @@ static uint64_t LiftFaultBorrowSizeKB(uint64_t sizeKB)
 static uint64_t GetActualBorrowSizeBytes(const std::string& borrowId, uint64_t requestSizeBytes)
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    if (MemBorrowExecutor::GetDebtInfoByNameWithRetry(borrowId, debtInfos) != MEM_POOLING_OK) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] Debt query failed for borrowId=" << borrowId
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(debtInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] Debt query failed"
                                                          << ", fallback to request size=" << requestSizeBytes << ".";
         return requestSizeBytes;
     }
@@ -795,7 +796,7 @@ struct MultiBorrowStrategyParam {
         bool isSamePlane;
     };
     struct Node {
-        Node(std::string nodeId, uint64_t available) : nodeId(nodeId), freeMem(freeMem)
+        Node(std::string nodeId, uint64_t available) : nodeId(nodeId), freeMem(available)
         {
             return;
         }
@@ -1077,7 +1078,8 @@ MpResult MempoolBorrowModule::ValidateBorrowExecuteParam(const DestMemoryBorrowP
     MpResult ret = MEM_POOLING_ERROR;
     for (size_t i = 0; i < destParam.destNumaId.size(); i++) {
         if ((destParam.memSize[i] % (gBlockSize * MB_TO_KB) != 0) ||
-            (enableBorrowSplit && destParam.memSize[i] > FOUR_GB)) {
+            (enableBorrowSplit && destParam.memSize[i] > FOUR_GB) ||
+            destParam.memSize[i] > (std::numeric_limits<uint64_t>::max() / KB_TO_BYTES)) { // 防止KB转字节时溢出
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] Invalid memSize which = " << destParam.memSize[i]
                 << ", the memSize should be an integer multiple of " << (gBlockSize * MB_TO_KB)
@@ -1368,6 +1370,46 @@ MpResult MempoolBorrowModule::ProcessSingleBorrowInOverCommit(const SrcMemoryBor
     return MEM_POOLING_OK;
 }
 
+MpResult MempoolBorrowModule::ProcessSingleBorrowWithLenderInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                                        const std::vector<UbseMemNumaLender>& lenders,
+                                                                        const ProcessMemUsrInfo& processMemUsrInfo,
+                                                                        UbseMemNumaDesc& desc)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "ProcessSingleBorrowWithLenderInOverCommit start.";
+    std::string name;
+    MemBorrowExecutor::Instance().GenerateUniqueId(srcParam.srcNid, name, true);
+    MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Update(name);
+    if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow] Update SmapEnableCompleted numaId failed. ret=" << retBorrowIdInFaultProcess << ".";
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+    }
+    UbseMemBorrower borrower{.nodeId = srcParam.srcNid,
+                             .affinitySocketId = srcParam.srcSocketId,
+                             .uid = srcParam.uid,
+                             .username = srcParam.username};
+
+    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN] = {};
+    if (memcpy_s(usrInfo, UBSE_MAX_USR_INFO_LEN, &processMemUsrInfo, sizeof(ProcessMemUsrInfo)) != EOK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] ProcessMemUsrInfo memcpy_s failed.";
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemBorrow] Borrow With Lender Start srcParam " << srcParam.ToString() << ".";
+    auto ret = UbseMemNumaCreateWithLender(name, borrower, lenders, usrInfo, desc);
+    if (ret != UBSE_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow] Mem borrow with lender failed, lenderNum=" << lenders.size() << ", name=" << name
+            << ", res=" << static_cast<uint32_t>(ret) << ".";
+        (void)BorrowIdInFaultProcess::Instance().Remove(name);
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "ProcessSingleBorrowWithLenderInOverCommit end.";
+
+    return MEM_POOLING_OK;
+}
+
 MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrowParam& srcParam,
                                                            const std::vector<uint64_t>& borrowSizes,
                                                            const WaterMark& waterMark,
@@ -1406,71 +1448,6 @@ MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrow
     if (borrowExecuteResult.borrowIds.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow]All Mem borrow failed.";
         return MEM_POOLING_ERROR;
-    }
-    return MEM_POOLING_OK;
-}
-
-MpResult MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
-                                                                   const std::vector<uint64_t>& borrowSizes,
-                                                                   const WaterMark& waterMark,
-                                                                   MemBorrowExecuteResult& borrowExecuteResult,
-                                                                   const ProcessMemUsrInfo& processMemUsrInfo,
-                                                                   const std::vector<std::string>& candidateNodes)
-{
-    if (borrowSizes.empty()) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemBorrow] Borrow Size is Empty. srcParam: " << srcParam.ToString() << ".";
-        return MEM_POOLING_OK;
-    }
-    // 调用方指定候选借出节点时，直接使用；未指定时按策略生成
-    std::vector<std::string> candidateNodeList = candidateNodes.empty() ? GenerateBorrowCandidateList(srcParam) :
-                                                                          candidateNodes;
-    if (candidateNodeList.empty()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] No candidate lender node.";
-        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
-    }
-    // 保持与入参 borrowSizes 相同顺序逐笔借用，调用方（ExecuteBorrowForPid）按下标配对 oldNumaId 与结果
-    for (const auto& borrowSize : borrowSizes) {
-        UbseMemNumaDesc desc;
-        UbseMemNumaCandidateOpt opt;
-        opt.slotIds = candidateNodeList;
-        opt.size = borrowSize;
-        opt.distance = ubse::mem::controller::MEM_DISTANCE_L0;
-        opt.highWatermark = waterMark.highWaterMark;
-
-        if (memcpy_s(opt.usrInfo, UBSE_MAX_USR_INFO_LEN, &processMemUsrInfo, sizeof(ProcessMemUsrInfo)) != EOK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] ProcessMemUsrInfo memcpy_s failed.";
-            return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
-        }
-
-        UbseResult res = ProcessSingleBorrowInOverCommit(srcParam, opt, true, desc);
-        if (res != UBSE_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemBorrow] ProcessSingleBorrow failed, reason=" << static_cast<uint32_t>(res) << ".";
-            // 部分失败：回滚本次已成功借用的 borrowId，保证 all-or-nothing，避免下次重试时重复借用
-            std::vector<std::string> leakedBorrowIds;
-            for (const auto& borrowId : borrowExecuteResult.borrowIds) {
-                auto freeRet = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, false, true);
-                if (freeRet != MEM_POOLING_OK) {
-                    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                        << "[MemBorrow] Rollback failed for borrowId=" << borrowId
-                        << ", ret=" << static_cast<uint32_t>(freeRet) << ", retained for retry.";
-                    leakedBorrowIds.push_back(borrowId);
-                }
-            }
-            if (!leakedBorrowIds.empty()) {
-                // 保留未释放成功的 borrowId 供调用方登记重试，避免引用丢失后无回收路径
-                borrowExecuteResult.borrowIds = std::move(leakedBorrowIds);
-                borrowExecuteResult.presentNumaId.clear();
-                return res;
-            }
-            borrowExecuteResult.borrowIds.clear();
-            borrowExecuteResult.presentNumaId.clear();
-            return res;
-        }
-
-        (void)borrowExecuteResult.borrowIds.emplace_back(desc.name);
-        (void)borrowExecuteResult.presentNumaId.emplace_back(static_cast<uint16_t>(desc.numaId));
     }
     return MEM_POOLING_OK;
 }
@@ -1856,6 +1833,91 @@ uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam& mi
     }
 
     LOG_DEBUG << "[MemMigrate][Strategy] Convert Migrate Strategy Param successfully.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolBorrowModule::MemBorrowExecuteSplitsForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                                         const std::vector<FaultBorrowSplit>& splits,
+                                                                         const WaterMark& waterMark,
+                                                                         MemBorrowExecuteResult& borrowExecuteResult,
+                                                                         const ProcessMemUsrInfo& processMemUsrInfo)
+{
+    // 量纲路径不走高水位（资源约束由主资源配置按split粒度保证），保留入参仅为与故障借用执行接口一致
+    (void)waterMark;
+
+    if (splits.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow] Splits is empty. srcParam: " << srcParam.ToString() << ".";
+        return MEM_POOLING_OK;
+    }
+
+    struct MappedBorrowResult {
+        std::string bid;
+        uint16_t numaId = 0;
+    };
+    std::vector<MappedBorrowResult> results;
+    results.resize(splits.size());
+
+    // 逐split借用：GenerateUniqueId/BorrowIdInFaultProcess::Update/失败Remove均由
+    // ProcessSingleBorrowWithLenderInOverCommit内部完成，本函数不重复执行
+    bool anyFailed = false;
+    MpResult lastError = MEM_POOLING_OK;
+    for (size_t i = 0; i < splits.size(); ++i) {
+        const auto& split = splits[i];
+
+        uint32_t lenderSlotId = 0;
+        if (MpStringUtil::SafeStoul(split.lendNodeId, lenderSlotId) != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemBorrow] SafeStoul failed for nodeId=" << split.lendNodeId << ".";
+            anyFailed = true;
+            lastError = MEM_POOLING_FAULT_BORROW_MEM_ERROR;
+            break;
+        }
+
+        UbseMemNumaLender lender{.slotId = lenderSlotId,
+                                 .socketId = split.lendSocketId,
+                                 .numaId = UINT32_MAX,     // 无效标记，调度器在socket内选NUMA
+                                 .size = split.sizeBytes}; // 单位字节，直接透传（record.size 为字节口径）
+
+        UbseMemNumaDesc desc;
+        MpResult ret = ProcessSingleBorrowWithLenderInOverCommit(srcParam, {lender}, processMemUsrInfo, desc);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemBorrow] Split borrow failed, i=" << i << " node=" << split.lendNodeId
+                << " socket=" << split.lendSocketId << " size=" << split.sizeBytes
+                << " res=" << static_cast<uint32_t>(ret) << ".";
+            anyFailed = true;
+            lastError = ret;
+            break;
+        }
+        results[i] = {desc.name, static_cast<uint16_t>(desc.numaId)};
+    }
+
+    if (anyFailed) {
+        // 回滚已成功的借用，保证all-or-nothing（失败笔及其后的results中bid为空）
+        for (size_t ri = 0; ri < results.size(); ++ri) {
+            if (!results[ri].bid.empty()) {
+                auto freeRet = MemBorrowExecutor::Instance().MemFreeWithOps(results[ri].bid, false, false, true);
+                if (freeRet != MEM_POOLING_OK) {
+                    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[MemBorrow] Rollback failed, i=" << ri << " bid=" << results[ri].bid
+                        << ", ret=" << static_cast<uint32_t>(freeRet) << ".";
+                }
+            }
+        }
+        borrowExecuteResult.borrowIds.clear();
+        borrowExecuteResult.presentNumaId.clear();
+        // ProcessSingleBorrowWithLenderInOverCommit内部已将UBSE错误码映射为n=4/n=6，
+        // 直接透传lastError；不可再过MapBorrowFailReason（会把n=4降级为n=6）
+        return lastError;
+    }
+
+    borrowExecuteResult.borrowIds.reserve(splits.size());
+    borrowExecuteResult.presentNumaId.reserve(splits.size());
+    for (const auto& r : results) {
+        borrowExecuteResult.borrowIds.push_back(r.bid);
+        borrowExecuteResult.presentNumaId.push_back(r.numaId);
+    }
     return MEM_POOLING_OK;
 }
 

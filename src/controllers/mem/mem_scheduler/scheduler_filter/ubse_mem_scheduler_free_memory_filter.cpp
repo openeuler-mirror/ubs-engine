@@ -11,6 +11,7 @@
  */
 
 #include "ubse_mem_scheduler_free_memory_filter.h"
+#include "ubse_math_util.h"
 #include "../ubse_mem_types.h"
 
 namespace ubse::mem::scheduler {
@@ -26,9 +27,17 @@ UbseResult FreeMemoryFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sch
         if (requestSize == 0) {
             continue;
         }
-        auto nodePtr = nodeInfo.GetNodeInfo(node.nodeId);
+        auto* nodePtr = nodeInfo.GetNodeInfo(node.nodeId);
         if (nodePtr == nullptr) {
             RecordWarning(std::string("GetNodeInfo failed, node=") + node.nodeId);
+            node.socketInfos.clear();
+            continue;
+        }
+        auto blockSizeMb = nodePtr->GetBlockSize();
+        uint64_t blockSizeByte = 0;
+        if (blockSizeMb == 0 || !ubse::utils::SizeMb2Byte(blockSizeMb, blockSizeByte)) {
+            RecordWarning(std::string("GetBlockSize is invalid, node=") + node.nodeId);
+            node.socketInfos.clear();
             continue;
         }
         auto isFreeMemoryInsufficient = [&](const SocketInfo& socketInfo) {
@@ -38,7 +47,7 @@ UbseResult FreeMemoryFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sch
                               ", socket=" + std::to_string(socketInfo.socketId));
                 return true;
             }
-            uint64_t available = socket->GetAvailableLendSize(static_cast<uint64_t>(highWatermark));
+            uint64_t available = socket->GetAvailableLendSize(static_cast<uint64_t>(highWatermark), blockSizeByte);
             if (available < requestSize) {
                 RecordReject(node.nodeId, std::string("socket=") + std::to_string(socketInfo.socketId) +
                                               " available=" + std::to_string(available / ONE_M) + "MB" +

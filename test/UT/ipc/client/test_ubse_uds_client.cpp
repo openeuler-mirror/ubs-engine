@@ -12,6 +12,7 @@
 
 #include "test_ubse_uds_client.h"
 
+#include <fcntl.h>
 #include <poll.h>
 #include <securec.h>
 #include <sys/poll.h>
@@ -19,16 +20,26 @@
 #include <sys/un.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_sync_req.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
 using namespace ubse::task_executor;
 namespace {
+int MockPollReadyCheckingBlocking(struct pollfd* fds, nfds_t, int)
+{
+    const int flags = fcntl(fds[0].fd, F_GETFL);
+    EXPECT_GE(flags, 0);
+    EXPECT_EQ(flags & O_NONBLOCK, 0);
+    fds[0].revents = fds[0].events;
+    return 1;
+}
+
 int MockPollErr(struct pollfd* fds, nfds_t, int)
 {
     fds[0].revents = POLLERR;
@@ -146,6 +157,14 @@ uint32_t MockRecvClientReqBodyFail(int, void* buffer, uint32_t length, int)
 TestUbseUdsClient::TestUbseUdsClient() = default;
 void TestUbseUdsClient::SetUp()
 {
+    auto& ctx = ubse::context::UbseContext::GetInstance();
+    ctx.RegisterModule<ubse::config::UbseConfModule>(
+        ubse::module::UbseModule::CreateModule<ubse::config::UbseConfModule>);
+    auto confModule = ctx.GetModule<ubse::config::UbseConfModule>();
+    if (confModule != nullptr) {
+        confModule->Initialize();
+        confModule->Start();
+    }
     client = std::make_unique<UbseUDSClient>("");
     Test::SetUp();
 }
@@ -153,11 +172,79 @@ void TestUbseUdsClient::SetUp()
 void TestUbseUdsClient::TearDown()
 {
     client.reset();
+    auto& ctx = ubse::context::UbseContext::GetInstance();
+    auto confModule = ctx.GetModule<ubse::config::UbseConfModule>();
+    if (confModule != nullptr) {
+        confModule->Stop();
+        confModule->UnInitialize();
+    }
     GlobalMockObject::reset((void*)SendMsg);
     GlobalMockObject::reset((void*)RecvMsg);
     GlobalMockObject::reset((void*)SerializeRequestMessage);
     GlobalMockObject::verify();
     Test::TearDown();
+}
+
+TEST_F(TestUbseUdsClient, SendMsg_NegativeFd_ReturnsConnectionFailedWithoutPolling)
+{
+    MOCKER(poll).expects(never());
+
+    const char sent = 'x';
+    EXPECT_EQ(SendMsg(-1, &sent, sizeof(sent), 1000), UBSE_ERR_IPC_CONNECTION_FAILED);
+    EXPECT_EQ(SendMsg(-2, &sent, sizeof(sent), 0), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_NegativeFd_ReturnsConnectionFailedWithoutPolling)
+{
+    MOCKER(poll).expects(never());
+
+    char received = 0;
+    EXPECT_EQ(RecvMsg(-1, &received, sizeof(received), 1000), UBSE_ERR_IPC_CONNECTION_FAILED);
+    EXPECT_EQ(RecvMsg(-2, &received, sizeof(received), 0), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, SendMsg_PreservesBlockingModeDuringSend)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+    MOCKER(poll).stubs().will(invoke(MockPollReadyCheckingBlocking));
+
+    const char sent = 'x';
+    EXPECT_EQ(SendMsg(sockets[0], &sent, sizeof(sent), 1000), UBSE_OK);
+    char received = 0;
+    EXPECT_EQ(recv(sockets[1], &received, sizeof(received), MSG_DONTWAIT), 1);
+    EXPECT_EQ(received, sent);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_PreservesBlockingModeDuringReceive)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+    MOCKER(poll).stubs().will(invoke(MockPollReadyCheckingBlocking));
+
+    const char sent = 'x';
+    EXPECT_EQ(send(sockets[1], &sent, sizeof(sent), MSG_DONTWAIT | MSG_NOSIGNAL), 1);
+    char received = 0;
+    EXPECT_EQ(RecvMsg(sockets[0], &received, sizeof(received), 1000), UBSE_OK);
+    EXPECT_EQ(received, sent);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
+}
+
+TEST_F(TestUbseUdsClient, RecvMsg_BlockingSocketTimesOutWithoutData)
+{
+    int sockets[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    client->sockFd_ = sockets[0];
+
+    char received = 0;
+    EXPECT_EQ(RecvMsg(sockets[0], &received, sizeof(received), 20), UBSE_ERR_TIMED_OUT);
+    EXPECT_EQ(fcntl(sockets[0], F_GETFL) & O_NONBLOCK, 0);
+    close(sockets[1]);
 }
 
 // 测试已连接时直接返回成功
@@ -871,14 +958,14 @@ TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenReconnectSuccess_DoRegistra
 TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenLongLinkConnectSuccess_ReturnTrue)
 {
     client->isReConnect_.store(true);
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
 
     auto ret = client->PerformReconnectAttempts();
 
     EXPECT_TRUE(ret);
 }
 
-// 用于控制 LongLinkConnect 的调用次数，模拟重连过程中外部停止重连
+// 用于控制 ConnectToServer 的调用次数，模拟重连过程中外部停止重连
 static int g_longLinkConnectCallCount = 0;
 static UbseUDSClient* g_testClient = nullptr;
 
@@ -899,7 +986,7 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenStoppedMidway_ReturnFalse
     g_testClient = client.get();
     client->isReConnect_.store(true);
 
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(invoke(MockLongLinkConnectStopOnSecondCall));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(invoke(MockLongLinkConnectStopOnSecondCall));
 
     auto ret = client->PerformReconnectAttempts();
 
@@ -1057,32 +1144,31 @@ TEST_F(TestUbseUdsClient, LongLinkConnect_WhenConnectFailed)
     EXPECT_EQ(client->LongLinkConnect(), UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
-TEST_F(TestUbseUdsClient, ConnectToServer_MemsetFailed)
+TEST_F(TestUbseUdsClient, ConnectToServer_ConnectFailed)
 {
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(-1));
-    sockaddr_un addr{};
-    auto ret = client->ConnectToServer(addr);
-    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
-}
-
-TEST_F(TestUbseUdsClient, ConnectToServer_StrncpyFailed)
-{
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(EOK));
-    MOCKER(strncpy_s).stubs().will(returnValue(-1));
-    sockaddr_un addr{};
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
+    MOCKER(connect).stubs().will(returnValue(-1));
     auto ret = client->ConnectToServer(addr);
     EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
 TEST_F(TestUbseUdsClient, ConnectToServer_ImmediateSuccess)
 {
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(EOK));
-    MOCKER(strncpy_s).stubs().will(returnValue(EOK));
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
     MOCKER(connect).stubs().will(returnValue(0));
-    sockaddr_un addr{};
+    auto ret = client->ConnectToServer(addr);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUdsClient, ConnectToServer_NonBlockingSuccess)
+{
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
+    MOCKER(connect).stubs().will(invoke(MockConnectTimeout));
+    MOCKER(poll).stubs().will(returnValue(1));
+    MOCKER(getsockopt).stubs().will(returnValue(0));
     auto ret = client->ConnectToServer(addr);
     EXPECT_EQ(ret, UBSE_OK);
 }

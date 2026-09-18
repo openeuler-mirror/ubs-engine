@@ -17,6 +17,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include <dynamic_priority_queue.h>
@@ -120,6 +121,7 @@ private:
     static std::condition_variable clearCv;
     static std::atomic<bool> exitFlag;
     static std::atomic_bool runFlag;
+    static std::thread clearThread;
 
     static VmResult GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo& numaMemInfo, int& numaId, int& socketId);
 };

@@ -41,6 +41,9 @@ public:
     static bool IsSpecialIP(const std::string& ip);
 
     static uint32_t GetIpInfo(std::vector<std::string>& ipInfos);
+
+    // 日志脱敏：隐藏网段，仅保留 IP 末端（主机段），避免日志泄露私有 IP 网段信息
+    static std::string MaskIp(const std::string& ip);
 };
 
 // 辅助函数：解析字符串IP为UbseIpAddr结构

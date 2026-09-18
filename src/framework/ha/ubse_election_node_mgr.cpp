@@ -15,6 +15,7 @@
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_net_util.h"
 #include "ubse_node_controller.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
@@ -151,7 +152,8 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
             tempNode.port = port;
             if (currentNode_.ip == ip) {
                 tempNode.id = currentNode_.id;
-                UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode_.id << " current ip =" << currentNode_.ip;
+                UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode_.id
+                              << " current ip =" << UbseNetUtil::MaskIp(currentNode_.ip);
             }
             currentAllNodes_.push_back(tempNode);
             nodeIpMap_.emplace(tempNode.ip, tempNode.id);
@@ -277,7 +279,7 @@ UbseResult UbseElectionNodeMgr::GetPortByIp(const std::string& ip, uint16_t& por
             return UBSE_OK;
         }
     }
-    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip=" << ip << "not found.";
+    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip=" << UbseNetUtil::MaskIp(ip) << "not found.";
     return UBSE_ERROR;
 }
 
@@ -301,12 +303,12 @@ UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string& ip, c
         if (node.ip == ip) {
             node.id = id;
             nodeIpMap_[ip] = id;
-            UBSE_LOG_DEBUG << "[ELECTION] Updated for ip = " << ip << " to id = " << id;
+            UBSE_LOG_DEBUG << "[ELECTION] Updated for ip = " << UbseNetUtil::MaskIp(ip) << " to id = " << id;
             return UBSE_OK;
         }
     }
     // 如果没有找到匹配的节点
-    UBSE_LOG_ERROR << "[ELECTION] ip=" << ip << " not found in currentAllNodes_.";
+    UBSE_LOG_ERROR << "[ELECTION] ip=" << UbseNetUtil::MaskIp(ip) << " not found in currentAllNodes_.";
     return UBSE_ERROR;
 }
 

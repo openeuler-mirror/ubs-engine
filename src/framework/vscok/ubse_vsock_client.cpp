@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <thread>
 
 #include "ubse_cert_def.h"
@@ -49,11 +50,10 @@ UbseVsockClient::UbseVsockClient() : sockFd_(INVALID_SOCK_FD), hostPort_(HOST_PO
     }
 
     if (ubseConfModule != nullptr) {
-        uint32_t intCid;
+        uint32_t intCid = HOST_CID; // 初始化为默认值，避免配置读取失败时读取未初始化变量
         auto ret = ubseConfModule->GetConf<uint32_t>("ubse.ubfm", "ubm.server.cid", intCid);
         if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Unable to get safe config, will use default value false, " << FormatRetCode(ret);
-            isInitOk_ = false;
+            UBSE_LOG_WARN << "Unable to get cid config, keep default value " << HOST_CID << ", " << FormatRetCode(ret);
         }
 
         hostCid_ = intCid;
@@ -168,54 +168,62 @@ int PemPasswordCallback(char* buf, int size, int rwflag, void* usrdata)
 SSL_CTX* UbseVsockClient::GetSharedSslCtx()
 {
     static SSL_CTX* cachedCtx = nullptr;
-    if (cachedCtx == nullptr) {
-        OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
-        OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
-        // 创建TLS客户端上下文（最低版本TLS1.3）
-        cachedCtx = SSL_CTX_new(TLS_client_method());
-        if (!cachedCtx) {
-            UBSE_LOG_ERROR << "SSL_CTX_new failed";
-            return nullptr;
-        }
-        if (SSL_CTX_set_min_proto_version(cachedCtx, TLS1_3_VERSION) != 1) {
-            UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
-            SSL_CTX_free(cachedCtx);
-            cachedCtx = nullptr;
-            return nullptr;
-        }
-        if (!cert::UbseSslValidator::CheckAllFileExist()) {
-            SSL_CTX_free(cachedCtx);
-            cachedCtx = nullptr;
-            return nullptr;
-        }
-        static utils::SecureBuffer cachedPassword =
-            cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
-        SSL_CTX_set_default_passwd_cb(cachedCtx, PemPasswordCallback);
-        SSL_CTX_set_default_passwd_cb_userdata(cachedCtx, (void*)(cachedPassword.c_str()));
-        if (SSL_CTX_use_certificate_file(cachedCtx, UbseSSLConfig::ServerCertFile, SSL_FILETYPE_PEM) <= 0 ||
-            SSL_CTX_use_PrivateKey_file(cachedCtx, UbseSSLConfig::ServerKeyFile, SSL_FILETYPE_PEM) <= 0) {
-            UBSE_LOG_ERROR << "SSL_CTX_use_certificate_file or SSL_CTX_use_PrivateKey_file failed";
-            SSL_CTX_free(cachedCtx);
-            cachedCtx = nullptr;
-            return nullptr;
-        }
-        if (!SSL_CTX_check_private_key(cachedCtx)) {
-            UBSE_LOG_ERROR << "SSL_CTX_check_private_key failed";
-            SSL_CTX_free(cachedCtx);
-            cachedCtx = nullptr;
-            return nullptr;
-        }
-        if (SSL_CTX_load_verify_locations(cachedCtx, UbseSSLConfig::TrustCertFile, nullptr) != 1) {
-            UBSE_LOG_ERROR << "SSL_CTX_load_verify_locations failed";
-            SSL_CTX_free(cachedCtx);
-            cachedCtx = nullptr;
-            return nullptr;
-        }
-        SSL_CTX_set_verify(cachedCtx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-        SSL_CTX_set_verify_depth(cachedCtx, SSL_CERT_VERIFY_DEPTH);
-        UBSE_LOG_INFO << "Cached SSL_CTX created successfully";
+    static std::mutex ctxMutex;
+    std::lock_guard<std::mutex> lock(ctxMutex);
+    if (cachedCtx != nullptr) {
+        return cachedCtx;
     }
-
+    OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
+    OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
+    // 创建TLS客户端上下文（最低版本TLS1.3）
+    cachedCtx = SSL_CTX_new(TLS_client_method());
+    if (!cachedCtx) {
+        UBSE_LOG_ERROR << "SSL_CTX_new failed";
+        return nullptr;
+    }
+    if (SSL_CTX_set_min_proto_version(cachedCtx, TLS1_3_VERSION) != 1) {
+        UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    if (!cert::UbseSslValidator::CheckAllFileExist()) {
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    static utils::SecureBuffer cachedPassword =
+        cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+    SSL_CTX_set_default_passwd_cb(cachedCtx, PemPasswordCallback);
+    SSL_CTX_set_default_passwd_cb_userdata(cachedCtx, (void*)(cachedPassword.c_str()));
+    if (SSL_CTX_use_certificate_file(cachedCtx, UbseSSLConfig::ServerCertFile, SSL_FILETYPE_PEM) <= 0 ||
+        SSL_CTX_use_PrivateKey_file(cachedCtx, UbseSSLConfig::ServerKeyFile, SSL_FILETYPE_PEM) <= 0) {
+        UBSE_LOG_ERROR << "SSL_CTX_use_certificate_file or SSL_CTX_use_PrivateKey_file failed";
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    if (!SSL_CTX_check_private_key(cachedCtx)) {
+        UBSE_LOG_ERROR << "SSL_CTX_check_private_key failed";
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    if (SSL_CTX_load_verify_locations(cachedCtx, UbseSSLConfig::TrustCertFile, nullptr) != 1) {
+        UBSE_LOG_ERROR << "SSL_CTX_load_verify_locations failed";
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    SSL_CTX_set_verify(cachedCtx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+    SSL_CTX_set_verify_depth(cachedCtx, SSL_CERT_VERIFY_DEPTH);
+    if (!cert::UbseSslValidator::ConfigureCrlValidation(cachedCtx)) {
+        UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
+        SSL_CTX_free(cachedCtx);
+        cachedCtx = nullptr;
+        return nullptr;
+    }
+    UBSE_LOG_INFO << "Cached SSL_CTX created successfully";
     return cachedCtx;
 }
 

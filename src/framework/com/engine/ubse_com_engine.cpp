@@ -27,6 +27,7 @@
 #include "ubse_election.h"
 #include "ubse_env_util.h"
 #include "ubse_logger.h"
+#include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_security_module.h"
 #include "ubse_smbios.h"
@@ -150,7 +151,7 @@ void UbseComLinkManager::InsertChannel(UbseComChannelInfo& channelInfo)
     auto engineName = channelInfo.GetEngineName();
     if (IsChannelExists(remoteIp, chType)) {
         UBSE_LOG_INFO << "Engine " << engineName << " channel already exists, type=" << static_cast<uint16_t>(chType)
-                      << ", remote node=" << remoteIp;
+                      << ", remote node=" << UbseNetUtil::MaskIp(remoteIp);
         LogChannelInfo();
         auto engine = UbseComEngineManager::GetEngine(engineName);
         if (engine == nullptr) {
@@ -173,7 +174,7 @@ void UbseComLinkManager::InsertChannel(UbseComChannelInfo& channelInfo)
     channelIdMap_.emplace(channelId, channelInfo);
     nodeIpIdMap_.emplace(remoteIp, remoteNodeId);
     UBSE_LOG_INFO << "Insert channel_id=" << channelId << ", curnode_id=" << channelInfo.GetConnectInfo().GetCurNodeId()
-                  << ", remote_node_id=" << remoteNodeId << ", remote_ip=" << remoteIp
+                  << ", remote_node_id=" << remoteNodeId << ", remote_ip=" << UbseNetUtil::MaskIp(remoteIp)
                   << ", channel_type=" << ChannelTypeToString(chType);
     LogChannelInfo();
 }
@@ -359,12 +360,13 @@ UbseResult GetRemoteNodeIdByCall(const std::string& remoteIP, const UBSHcomChann
     UBSHcomResponse rspMsg;
     auto ret = channelPtr->Call(reqMsg, rspMsg);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Call remote node id for " << remoteIP << " failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Call remote node id for " << UbseNetUtil::MaskIp(remoteIP) << " failed, "
+                       << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     std::string msg(std::string(static_cast<const char*>(rspMsg.address), rspMsg.size));
     if (msg == GET_NODE_ID_FAIL_MSG) {
-        UBSE_LOG_ERROR << "Get remote node id for " << remoteIP << " failed";
+        UBSE_LOG_ERROR << "Get remote node id for " << UbseNetUtil::MaskIp(remoteIP) << " failed";
         return UBSE_ERROR;
     }
     remoteNodeId = msg;
@@ -390,7 +392,7 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo& info, UbseCha
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(remoteNodeIp, chType)) {
         UBSE_LOG_INFO << "Engine=" << engineName << " channel already exists, type=" << ChannelTypeToString(chType)
-                      << ", remote node=" << remoteNodeIp;
+                      << ", remote node=" << UbseNetUtil::MaskIp(remoteNodeIp);
         remoteNodeId = linkManager_.GetNodeIdByIp(remoteNodeIp);
         rwLock_.UnLock();
         RemoveConnectingNode(info.GetIp(), chType);
@@ -401,8 +403,8 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo& info, UbseCha
     options.payload = ChannelTypeToPayload(info.GetCurNodeId(), chType);
     auto ret = DoConnect(info, options, channelPtr);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_WARN << "Create channel failed, peer info is " << info.GetIp() << ":" << info.GetPort() << " for "
-                      << FormatRetCode(ret);
+        UBSE_LOG_WARN << "Create channel failed, nodeId=" << info.GetCurNodeId() << ", peer info is "
+                      << UbseNetUtil::MaskIp(info.GetIp()) << ":" << info.GetPort() << " for " << FormatRetCode(ret);
         RemoveConnectingNode(info.GetIp(), chType);
         return ret;
     }
@@ -423,7 +425,8 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
         auto chId = channelPtr->GetId();
         DestroyChannel(channelPtr);
         RemoveConnectingNode(info.GetIp(), chType);
-        UBSE_LOG_ERROR << "Get remote node id for " << info.GetIp() << " fail, destroy current channel:" << chId;
+        UBSE_LOG_ERROR << "Get remote node id for nodeId=" << info.GetCurNodeId()
+                       << ", ip=" << UbseNetUtil::MaskIp(info.GetIp()) << " fail, destroy current channel:" << chId;
         return UBSE_ERROR;
     }
     info.SetRemoteNodeId(remoteNodeId);
@@ -710,7 +713,7 @@ bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyP
     std::ifstream keyPassFile(keyPassPath, std::ios::binary);
 
     if (!keyPassFile.is_open()) {
-        UBSE_LOG_WARN << "Failed to open password file: " + keyPassPath;
+        UBSE_LOG_WARN << "Failed to open password file"; // 不打印文件路径，避免泄露敏感文件位置
         return false;
     }
 
@@ -1011,12 +1014,12 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
     auto res = InsertChannelToMap(chInfo);
     RemoveConnectingNode(ip, payLoadPair.second);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "Insert channel " << ch.Get()->GetId() << " receive from [" << ip << ","
+        UBSE_LOG_ERROR << "Insert channel " << ch.Get()->GetId() << " receive from [" << UbseNetUtil::MaskIp(ip) << ","
                        << ch->GetPeerConnectPayload() << "] fail, will disconnect";
         hcomNetService_->Disconnect(ch);
         return;
     }
-    UBSE_LOG_INFO << "Insert channel " << ch.Get()->GetId() << " receive from [" << ip << ","
+    UBSE_LOG_INFO << "Insert channel " << ch.Get()->GetId() << " receive from [" << UbseNetUtil::MaskIp(ip) << ","
                   << ch->GetPeerConnectPayload() << "] successfully";
 }
 
@@ -1086,6 +1089,8 @@ bool UbseComEngine::VerifyMsg(UbseComMessageCtx& msgCtx)
         return false;
     }
     if (channelInfo.GetConnectInfo().GetRemoteNodeId() != masterInfo.nodeId) {
+        UBSE_LOG_ERROR << "remote nodeId not master, remote node Id=" << channelInfo.GetConnectInfo().GetRemoteNodeId()
+                       << ", master nodeId=" << masterInfo.nodeId;
         return false;
     }
     return true;
@@ -1419,8 +1424,8 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string& engineName,
                                                 const std::pair<std::string, std::string>& nodeIds,
                                                 std::string& remoteNodeId, UbseChannelType chType, bool isUb)
 {
-    UBSE_LOG_INFO << "rpc connect start, node_ip=" << ipAndPort.first << ", node_port=" << ipAndPort.second
-                  << ", channel_type=" << static_cast<uint32_t>(chType);
+    UBSE_LOG_INFO << "rpc connect start, node_ip=" << UbseNetUtil::MaskIp(ipAndPort.first)
+                  << ", node_port=" << ipAndPort.second << ", channel_type=" << static_cast<uint32_t>(chType);
     UbseResult res;
     if (isUb) {
         res = CreateUbChannel(false, engineName, ipAndPort, nodeIds, chType, remoteNodeId);
@@ -1430,7 +1435,7 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string& engineName,
     if (UBSE_RESULT_FAIL(res)) {
         return res;
     }
-    UBSE_LOG_INFO << "create rpc_connect channel successfully, node_ip=" << ipAndPort.first
+    UBSE_LOG_INFO << "create rpc_connect channel successfully, node_ip=" << UbseNetUtil::MaskIp(ipAndPort.first)
                   << ", node_port=" << ipAndPort.second << ", channel_type=" << static_cast<uint32_t>(chType);
     return UBSE_OK;
 }

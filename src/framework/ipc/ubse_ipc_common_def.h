@@ -47,6 +47,10 @@ struct UbseMemFault {
     uint64_t handleId;
     UbseIpcMemFaultType type;
 };
+struct VsockConfig {
+    uint32_t cid;
+    uint32_t port;
+};
 } // namespace ubse::ipc
 
 #endif // UBSE_MANAGER_UBSE_IPC_COMMON_DEF_H

@@ -159,12 +159,14 @@ VmResult VmMigrate::BuildIpcResponse(const std::string& message, UbseIpcMessage&
     resp.length = message.length();
     resp.buffer = new (std::nothrow) uint8_t[resp.length];
     if (resp.buffer == nullptr) {
+        resp.length = 0;
         UBSE_LOG_ERROR << "Ipc response new failed.";
         return VM_ERROR;
     }
     auto ret = memcpy_s(resp.buffer, resp.length, message.c_str(), message.length());
     if (ret != EOK) {
         SafeDeleteArray(resp.buffer);
+        resp.length = 0;
         UBSE_LOG_ERROR << "Ipc response memcpy_s failed.";
         return VM_ERROR;
     }

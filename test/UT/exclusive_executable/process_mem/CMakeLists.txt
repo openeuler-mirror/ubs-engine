@@ -1,3 +1,5 @@
+find_package(RapidJSON REQUIRED)
+
 file(GLOB_RECURSE PROCESS_MEM_TEST_SOURCES LIST_DIRECTORIES false *.h *.cpp)
 list(FILTER PROCESS_MEM_TEST_SOURCES EXCLUDE REGEX ".*/mock/.*")
 file(GLOB MOCK_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mock/ubse/*.cpp)
@@ -28,5 +30,5 @@ target_include_directories(${CMAKE_PROJECT_NAME}_process_mem_ut BEFORE PUBLIC
 target_link_options(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE -Wl,--relax --coverage -rdynamic -Wl,--as-needed)
 target_compile_definitions(${CMAKE_PROJECT_NAME}_process_mem_ut PRIVATE UB_ENVIRONMENT ENABLE_COV=OFF)
 target_link_libraries(${CMAKE_PROJECT_NAME}_process_mem_ut PUBLIC
-    test_exclusive_main ubse_serial rapidjson GTest::gmock_main mockcpp boundscheck trace_context)
+    test_exclusive_main ubse_serial GTest::gmock_main mockcpp boundscheck trace_context)
 add_independent_exec_ut(${CMAKE_PROJECT_NAME}_process_mem_ut)

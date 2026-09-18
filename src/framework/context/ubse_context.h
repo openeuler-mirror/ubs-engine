@@ -113,6 +113,15 @@ public:
         return 0;
     }
 
+    template <typename T>
+    void RegisterModuleInstance(const std::shared_ptr<T>& module)
+    {
+        static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
+        static_assert(std::is_base_of_v<UbseModule, T>,
+                      "RegisterModuleInstance must be used with UbseModule derived types");
+        moduleMap_[typeid(T)] = module;
+    }
+
     // 停止上下文
     void Stop();
 

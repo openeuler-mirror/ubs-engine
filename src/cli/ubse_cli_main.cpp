@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -16,6 +17,9 @@
 
 #include "ubse_cli_reg.h"
 #include "ubse_cli_whitelist.h"
+#include "ubse_common_def.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_log.h"
 
@@ -60,6 +64,19 @@ int main(int argc, char* argv[])
     }
 
     UbseCliModuleRegistry::GetInstance().UbseCliCallAllModuleSignUp();
+
+    // UDS场景下socket路径存在时不需要初始化配置模块；仅vsock场景需要读取配置
+    struct stat socketStat = {};
+    if (stat(ubse::common::def::UBSE_UDS_SOCKET_PATH.c_str(), &socketStat) != 0) {
+        auto& ctx = ubse::context::UbseContext::GetInstance();
+        auto confModule = std::make_shared<ubse::config::UbseConfModule>();
+        if (confModule != nullptr) {
+            confModule->Initialize();
+            confModule->Start();
+            ctx.template RegisterModuleInstance<ubse::config::UbseConfModule>(confModule);
+        }
+    }
+
     UbseCliWhitelist whitelist;
     std::vector<std::string> args;
     args.reserve(static_cast<unsigned long>(argc));
@@ -86,8 +103,7 @@ int main(int argc, char* argv[])
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: signal=SIGALRM error=register_failed\n");
         return UBSE_ERROR;
     }
-    struct itimerval timer {
-    };
+    struct itimerval timer = {};
     timer.it_value.tv_sec = TIMEOUT_SECONDS;
     if (setitimer(ITIMER_REAL, &timer, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +

@@ -307,6 +307,16 @@ TEST_F(TestUbseNpuMonitorServiceApi, VmStateCallbackStripsDashesFromGuid)
     EXPECT_NE(g_capturedCmd.find("0x05"), std::string::npos);
 }
 
+// 注意顺序：本用例须在 StartVMMonitorSuccess 之前执行。LoadLibrary 对已加载的库句柄
+// 直接复用（不重复 dlopen），若 Success 用例先跑，g_monitor.dlHandle_ 非空会绕过
+// dlopen 失败 mock，导致本用例语义失效
+TEST_F(TestUbseNpuMonitorServiceApi, StartVMMonitorLibvirtStartFails)
+{
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
+    auto ret = StartVMMonitor();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
 TEST_F(TestUbseNpuMonitorServiceApi, StartVMMonitorSuccess)
 {
     MOCKER(dlopen).stubs().will(returnValue(g_mockDlHandle));
@@ -315,13 +325,6 @@ TEST_F(TestUbseNpuMonitorServiceApi, StartVMMonitorSuccess)
     auto ret = StartVMMonitor();
     EXPECT_EQ(ret, UBSE_OK);
     g_monitor.Stop();
-}
-
-TEST_F(TestUbseNpuMonitorServiceApi, StartVMMonitorLibvirtStartFails)
-{
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
-    auto ret = StartVMMonitor();
-    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 } // namespace ubse::npu::vm_monitor::ut

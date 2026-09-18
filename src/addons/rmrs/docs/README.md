@@ -1,5 +1,7 @@
 # UBS RMRS
 
+<p> 简体中文 | <a href="README_EN.md">English</a> </p>
+
 ## 项目简介
 
 UBS RMRS是一款面向虚拟化场景的节点内资源管理服务插件，作为UBS Engine框架的一部分提供集群级的内存资源调度服务，主要针对虚机内存碎片场景、虚机内存超分场景、容器内存超分场景。
@@ -8,7 +10,6 @@ UBS RMRS是一款面向虚拟化场景的节点内资源管理服务插件，作
 
 ```path
 UBS RMRS/
-├── 3rdparty                    // 源码三方库
 ├── benchmark                   // cli工具
 ├── conf                        //配置文件
 ├── doc                         //文档

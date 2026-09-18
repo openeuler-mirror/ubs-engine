@@ -165,7 +165,7 @@ VmResult AlarmHandler::ParseOomMsg(const std::string& input, uint16_t& numaCount
             numaIds.push_back(std::stoi(parts[i]));
         }
         reason = std::stoi(parts.back());
-    } catch (const std::exception e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Parse oom msg error, " << e.what();
         return VM_ERROR;
     }

@@ -18,6 +18,7 @@
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_sdk_def.h"
+#include "vm_string_util.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -120,7 +121,7 @@ uint32_t VirtCaseConfSdk::SetCaseConfCheckReq(const std::string& reqBodyStr, Cas
         UBSE_LOG_ERROR << "RequestBody is null.";
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "ParseCaseConfPostRequest reqBody=" << reqBodyStr;
+    UBSE_LOG_INFO << "ParseCaseConfPostRequest reqBody=" << VmStringUtil::SanitizeLogStr(reqBodyStr);
     if (!caseParam.FromJson(reqBodyStr)) {
         UBSE_LOG_ERROR << "Parse caseConf param json failed.";
         return VM_ERROR;
