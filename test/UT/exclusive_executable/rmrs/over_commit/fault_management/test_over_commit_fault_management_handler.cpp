@@ -69,7 +69,8 @@ TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapRecvHandler_GetRemo
 
 TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapResHandler_Succeed)
 {
-    int ctx;
+    // ctx 需为 OverCommitVmRemoteNumaInfoResult*，传小对象会被 handler 写越界
+    OverCommitVmRemoteNumaInfoResult ctx{};
     UbseByteBuffer respData;
     uint32_t resCode = MEM_POOLING_OK;
     OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(&ctx, respData, resCode);
@@ -78,10 +79,11 @@ TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapResHandler_Succeed)
 
 TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapResHandler_resCode_Failed)
 {
-    int ctx;
+    OverCommitVmRemoteNumaInfoResult ctx{};
     UbseByteBuffer respData;
     uint32_t resCode = MEM_POOLING_ERROR;
     OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(&ctx, respData, resCode);
+    EXPECT_EQ(ctx.retCode, MEM_POOLING_ERROR);
     EXPECT_EQ(resCode, MEM_POOLING_ERROR);
 }
 
@@ -353,10 +355,15 @@ TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessRecvHandler_Succeed
                MpResult(*)(OverCommitFaultNodeModule*, const FaultRecordsInNode&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    UbseByteBuffer req;
+    // handler 入口有非空请求校验，需构造合法的序列化请求才能走到 BorrowInNodeProcess
+    FaultRecordsInNode faultRecordsInNode{.nodeId = "node0"};
+    rmrs::serialize::RmrsOutStream builder;
+    builder << faultRecordsInNode;
+    UbseByteBuffer req{.data = builder.GetBufferPointer(), .len = builder.GetSize()};
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(req, resp);
     EXPECT_EQ(ret, MEM_POOLING_OK);
+    delete[] req.data;
     delete[] resp.data;
 }
 

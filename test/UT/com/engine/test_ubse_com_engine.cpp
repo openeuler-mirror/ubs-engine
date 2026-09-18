@@ -584,7 +584,8 @@ const UBSHcomChannelPtr MockGetChannel()
 TEST_F(TestUbseCommunication, TestUbseComMsgSend)
 {
     std::string engineName;
-    uint8_t* req = new uint8_t;
+    // 分配完整报文头大小并零初始化，1 字节缓冲会被 GetMessageLen 越界读
+    uint8_t* req = new uint8_t[sizeof(UbseComMessageHead) + 64]();
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -600,13 +601,14 @@ TEST_F(TestUbseCommunication, TestUbseComMsgSend)
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseComChannelInfo::GetChannel).stubs().will(invoke(MockGetChannel));
     EXPECT_EQ(UbseCommunication::UbseComMsgSend(engineName, message, retData), UBSE_OK);
-    delete (req);
+    delete[](req);
 }
 
 TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
 {
     std::string engineName;
-    uint8_t* req = new uint8_t;
+    // 分配完整报文头大小并零初始化，避免后续解析越界读
+    uint8_t* req = new uint8_t[sizeof(UbseComMessageHead) + 64]();
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -623,7 +625,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseComChannelInfo::GetChannel).stubs().will(invoke(MockGetChannel));
     EXPECT_EQ(UbseCommunication::UbseComMsgAsyncSend(engineName, message, usrCb), UBSE_OK);
-    delete (req);
+    delete[](req);
 }
 
 TEST_F(TestUbseCommunication, TestGetChannel)
