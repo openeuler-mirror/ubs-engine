@@ -1056,6 +1056,9 @@ VmResult MemFragmentationMemMigrateStrategyOutputMsg::Deserialize()
         in >> outputMsg.vmInfoList[i].pid;
     }
     in >> outputMsg.waitingTime;
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
     return VM_OK;
 }
 
@@ -1225,12 +1228,18 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Deserialize()
 
     size_t nodeInfoListCount{};
     in >> nodeInfoListCount;
+    if (nodeInfoListCount > MAX_NODE_NUM) {
+        return VM_ERROR_INVAL;
+    }
     nodeInfoList.reserve(nodeInfoListCount);
     for (size_t i = 0; i < nodeInfoListCount; i++) {
         NodeInfo nodeInfo{};
         in >> nodeInfo.nodeId;
         size_t numaInfosCount{};
         in >> numaInfosCount;
+        if (numaInfosCount > MAX_NUMA_NUM) {
+            return VM_ERROR_INVAL;
+        }
         nodeInfo.numaInfos.reserve(numaInfosCount);
         for (size_t j = 0; j < numaInfosCount; j++) {
             NumaInfo numaInfo{};
@@ -1296,6 +1305,9 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Deserialize()
     in >> borrowPram.nodeId;
     uint32_t numaMetaInfosCount{};
     in >> numaMetaInfosCount;
+    if (numaMetaInfosCount > MAX_NUMA_NUM) {
+        return VM_ERROR_INVAL;
+    }
     borrowPram.numaMetaInfos.reserve(numaMetaInfosCount);
     for (size_t j = 0; j < numaMetaInfosCount; j++) {
         NumaMetaInfo numaMetaInfo{};
@@ -1436,11 +1448,17 @@ VmResult mem_fragmentation::MemFragmentationPageSwapEnableMsg::Deserialize()
     in >> pid;
     uint32_t pageSwapPairsCount = 0;
     in >> pageSwapPairsCount;
+    if (pageSwapPairsCount > MAX_NUMA_NUM) {
+        return VM_ERROR_INVAL;
+    }
     pageSwapPairs.reserve(pageSwapPairsCount);
     for (size_t j = 0; j < pageSwapPairsCount; j++) {
         PageSwapPair pageSwapPair{};
         uint32_t localNumaQuotaCount = 0;
         in >> localNumaQuotaCount;
+        if (localNumaQuotaCount > MAX_NUMA_NUM) {
+            return VM_ERROR_INVAL;
+        }
         pageSwapPair.localNumaQuotas.reserve(localNumaQuotaCount);
         for (size_t k = 0; k < localNumaQuotaCount; k++) {
             NumaQuota numaQuota{};
@@ -1450,6 +1468,9 @@ VmResult mem_fragmentation::MemFragmentationPageSwapEnableMsg::Deserialize()
         }
         uint32_t remoteNumaQuotaCount = 0;
         in >> remoteNumaQuotaCount;
+        if (remoteNumaQuotaCount > MAX_NUMA_NUM) {
+            return VM_ERROR_INVAL;
+        }
         pageSwapPair.remoteNumaQuotas.reserve(remoteNumaQuotaCount);
         for (size_t k = 0; k < remoteNumaQuotaCount; k++) {
             NumaQuota numaQuota{};

@@ -24,23 +24,31 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 std::atomic<bool> VmMigrateHandler::exitFlag(false);
+std::thread VmMigrateHandler::flushThread;
+uint32_t VmMigrateHandler::intervalSeconds = 5;
+bool VmMigrateHandler::init = false;
 constexpr uint64_t MIGRATE_TIME_MAX_LIMIT = 10800;
 
 void VmMigrateHandler::FlushExpireDataThread()
 {
-    std::thread timerThread(&VmMigrateHandler::FlushExpireData, VmMigrateHandler{});
-    timerThread.detach();
+    if (flushThread.joinable()) {
+        return;
+    }
+    flushThread = std::thread(&VmMigrateHandler::FlushExpireData);
 }
 
 void VmMigrateHandler::Stop()
 {
     UBSE_LOG_INFO << "[flush vm] stop migrate handler.";
     exitFlag.store(true);
+    if (flushThread.joinable()) {
+        flushThread.join();
+    }
 }
 
-VmResult vm::VmMigrateHandler::InitVmMigrateData()
+VmResult VmMigrateHandler::InitVmMigrateData()
 {
-    if (this->init) {
+    if (init) {
         return VM_OK;
     }
     auto& vmResourceCollect = ResourceCollect::GetInstance();
@@ -50,14 +58,14 @@ VmResult vm::VmMigrateHandler::InitVmMigrateData()
         return ret;
     }
     UBSE_LOG_INFO << "[flush vm] init vm status cache successfully.";
-    this->init = true;
+    init = true;
     return VM_OK;
 }
 
-void vm::VmMigrateHandler::FlushExpireData()
+void VmMigrateHandler::FlushExpireData()
 {
     while (!exitFlag.load()) {
-        VmResult ret = this->InitVmMigrateData();
+        VmResult ret = InitVmMigrateData();
         if (ret != VM_OK) {
             std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
             continue;

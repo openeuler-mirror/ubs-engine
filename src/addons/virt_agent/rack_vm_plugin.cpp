@@ -26,6 +26,7 @@
 #include "router.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
+#include "vm_migrate_handler.h"
 
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace vm;
@@ -80,6 +81,7 @@ void StopThread()
     VmConfiguration::exitFlag.store(true);
     StatusManager::migrateCv.notify_all();
     HamMigrate::Stop();
+    VmMigrateHandler::Stop();
     CaseConf::Stop();
     StatusManager::StopBorrowQueueThread();
 }

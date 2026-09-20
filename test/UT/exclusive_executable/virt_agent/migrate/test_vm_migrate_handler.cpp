@@ -76,4 +76,11 @@ VmResult GetMigrateStates(NumaVMInfoMap& numaVmInfoMap)
     return VM_OK;
 }
 
+TEST_F(TestVmMigrateHandler, Stop_ShouldJoinFlushThread)
+{
+    VmMigrateHandler::FlushExpireDataThread();
+    VmMigrateHandler::Stop();
+    SUCCEED();
+}
+
 } // namespace ubse::vm::ut

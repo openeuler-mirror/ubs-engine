@@ -44,6 +44,13 @@ UBSRMRSMemMigrateFunc MockUBSRMRSMemMigrate()
     };
 }
 
+UBSRMRSMemMigrateFunc MockUBSRMRSMemMigrateFail()
+{
+    return [](const SrcMemoryBorrowParam&, const std::vector<VMPresetParam>&, const MemBorrowExecuteResult&) {
+        return VM_ERROR;
+    };
+}
+
 UBSRMRSMemReturnFunc MockUBSRMRSMemReturn()
 {
     return [](const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& borrowIds,
@@ -161,7 +168,8 @@ TEST_F(TestStatusManager, TestMemoryBorrowOperationBorrowFail)
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).stubs().will(returnValue(static_cast<UBSRMRSMemBorrowFunc>(nullptr)));
     MOCKER(StatusManager::CleanEmptyBorrowRes).expects(never());
     MOCKER(StatusManager::GenerateBorrowIdStatuses).expects(never());
-    StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    auto result = StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    EXPECT_EQ(result, VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).reset();
 }
 
@@ -175,7 +183,8 @@ TEST_F(TestStatusManager, TestMemoryBorrowOperationBorrowSuccess)
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).stubs().will(invoke(MockUBSRMRSMemBorrow));
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).stubs().will(invoke(MockUBSRMRSMemMigrate));
     MOCKER(StatusManager::MigrateSuccessBorrowId).expects(once());
-    StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    auto result = StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    EXPECT_EQ(result, VM_OK);
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).reset();
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).reset();
 }
@@ -190,7 +199,24 @@ TEST_F(TestStatusManager, TestMemoryBorrowOperationMigrateFail)
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).stubs().will(invoke(MockUBSRMRSMemBorrow));
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).stubs().will(returnValue(static_cast<UBSRMRSMemMigrateFunc>(nullptr)));
     MOCKER(StatusManager::MigrateSuccessBorrowId).expects(never());
-    StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    auto result = StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    EXPECT_EQ(result, VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrow).reset();
+    MOCKER(MempoolingModule::UBSRMRSMemMigrate).reset();
+}
+
+TEST_F(TestStatusManager, TestMemoryBorrowOperationMigrateReturnFail)
+{
+    VMNodeLocInfo originNode = {"host1", "host-id-1", 0, 0};
+    std::vector<pid_t> pids = {1, 2, 3};
+    std::vector<uint64_t> borrowSizes = {1024, 2048};
+    VmConfiguration::GetInstance().SetDefaultWaterConf();
+
+    MOCKER(MempoolingModule::UBSRMRSMemBorrow).stubs().will(invoke(MockUBSRMRSMemBorrow));
+    MOCKER(MempoolingModule::UBSRMRSMemMigrate).stubs().will(invoke(MockUBSRMRSMemMigrateFail));
+    MOCKER(StatusManager::MigrateSuccessBorrowId).expects(never());
+    auto result = StatusManager::GetInstance().MemoryBorrowOperation(originNode, pids, borrowSizes);
+    EXPECT_EQ(result, VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrow).reset();
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).reset();
 }

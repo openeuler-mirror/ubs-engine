@@ -560,6 +560,7 @@ void ResourceCollect::FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaIn
     }
 
     UBSE_LOG_INFO << "Fill global numa info for escape strategy.";
+    std::lock_guard<std::mutex> numaInfoGuard(mGlobalNumaLock);
     VMNodeLocInfo alarmNumaLoc = alarmNumaInfo.numaLoc;
     uint64_t totalBorrow = 0;
     for (auto debtInfo : debtInfos) {

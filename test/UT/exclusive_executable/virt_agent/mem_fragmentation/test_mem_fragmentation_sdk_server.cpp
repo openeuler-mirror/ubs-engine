@@ -99,6 +99,16 @@ TEST_F(TestMemFragmentationSdkServer, GetNodeInfo_ShouldReturnError_WhenGetUBSRM
     MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
 }
 
+TEST_F(TestMemFragmentationSdkServer, GetRemoteNodeInfoDestReceiver_ShouldReturnError_WhenGetNumaInfoListFails)
+{
+    UbseByteBuffer req{};
+    UbseByteBuffer rep{};
+    UBSRMRSGetNumaInfoListOnNodeFunc func = nullptr;
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).stubs().will(returnValue(func));
+    EXPECT_EQ(VirtMemFragSdk::GetRemoteNodeInfoDestReceiver(req, rep), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
+}
+
 UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeError()
 {
     return [](std::vector<NumaInfo>&) {
@@ -572,6 +582,35 @@ TEST_F(TestMemFragmentationSdkServer, DeserializeNodeAntiDictionary_ShouldReturn
     EXPECT_EQ(VirtMemFragSdk::DeserializeNodeAntiDictionary(buffer, sizeof(buffer), node_dict_map), VM_OK);
     ASSERT_EQ(node_dict_map.size(), 1);
     EXPECT_EQ(node_dict_map["node"][0], "value");
+    MOCKER(UbseGetAllNodeInfos).reset();
+}
+
+/**
+ * @tc.name  : DeserializeNodeAntiDictionary_ShouldReturnError_WhenEntriesCountExceedsLimit
+ * @tc.number: DeserializeNodeAntiDictionary_004
+ * @tc.desc  : 当entries_count超过MAX_NODE_NUM时，返回error
+ */
+TEST_F(TestMemFragmentationSdkServer, DeserializeNodeAntiDictionary_ShouldReturnError_WhenEntriesCountExceedsLimit)
+{
+    const uint8_t buffer[] = {0xFF, 0xFF, 0xFF, 0xFF};
+    std::map<std::string, std::vector<std::string>> node_dict_map;
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfos));
+    EXPECT_EQ(VirtMemFragSdk::DeserializeNodeAntiDictionary(buffer, sizeof(buffer), node_dict_map), VM_ERROR);
+    MOCKER(UbseGetAllNodeInfos).reset();
+}
+
+/**
+ * @tc.name  : DeserializeNodeAntiDictionary_ShouldReturnError_WhenBufferExhausted
+ * @tc.number: DeserializeNodeAntiDictionary_005
+ * @tc.desc  : 当缓冲区耗尽时ParseEntry返回空key，循环应立即终止返回error
+ */
+TEST_F(TestMemFragmentationSdkServer, DeserializeNodeAntiDictionary_ShouldReturnError_WhenBufferExhausted)
+{
+    const uint8_t buffer[] = {0x02, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 'n', 'o', 'd', 'e', 0x00, 0x01,
+                              0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 'v',  'a', 'l', 'u', 'e', 0x00};
+    std::map<std::string, std::vector<std::string>> node_dict_map;
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfos));
+    EXPECT_EQ(VirtMemFragSdk::DeserializeNodeAntiDictionary(buffer, sizeof(buffer), node_dict_map), VM_ERROR);
     MOCKER(UbseGetAllNodeInfos).reset();
 }
 

@@ -75,6 +75,8 @@ void MempoolingModule::DeInit()
     ubsRMRSSmapAddProcessTrackingFunc_ = nullptr;
     ubsRMRSSmapRemoveProcessTrackingFunc_ = nullptr;
     ubsRMRSSmapEnableProcessMigrateFunc_ = nullptr;
+    ubsRMRSBatchBorrowStrategyFunc_ = nullptr;
+    ubsRMRSSmapEnableProcessMigrateGroupedFunc_ = nullptr;
     libmempoolingHandler_ = nullptr;
 }
 

@@ -38,6 +38,7 @@
 #include "resource_query.h"
 #include "response_info_message.h"
 #include "vm_configuration.h"
+#include "vm_migrate_handler.h"
 
 using namespace vm;
 using namespace ubse::mem::controller;
@@ -1330,6 +1331,7 @@ TEST_F(TestHamMigrate, start_stop)
     ret = HamMigrate::Run();
     EXPECT_EQ(ret, VM_OK);
     ret = HamMigrate::Stop();
+    VmMigrateHandler::Stop();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     EXPECT_EQ(ret, VM_OK);
 }
@@ -1413,6 +1415,34 @@ TEST_F(TestHamMigrate, HamMigrateCancel)
     LibvirtHelper::GetInstance().DeInit();
     HttpUtil::ToUbseByteBuffer(uuid, req);
     HamMigrate::HamMigrateCancel(req, resp);
+}
+
+void MockGetHamMigrateVmInfosByDstNodeIdForCancel(const std::string& dstNodeId, std::vector<HamMigrateVmInfo>& infos)
+{
+    HamMigrateVmInfo info{};
+    info.uuid = "test-uuid-1234";
+    info.dstNodeId = dstNodeId;
+    infos.push_back(info);
+}
+
+TEST_F(TestHamMigrate, HamMigrateCancel_PersistsPanicOnSuccess)
+{
+    std::string uuid = "abcd-1234";
+    UbseByteBuffer req{};
+    UbseByteBuffer resp{};
+    HttpUtil::ToUbseByteBuffer(uuid, req);
+
+    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId)
+        .stubs()
+        .will(invoke(MockGetHamMigrateVmInfosByDstNodeIdForCancel));
+    MOCKER(&LibvirtHelper::DomainAbortJobFlags).stubs().will(returnValue(VM_OK));
+    MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo).expects(once()).will(returnValue(VM_OK));
+
+    HamMigrate::HamMigrateCancel(req, resp);
+
+    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId).reset();
+    MOCKER(&LibvirtHelper::DomainAbortJobFlags).reset();
+    MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo).reset();
 }
 
 TEST_F(TestHamMigrate, HamMigrateCancelReply)
