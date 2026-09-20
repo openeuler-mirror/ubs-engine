@@ -299,6 +299,11 @@ uint32_t DataCollect::GenerateNumaSocketMap()
 void DataCollect::GenerateLendMap(const BorrowMemInfo& borrowMemInfo, const std::string& lendId,
                                   std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap)
 {
+    if (borrowMemInfo.lentNumaInfos.empty()) {
+        UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+            << "Lend record has no numa info, skip. name=" << borrowMemInfo.name;
+        return;
+    }
     std::string name = borrowMemInfo.name;
     std::string destNodeId = borrowMemInfo.borrowNodeId;
     std::string srcNodeId = borrowMemInfo.lentNodeId;
@@ -341,6 +346,11 @@ void DataCollect::GenerateLendMap(const BorrowMemInfo& borrowMemInfo, const std:
 void DataCollect::GenerateBorrowMap(const BorrowMemInfo& borrowMemInfo, const std::string& borrowId,
                                     std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap)
 {
+    if (borrowMemInfo.lentNumaInfos.empty()) {
+        UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+            << "Borrow record has no numa info, skip. name=" << borrowMemInfo.name;
+        return;
+    }
     std::string name = borrowMemInfo.name;
     std::string destNodeId = borrowMemInfo.borrowNodeId;
     std::string srcNodeId = borrowMemInfo.lentNodeId;

@@ -49,7 +49,7 @@ std::vector<MigrationAction> CalMemoryMigrationStrategy()
     std::map<std::string, NodeMemoryInfo> nodes;
     std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> nodeTags;
     for (auto it = BorrowNodeStat::nodeIdToNodeStatMap.begin(); it != BorrowNodeStat::nodeIdToNodeStatMap.end(); it++) {
-        struct NodeMemoryInfo node;
+        struct NodeMemoryInfo node = {};
         std::string nodeName = it->second.GetNodeId();
         node.usedMemory = it->second.GetUsedMem();
         node.freeMemory = it->second.GetFreeMem();
@@ -85,9 +85,9 @@ uint32_t SendMigrateCommands(MigrationAction action)
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
         << "Sending migration commands from node " << action.fromNode;
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Sending migration commands to nid: " << param.dstNid;
-    UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_NAME) << "srcNids: ";
+    UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "srcNids: ";
     for (auto nid : param.srcNids) {
-        UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_NAME) << "nid: " << nid;
+        UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "nid: " << nid;
     }
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
         << "highWatermarkPages: " << param.highWatermarkPages << " lowWatermarkPages: " << param.lowWatermarkPages;
@@ -223,6 +223,7 @@ bool ExecuteMigrationStrategy()
 
     if (ucache::fault_handler::EventHandler::gNodeFaultFlag.load()) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node fault occurred, Migration canceled.";
+        return true;
     }
 
     // 发送迁移动作

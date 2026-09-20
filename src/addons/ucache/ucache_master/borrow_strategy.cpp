@@ -114,7 +114,9 @@ uint32_t BorrowStrategy::ReclaimLoanedMemory(BorrowNodeStat* nodeStat)
     for (auto& nodeMemBorrowInfo : curBorrowTopo.lendMap[nodeStat->GetNodeId()]) {
         auto it = BorrowNodeStat::nodeIdToNodeStatMap.find(nodeMemBorrowInfo.destNodeId);
         if (it == BorrowNodeStat::nodeIdToNodeStatMap.end()) {
-            break;
+            UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+                << "ReclaimLoanedMemory: dest node " << nodeMemBorrowInfo.destNodeId << " not found, skip.";
+            continue;
         }
         borrowNodes.emplace_back(&(it->second));
     }

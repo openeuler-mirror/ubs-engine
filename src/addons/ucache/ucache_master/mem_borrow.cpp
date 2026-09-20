@@ -185,7 +185,7 @@ BorrowNodeStat::BorrowNodeStat(BorrowStrategyRawData& borrowRawData)
     for (const auto& kv : remoteNumaMemInfo) {
         freeMem += kv.second.available;
     }
-    freeMem -= freeMemMin;
+    freeMem = (freeMem > freeMemMin) ? freeMem - freeMemMin : 0;
 
     // 计算借用内存使用率
 
@@ -231,6 +231,8 @@ uint32_t BorrowNodeStat::InitBorrowNodeStat()
         return BORROW_DATA_ERROR;
     }
 
+    // 每轮全量重建，清理故障/下线节点的陈旧条目
+    nodeIdToNodeStatMap.clear();
     for (auto rawData : borrowRawData) {
         auto it = DataCollect::phyNodeStatMap.find(rawData.nodeId);
         if (it != DataCollect::phyNodeStatMap.end() && it->second != PhyNodeStat::ACTIVE) {
@@ -493,7 +495,19 @@ uint32_t MemBorrowTopo::GetBorrowableNumaInfo(const std::string& node, int& sock
     if (ret == UCACHE_OK) {
         std::map<std::string, std::map<int, int>> socketMap;
         DataCollect::GetNumaSocketMap(socketMap);
-        socketId = socketMap[node][numaId];
+        auto nodeIter = socketMap.find(node);
+        if (nodeIter == socketMap.end()) {
+            UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+                << "Node(" << node << ") not found in socket map.";
+            return EXEC_MEM_BORROW_ERROR;
+        }
+        auto numaIter = nodeIter->second.find(numaId);
+        if (numaIter == nodeIter->second.end()) {
+            UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+                << "Numa(" << numaId << ") of node(" << node << ") not found in socket map.";
+            return EXEC_MEM_BORROW_ERROR;
+        }
+        socketId = numaIter->second;
     }
 
     return ret;
@@ -634,6 +648,7 @@ uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string& memName, const 
     if (!MemBorrowTopoCheck(from, to)) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Delete memory(" << from << ", " << to << ") from lend map failed";
+        return BORROW_TOPO_ERROR;
     }
     auto lendMapIter = lendMap.find(from);
     auto borrowMapIter = borrowMap.find(to);
