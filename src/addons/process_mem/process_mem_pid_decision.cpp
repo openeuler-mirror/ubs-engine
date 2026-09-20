@@ -51,6 +51,8 @@ constexpr uint64_t BYTES_PER_MB = 1048576;
 constexpr uint64_t MB_128 = 128;
 constexpr uint32_t kBorrowHighWatermark = 100;
 constexpr uint32_t kMaxReturnRetry = 100;
+constexpr uint32_t kMaxEnqueueSpinAttempts = 3;    // 归还 worker 内入队自旋上限, 耗尽交给兜底扫描
+constexpr uint64_t kStrandedSweepIntervalSec = 60; // 搁浅 RETURNING 槽兜底重驱动间隔(慢档)
 constexpr int64_t kEmergencyBroadcastIntervalMs = 2000;
 constexpr int kMaxConflictRetry = 10;       // rmrs 并发冲突放锁重试次数上限
 constexpr int kConflictRetryDelayMs = 1000; // 放锁等待间隔, 让同 numa 冲突操作完成
@@ -452,9 +454,13 @@ void ProcessMemPidDecision::UnInit()
 
 void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
 {
+    // 决策定时轮与 OOM 紧急借用都会读 pendingMigrate/候选额度并记账, 必须整轮串行,
+    // 否则同一 pid 的 canMigrate 被两条路径重复消费(瞬态超借); OOM 侧 try_lock 不阻塞轮询
+    std::lock_guard<std::mutex> roundLock(borrowRoundMutex_);
     auto roundStart = std::chrono::steady_clock::now();
 
     CheckTimeouts(roundNum);
+    RedriveStrandedReturns(roundNum);
 
     uint64_t shortage = 0;
     if (!CheckNodeFreeMemory(shortage)) {
@@ -490,9 +496,56 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
                   << " remaining_shortage_gb=" << BytesToGb(shortage) << " dur_ms=" << durMs;
 }
 
+// RETURNING 槽无人驱动会永久搁置(lender 不再短缺时 PASSIVE 归还不再重播, worker 自旋耗尽后放弃),
+// 阻塞该 pid 的对账/再平衡/额度复用; 慢档兜底按时间间隔重驱动, 借用方自驱动(ACTIVE),
+// 在途重复入队由 RunReturnDebt 的债务级守卫吸收
+void ProcessMemPidDecision::RedriveStrandedReturns(uint64_t roundNum)
+{
+    auto now = std::chrono::steady_clock::now();
+    if (lastStrandedSweep_.time_since_epoch().count() == 0) {
+        // 首次调用只计时, 避免启动后立即重驱动
+        lastStrandedSweep_ = now;
+        return;
+    }
+    if (now - lastStrandedSweep_ < std::chrono::seconds(kStrandedSweepIntervalSec)) {
+        return;
+    }
+    lastStrandedSweep_ = now;
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    for (const auto& [pid, entry] : snapshot) {
+        std::vector<def::ReturnRequestItem> stranded;
+        for (const auto& slot : entry.borrow.slots) {
+            if (slot.status != def::BorrowSlotStatus::RETURNING || slot.debtId.empty()) {
+                continue;
+            }
+            // r2r 替换旧债由替换流程与 lender 重播负责, 兜底重驱动会重走建债迁移
+            if (entry.borrow.r2rReplacedDebts.count(slot.debtId) > 0) {
+                continue;
+            }
+            stranded.push_back({slot.debtId, slot.migratedBytes});
+        }
+        if (stranded.empty() || IsPidReturnInFlight(pid)) {
+            continue;
+        }
+        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " stranded_sweep pid=" << pid
+                      << " debts=" << stranded.size();
+        for (const auto& item : stranded) {
+            if (!EnqueueReturnDebt(pid, item, ReturnScene::ACTIVE)) {
+                UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " stranded_sweep pid=" << pid
+                              << " debt_id=" << item.name << " enqueue failed, wait next sweep";
+            }
+        }
+    }
+}
+
 uint32_t ProcessMemPidDecision::OnDecisionTimer()
 {
     uint64_t roundNum = roundNumber_.fetch_add(1) + 1;
+
+    if (!BorrowExecutorReady()) {
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " skip: borrow executor not ready";
+        return UBSE_OK;
+    }
 
     bool expected = false;
     if (!cycleRunning_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
@@ -731,6 +784,10 @@ void ProcessMemPidDecision::ExecuteBorrowRound(const std::vector<def::BorrowCand
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
 
     for (const auto& candidate : candidates) {
+        if (!BorrowExecutorReady()) {
+            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " abort: borrow executor not ready";
+            break;
+        }
         if (shortage == 0) {
             break;
         }
@@ -1423,7 +1480,9 @@ bool ProcessMemPidDecision::IsPidReturnInFlight(pid_t pid)
 
 bool ProcessMemPidDecision::EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene)
 {
-    if (stopping_) {
+    if (!ReturnExecutorReady()) {
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " debt_id=" << item.name
+                       << " enqueue rejected: not ready";
         return false;
     }
     std::string traceId = TraceContext::GetTraceId();
@@ -1570,7 +1629,9 @@ uint32_t ProcessMemPidDecision::DoReturnDebtOnce(pid_t pid, const def::ReturnReq
 
 bool ProcessMemPidDecision::EnqueuePidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots)
 {
-    if (stopping_) {
+    if (!ReturnExecutorReady()) {
+        UBSE_LOG_DEBUG << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                       << " enqueue rejected: not ready";
         return false;
     }
     return returnExecutor_->Execute([this, pid, scene, slots]() { RunPidReturn(pid, scene, slots); });
@@ -1724,7 +1785,8 @@ void ProcessMemPidDecision::RecoverBindDebt(pid_t pid, const ubse::mem::controll
 
 bool ProcessMemPidDecision::EnqueueOrphanReturn(const std::string& debtName)
 {
-    if (stopping_) {
+    if (!ReturnExecutorReady()) {
+        UBSE_LOG_DEBUG << "[process_mem] return orphan debt_id=" << debtName << " enqueue rejected: not ready";
         return false;
     }
     std::string traceId = TraceContext::GetTraceId();
@@ -1753,13 +1815,20 @@ void ProcessMemPidDecision::RunOrphanReturn(const std::string& debtName)
 void ProcessMemPidDecision::RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue)
 {
     if (retryCount > kMaxReturnRetry) {
-        UBSE_LOG_WARN << "[process_mem] return retry exhausted (retries=" << retryCount << "), give up";
+        UBSE_LOG_WARN << "[process_mem] return retry exhausted (retries=" << retryCount
+                      << "), give up, leave to stranded sweep";
         return;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(returnRetryIntervalMs_));
-    while (!enqueue() && !stopping_) {
+    // 有界自旋: worker 不能无限阻塞等自己队列的空间(4 个归还 worker 全卡住会无人消费队列, 形成活锁);
+    // 耗尽后放弃本次入队, 槽保持 RETURNING, 由决策轮 RedriveStrandedReturns 兜底重新驱动
+    for (uint32_t i = 0; i < kMaxEnqueueSpinAttempts && !stopping_.load(); ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(returnRetryIntervalMs_));
+        if (enqueue()) {
+            return;
+        }
     }
+    UBSE_LOG_WARN << "[process_mem] return enqueue spin exhausted (retries=" << retryCount
+                  << "), leave to stranded sweep";
 }
 
 uint32_t ProcessMemPidDecision::NextReturnRetryCount(const std::string& key)
@@ -2901,6 +2970,12 @@ void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t roundNum, uint64_t node
 void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree)
 {
     if (nodeFree >= freeMemoryThresholdBytes_) {
+        return;
+    }
+    // 借用轮(决策定时轮/其它紧急轮)在飞时跳过本轮: 非阻塞, 200ms 后自然重试
+    std::unique_lock<std::mutex> roundLock(borrowRoundMutex_, std::try_to_lock);
+    if (!roundLock.owns_lock()) {
+        UBSE_LOG_DEBUG << "[process_mem] oom emergency_borrow skip: borrow round busy";
         return;
     }
     uint64_t shortage = freeMemoryThresholdBytes_ - nodeFree;
