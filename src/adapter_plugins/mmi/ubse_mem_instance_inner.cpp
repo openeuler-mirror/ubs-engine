@@ -573,7 +573,10 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
         UBSE_LOG_DEBUG << "The value of wr_delay_comp is " << importObj.req.ubseMemPrivData.wrDelayComp;
         mem_id memid =
             RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo[i].desc, obmmOpParam, &addrRemoteNumaId);
-        if (memid == INVALID_MEM_ID || addrRemoteNumaId == -1) {
+        if (memid != INVALID_MEM_ID) {
+            memIds.emplace_back(memid);
+        }
+        if (memid == INVALID_MEM_ID || addrRemoteNumaId == INVALID_NUMAID) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "obmm import error, start to rollback.";
             MemInstanceInnerCommon::GetInstance().RollbackImport(memIds);
             RollBackAddrRemoteNuma(addrRemoteNumaIds);
@@ -581,12 +584,12 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
             importObj.status.importResults.clear();
             return UBSE_MMI_OBMM_OP_FAILED;
         }
-        memIds.emplace_back(memid);
         if (addrRemoteNumaId != addrRemoteNumaIds.back()) {
-            // ObmmImport可能回写与预留守值不同的实际远端NUMA ID，同步预留集合，
-            // 避免预留守值永久残留在addrRemoteNumaIdSet中无法重用
+            // ObmmImport可能回写与预留值不同的实际远端NUMA ID，同步预留集合，
+            // 避免预留值永久残留在addrRemoteNumaIdSet中无法重用
             DeleteAddrRemoteNuma(addrRemoteNumaIds.back());
             AddAddrRemoteNuma(addrRemoteNumaId);
+            addrRemoteNumaIds.back() = addrRemoteNumaId;
         }
         importObj.status.importResults.push_back({memid, addrRemoteNumaId});
     }
@@ -767,16 +770,25 @@ UbseResult MemInstanceInnerAddrBorrow::GenerateAddrRemoteNuma(int& remoteNumaId)
     return UBSE_MMI_OBMM_OP_FAILED;
 }
 
-void RollBackPreOnline(const std::vector<obmm_preimport_info>& obmmPreImportInfos)
+void RollBackPreOnline(std::vector<obmm_preimport_info>& obmmPreImportInfos,
+                       std::vector<PreImportHandleRecord>& preImportHandleRecords)
 {
-    for (auto& item : obmmPreImportInfos) {
-        auto tempObmmPreImportInfo = item;
+    for (size_t i = 0; i < obmmPreImportInfos.size(); ++i) {
+        auto tempObmmPreImportInfo = obmmPreImportInfos[i];
         auto ret = RmObmmExecutor::GetInstance().ObmmUnPreImport(&tempObmmPreImportInfo, 0u);
         if (UBSE_RESULT_FAIL(ret)) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnPreImport failed, scna= " << tempObmmPreImportInfo.scna
                            << ", dcna= " << tempObmmPreImportInfo.dcna;
+            continue;
+        }
+        if (i < preImportHandleRecords.size()) {
+            const auto& record = preImportHandleRecords[i];
+            mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(record.loc,
+                                                                                                record.handle);
         }
     }
+    obmmPreImportInfos.clear();
+    preImportHandleRecords.clear();
 }
 
 UbseResult SetPreImportDecoderParam(const SocketCnaInfo& cnaTopoInfo, uint64_t preImportSize, uint64_t Dcna,
@@ -796,7 +808,8 @@ UbseResult SetPreImportDecoderParam(const SocketCnaInfo& cnaTopoInfo, uint64_t p
 UbseResult MemPreImport(BasicPreImportInfo& basicPreImportInfo,
                         const mem::decoder::utils::PreImportDecoderParam& preImportDecoderParam,
                         const adapter_plugins::mti::mami::UbseMamiMemImportResult importValue,
-                        std::vector<obmm_preimport_info>& obmmPreImportInfos)
+                        std::vector<obmm_preimport_info>& obmmPreImportInfos,
+                        std::vector<PreImportHandleRecord>& preImportHandleRecords)
 {
     auto ret = UBSE_OK;
     basicPreImportInfo.preOnlineSize = preImportDecoderParam.size;
@@ -807,26 +820,28 @@ UbseResult MemPreImport(BasicPreImportInfo& basicPreImportInfo,
     auto preImportInfo = ConstructPreImportInfo(basicPreImportInfo);
     if (!preImportInfo) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "PreImportInfo is nullptr.";
-        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc);
-        RollBackPreOnline(obmmPreImportInfos);
+        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc, importValue.handle);
+        RollBackPreOnline(obmmPreImportInfos, preImportHandleRecords);
         return UBSE_ERROR_INVAL;
     }
     ret = RmObmmExecutor::GetInstance().ObmmPreImport(preImportInfo, 0u);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmPreImport failed.";
         RmCommonUtils::GetInstance().SafeFree(preImportInfo);
-        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc);
-        RollBackPreOnline(obmmPreImportInfos);
+        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc, importValue.handle);
+        RollBackPreOnline(obmmPreImportInfos, preImportHandleRecords);
         return ret;
     }
     obmmPreImportInfos.push_back(*preImportInfo);
+    preImportHandleRecords.push_back({loc, importValue.handle});
     RmCommonUtils::GetInstance().SafeFree(preImportInfo);
 
     return ret;
 }
 
 UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
-                   std::vector<obmm_preimport_info>& obmmPreImportInfos, uint64_t preImportSize)
+                   std::vector<obmm_preimport_info>& obmmPreImportInfos,
+                   std::vector<PreImportHandleRecord>& preImportHandleRecords, uint64_t preImportSize)
 {
     uint32_t portId;
     auto ret = ConvertStrToUint32(portInfo.portId, portId);
@@ -836,6 +851,10 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
     }
     std::string chipPortStr = std::to_string(cnaTopoInfo.importSocketId) + "-" + std::to_string(portId);
     int numaId = MemInstanceInnerCommon::GetInstance().GetNuma(chipPortStr);
+    if (numaId == INVALID_NUMAID) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaid failed, chipPortStr=" << chipPortStr;
+        return UBSE_ERROR_INVAL;
+    }
     uint32_t portCna = portInfo.portCna;
     BasicPreImportInfo basicPreImportInfo{0,      cnaTopoInfo.scna, portCna,          cnaTopoInfo.marId,
                                           numaId, preImportSize,    cnaTopoInfo.seid, cnaTopoInfo.deid};
@@ -864,7 +883,8 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
     }
     UBSE_LOG_INFO << "dcna is " << basicPreImportInfo.dcna << "value is " << importValue.hpa << "handle is "
                   << importValue.handle;
-    ret = MemPreImport(basicPreImportInfo, preImportDecoderParam, importValue, obmmPreImportInfos);
+    ret = MemPreImport(basicPreImportInfo, preImportDecoderParam, importValue, obmmPreImportInfos,
+                       preImportHandleRecords);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -874,6 +894,7 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
 UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint64_t preImportSize)
 {
     std::vector<obmm_preimport_info> obmmPreImportInfos{};
+    std::vector<PreImportHandleRecord> preImportHandleRecords{};
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (auto& cnaTopoInfo : cnaTopoInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO
@@ -882,6 +903,7 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint
         if (nodeInfo == nodeInfos.end()) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to find node info in all node infos, node id is "
                            << cnaTopoInfo.exportNodeId;
+            RollBackPreOnline(obmmPreImportInfos, preImportHandleRecords);
             return UBSE_ERROR;
         }
         std::pair<uint32_t, uint32_t> chipDiePair{};
@@ -891,6 +913,7 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint
         if (res != UBSE_OK || cpuInfos == nodeInfo->second.cpuInfos.end()) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to find cpu info in all cpu infos, node id is " << location.nodeId
                            << ", socket id is " << location.chipId;
+            RollBackPreOnline(obmmPreImportInfos, preImportHandleRecords);
             return UBSE_ERROR;
         }
         for (const auto& portInfo : cpuInfos->second.portInfos) {
@@ -900,7 +923,9 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint
                 continue;
             }
 
-            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize) != UBSE_OK) {
+            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportHandleRecords, preImportSize) !=
+                UBSE_OK) {
+                RollBackPreOnline(obmmPreImportInfos, preImportHandleRecords);
                 return UBSE_ERROR;
             }
         }

@@ -175,4 +175,18 @@ TEST_F(TestUbseObmmExecutor, Exit_Success)
     auto ret = RmObmmExecutor::GetInstance().Exit();
     EXPECT_EQ(ret, UBSE_OK);
 }
+
+TEST_F(TestUbseObmmExecutor, ObmmExportPid_NullptrFunc)
+{
+    auto& executor = RmObmmExecutor::GetInstance();
+    auto oldExportByPidFunc = executor.obmmExportByPidFunc;
+    executor.obmmExportByPidFunc = nullptr;
+    ObmmPidExportParam param(0, nullptr, 0, 0, 0, 0);
+    ubse_mem_obmm_mem_desc desc{};
+    UbseMemLocalObmmCustomMeta customMeta{};
+    UbMemPrivData privData{};
+
+    EXPECT_EQ(executor.ObmmExportPid(param, desc, customMeta, privData), UBSE_ERROR_NULLPTR);
+    executor.obmmExportByPidFunc = oldExportByPidFunc;
+}
 } // namespace ubse::ut::mmi

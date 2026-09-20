@@ -21,10 +21,55 @@
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
+namespace ubse::mmi {
+UbseResult GetDcna(const nodeController::UbsePortInfo portInfo, const adapter_plugins::mmi::SocketCnaInfo cnaTopoInfo,
+                   std::vector<obmm_preimport_info>& obmmPreImportInfos,
+                   std::vector<PreImportHandleRecord>& preImportHandleRecords, uint64_t preImportSize);
+UbseResult PreOnlineHandler(const std::vector<adapter_plugins::mmi::SocketCnaInfo>& cnaTopoInfos,
+                            uint64_t preImportSize);
+} // namespace ubse::mmi
+
 namespace ubse::ut::mmi {
 using namespace ubse::mmi;
 using namespace ubse::utils;
 using namespace ubse::nodeController;
+
+static int gAddrImportCount = 0;
+static int gUnPreImportCount = 0;
+static std::vector<mem_id> gUnimportMemIds{};
+
+mem_id MockAddrImportWithUpdatedNuma(RmObmmExecutor* mockClass, const ubse_mem_obmm_mem_desc& desc,
+                                     const ObmmOpParam& opParam, int* numa)
+{
+    if (gAddrImportCount++ == 0) {
+        *numa = 100;
+        return 1;
+    }
+    *numa = INVALID_NUMAID;
+    return 2;
+}
+
+UbseResult MockGetDcnaWithPreImport(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
+                                    std::vector<obmm_preimport_info>& obmmPreImportInfos,
+                                    std::vector<PreImportHandleRecord>& preImportHandleRecords, uint64_t preImportSize)
+{
+    mem::decoder::utils::DecoderEntryLoc loc{1, 2, 3, 0};
+    obmmPreImportInfos.emplace_back();
+    preImportHandleRecords.push_back({loc, 4});
+    return UBSE_OK;
+}
+
+UbseResult MockObmmUnImport(RmObmmExecutor* mockClass, mem_id memId)
+{
+    gUnimportMemIds.push_back(memId);
+    return UBSE_OK;
+}
+
+UbseResult MockObmmUnPreImport(RmObmmExecutor* mockClass, obmm_preimport_info* preImportInfo, unsigned long flags)
+{
+    ++gUnPreImportCount;
+    return UBSE_OK;
+}
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::context;
 
@@ -231,6 +276,33 @@ TEST_F(TestMemInstanceInner, MemAddrImportExecutor_Success)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
+TEST_F(TestMemInstanceInner, MemAddrImportExecutor_RollbackUpdatedNumaAndCurrentMemId)
+{
+    auto& addrBorrow = MemInstanceInnerAddrBorrow::GetInstance();
+    auto oldRemoteNumaIds = addrBorrow.addrRemoteNumaIdSet;
+    addrBorrow.addrRemoteNumaIdSet.clear();
+    UbseMemAddrBorrowImportObj importObj{};
+    importObj.exportObmmInfo.resize(2);
+    importObj.req.exportAddrList.resize(2);
+    importObj.status.decoderResult.resize(2);
+    importObj.algoResult.exportNumaInfos.emplace_back();
+    importObj.algoResult.importNumaInfos.emplace_back();
+    gAddrImportCount = 0;
+    gUnimportMemIds.clear();
+    MOCKER(&RmObmmExecutor::ObmmImport,
+           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa))
+        .stubs()
+        .will(invoke(MockAddrImportWithUpdatedNuma));
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id))
+        .stubs()
+        .will(invoke(MockObmmUnImport));
+
+    EXPECT_EQ(addrBorrow.MemAddrImportExecutor(importObj), UBSE_MMI_OBMM_OP_FAILED);
+    EXPECT_TRUE(addrBorrow.addrRemoteNumaIdSet.empty());
+    EXPECT_EQ(gUnimportMemIds, (std::vector<mem_id>{1, 2}));
+    addrBorrow.addrRemoteNumaIdSet = std::move(oldRemoteNumaIds);
+}
+
 TEST_F(TestMemInstanceInner, MemAddrUnImportExecutor_Success)
 {
     UbseMemAddrBorrowImportObj importObj{};
@@ -289,6 +361,59 @@ TEST_F(TestMemInstanceInner, MemAddrUnExportExecutor_Success)
 TEST_F(TestMemInstanceInner, AddAddrRemoteNuma_Success)
 {
     EXPECT_NO_THROW(MemInstanceInnerAddrBorrow::GetInstance().AddAddrRemoteNuma(5));
+}
+
+TEST_F(TestMemInstanceInner, GetDcna_InvalidNuma)
+{
+    auto& common = MemInstanceInnerCommon::GetInstance();
+    auto oldRemoteNumaMap = common.mRemoteNumaMap;
+    common.mRemoteNumaMap.clear();
+    UbsePortInfo portInfo{};
+    portInfo.portId = "1";
+    SocketCnaInfo cnaInfo{};
+    std::vector<obmm_preimport_info> obmmPreImportInfos{};
+    std::vector<PreImportHandleRecord> preImportHandleRecords{};
+
+    EXPECT_EQ(GetDcna(portInfo, cnaInfo, obmmPreImportInfos, preImportHandleRecords, 1024), UBSE_ERROR_INVAL);
+    common.mRemoteNumaMap = std::move(oldRemoteNumaMap);
+}
+
+TEST_F(TestMemInstanceInner, PreOnlineHandler_RollbackOnNodeLookupFailure)
+{
+    auto& prehandleManager = mem::decoder::utils::UbseMemPrehandleManager::GetInstance();
+    prehandleManager.preHandleMap.clear();
+    mem::decoder::utils::DecoderEntryLoc preImportLoc{1, 2, 3, 0};
+    adapter_plugins::mti::mami::UbseMamiMemImportResult preImportValue{};
+    preImportValue.handle = 4;
+    prehandleManager.CreatePreHandle(preImportLoc, preImportValue, 100, 1024);
+    SocketCnaInfo validCnaInfo{};
+    validCnaInfo.importNodeId = "import-node";
+    validCnaInfo.exportNodeId = "export-node";
+    UbsePortInfo portInfo{};
+    portInfo.portId = "1";
+    portInfo.portStatus = PortStatus::UP;
+    portInfo.remoteSlotId = validCnaInfo.importNodeId;
+    portInfo.remoteChipId = "0";
+    UbseCpuInfo cpuInfo{};
+    cpuInfo.portInfos.emplace(portInfo.portId, portInfo);
+    UbseCpuLocation cpuLocation{validCnaInfo.exportNodeId, validCnaInfo.exportSocketId};
+    ubse::nodeController::UbseNodeInfo nodeInfo{};
+    nodeInfo.cpuInfos.emplace(cpuLocation, cpuInfo);
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    nodeInfos.emplace(validCnaInfo.exportNodeId, nodeInfo);
+    SocketCnaInfo missingNodeCnaInfo{};
+    missingNodeCnaInfo.exportNodeId = "missing-node";
+    std::vector<SocketCnaInfo> cnaTopoInfos{validCnaInfo, missingNodeCnaInfo};
+    gUnPreImportCount = 0;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    MOCKER(&mem::decoder::utils::MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
+    MOCKER(GetDcna).stubs().will(invoke(MockGetDcnaWithPreImport));
+    MOCKER(&RmObmmExecutor::ObmmUnPreImport).stubs().will(invoke(MockObmmUnPreImport));
+
+    EXPECT_EQ(PreOnlineHandler(cnaTopoInfos, 1024), UBSE_ERROR);
+    EXPECT_EQ(gUnPreImportCount, 1);
+    adapter_plugins::mti::mami::UbseMamiMemImportResult outValue{};
+    EXPECT_EQ(prehandleManager.GetPreHandleByDcna(preImportLoc, 100, outValue), UBSE_ERROR);
 }
 
 TEST_F(TestMemInstanceInner, MemPreOnline_Success)
