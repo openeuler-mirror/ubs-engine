@@ -234,4 +234,20 @@ void UbseMemPrehandleManager::RollbackPreImportHandle(const decoder::utils::Deco
     }
 }
 
+void UbseMemPrehandleManager::RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc& loc, uint64_t handle)
+{
+    std::lock_guard<std::mutex> lock(handleLock);
+    auto iterator = preHandleMap.find(loc);
+    if (iterator == preHandleMap.end()) {
+        return;
+    }
+    for (auto& preInfo : iterator->second) {
+        if (preInfo.importResult.handle == handle) {
+            preInfo.dcna = 0;
+            preInfo.isPreImport = false;
+            return;
+        }
+    }
+}
+
 } // namespace ubse::mem::decoder::utils
