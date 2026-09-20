@@ -155,8 +155,16 @@ UbseResult UbseVipModule::LoadConfig()
         config_.listenPort = listenPort;
     }
 
+    // 主机模式网卡名直接来自配置(替代原 /var/run/ubse/ubse_iface 文件);容器模式由 UDS 注入,不走此分支
+    ret = confModule->GetConf(section, "vip.iface", config_.interface);
+    if (ret != UBSE_OK || config_.interface.empty()) {
+        UBSE_LOG_ERROR << "[VIP] vip.iface is not configured";
+        return UBSE_ERROR;
+    }
+
     UBSE_LOG_INFO << "[VIP] Config loaded: listenIp=" << config_.listenIp
                   << ", listenPort=" << config_.listenPort
+                  << ", iface=" << config_.interface
                   << ", rateLimitRps=" << config_.rateLimitRps
                   << ", maxQueuedRequests=" << config_.maxQueuedRequests;
     return UBSE_OK;

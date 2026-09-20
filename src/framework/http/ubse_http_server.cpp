@@ -447,7 +447,7 @@ bool UbseHttpServer::IsRateLimited(const httplib::Request& req)
     auto now = std::chrono::steady_clock::now();
     constexpr std::chrono::milliseconds windowMs(1000); // 1秒滑动窗口
 
-    // 注：rateLimitMutex_ 当前为全局单锁；rateLimitRps推荐值为 100，单锁在该量级下无瓶颈。
+    // 注：rateLimitMutex_ 当前为全局单锁；rateLimitRps 默认值为 1000，单锁在该量级下无瓶颈。
     // 若未来调高至数千 rps 或多核高并发场景下成为热点，可改为分片锁或 per-IP 局部锁。
     std::lock_guard<std::mutex> lock(rateLimitMutex_);
 
