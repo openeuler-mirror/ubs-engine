@@ -225,7 +225,11 @@ VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务�
     vip.enable=true
     vip.httpServer.listen.ip=192.168.100.200/24
     vip.httpServer.listen.port=10002
+    vip.iface=enp0s1
     ```
+
+    > [!NOTE]
+    > `vip.iface` 为 VIP 绑定的物理网卡名称（内核网卡名，可用 `ip link` 查询），主机部署开启 VIP 时必填；容器场景无需配置，由 ubse-helper 注入。
 
 2. 重启 ubs engine 服务使配置生效：
 

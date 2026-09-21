@@ -16,8 +16,6 @@
 
 #include "ubse_vip_manager.h"
 
-#include <fstream>
-
 #include "ubse_error.h"
 #include "ubse_http_server.h"
 #include "ubse_net_util.h"
@@ -33,25 +31,7 @@ using namespace ubse::cert;
 namespace ubse::ut::vip {
 
 namespace {
-constexpr const char *kTestIface = "eth0";
-constexpr const char *kTestIfaceFilePath = "/var/run/ubse/ubse_iface";
-
-// 创建 iface 文件以便 ResolveInterface 能成功读取，需 root 权限写 /var/run/ubse/
-bool PrepareIfaceFile(const std::string &iface)
-{
-    std::ofstream ofs(kTestIfaceFilePath);
-    if (!ofs.is_open()) {
-        return false;
-    }
-    ofs << iface;
-    ofs.close();
-    return true;
-}
-
-void CleanupIfaceFile()
-{
-    std::remove(kTestIfaceFilePath);
-}
+constexpr const char *kTestIface = "enp0s1";
 
 UbseVipConfig MakeValidConfig()
 {
@@ -59,6 +39,7 @@ UbseVipConfig MakeValidConfig()
     cfg.enable = true;
     cfg.listenIp = "192.168.100.200/24";
     cfg.listenPort = 10002;
+    cfg.interface = kTestIface;
     cfg.arpCount = 5;
     cfg.arpInterval = 200;
     return cfg;
@@ -80,7 +61,6 @@ public:
     {
         Test::TearDown();
         UbseVipManager::GetInstance().Deinit();
-        CleanupIfaceFile();
         GlobalMockObject::verify();
     }
 };
@@ -169,12 +149,23 @@ TEST_F(TestUbseVipManager, Init_PrefixTooLarge_ReturnsError)
 }
 
 /*
- * 用例描述：ResolveInterface 失败（iface 文件不存在），Init 应返回 UBSE_ERROR
+ * 用例描述：ValidateInterface 失败（iface 未配置），Init 应返回 UBSE_ERROR
  */
-TEST_F(TestUbseVipManager, Init_IfaceFileMissing_ReturnsError)
+TEST_F(TestUbseVipManager, Init_IfaceMissing_ReturnsError)
 {
     UbseVipConfig cfg = MakeValidConfig();
-    CleanupIfaceFile();
+    cfg.interface.clear();
+    MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
+    EXPECT_EQ(UBSE_ERROR, UbseVipManager::GetInstance().Init(cfg));
+}
+
+/*
+ * 用例描述：ValidateInterface 失败（iface 含非法字符，防命令注入），Init 应返回 UBSE_ERROR
+ */
+TEST_F(TestUbseVipManager, Init_InvalidIface_ReturnsError)
+{
+    UbseVipConfig cfg = MakeValidConfig();
+    cfg.interface = "enp0s1; rm -rf /";
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_ERROR, UbseVipManager::GetInstance().Init(cfg));
 }
@@ -184,9 +175,6 @@ TEST_F(TestUbseVipManager, Init_IfaceFileMissing_ReturnsError)
  */
 TEST_F(TestUbseVipManager, Init_CertValidationFails_ReturnsError)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(false));
@@ -198,9 +186,6 @@ TEST_F(TestUbseVipManager, Init_CertValidationFails_ReturnsError)
  */
 TEST_F(TestUbseVipManager, Init_Success)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
@@ -209,7 +194,7 @@ TEST_F(TestUbseVipManager, Init_Success)
     EXPECT_EQ(cfg.listenIp, UbseVipManager::GetInstance().GetConfig().listenIp);
     EXPECT_EQ(std::string("192.168.100.200"), UbseVipManager::GetInstance().GetConfig().address);
     EXPECT_EQ(24u, UbseVipManager::GetInstance().GetConfig().prefix);
-    EXPECT_EQ(std::string("eth0"), UbseVipManager::GetInstance().GetConfig().interface);
+    EXPECT_EQ(std::string(kTestIface), UbseVipManager::GetInstance().GetConfig().interface);
 }
 
 /*
@@ -229,9 +214,6 @@ TEST_F(TestUbseVipManager, BindVip_Disabled_ReturnsOK)
  */
 TEST_F(TestUbseVipManager, BindVip_AlreadyBound_ReturnsOK)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
@@ -249,9 +231,6 @@ TEST_F(TestUbseVipManager, BindVip_AlreadyBound_ReturnsOK)
  */
 TEST_F(TestUbseVipManager, BindVip_BindL2Fails_ReturnsError)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -268,9 +247,6 @@ TEST_F(TestUbseVipManager, BindVip_BindL2Fails_ReturnsError)
  */
 TEST_F(TestUbseVipManager, BindVip_StartHttpFails_RollsBack)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -287,9 +263,6 @@ TEST_F(TestUbseVipManager, BindVip_StartHttpFails_RollsBack)
  */
 TEST_F(TestUbseVipManager, BindVip_Success)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -318,9 +291,6 @@ TEST_F(TestUbseVipManager, UnbindVip_Disabled_ReturnsOK)
  */
 TEST_F(TestUbseVipManager, UnbindVip_NotBound_StillCallsDel)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
@@ -335,9 +305,6 @@ TEST_F(TestUbseVipManager, UnbindVip_NotBound_StillCallsDel)
  */
 TEST_F(TestUbseVipManager, UnbindVip_DelFails_StillReturnsOK)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -369,9 +336,6 @@ TEST_F(TestUbseVipManager, RegisterRoute_WhenServerNotRunning_StoresPending)
  */
 TEST_F(TestUbseVipManager, RegisterRoute_WhenServerRunning_RegistersDirectly)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -389,9 +353,6 @@ TEST_F(TestUbseVipManager, RegisterRoute_WhenServerRunning_RegistersDirectly)
  */
 TEST_F(TestUbseVipManager, Deinit_WhenBound_UnbindsVip)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -410,9 +371,6 @@ TEST_F(TestUbseVipManager, Deinit_WhenBound_UnbindsVip)
  */
 TEST_F(TestUbseVipManager, Deinit_UnbindFails_TriggersForceCleanup)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 1;
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
@@ -433,9 +391,6 @@ TEST_F(TestUbseVipManager, Deinit_UnbindFails_TriggersForceCleanup)
  */
 TEST_F(TestUbseVipManager, ForceCleanup_NoStaleVip_ReturnsOK)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
@@ -451,9 +406,6 @@ TEST_F(TestUbseVipManager, ForceCleanup_NoStaleVip_ReturnsOK)
  */
 TEST_F(TestUbseVipManager, ForceCleanup_StaleVipDelSuccess_ReturnsOK)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
@@ -461,7 +413,7 @@ TEST_F(TestUbseVipManager, ForceCleanup_StaleVipDelSuccess_ReturnsOK)
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_ERROR));
     ASSERT_EQ(UBSE_OK, UbseVipManager::GetInstance().Init(cfg));
     // 重新设置 mock：grep 返回 UBSE_OK 且 result 非空（检测到残留），随后 DelIpAddress 也成功
-    std::string nonEmpty = "192.168.100.200/24 dev eth0";
+    std::string nonEmpty = "192.168.100.200/24 dev enp0s1";
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().with(mockcpp::any(), outBound(nonEmpty)).will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, UbseVipManager::GetInstance().ForceCleanup());
 }
@@ -471,9 +423,6 @@ TEST_F(TestUbseVipManager, ForceCleanup_StaleVipDelSuccess_ReturnsOK)
  */
 TEST_F(TestUbseVipManager, SendGratuitousArp_AllFail_ReturnsError)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 2;
     cfg.arpInterval = 0;
@@ -490,9 +439,6 @@ TEST_F(TestUbseVipManager, SendGratuitousArp_AllFail_ReturnsError)
  */
 TEST_F(TestUbseVipManager, SendGratuitousArp_PartialSuccess_ReturnsOK)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     UbseVipConfig cfg = MakeValidConfig();
     cfg.arpCount = 3;
     cfg.arpInterval = 0;

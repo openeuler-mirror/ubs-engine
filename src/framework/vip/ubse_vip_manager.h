@@ -29,22 +29,20 @@ struct UbseVipConfig {
     bool enable{false};
     std::string listenIp;          // CIDR format from config: 192.168.100.200/24
     uint32_t listenPort{10002};    // HTTP server listening port
-    uint32_t rateLimitRps{0};      // 0=不限流（默认），>0 表示每秒最大请求数
-    uint32_t maxQueuedRequests{0};    // 0=不限制（默认），>0 表示北向 HTTP 等待队列上限（mqr）
+    uint32_t rateLimitRps{1000};      // 每秒最大请求数（默认 1000），0=不限流
+    uint32_t maxQueuedRequests{512};  // 北向 HTTP 等待队列上限（mqr，默认 512），0=不限制
+    // 免费 ARP 发送参数（内部固定默认值，不从配置读取）
     uint32_t arpCount{5};
     uint32_t arpInterval{200};
 
     // Parsed from listenIp
     std::string address;           // e.g. 192.168.100.200
     uint32_t prefix{24};           // e.g. 24
-    std::string interface;         // resolved from kIfaceFilePath
+    std::string interface;         // 主机模式来自配置 vip.iface,容器模式经 UDS 注入
 
     // 容器模式:enable=true 且缺 listenIp,配置经 UDS 由 helper 注入
     bool containerMode{false};
 };
-
-// Fixed path for interface file written by K8s helper container
-constexpr const char *kIfaceFilePath = "/var/run/ubse/ubse_iface";
 
 class UbseVipManager {
 public:
@@ -83,7 +81,7 @@ private:
     UbseVipManager() = default;
     ~UbseVipManager() = default;
 
-    UbseResult ResolveInterface();
+    UbseResult ValidateInterface();
     UbseResult ParseListenIp();
 
     UbseResult BindVipL2();

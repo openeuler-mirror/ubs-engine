@@ -16,8 +16,6 @@
 
 #include "ubse_vip_module.h"
 
-#include <fstream>
-
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -37,27 +35,10 @@ using namespace ubse::cert;
 namespace ubse::ut::vip {
 
 namespace {
-constexpr const char *kTestIface = "eth0";
-constexpr const char *kTestIfaceFilePath = "/var/run/ubse/ubse_iface";
-
-bool PrepareIfaceFile(const std::string &iface)
-{
-    std::ofstream ofs(kTestIfaceFilePath);
-    if (!ofs.is_open()) {
-        return false;
-    }
-    ofs << iface;
-    ofs.close();
-    return true;
-}
-
-void CleanupIfaceFile()
-{
-    std::remove(kTestIfaceFilePath);
-}
+constexpr const char *kTestIface = "enp0s1";
 
 // 设置 enabled=true 的完整配置 mock（Init 阶段 Exec 全部成功，无残留 VIP）
-void SetupEnabledConfigMocks(uint32_t arpCount = 5, uint32_t arpInterval = 200)
+void SetupEnabledConfigMocks()
 {
     auto conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
@@ -69,23 +50,21 @@ void SetupEnabledConfigMocks(uint32_t arpCount = 5, uint32_t arpInterval = 200)
     std::string listenIp = "192.168.100.200/24";
     MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
         .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(listenIp))
+        .with(mockcpp::any(), eq(std::string("vip.httpServer.listen.ip")), outBound(listenIp))
+        .will(returnValue(UBSE_OK));
+    std::string iface = kTestIface;
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(mockcpp::any(), eq(std::string("vip.iface")), outBound(iface))
         .will(returnValue(UBSE_OK));
     uint32_t port = 10002;
     MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
         .stubs()
         .with(mockcpp::any(), mockcpp::any(), outBound(port))
         .will(returnValue(UBSE_OK));
-    uint32_t arpCountVal = arpCount;
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
-        .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(arpCountVal))
-        .will(returnValue(UBSE_OK));
-    uint32_t arpIntervalVal = arpInterval;
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
-        .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(arpIntervalVal))
-        .will(returnValue(UBSE_OK));
+    // mock DeAttach，避免 Stop/UnInitialize 真实反注册全局 election handler；
+    // Attach 不在此统一 mock（同 API 先注册的 stub 优先生效，无法在用例内覆盖为失败场景），由各用例显式设置
+    MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
 }
@@ -104,7 +83,12 @@ void SetupEnabledConfigMocksWithUint(uint32_t uintVal)
     std::string listenIp = "192.168.100.200/24";
     MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
         .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(listenIp))
+        .with(mockcpp::any(), eq(std::string("vip.httpServer.listen.ip")), outBound(listenIp))
+        .will(returnValue(UBSE_OK));
+    std::string iface = kTestIface;
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(mockcpp::any(), eq(std::string("vip.iface")), outBound(iface))
         .will(returnValue(UBSE_OK));
     uint32_t val = uintVal;
     MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
@@ -131,7 +115,6 @@ public:
     {
         Test::TearDown();
         UbseVipManager::GetInstance().Deinit();
-        CleanupIfaceFile();
         GlobalMockObject::verify();
     }
 };
@@ -183,12 +166,14 @@ TEST_F(TestUbseVipModule, Initialize_EnabledButNoListenIp_Fails)
         .stubs()
         .with(mockcpp::any(), mockcpp::any(), outBound(enableVal))
         .will(returnValue(UBSE_OK));
-    // listenIp 配置缺失
+    // listenIp 配置缺失；eq 约束限定仅作用于该项，避免 stubs 残留影响后续用例的 vip.iface 读取
     std::string emptyIp;
     MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
         .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(emptyIp))
+        .with(mockcpp::any(), eq(std::string("vip.httpServer.listen.ip")), outBound(emptyIp))
         .will(returnValue(UBSE_ERROR));
+    // containerMode 下 Initialize 仍会注册 election handler，mock 掉避免污染全局 election 单例
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     UbseVipModule module;
     EXPECT_EQ(UBSE_ERROR, module.Initialize());
 }
@@ -209,10 +194,8 @@ TEST_F(TestUbseVipModule, Initialize_ConfModuleNull_Fails)
  */
 TEST_F(TestUbseVipModule, Initialize_FullConfig_Success)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     // Init 阶段 ForceCleanup 的 grep 返回空结果（无残留）
     std::string emptyResult;
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().with(mockcpp::any(), outBound(emptyResult)).will(returnValue(UBSE_OK));
@@ -244,14 +227,10 @@ TEST_F(TestUbseVipModule, Start_Disabled_ReturnsOK)
  */
 TEST_F(TestUbseVipModule, Start_Enabled_AttachAllSuccess)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     std::string emptyResult;
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().with(mockcpp::any(), outBound(emptyResult)).will(returnValue(UBSE_OK));
-    // 4 次 Attach 全部成功
-    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.Initialize());
     EXPECT_EQ(UBSE_OK, module.Start());
@@ -259,20 +238,18 @@ TEST_F(TestUbseVipModule, Start_Enabled_AttachAllSuccess)
 }
 
 /*
- * 用例描述：Start 时第一次 Attach 即失败，应返回 UBSE_ERROR
+ * 用例描述：Start 前 Initialize 阶段第一次 Attach 即失败，Initialize 应返回 UBSE_ERROR
+ * 注：election handler 注册已前移至 Initialize，Attach 失败在 Initialize 即返回错误
  */
 TEST_F(TestUbseVipModule, Start_Enabled_AttachFails_ReturnsError)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     SetupEnabledConfigMocks();
     std::string emptyResult;
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().with(mockcpp::any(), outBound(emptyResult)).will(returnValue(UBSE_OK));
+    // 第一次 Attach 即失败
     MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionError));
     UbseVipModule module;
-    ASSERT_EQ(UBSE_OK, module.Initialize());
-    EXPECT_EQ(UBSE_ERROR, module.Start());
+    EXPECT_EQ(UBSE_ERROR, module.Initialize());
     module.Stop();
 }
 
@@ -298,14 +275,10 @@ TEST_F(TestUbseVipModule, Stop_Disabled_NoDeattach)
  */
 TEST_F(TestUbseVipModule, Stop_Enabled_DeattachAll)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
     SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     std::string emptyResult;
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().with(mockcpp::any(), outBound(emptyResult)).will(returnValue(UBSE_OK));
-    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
-    MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.Initialize());
     ASSERT_EQ(UBSE_OK, module.Start());
@@ -317,10 +290,8 @@ TEST_F(TestUbseVipModule, Stop_Enabled_DeattachAll)
  */
 TEST_F(TestUbseVipModule, HandleChangeToMaster_BindSuccess_ReturnsOk)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     // 所有 Exec 成功（ForceCleanup/AddIp/ARP），HTTP server 启动成功
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
@@ -339,10 +310,8 @@ TEST_F(TestUbseVipModule, HandleChangeToMaster_BindSuccess_ReturnsOk)
  */
 TEST_F(TestUbseVipModule, HandleChangeToMaster_BindFails_ReturnsError)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     // 所有 Exec 失败：Init 时 ForceCleanup 跳过（grep 失败），BindVip 时 AddIpAddress 失败
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_ERROR));
     UbseVipModule module;
@@ -359,10 +328,8 @@ TEST_F(TestUbseVipModule, HandleChangeToMaster_BindFails_ReturnsError)
  */
 TEST_F(TestUbseVipModule, HandleStandbyChangeToMaster_BindSuccess_ReturnsOk)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
     UbseVipModule module;
@@ -379,10 +346,8 @@ TEST_F(TestUbseVipModule, HandleStandbyChangeToMaster_BindSuccess_ReturnsOk)
  */
 TEST_F(TestUbseVipModule, HandleChangeToStandby_UnbindSuccess_ReturnsOk)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.Initialize());
@@ -398,10 +363,8 @@ TEST_F(TestUbseVipModule, HandleChangeToStandby_UnbindSuccess_ReturnsOk)
  */
 TEST_F(TestUbseVipModule, HandleChangeToAgent_UnbindSuccess_ReturnsOk)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.Initialize());
@@ -418,10 +381,8 @@ TEST_F(TestUbseVipModule, HandleChangeToAgent_UnbindSuccess_ReturnsOk)
  */
 TEST_F(TestUbseVipModule, HandleChangeToStandby_DelFails_StillReturnsOk)
 {
-    if (!PrepareIfaceFile(kTestIface)) {
-        GTEST_SKIP() << "无法创建 iface 文件，跳过该用例（需要 root 权限写 /var/run/ubse/）";
-    }
-    SetupEnabledConfigMocks(1, 0);
+    SetupEnabledConfigMocks();
+    MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UbseElectionOk));
     // Init 时 Exec 失败让 ForceCleanup 跳过；UnbindVip 时 DelIpAddress 失败但 UnbindVip 仍返回 UBSE_OK
     MOCKER_CPP(&UbseOsUtil::Exec).stubs().will(returnValue(UBSE_ERROR));
     UbseVipModule module;
@@ -469,18 +430,18 @@ TEST_F(TestUbseVipModule, LoadConfig_MaxQueuedRequests_Valid)
 }
 
 /*
- * 用例描述：LoadConfig 时 maxQueuedRequests 超出上限 100000，应使用默认值 0
+ * 用例描述：LoadConfig 时 maxQueuedRequests 超出上限 100000，应使用默认值 512
  * 测试步骤：
  * 1.mock 所有 uint32_t 配置项返回 100001（超出 maxQueuedRequests 上限）
  * 2.直接调用私有方法 LoadConfig（利用 -fno-access-control）
- * 预期结果：LoadConfig 成功，config_.maxQueuedRequests == 0（默认值）
+ * 预期结果：LoadConfig 成功，config_.maxQueuedRequests == 512（默认值）
  */
 TEST_F(TestUbseVipModule, LoadConfig_MaxQueuedRequests_OutOfRange)
 {
     SetupEnabledConfigMocksWithUint(100001);
     UbseVipModule module;
     ASSERT_EQ(UBSE_OK, module.LoadConfig());
-    EXPECT_EQ(module.config_.maxQueuedRequests, 0u) << "Out-of-range maxQueuedRequests should fall back to default 0";
+    EXPECT_EQ(module.config_.maxQueuedRequests, 512u) << "Out-of-range maxQueuedRequests should fall back to default 512";
 }
 
 /*

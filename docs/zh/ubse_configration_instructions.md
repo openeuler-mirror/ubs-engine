@@ -46,21 +46,21 @@ heartbeat.lostThreshold=3
 # vip.httpServer.listen.ip=192.168.100.200/24
 # HTTP listening port on VIP. The value range is [1024, 65535]. The default value is 10002.
 # vip.httpServer.listen.port=10002
+# Physical network interface name for VIP binding. Required when vip.enable is true (host deployment).
+# The value is the kernel interface name, e.g. eth0. In container mode, it is injected via UDS by the
+# K8s helper instead of being read from this item.
+# vip.iface=enp0s1
 # Rate limit (requests per second per client IP) on the VIP HTTP port. The value range is [0, 10000].
-# 0 disables rate limiting (default). A recommended value is 100 for production.
-# vip.httpServer.rateLimitRps=0
+# 0 disables rate limiting. The default value is 1000.
+# vip.httpServer.rateLimitRps=1000
 # Maximum pending requests in the VIP HTTP server's worker queue. The value range is [0, 100000].
-# 0 disables the limit (default). When all worker threads are busy and the queue is full,
+# 0 disables the limit. The default value is 512. When all worker threads are busy and the queue is full,
 # new connections are closed via shutdown(SHUT_RDWR)+close(fd), sending FIN (not RST); the client
 # sees "Empty reply from server" (http_code=000) without an application-layer response, preventing
 # request pile-up and FD exhaustion.
 # Note: this limits the pending request queue, not the number of TCP connections.
 # For TCP connection limits, configure at the network layer (e.g., iptables connlimit, somaxconn).
-# vip.httpServer.maxQueuedRequests=0
-# Number of gratuitous ARP packets to send after VIP binding (L2 mode only). The value range is [1, 10]. The default value is 5.
-# vip.arpCount=5
-# Interval between gratuitous ARP packets in milliseconds (L2 mode only). The value range is [100, 5000]. The default value is 200.
-# vip.arpInterval=200
+# vip.httpServer.maxQueuedRequests=512
 
 [ubse.ssu]
 # Required. Admin Host NVMe Qualified Name, used by Master node to access SSU target for device discovery,
@@ -160,20 +160,11 @@ section取值：[ubse.urma]
 
 section取值：[ubse.vip]
 
-VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务的虚拟 IP 绑定到当前主节点，保证外部访问地址不变。VIP 模块依赖选主能力，仅主节点绑定 VIP 并对外提供 HTTPS 服务，备节点/Agent 节点不绑定。VIP HTTP 服务使用 TCP+TLS 证书通信，开启前需在 `/var/lib/ubse/vip_server_cert/` 目录下部署证书文件（`server.pem`、`trust.pem`、`ca.crl`、`server_key.pem`、`key_pwd.txt`）。物理网卡名称由 K8s 辅助容器写入 `/var/run/ubse/ubse_iface`，UBSE 启动时读取。
+VIP（Virtual IP）管理能力将对外服务的虚拟 IP 绑定到当前主节点，且主备切换时，保证外部访问地址不变。VIP 模块依赖选主能力，仅主节点绑定 VIP 并对外提供 HTTPS 服务，备节点/Agent 节点不绑定。VIP HTTP 服务使用 TCP+TLS 证书通信，开启前需在 `/var/lib/ubse/vip_server_cert/` 目录下部署证书文件（`server.pem`、`trust.pem`、`ca.crl`、`server_key.pem`、`key_pwd.txt`）。物理网卡名称通过配置项 `vip.iface` 指定；容器场景下无需配置，由 ubse-helper 经 UDS 注入。
 
-> [!NOTE]权限要求
+> [!NOTE]容器场景
 >
-> VIP 模块通过 fork+exec 执行 `ip addr add/del`（IP 绑定/解绑，需 `CAP_NET_ADMIN`）和 `arping`（发送免费 ARP，需 `CAP_NET_RAW`）命令完成网络操作。
->
-> 默认安装的 `/usr/lib/systemd/system/ubse.service` 中已包含 `CAP_NET_ADMIN`，但未包含 `CAP_NET_RAW`。验证 VIP 功能前需手动编辑该文件，在 `CapabilityBoundingSet` 和 `AmbientCapabilities` 两项中均添加 `CAP_NET_RAW`：
->
->     ```ini
->     CapabilityBoundingSet=... CAP_NET_ADMIN CAP_NET_RAW ...
->     AmbientCapabilities=... CAP_NET_ADMIN CAP_NET_RAW ...
->     ```
->
-> 修改后执行 `sudo systemctl daemon-reload && sudo systemctl restart ubse` 使配置生效。
+> 容器场景（K8s + ubse-helper）下不配置 `vip.httpServer.listen.ip` 即表示容器模式，此时 `vip.httpServer.listen.ip`、`vip.httpServer.listen.port` 与 `vip.iface` 均无需配置，VIP 地址/端口/网卡名由 ubse-helper 经 UDS 注入（端口取 Chart 的 `service.port`）。
 
 配置项说明：
 
@@ -182,10 +173,9 @@ VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务�
 | 1    | vip.enable                 | 是否开启 VIP 管理能力。开启后主节点绑定 VIP 并对外通告。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围则取默认值 false。                                                                                                  | -                                                                                                                                                                                                                                                                                          |
 | 2    | vip.httpServer.listen.ip   | VIP 地址及 CIDR 前缀。开启 VIP 时该项必填。           | 默认值：用#注释<br>格式：`<ip>/<prefix>`，例如 `192.168.100.200/24`<br>prefix 取值范围：[1, 32]<br>非法 IP 或 prefix 超范围时启动失败。                                              | - 地址必须为合法 IPv4 地址。<br>- prefix 表示子网掩码长度。                                                                                                                                                                                                                                  |
 | 3    | vip.httpServer.listen.port | VIP HTTP 服务的监听端口。                             | 默认值：10002<br>取值范围：[1024, 65535]<br>如果取值超过范围，则取默认值 10002。                                                                                                  | -                                                                                                                                                                                                                                                                                          |
-| 4    | vip.httpServer.rateLimitRps | VIP HTTP 端口的限流阈值（每个客户端 IP 每秒允许的最大请求数）。     | 默认值：0（不限流）<br>取值范围：[0, 10000]<br>如果取值超过范围，则取默认值 0。                                                                                                  | -                                                                                                                                                                                                                                                                                          |
-| 5    | vip.httpServer.maxQueuedRequests | VIP HTTP 服务等待队列上限（所有工作线程忙且队列满时，新连接被 shutdown(SHUT_RDWR)+close(fd) 关闭，发送 FIN；客户端看到 "Empty reply from server"/http_code=000，不进入应用层响应）。              | 默认值：0（不限制）<br>取值范围：[0, 100000]<br>如果取值超过范围，则取默认值 0。                                                                                                | - 该参数限制的是等待处理队列长度，而非 TCP 连接数；TCP 连接数限制请在网络层配置。                                                                                                                                                                                                          |
-| 6    | vip.arpCount               | VIP 绑定后发送的免费 ARP 报文数量（仅 L2 模式生效）。  | 默认值：5<br>取值范围：[1, 10]<br>如果取值超过范围，则取默认值 5。                                                                                                                | - 用于在主备切换后加速网络设备刷新 ARP 缓存。                                                                                                                                                                                                                                                |
-| 7    | vip.arpInterval            | 发送免费 ARP 报文的时间间隔，单位毫秒（仅 L2 模式生效）。 | 默认值：200<br>单位：毫秒<br>取值范围：[100, 5000]<br>如果取值超过范围，则取默认值 200。                                                                                          | -                                                                                                                                                                                                                                                                                          |
+| 4    | vip.iface                  | VIP 绑定的物理网卡名称。主机部署开启 VIP 时该项必填。   | 默认值：无（必填）<br>取值为内核网卡名，例如 enp0s1。<br>未配置或含非法字符时启动失败。                                                                                              | - 仅允许字母、数字及 `.`、`_`、`-`，长度不超过 15，防止命令注入。<br>- 容器模式下无需配置，由 ubse-helper 经 UDS 注入。                                                                                                                               |
+| 5    | vip.httpServer.rateLimitRps | VIP HTTP 端口的限流阈值，每个客户端 IP 每秒允许的最大请求数。     | 默认值：1000<br>取值范围：[0, 10000]<br>如果取值超过范围，则取默认值 1000。<br>0 表示不限流。                                                                                                  | - 限流配置                                                                                                                                                                                                                                                                                         |
+| 6    | vip.httpServer.maxQueuedRequests | VIP HTTP 服务等待队列长度，所有工作线程（最大8个worker）忙且等待队列满时，新连接将被立即断开，客户端返回http_code=000，不进入应用层响应。              | 默认值：512<br>取值范围：[0, 100000]<br>如果取值超过范围，则取默认值 512。<br>0 表示不限制。                                                                                                | -                                                                                                                                                                                                            |
 
 ## SSU配置说明
 

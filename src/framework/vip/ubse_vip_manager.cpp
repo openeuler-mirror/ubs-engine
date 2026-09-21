@@ -12,7 +12,6 @@
 
 #include "ubse_vip_manager.h"
 
-#include <fstream>
 #include <regex>
 #include <sstream>
 #include <unistd.h>
@@ -40,7 +39,7 @@ constexpr const char *VIP_PASSWORD_FILE = "/var/lib/ubse/vip_server_cert/key_pwd
 // 容器模式 master 持续未收到注入时的延迟绑定次数阈值,超过后升级为 ERROR 告警
 constexpr uint32_t kInjectionTimeoutDeferThreshold = 10;
 
-// 网卡名合法字符白名单,InjectConfig 与 ReadIfaceFromFile 共用,避免热路径重复编译 NFA
+// 网卡名合法字符白名单,InjectConfig 与 ValidateInterface 共用,避免热路径重复编译 NFA
 const std::regex kIfacePattern("^[a-zA-Z0-9._-]+$");
 
 UbseCertPaths MakeVipCertPaths()
@@ -110,7 +109,7 @@ UbseResult UbseVipManager::Init(const UbseVipConfig &config)
         return ret;
     }
 
-    if (!UbseNetUtil::ValidIpv4Addr(config_.address)) {
+    if (!UbseNetUtil::ValidIpv4Addr(config_.address) || UbseNetUtil::IsSpecialIP(config_.address)) {
         UBSE_LOG_ERROR << "[VIP] Invalid VIP address: " << config_.address;
         return UBSE_ERROR;
     }
@@ -120,9 +119,9 @@ UbseResult UbseVipManager::Init(const UbseVipConfig &config)
         return UBSE_ERROR;
     }
 
-    ret = ResolveInterface();
+    ret = ValidateInterface();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[VIP] ResolveInterface failed";
+        UBSE_LOG_ERROR << "[VIP] ValidateInterface failed";
         return ret;
     }
 
@@ -417,35 +416,26 @@ void UbseVipManager::RegisterRoute(const std::string &path, UbseHttpMethod metho
     UBSE_LOG_INFO << "[VIP] Route registered: " << path << ", httpServerRunning=" << (httpServer_ != nullptr);
 }
 
-UbseResult UbseVipManager::ResolveInterface()
+UbseResult UbseVipManager::ValidateInterface()
 {
-    std::ifstream ifs(kIfaceFilePath);
-    if (!ifs.is_open()) {
-        UBSE_LOG_ERROR << "[VIP] Cannot open iface file: " << kIfaceFilePath;
-        return UBSE_ERROR;
-    }
-
-    std::string iface;
-    std::getline(ifs, iface);
-
-    auto trimPos = iface.find_last_not_of(" \t\r\n");
-    if (trimPos != std::string::npos) {
-        iface = iface.substr(0, trimPos + 1);
-    }
-
-    if (iface.empty()) {
-        UBSE_LOG_ERROR << "[VIP] Iface file is empty: " << kIfaceFilePath;
+    if (config_.interface.empty()) {
+        UBSE_LOG_ERROR << "[VIP] vip.iface is not configured";
         return UBSE_ERROR;
     }
 
     // 校验接口名仅包含合法字符，防止命令注入
-    if (!std::regex_match(iface, kIfacePattern)) {
-        UBSE_LOG_ERROR << "[VIP] Invalid interface name: " << iface;
+    if (!std::regex_match(config_.interface, kIfacePattern)) {
+        UBSE_LOG_ERROR << "[VIP] Invalid interface name: " << config_.interface;
         return UBSE_ERROR;
     }
 
-    config_.interface = iface;
-    UBSE_LOG_INFO << "[VIP] Interface resolved from " << kIfaceFilePath << ": " << config_.interface;
+    // 与内核IFNAMSIZ-1对齐 超长网卡名启动即失败
+    if (config_.interface.size() > 15) {
+        UBSE_LOG_ERROR << "[VIP] Interface name exceeds 15 chars: " << config_.interface;
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "[VIP] Interface from config: " << config_.interface;
     return UBSE_OK;
 }
 
