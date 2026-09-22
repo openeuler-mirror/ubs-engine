@@ -199,6 +199,7 @@ void UbseRasObserver::SentryEventListen()
         auto* msg = new (std::nothrow) alarm_msg();
         if (msg == nullptr) {
             UBSE_LOG_ERROR << "New alarm msg failed. ";
+            sleep(1); // 内存紧张时退避，避免空转加剧资源耗尽
             continue;
         }
         // 阻塞性等待，有故障事件返回
