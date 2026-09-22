@@ -209,4 +209,30 @@ TEST_F(TestUbseStrUtil, ShellEscapeMetaChars)
     EXPECT_EQ(ShellEscape(""), "''");
     EXPECT_EQ(ShellEscape("normal-eid"), "'normal-eid'");
 }
+
+TEST_F(TestUbseStrUtil, IsValidHostNameWhenNameInvalid)
+{
+    EXPECT_FALSE(IsValidHostName(""));
+    EXPECT_FALSE(IsValidHostName(".ho"));
+    EXPECT_FALSE(IsValidHostName("-ho"));
+    EXPECT_FALSE(IsValidHostName("ho-"));
+    EXPECT_FALSE(IsValidHostName("vm_host"));
+    EXPECT_FALSE(IsValidHostName("a..b"));
+    EXPECT_FALSE(IsValidHostName("host."));
+    EXPECT_FALSE(IsValidHostName("local.host."));
+    // 单标签 64 字符, 超过 RFC 1123 的 63 上限
+    EXPECT_FALSE(IsValidHostName("hosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthost"));
+    // 总长 65 字符, 超过节点上报主机名的 64 上限
+    EXPECT_FALSE(IsValidHostName(std::string(63, 'a') + ".b"));
+}
+
+TEST_F(TestUbseStrUtil, IsValidHostNameWhenSuccess)
+{
+    EXPECT_TRUE(IsValidHostName("ho"));
+    EXPECT_TRUE(IsValidHostName("1ho"));
+    EXPECT_TRUE(IsValidHostName("local.host"));
+    EXPECT_TRUE(IsValidHostName("node-01.example.com"));
+    // 总长 64 字符, 正好等于上限
+    EXPECT_TRUE(IsValidHostName(std::string(62, 'a') + ".b"));
+}
 } // namespace ubse::ut::utils

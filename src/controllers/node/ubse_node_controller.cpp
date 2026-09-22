@@ -53,7 +53,6 @@ const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
 const uint32_t LOCAL_HANDLER_MAX_RETRY_TIMES = 300; // 最大重试300次(约10分钟)，避免handler持续失败导致线程永久阻塞
 const uint32_t IPV4_LENGTH = 4;
 const uint32_t IPV6_LENGTH = 16;
-const size_t MAX_HOSTNAME_LENGTH = 63;
 constexpr size_t MAX_IP_ADDR_NUM = 1024;
 constexpr uint32_t FAULT_STATE_PROTECT_SECONDS = 60;
 
@@ -194,41 +193,6 @@ uint32_t UbseNodeController::GetEid(const std::string& nodeId, const uint32_t& s
     return UBSE_ERROR;
 }
 
-UbseResult CheckHostNameCharacters(std::string hostName)
-{
-    for (size_t i = 0; i < hostName.size(); i++) {
-        if (!isdigit(hostName[i]) && !islower(hostName[i]) && !isupper(hostName[i]) && hostName[i] != '-') {
-            UBSE_LOG_WARN << "The hostname=" << hostName << "has illegal characters.";
-            return UBSE_ERROR;
-        }
-    }
-    return UBSE_OK;
-}
-
-UbseResult CheckHostName(std::string hostName)
-{
-    if (hostName.size() > MAX_HOSTNAME_LENGTH) {
-        UBSE_LOG_WARN << "The length of the hostname=" << hostName << " exceeds 63 characters.";
-        return UBSE_ERROR;
-    }
-    if (hostName.empty()) {
-        UBSE_LOG_WARN << "The hostname=" << hostName << " is empty.";
-        return UBSE_ERROR;
-    }
-    if (CheckHostNameCharacters(hostName) != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-    if (hostName[0] == '-' || hostName[hostName.size() - 1] == '-') {
-        UBSE_LOG_WARN << "The hostname=" << hostName << " contains '-' at the beginning or end.";
-        return UBSE_ERROR;
-    }
-    if (isdigit(hostName[0])) {
-        UBSE_LOG_WARN << "The hostname=" << hostName << " starts with a number.";
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
 UbseResult CheckGroupList(std::vector<std::vector<std::string>>& groupListVec, UbseMemGroupNodeList& groupList)
 {
     std::unordered_set<std::string> globalSeen;
@@ -251,7 +215,8 @@ UbseResult CheckGroupList(std::vector<std::vector<std::string>>& groupListVec, U
                 continue; // 过滤重复的hostname
             }
             // 检查hostname长度、字符是否有效
-            if (CheckHostName(hostname) != UBSE_OK) {
+            if (!utils::IsValidHostName(hostname)) {
+                UBSE_LOG_WARN << "hostname:" << hostname << " has invalid format";
                 continue;
             }
             // 检验hostname是否有效
@@ -317,7 +282,8 @@ UbseResult CheckProviderList(std::vector<std::string>& providerListConfVec, Ubse
             continue; // 过滤重复的hostname
         }
         // 检查hostname长度、字符是否有效
-        if (CheckHostName(hostname) != UBSE_OK) {
+        if (!utils::IsValidHostName(hostname)) {
+            UBSE_LOG_WARN << "hostname:" << hostname << " has invalid format";
             continue;
         }
         // 检验hostname是否有效
