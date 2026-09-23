@@ -125,6 +125,9 @@ UbseResult UbseVipModule::LoadConfig()
             UBSE_LOG_WARN << "[VIP] vip.httpServer.rateLimitRps=" << rateLimitRps
                           << " is out of range [0, 10000], using default: " << config_.rateLimitRps;
         }
+    } else {
+        UBSE_LOG_WARN << "[VIP] vip.httpServer.rateLimitRps not configured, using default: "
+                      << config_.rateLimitRps;
     }
 
     uint32_t maxQueuedRequests = 0;
@@ -136,6 +139,9 @@ UbseResult UbseVipModule::LoadConfig()
             UBSE_LOG_WARN << "[VIP] vip.httpServer.maxQueuedRequests=" << maxQueuedRequests
                           << " is out of range [0, 100000], using default: " << config_.maxQueuedRequests;
         }
+    } else {
+        UBSE_LOG_WARN << "[VIP] vip.httpServer.maxQueuedRequests not configured, using default: "
+                      << config_.maxQueuedRequests;
     }
 
     ret = confModule->GetConf(section, "vip.httpServer.listen.ip", config_.listenIp);
@@ -153,6 +159,9 @@ UbseResult UbseVipModule::LoadConfig()
     ret = confModule->GetConf(section, "vip.httpServer.listen.port", listenPort);
     if (ret == UBSE_OK && listenPort >= 1024 && listenPort <= 65535) {
         config_.listenPort = listenPort;
+    } else {
+        UBSE_LOG_WARN << "[VIP] vip.httpServer.listen.port=" << listenPort
+                      << " is out of range [1024, 65535] or not configured, using default: " << config_.listenPort;
     }
 
     // 主机模式网卡名直接来自配置(替代原 /var/run/ubse/ubse_iface 文件);容器模式由 UDS 注入,不走此分支
