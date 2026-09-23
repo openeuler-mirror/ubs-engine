@@ -164,20 +164,16 @@ UbseResult ServerTls(UbseComBasePtr& rpcServer)
     }
     return UBSE_OK;
 }
+
 UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nodeId)
 {
-    std::vector<adapter_plugins::mti::UbseMtiNodeInfo> nodeInfos;
-    if (adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterNodeInfoList(nodeInfos) != UBSE_OK) {
+    auto node = nodeMgr::GetUbseNodeById(nodeId);
+    if (node.bonding0Eid.empty()) {
         UBSE_LOG_WARN << "Query eid failed";
         return UBSE_ERROR;
     }
-    for (adapter_plugins::mti::UbseMtiNodeInfo& nodeInfo : nodeInfos) {
-        if (nodeId == nodeInfo.nodeId) {
-            bondingEid = nodeInfo.eid;
-            return UBSE_OK;
-        }
-    }
-    return UBSE_ERROR;
+    bondingEid = node.bonding0Eid;
+    return UBSE_OK;
 }
 
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {

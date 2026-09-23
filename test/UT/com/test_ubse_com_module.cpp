@@ -764,42 +764,27 @@ TEST_F(TestUbseComModule, TestAddServerLinkNotifyFunc)
  * 用例描述：
  * 根据NodeId获取BondingEid
  * 测试步骤：
- * 1.GetClusterNodeInfoList失败
- * 2.节点列表中未找到匹配nodeId
- * 3.节点列表中找到匹配nodeId
+ * 1.GetUbseNodeById返回的节点bonding0Eid为空（未找到节点或未配置bonding0Eid）
+ * 2.GetUbseNodeById返回的节点bonding0Eid非空
  * 预期结果：
  * 1.返回UBSE_ERROR
- * 2.返回UBSE_ERROR
- * 3.返回UBSE_OK，bondingEid正确
+ * 2.返回UBSE_OK，bondingEid正确
  */
 TEST_F(TestUbseComModule, TestGetBondingEidByNodeId)
 {
     std::string bondingEid;
     std::string nodeId = "Node0";
-    adapter_plugins::mti::UbseMtiInterface& mtiInterface = adapter_plugins::mti::UbseMtiInterface::GetInstance();
 
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetClusterNodeInfoList)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    ubse::nodeMgr::UbseNodeStaticInfo emptyNode;
+    MOCKER_CPP(nodeMgr::GetUbseNodeById).stubs().will(returnValue(emptyNode));
     UbseResult ret = GetBondingEidByNodeId(bondingEid, nodeId);
     EXPECT_EQ(UBSE_ERROR, ret);
     GlobalMockObject::verify();
 
-    std::vector<adapter_plugins::mti::UbseMtiNodeInfo> nodeInfos;
-    nodeInfos.push_back({"Node1", "eid1"});
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetClusterNodeInfoList)
-        .stubs()
-        .with(outBound(nodeInfos))
-        .will(returnValue(UBSE_OK));
-    ret = GetBondingEidByNodeId(bondingEid, nodeId);
-    EXPECT_EQ(UBSE_ERROR, ret);
-    GlobalMockObject::verify();
-
-    nodeInfos.push_back({"Node0", "eid0"});
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetClusterNodeInfoList)
-        .stubs()
-        .with(outBound(nodeInfos))
-        .will(returnValue(UBSE_OK));
+    ubse::nodeMgr::UbseNodeStaticInfo node;
+    node.nodeId = "Node0";
+    node.bonding0Eid = "eid0";
+    MOCKER_CPP(nodeMgr::GetUbseNodeById).stubs().will(returnValue(node));
     ret = GetBondingEidByNodeId(bondingEid, nodeId);
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ("eid0", bondingEid);

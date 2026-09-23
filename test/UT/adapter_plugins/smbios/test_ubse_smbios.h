@@ -31,6 +31,8 @@ public:
 
     static std::vector<uint8_t> BuildType131DmiTable(uint8_t flag, uint16_t podId, uint8_t slotId,
                                                      uint8_t meshType, uint16_t superPodId);
+    static std::vector<uint8_t> BuildType1DmiTable(uint8_t manufacturerStringNumber,
+                                                   const std::vector<std::string>& strings);
     static std::vector<uint8_t> BuildSmbios3EntryPoint(uint32_t dmiSize);
 };
 

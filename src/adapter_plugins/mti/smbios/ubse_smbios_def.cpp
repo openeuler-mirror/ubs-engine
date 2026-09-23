@@ -164,7 +164,7 @@ inline SmbiosOffset QWORD(uint8_t* buf)
 
 void SmbiosStructureType1::LogSmbiosStructTypeInfo()
 {
-    UBSE_LOG_WARN << "Smbios structure type 1 info not supported";
+    UBSE_LOG_INFO << "Smbios system information: manufacturer=" << manufacturer;
 }
 
 void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
@@ -199,7 +199,89 @@ void SmbiosHeader::FillHeaderFromBuf(uint8_t* buf)
 
 UbseResult SmbiosStructureType1::FillSmbiosStructFromBuf()
 {
-    return UBSE_ERR_NOT_SUPPORTED;
+    constexpr size_t MANUFACTURER_OFFSET = 0x04;
+    if (header.data == nullptr) {
+        UBSE_LOG_ERROR << "SMBIOS system information data is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (header.length <= MANUFACTURER_OFFSET) {
+        UBSE_LOG_ERROR << "SMBIOS system information is too short, length=" << static_cast<uint32_t>(header.length);
+        return UBSE_ERROR_INVAL;
+    }
+    /*
+     * SMBIOS Type 1由格式化区域和紧随其后的字符串表组成，Manufacturer字段与Manufacturer字符串位于不同区域。
+     * 以下示例假设header.length为0x1B：
+     *
+     * 1. 格式化区域：[header.data, header.data + header.length)
+     * +--------+------+------------------------------+
+     * | 偏移   | 值   | 含义                         |
+     * +--------+------+------------------------------+
+     * | 0x04   | 0x01 | Manufacturer引用字符串表第1项 |
+     * +--------+------+------------------------------+
+     *
+     * 2. 字符串表：从header.data + header.length开始
+     * +------+-------------------+--------------------+
+     * | 编号 | 字符串            | 含义               |
+     * +------+-------------------+--------------------+
+     * | 1    | "QEMU\0"          | 第1项，即厂商      |
+     * | 2    | "Standard PC\0"   | 第2项              |
+     * | 结束 | "\0"              | 结束字符串表       |
+     * +------+-------------------+--------------------+
+     *
+     * 映射关系：格式化区域Manufacturer值0x01 -> 字符串表编号1 -> "QEMU"。
+     */
+    const uint8_t manufacturerStringNumber = header.data[MANUFACTURER_OFFSET];
+    const auto ret = GetSmbiosString(manufacturerStringNumber, manufacturer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS system manufacturer, ret=" << ret;
+        return ret;
+    }
+    LogSmbiosStructTypeInfo();
+    return UBSE_OK;
+}
+
+UbseResult SmbiosStructure::GetSmbiosString(uint8_t stringNumber, std::string& value) const
+{
+    value.clear();
+    if (stringNumber == 0) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS string because string number is zero";
+        return UBSE_ERROR_INVAL;
+    }
+    if (header.data == nullptr || availableLength <= header.length) {
+        UBSE_LOG_ERROR << "Failed to get SMBIOS string because structure data is incomplete";
+        return UBSE_ERROR_INVAL;
+    }
+    const auto* cursor = header.data + header.length;
+    const auto* end = header.data + availableLength;
+    // 逐个跳过stringNumber-1个字符串（每个字符串以'\0'结束）。SMBIOS规范允许字符串集中存在空字符串，
+    // 空字符串仅占一个'\0'且同样计入编号，因此不能用连续两个'\0'判定字符串表结束，
+    // 否则空字符串之后的合法字符串会被误判为表结束而无法读取。
+    for (uint32_t currentStringNumber = 1; currentStringNumber < stringNumber; ++currentStringNumber) {
+        if (cursor >= end) {
+            UBSE_LOG_ERROR << "Failed to find SMBIOS string, string number=" << static_cast<uint32_t>(stringNumber);
+            return UBSE_ERROR_INVAL;
+        }
+        const auto* terminator = std::find(cursor, end, static_cast<uint8_t>('\0'));
+        if (terminator == end) {
+            UBSE_LOG_ERROR << "Failed to find SMBIOS string terminator, string number="
+                           << static_cast<uint32_t>(stringNumber);
+            return UBSE_ERROR_INVAL;
+        }
+        cursor = terminator + 1;
+    }
+    if (cursor >= end) {
+        UBSE_LOG_ERROR << "Failed to find SMBIOS string, string number=" << static_cast<uint32_t>(stringNumber);
+        return UBSE_ERROR_INVAL;
+    }
+    const auto* terminator = std::find(cursor, end, static_cast<uint8_t>('\0'));
+    if (terminator == end) {
+        UBSE_LOG_ERROR << "Failed to find SMBIOS string terminator, string number="
+                       << static_cast<uint32_t>(stringNumber);
+        return UBSE_ERROR_INVAL;
+    }
+    // 目标字符串为空串时返回空值，由调用方（如GetSystemManufacturer）的empty检查兜底拒绝
+    value.assign(reinterpret_cast<const char*>(cursor), reinterpret_cast<const char*>(terminator));
+    return UBSE_OK;
 }
 
 const size_t NO_24 = 24;
@@ -287,6 +369,7 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_
                            << len - (cursor - dmiBuf.data());
             return UBSE_ERROR_INVAL;
         }
+        availableLength = len - static_cast<uint32_t>(cursor - dmiBuf.data());
         // 调用子类的解析函数，如果返回成功，直接返回
         auto ret = this->FillSmbiosStructFromBuf();
         if (ret == UBSE_OK) {

@@ -82,7 +82,10 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
         FillComUrmaFeInfo(curNodeInfo.nodeId, socketComEid);
     }
 
-    for (uint32_t serverIdx = 0; serverIdx < UBSE_CLOS_MAX_NODE_NUM; serverIdx++) {
+    // 仿真环境（QEMU虚拟机）CLOS组网节点容量为8，真机为UBSE_CLOS_MAX_NODE_NUM
+    const uint32_t closMaxNodeNum =
+        UbseSmbios::GetInstance().IsQemuVm() ? UBSE_CLOS_SIM_MAX_NODE_NUM : UBSE_CLOS_MAX_NODE_NUM;
+    for (uint32_t serverIdx = 0; serverIdx < closMaxNodeNum; serverIdx++) {
         ret = ProcessClusterNode(curNodeInfo.nodeId, serverIdx);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Process ClusterNode failed, serverIdx=" << serverIdx << ", ret=" << ret;
