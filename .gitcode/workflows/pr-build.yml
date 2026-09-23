@@ -35,7 +35,7 @@ stages:
     jobs:
       CodeCheck_pre_commit:
         name: CodeCheck_pre_commit
-        runs-on: [ euler-latest, x64, medium ]
+        runs-on: [self-hosted, openeuler, x86, cpu=16]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
         steps:
@@ -78,7 +78,7 @@ stages:
 
       ubs-engine_build:
         name: ubs-engine_build
-        runs-on: [ euler-latest, x64, medium ]
+        runs-on: [self-hosted, openeuler, x86, cpu=16]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
