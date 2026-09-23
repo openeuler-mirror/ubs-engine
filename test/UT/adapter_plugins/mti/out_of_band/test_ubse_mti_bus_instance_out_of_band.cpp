@@ -33,7 +33,7 @@ static std::string g_readFileResult;
 
 static UbseResult MockExecWithOutput(const std::string& cmd, std::string& res)
 {
-    if (cmd == "lsub -b") {
+    if (cmd == "lsub -b 2>/dev/null") {
         res = g_lsubOutput;
     } else {
         res = g_subDeviceOutput;
@@ -48,7 +48,7 @@ static UbseResult MockExecFail(const std::string& cmd, std::string& res)
 
 static UbseResult MockExecLsubOkSubFail(const std::string& cmd, std::string& res)
 {
-    if (cmd == "lsub -b") {
+    if (cmd == "lsub -b 2>/dev/null") {
         res = g_lsubOutput;
         return UBSE_OK;
     }
