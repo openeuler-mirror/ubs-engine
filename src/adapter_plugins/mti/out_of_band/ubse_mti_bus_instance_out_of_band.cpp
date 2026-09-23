@@ -103,7 +103,8 @@ std::vector<std::string> ParseGetSubDeviceOutput(const std::string& output)
 
 UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseMtiBusInstSubDevice>& subDeviceList)
 {
-    auto cmd = "lsub -b -E " + eidStr;
+    // lsub输出到stderr的内容无需透传到ubse进程,重定向丢弃
+    auto cmd = "lsub -b -E " + eidStr + " 2>/dev/null";
     std::string cmdResult{};
     auto ret = utils::UbseOsUtil::Exec(cmd, cmdResult);
     if (ret != UBSE_OK) {
@@ -141,7 +142,7 @@ UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst>& busInstanceList)
 {
     UBSE_LOG_INFO << "Start to get bus instance and sub devices";
     std::string cmdResult{};
-    auto ret = utils::UbseOsUtil::Exec("lsub -b", cmdResult);
+    auto ret = utils::UbseOsUtil::Exec("lsub -b 2>/dev/null", cmdResult);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to exec lsub, ret :" << FormatRetCode(ret);
         return ret;
