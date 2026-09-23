@@ -171,7 +171,10 @@ static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, const std::string& 
 {
     bool isClos = UbseSmbios::GetInstance().IsClosType();
     const uint32_t batchSize = isClos ? 32 : 0;
-    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize : 1;
+    // 仿真环境（QEMU虚拟机）CLOS组网节点容量为8，真机为UBSE_CLOS_MAX_NODE_NUM
+    const uint32_t closMaxNodeNum = UbseSmbios::GetInstance().IsQemuVm() ? UBSE_CLOS_SIM_MAX_NODE_NUM
+                                                                        : UBSE_CLOS_MAX_NODE_NUM;
+    const uint32_t batchNum = isClos ? (closMaxNodeNum + batchSize - 1) / batchSize : 1;
     bool isBuildHostOnly = isPushShareTopoOnly;
     for (uint32_t i = 0; i < batchNum; ++i) {
         std::vector<UbseUrmaUvsNodeInfo> uvsInfos;

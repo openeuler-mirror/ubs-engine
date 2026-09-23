@@ -1071,7 +1071,11 @@ UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(bool isInferHos
         UBSE_LOG_WARN << "There is no urma dev info for node=" << basedNodeId << ", skip infer other nodes";
         return UBSE_ERROR;
     }
-    for (uint32_t serverIdx = startIdx; serverIdx < startIdx + batchNodeNum && serverIdx < UBSE_CLOS_MAX_NODE_NUM;
+    // 仿真环境（QEMU虚拟机）CLOS组网节点容量为8，真机为UBSE_CLOS_MAX_NODE_NUM
+    const uint32_t closMaxNodeNum = adapter_plugins::smbios::UbseSmbios::GetInstance().IsQemuVm()
+                                        ? UBSE_CLOS_SIM_MAX_NODE_NUM
+                                        : UBSE_CLOS_MAX_NODE_NUM;
+    for (uint32_t serverIdx = startIdx; serverIdx < startIdx + batchNodeNum && serverIdx < closMaxNodeNum;
          ++serverIdx) {
         if (serverIdx == curServerIdx) {
             continue;

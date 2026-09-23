@@ -76,6 +76,26 @@ std::vector<uint8_t> TestUbseSmbios::BuildType131DmiTable(uint8_t flag, uint16_t
     return buf;
 }
 
+std::vector<uint8_t> TestUbseSmbios::BuildType1DmiTable(uint8_t manufacturerStringNumber,
+                                                        const std::vector<std::string>& strings)
+{
+    std::vector<uint8_t> buf;
+    buf.push_back(1);                     // [0] type
+    buf.push_back(0x08);                  // [1] length，格式化区域长度，offset 0x04为Manufacturer字符串编号
+    buf.push_back(0);                     // [2] handle lsb
+    buf.push_back(0);                     // [3] handle msb
+    buf.push_back(manufacturerStringNumber); // [4] offset 0x04: Manufacturer字符串编号
+    buf.push_back(0);                     // [5] Serial Number字符串编号
+    buf.push_back(0);                     // [6] 占位
+    buf.push_back(0);                     // [7] 占位
+    for (const auto& str : strings) {
+        buf.insert(buf.end(), str.begin(), str.end());
+        buf.push_back('\0');
+    }
+    buf.push_back('\0');                  // 字符串表结束符
+    return buf;
+}
+
 // ==================== fixture ====================
 
 void TestUbseSmbios::SetUp()
@@ -232,6 +252,106 @@ TEST_F(TestUbseSmbios, GetServerIdx_Success)
     uint32_t serverIdx = 0;
     EXPECT_EQ(UbseSmbios::GetInstance().GetServerIdx(serverIdx), UBSE_OK);
     EXPECT_EQ(serverIdx, 28);
+}
+
+// ==================== GetSystemManufacturer / IsQemuVm tests (SMBIOS Type 1) ====================
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_Success)
+{
+    auto dmiTable = BuildType1DmiTable(1, {"QEMU"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_OK);
+    EXPECT_EQ(manufacturer, "QEMU");
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_Failure)
+{
+    g_entryPointStubData = {};
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_ERROR);
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_FailsWhenStringNumberZero)
+{
+    // Manufacturer字符串编号为0表示未指定字符串，解析失败
+    auto dmiTable = BuildType1DmiTable(0, {"QEMU"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_ERROR);
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_FailsWhenManufacturerStringEmpty)
+{
+    // Manufacturer字符串编号指向空字符串：空串是合法字符串表项，解析成功但值为空，
+    // 由GetSystemManufacturer的empty检查拒绝
+    auto dmiTable = BuildType1DmiTable(1, {""});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_ERROR);
+}
+
+TEST_F(TestUbseSmbios, GetSystemManufacturer_SkipsEmptyStringEntry)
+{
+    // 回归用例：字符串集为{"QEMU", "", "Huawei"}，Manufacturer引用第3项。
+    // 空字符串仅占一个'\0'且同样计入编号，其后字符串必须仍可读取，不能被误判为字符串表结束
+    auto dmiTable = BuildType1DmiTable(3, {"QEMU", "", "Huawei"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    std::string manufacturer;
+    EXPECT_EQ(UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer), UBSE_OK);
+    EXPECT_EQ(manufacturer, "Huawei");
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_True)
+{
+    auto dmiTable = BuildType1DmiTable(1, {"QEMU"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_TrueWhenLowerCaseManufacturer)
+{
+    // QEMU匹配大小写不敏感
+    auto dmiTable = BuildType1DmiTable(1, {"qemu"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    EXPECT_TRUE(UbseSmbios::GetInstance().IsQemuVm());
+}
+
+TEST_F(TestUbseSmbios, IsQemuVm_FalseWhenOtherManufacturer)
+{
+    auto dmiTable = BuildType1DmiTable(1, {"Huawei"});
+    g_dmiTableStubData = dmiTable;
+    g_entryPointStubData = BuildSmbios3EntryPoint(dmiTable.size());
+    MOCKER_CPP(LoadSysEntryFile).stubs().will(invoke(LoadSysEntryFileStub));
+    MOCKER_CPP(GetDmiTable).stubs().will(invoke(GetDmiTableStub));
+
+    EXPECT_FALSE(UbseSmbios::GetInstance().IsQemuVm());
 }
 
 } // namespace ubse::adapter_plugins::smbios::ut

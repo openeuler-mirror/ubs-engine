@@ -94,22 +94,30 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
 std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 {
     std::unordered_set<UBSE_ID_TYPE> topoLinkedNodes{};
-    adapter_plugins::mti::UbseDevTopology devTopology{};
-    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
+    if (adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        auto allNodes = GetAllNodes();
+        for (const auto& node : allNodes) {
+            topoLinkedNodes.insert(node.nodeId);
+        }
         return topoLinkedNodes;
-    }
-    for (auto& [devName, devTopo] : devTopology) {
-        std::string devNodeId, chipId;
-        devName.GetNodeIdAndChipId(devNodeId, chipId);
-        for (auto& port : devTopo.second) {
-            if (port.second.remoteSlotId != "-") {
-                topoLinkedNodes.insert(port.second.remoteSlotId);
+    } else {
+        adapter_plugins::mti::UbseDevTopology devTopology{};
+        auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
+            return topoLinkedNodes;
+        }
+        for (auto& [devName, devTopo] : devTopology) {
+            std::string devNodeId, chipId;
+            devName.GetNodeIdAndChipId(devNodeId, chipId);
+            for (auto& port : devTopo.second) {
+                if (port.second.remoteSlotId != "-") {
+                    topoLinkedNodes.insert(port.second.remoteSlotId);
+                }
             }
         }
+        return topoLinkedNodes;
     }
-    return topoLinkedNodes;
 }
 
 void UbseElectionNodeMgr::ParseAllNodesVector()
@@ -138,7 +146,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
     }
     if (!isHierarchicalElection_) {
         if (IsUrma()) {
-            // 单层urma
+            // todo 需要适配，单层urma
             auto topoLinkedNodes = GetTopoLinkedNodes();
             for (const auto &node : ubseNodeInfos) {
                 Node tempNode;

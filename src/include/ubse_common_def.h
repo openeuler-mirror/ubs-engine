@@ -70,7 +70,8 @@ constexpr uint32_t STACK_IGNORE_DEPTH = 0;
 constexpr uint32_t PRINTSIG = 35;
 constexpr uint32_t DEFAULTTIMEOUT = 60;
 constexpr uint32_t DEFAULTHBTIMEOUT = 30;
-constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 72;
+constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 72;      // 真机CLOS组网节点容量
+constexpr uint32_t UBSE_CLOS_SIM_MAX_NODE_NUM = 8;   // 仿真环境（QEMU虚拟机）CLOS组网节点容量
 
 constexpr uint16_t MAX_PERCENT = 100;
 const uint16_t MIN_PORT = 1024;

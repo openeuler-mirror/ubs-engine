@@ -88,7 +88,10 @@ UbseResult UbseNodeDiscoveryStaticMode::GenerateClosClusterStaticInfo()
 
     UbseResult ret = UBSE_OK;
     std::vector<UbseNodeStaticInfo> ubseNodeInfos{};
-    for (size_t i = 0; i < UBSE_CLOS_MAX_NODE_NUM; ++i) {
+    // 仿真环境（QEMU虚拟机）CLOS组网节点容量为8，真机为UBSE_CLOS_MAX_NODE_NUM
+    const uint32_t closMaxNodeNum =
+        UbseSmbios::GetInstance().IsQemuVm() ? UBSE_CLOS_SIM_MAX_NODE_NUM : UBSE_CLOS_MAX_NODE_NUM;
+    for (size_t i = 0; i < closMaxNodeNum; ++i) {
         if (std::to_string(i + 1) == currentSuperNode.nodeId) {
             continue;
         }
