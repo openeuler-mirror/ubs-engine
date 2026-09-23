@@ -92,6 +92,25 @@ void AddManagedPid(pid_t pid, uint64_t maxGb, double ratio, uint64_t vmRssGb, co
     }
 }
 
+// smap 实测桩: 仅在 targetNumas 上返回该 pid 的一条 scanType=1 记录, 其余 numa 视为无配置
+void MockSmapQuery(pid_t pid, const std::set<int>& targetNumas, uint64_t memSizeKb)
+{
+    ProcessMemPidBridge::rmrsProcessConfigQuery =
+        [pid, targetNumas, memSizeKb](int nid, mempooling::smap::ProcessPayload* payloads, int, int* realLen) {
+            if (targetNumas.count(nid) == 0) {
+                *realLen = 0;
+                return 0;
+            }
+            mempooling::smap::ProcessPayload p{};
+            p.pid = pid;
+            p.scanType = 1;
+            p.memSize = memSizeKb;
+            *realLen = 1;
+            payloads[0] = p;
+            return 0;
+        };
+}
+
 // nodeFree 口径统一为本地 NUMA 空闲总和后，mock 直接驱动 localNumaFreeKbReader
 void MockNodeFreeBytes(uint64_t bytes)
 {
@@ -123,6 +142,9 @@ std::vector<ReturnRequestItem> DecodeItems(const std::string& payload)
 
 void TestProcessMemPidDecision::SetUp()
 {
+    // 门禁以 root 跑 UT, 而本 fixture 普遍以 getpid() 纳管自身进程; root 不在纳管范围,
+    // 过滤器开着会静默跳过纳管, 故整个 fixture 关闭, TearDown 恢复默认值
+    ubse::config::MockSetFilterRootProcess(false);
     ubse::mem::controller::MockResetAllErrors();
     ubse::com::MockResetRpcState();
     ubse::nodeController::MockSetCurrentNodeId("NODE0");
@@ -168,6 +190,7 @@ void TestProcessMemPidDecision::SetUp()
 
 void TestProcessMemPidDecision::TearDown()
 {
+    ubse::config::MockSetFilterRootProcess(true);
     ProcessMemPidBridge::rmrsMigrateOut = {};
     ubse::smap::MockResetMigrateState();
     ProcessMemPidBridge::rmrsRemove = {};
@@ -788,7 +811,6 @@ TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanNotExistStopsRetry)
 
 TEST_F(TestProcessMemPidDecision, RecoverBorrowOrphanReleasedOnStartTimeMismatch)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2);
     auto startTime = ProcessMemPidConfigManager::GetExactStartTime(pid);
@@ -838,7 +860,6 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigUnavailable)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigReportsDirtyStates)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2, MakeBorrow(1, "debt-x"));
     AddManagedPid(2001, 10, 0.5, 2);
@@ -886,25 +907,11 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigQueryAllFail)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     AddManagedPid(pid, 10, 0.5, 2, MakeBorrow(1, "debt-x"));
     ubse::mem::controller::MockSetImportDebtInfos(
         {MakeImportDebt("debt-numa5", 1 * GB, 5, 1000, 0), MakeImportDebt("debt-numa7", 1 * GB, 7, 1000, 0)});
-    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
-                                                        int* realLen) {
-        if (nid != 5 && nid != 7) {
-            *realLen = 0;
-            return 0;
-        }
-        mempooling::smap::ProcessPayload p{};
-        p.pid = pid;
-        p.scanType = 1;
-        p.memSize = 1 * 1024 * 1024;
-        *realLen = 1;
-        payloads[0] = p;
-        return 0;
-    };
+    MockSmapQuery(pid, {5, 7}, 1 * 1024 * 1024);
 
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 1u);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
@@ -920,7 +927,6 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigMultiRemoteNumaAccumulates)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot s5;
@@ -938,20 +944,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
     ubse::mem::controller::MockSetImportDebtInfos(
         {MakeImportDebt("debt-numa5", 1 * GB, 5, 1000, 0), MakeImportDebt("debt-numa7", 1 * GB, 7, 1000, 0)});
 
-    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
-                                                        int* realLen) {
-        if (nid != 5 && nid != 7) {
-            *realLen = 0;
-            return 0;
-        }
-        mempooling::smap::ProcessPayload p{};
-        p.pid = pid;
-        p.scanType = 1;
-        p.memSize = 1 * 1024 * 1024;
-        *realLen = 1;
-        payloads[0] = p;
-        return 0;
-    };
+    MockSmapQuery(pid, {5, 7}, 1 * 1024 * 1024);
 
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 0u);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
@@ -964,52 +957,38 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsAcrossMultipleSlots)
     EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(7), 1 * GB);
 }
 
-TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
+TEST_F(TestProcessMemPidDecision, RecoverSmapConfigKeepsLedgerValuesWhenBigSlotFirst)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
-    BorrowSlot s1;
-    s1.debtId = "debt-big";
-    s1.migratedBytes = 2 * GB;
-    s1.capacity = 2 * GB;
-    s1.status = BorrowSlotStatus::COMPLETED;
-    s1.remoteNumaId = 5;
-    BorrowSlot s2 = s1;
-    s2.debtId = "debt-small";
-    s2.migratedBytes = 1 * GB;
-    s2.capacity = 1 * GB;
-    borrow.slots = {s1, s2};
+    BorrowSlot bigFirst;
+    bigFirst.debtId = "debt-big";
+    bigFirst.migratedBytes = 2 * GB;
+    bigFirst.capacity = 2 * GB;
+    bigFirst.status = BorrowSlotStatus::COMPLETED;
+    bigFirst.remoteNumaId = 5;
+    BorrowSlot smallSecond = bigFirst;
+    smallSecond.debtId = "debt-small";
+    smallSecond.migratedBytes = 1 * GB;
+    smallSecond.capacity = 1 * GB;
+    borrow.slots = {bigFirst, smallSecond};
     borrow.currentRemote = 3 * GB;
     AddManagedPid(pid, 10, 0.5, 2, borrow);
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-numa5", 1 * GB, 5, 1000, 0)});
 
-    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
-                                                        int* realLen) {
-        if (nid != 5) {
-            *realLen = 0;
-            return 0;
-        }
-        mempooling::smap::ProcessPayload p{};
-        p.pid = pid;
-        p.scanType = 1;
-        p.memSize = 1536 * 1024;
-        *realLen = 1;
-        payloads[0] = p;
-        return 0;
-    };
+    MockSmapQuery(pid, {5}, 1536 * 1024);
 
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 0u);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    // COMPLETED 槽 migratedBytes 取账本值(smap 实测不覆盖), 槽顺序不按容量重排
     EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
     EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 1 * GB);
     EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
-TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArrayOrder)
+TEST_F(TestProcessMemPidDecision, RecoverSmapConfigKeepsLedgerValuesWhenSmallSlotFirst)
 {
     pid_t pid = getpid();
     BorrowState borrow;
@@ -1030,34 +1009,20 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArra
     AddManagedPid(pid, 10, 0.5, 2, borrow);
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-numa5", 1 * GB, 5, 1000, 0)});
 
-    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
-                                                        int* realLen) {
-        if (nid != 5) {
-            *realLen = 0;
-            return 0;
-        }
-        mempooling::smap::ProcessPayload p{};
-        p.pid = pid;
-        p.scanType = 1;
-        p.memSize = 1536 * 1024;
-        *realLen = 1;
-        payloads[0] = p;
-        return 0;
-    };
+    MockSmapQuery(pid, {5}, 1536 * 1024);
 
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 0u);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 2u);
-    // COMPLETED 槽 migratedBytes 为账本权威值, 实测不覆盖
+    // COMPLETED 槽 migratedBytes 取账本值(smap 实测不覆盖), 槽顺序不按容量重排
     EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 1 * GB);
     EXPECT_EQ(borrowAfter.slots[1].migratedBytes, 2 * GB);
     EXPECT_EQ(borrowAfter.currentRemote, 3 * GB);
 }
 
-TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExceeded)
+TEST_F(TestProcessMemPidDecision, RecoverSmapConfigKeepsLedgerValuesSingleSlot)
 {
-    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot slot;
@@ -1071,26 +1036,13 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsRemainderWhenCapacityExc
     AddManagedPid(pid, 10, 0.5, 2, borrow);
     ubse::mem::controller::MockSetImportDebtInfos({MakeImportDebt("debt-numa5", 2 * GB, 5, 1000, 0)});
 
-    ProcessMemPidBridge::rmrsProcessConfigQuery = [pid](int nid, mempooling::smap::ProcessPayload* payloads, int,
-                                                        int* realLen) {
-        if (nid != 5) {
-            *realLen = 0;
-            return 0;
-        }
-        mempooling::smap::ProcessPayload p{};
-        p.pid = pid;
-        p.scanType = 1;
-        p.memSize = 1536 * 1024;
-        *realLen = 1;
-        payloads[0] = p;
-        return 0;
-    };
+    MockSmapQuery(pid, {5}, 1536 * 1024);
 
     EXPECT_EQ(ProcessMemPidDecision::GetInstance().RecoverSmapProcessConfig(), 0u);
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     const auto& borrowAfter = snapshot.at(pid).borrow;
     ASSERT_EQ(borrowAfter.slots.size(), 1u);
-    // COMPLETED 槽 migratedBytes/remoteNumaMigrated 为账本权威值, 实测不覆盖
+    // COMPLETED 槽 migratedBytes/remoteNumaMigrated 取账本值, smap 实测不覆盖
     EXPECT_EQ(borrowAfter.slots[0].migratedBytes, 2 * GB);
     EXPECT_EQ(borrowAfter.currentRemote, 2 * GB);
     EXPECT_EQ(borrowAfter.remoteNumaMigrated.at(5), 2 * GB);
