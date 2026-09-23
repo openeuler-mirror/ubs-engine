@@ -12,14 +12,12 @@
 
 #include "test_ubse_ras_message.h"
 #include "ubse_error.h"
-#include "ubse_ras_oom_handler.h"
 
 namespace ubse::ras::message::ut {
 void TestUbseRasMessage::SetUp()
 {
     Test::SetUp();
     rasMessage = new UbseRasMessage("test");
-    rasOOmMessage = new UbseRasOomMessage(1, "test", 1);
 }
 
 void TestUbseRasMessage::TearDown()
@@ -60,25 +58,4 @@ TEST_F(TestUbseRasMessage, Deserialize)
     EXPECT_TRUE(UBSE_OK == rasMessage->Deserialize());
 }
 
-TEST_F(TestUbseRasMessage, OomSerialize)
-{
-    auto res = rasOOmMessage->Serialize();
-    EXPECT_EQ(res, UBSE_OK);
-}
-
-TEST_F(TestUbseRasMessage, OomDeserializeFail)
-{
-    rasOOmMessage->mInputRawData.reset(new uint8_t[NO_256]);
-    *reinterpret_cast<uint32_t*>(rasOOmMessage->mInputRawData.get()) = 0;
-    rasOOmMessage->mInputRawDataSize = NO_256;
-    auto res = rasOOmMessage->Deserialize();
-    EXPECT_EQ(res, UBSE_ERROR);
-}
-
-TEST_F(TestUbseRasMessage, OomDeserializeNull)
-{
-    rasOOmMessage->mInputRawData = nullptr;
-    auto res = rasOOmMessage->Deserialize();
-    EXPECT_EQ(res, UBSE_ERROR);
-}
 } // namespace ubse::ras::message::ut
