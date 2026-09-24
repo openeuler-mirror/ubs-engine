@@ -1008,7 +1008,7 @@ MpResult MempoolBorrowModule::MemBorrowStrategyMultiple(const SrcMemoryBorrowPar
     param.byNodeFault = borrowStrategyResult.byNodeFault;
     param.need = borrowSizes;
     sort(param.need.begin(), param.need.end(), std::greater<uint64_t>());
-    param.recordList.reserve(borrowSizes.size());
+    param.recordList.resize(borrowSizes.size());
     GetMemBorrowStrategyMultipleParam(srcParam, param, destPreNid, 0, nodeMemMap);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemBorrow][MemBorrowStrategy] Start dfs." << param.nodeList.size();
