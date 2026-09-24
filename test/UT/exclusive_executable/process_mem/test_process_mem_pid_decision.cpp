@@ -1011,6 +1011,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsSlotsByCapacityInOrder)
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigFillsByCapacityDescIgnoreArrayOrder)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot smallFirst;
