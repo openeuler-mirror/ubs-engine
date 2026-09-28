@@ -53,4 +53,4 @@ spec:
         - name: ubse-run
           hostPath:
             path: {{ .Values.helper.udsDir }}          # /var/run/ubse
-            type: DirectoryOrCreate
+            type: Directory          # 只挂载不创建：目录由宿主机 ubse:ubse 创建，避免 kubelet 以 root:root 创建
