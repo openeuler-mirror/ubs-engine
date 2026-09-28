@@ -939,7 +939,7 @@ uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer& req, UbseByteBuff
             return MEM_POOLING_ERROR;
         }
         resp.data[0] = static_cast<uint8_t>(res);
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_OK;
     }
     return MEM_POOLING_OK;
 }
