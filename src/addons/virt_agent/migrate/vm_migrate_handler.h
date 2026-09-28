@@ -14,6 +14,7 @@
 #ifndef VM_MIGRATE_STATUS_H
 #define VM_MIGRATE_STATUS_H
 #include <atomic>
+#include <thread>
 
 #include "vm_error.h"
 #include "vm_struct.h"
@@ -21,20 +22,21 @@
 namespace vm {
 class VmMigrateHandler {
 public:
-    VmMigrateHandler() : intervalSeconds(5), init(false) {} // 5s interval
+    VmMigrateHandler() = default;
 
 public:
     static void FlushExpireDataThread();
     static void Stop();
 
 private:
-    VmResult InitVmMigrateData();
-    void FlushExpireData();
+    static VmResult InitVmMigrateData();
+    static void FlushExpireData();
     static void FlushExpireVm(const VMNodeLocInfo& nodeLoc, const std::unordered_map<std::string, VMBasicInfo>& vmMap,
                               time_t currentTime);
-    uint32_t intervalSeconds{};
-    bool init{};
+    static uint32_t intervalSeconds;
+    static bool init;
     static std::atomic<bool> exitFlag;
+    static std::thread flushThread;
 };
 } // namespace vm
 

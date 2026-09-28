@@ -803,4 +803,20 @@ TEST_F(TestUbsEngineNpu, FreeNicVfeWhenEmpty)
     FreeNicVfe(deviceList);
     EXPECT_EQ(deviceList.nic_vfe_ptr, nullptr);
 }
+
+// 公开释放接口传入nullptr时应直接返回，不空指针崩溃
+TEST_F(TestUbsEngineNpu, FreeDeviceListWhenNull)
+{
+    ubs_npu_device_list_free(nullptr);
+    SUCCEED();
+}
+
+// ub_dev_list_count>0但ub_dev_list为nullptr时应返回UBS_ERR_NULL_POINTER
+TEST_F(TestUbsEngineNpu, AllocInfoInvalidWhenDevListNull)
+{
+    ubs_ub_alloc_devices_info_t allocInfo{};
+    allocInfo.ub_dev_list_count = 1;
+    allocInfo.ub_dev_list = nullptr;
+    EXPECT_EQ(UbseNpuAllocInfoIsValid(&allocInfo), UBS_ERR_NULL_POINTER);
+}
 } // namespace ubse::sdk::ut

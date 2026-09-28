@@ -25,7 +25,9 @@
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_util.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "debt/ubse_mem_debt_ledger.h"
 #include "ubse_mem_controller_ledger.cpp"
 
@@ -1765,6 +1767,153 @@ TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_N
 
     auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
     EXPECT_EQ(ret, UBSE_OK);
+}
+
+namespace {
+const std::string MERGE_TEST_NODE = "1";
+const std::string MERGE_TEST_OBJ = "merge_case";
+const std::string MERGE_TEST_OBJ_REMOVED = "merge_case_removed";
+
+using adapter_plugins::mti::mami::UbseDecoderState;
+using adapter_plugins::mti::mami::UbseMamiMemImportResult;
+
+UbseMamiMemImportResult MakeDecoder(uint32_t marId, uint64_t handle, UbseDecoderState state)
+{
+    UbseMamiMemImportResult dec{};
+    dec.marId = marId;
+    dec.handle = handle;
+    dec.state = state;
+    return dec;
+}
+
+// 模拟硬件无效化成功（将全部decoder置为targetState），且在无效化期间RPC路径并发将mar2置为PERMANENT_INVALID
+UbseResult MockInvalidateThenConcurrentWrite(uint32_t, adapter_plugins::mmi::UbseMemImportStatus& status, uint8_t,
+                                             UbseDecoderState targetState)
+{
+    for (auto& dec : status.decoderResult) {
+        dec.state = targetState;
+    }
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().UpdateResource(
+        MERGE_TEST_NODE, MERGE_TEST_OBJ, [](auto& latest) {
+            for (auto& dec : latest.status.decoderResult) {
+                if (dec.marId == 2) {
+                    dec.state = UbseDecoderState::DECODER_PERMANENT_INVALID;
+                }
+            }
+            return true;
+        });
+    return UBSE_OK;
+}
+
+// 模拟硬件无效化成功（将全部decoder置为targetState），不注入任何并发写
+UbseResult MockInvalidateAllDecoders(uint32_t, adapter_plugins::mmi::UbseMemImportStatus& status, uint8_t,
+                                     UbseDecoderState targetState)
+{
+    for (auto& dec : status.decoderResult) {
+        dec.state = targetState;
+    }
+    return UBSE_OK;
+}
+
+// 模拟硬件无效化成功，且对象在无效化期间被并发移除
+UbseResult MockInvalidateThenRemove(uint32_t, adapter_plugins::mmi::UbseMemImportStatus&, uint8_t, UbseDecoderState)
+{
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().RemoveResource(MERGE_TEST_NODE,
+                                                                                           MERGE_TEST_OBJ_REMOVED);
+    return UBSE_OK;
+}
+} // namespace
+
+/*
+* 用例描述
+* AgentInvalidateImportDebt合并写回：硬件无效化期间并发的其他状态更新不被旧快照覆盖。
+* 测试步骤：
+* 1.放置import对象，decoderResult含两个VALID decoder（marId=1/2）；
+* 2.mock硬件无效化成功，并在无效化期间并发将mar2置为PERMANENT_INVALID；
+* 3.调用AgentInvalidateImportDebtHelper执行无效化合并。
+* 预期结果：
+* 1.返回UBSE_OK；
+* 2.mar1吸收TEMP_INVALID；mar2保持PERMANENT_INVALID未被覆盖；对象状态不变。
+*/
+TEST_F(TestUbseMemControllerLedger, AgentInvalidateImportDebtMergeNotOverwriteConcurrentStates)
+{
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    UbseMemFdBorrowImportObj obj{};
+    obj.req.name = MERGE_TEST_OBJ;
+    obj.req.importNodeId = MERGE_TEST_NODE;
+    obj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    obj.status.decoderResult = {MakeDecoder(1, 11, UbseDecoderState::DECODER_VALID),
+                                MakeDecoder(2, 22, UbseDecoderState::DECODER_VALID)};
+    PutDebtObj(MERGE_TEST_NODE, MERGE_TEST_OBJ, obj);
+
+    // mock硬件无效化：AgentInvalidateDecoderEntry跨TU调用，通过invoke在"硬件成功"的同时注入并发写回
+    MOCKER(AgentInvalidateDecoderEntry).stubs().will(invoke(MockInvalidateThenConcurrentWrite));
+
+    const auto ret = AgentInvalidateImportDebtHelper<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ,
+                                                                               UbseDecoderState::DECODER_TEMP_INVALID);
+    EXPECT_EQ(UBSE_OK, ret);
+
+    auto ptr = GetDebtObj<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ);
+    ASSERT_TRUE(ptr != nullptr);
+    EXPECT_EQ(UbseDecoderState::DECODER_TEMP_INVALID, ptr->status.decoderResult[0].state);
+    // 并发写入的PERMANENT_INVALID不被旧快照整对象覆盖
+    EXPECT_EQ(UbseDecoderState::DECODER_PERMANENT_INVALID, ptr->status.decoderResult[1].state);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, ptr->status.state);
+}
+
+/*
+* 用例描述
+* AgentInvalidateImportDebt合并写回：对象已被并发销毁时跳过写回。
+* 测试步骤：
+* 1.放置state为DESTROYED的import对象；
+* 2.mock硬件无效化成功，执行无效化合并。
+* 预期结果：
+* 1.返回UBSE_OK；decoder状态不被写回，保持VALID。
+*/
+TEST_F(TestUbseMemControllerLedger, AgentInvalidateImportDebtSkipWhenObjDestroyed)
+{
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    // mock将decoder置为targetState：若DESTROYED跳过守卫被删除，mar1将被写回TEMP_INVALID，断言失败
+    MOCKER(AgentInvalidateDecoderEntry).stubs().will(invoke(MockInvalidateAllDecoders));
+
+    UbseMemFdBorrowImportObj destroyedObj{};
+    destroyedObj.req.name = MERGE_TEST_OBJ;
+    destroyedObj.req.importNodeId = MERGE_TEST_NODE;
+    destroyedObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
+    destroyedObj.status.decoderResult = {MakeDecoder(1, 11, UbseDecoderState::DECODER_VALID)};
+    PutDebtObj(MERGE_TEST_NODE, MERGE_TEST_OBJ, destroyedObj);
+    auto ret = AgentInvalidateImportDebtHelper<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ,
+                                                                         UbseDecoderState::DECODER_TEMP_INVALID);
+    EXPECT_EQ(UBSE_OK, ret);
+    auto ptr = GetDebtObj<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ);
+    ASSERT_TRUE(ptr != nullptr);
+    EXPECT_EQ(UbseDecoderState::DECODER_VALID, ptr->status.decoderResult[0].state);
+}
+
+/*
+* 用例描述
+* AgentInvalidateImportDebt合并写回：对象在硬件无效化期间被并发移除时不崩溃。
+* 测试步骤：
+* 1.放置state为SUCCESS的import对象；
+* 2.mock硬件无效化成功且在无效化mock中并发移除该对象；
+* 3.执行无效化合并。
+* 预期结果：
+* 1.返回UBSE_OK，不崩溃；对象保持移除状态。
+*/
+TEST_F(TestUbseMemControllerLedger, AgentInvalidateImportDebtOkWhenObjRemovedConcurrently)
+{
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    UbseMemFdBorrowImportObj obj{};
+    obj.req.name = MERGE_TEST_OBJ_REMOVED;
+    obj.req.importNodeId = MERGE_TEST_NODE;
+    obj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    obj.status.decoderResult = {MakeDecoder(1, 11, UbseDecoderState::DECODER_VALID)};
+    PutDebtObj(MERGE_TEST_NODE, MERGE_TEST_OBJ_REMOVED, obj);
+    MOCKER(AgentInvalidateDecoderEntry).stubs().will(invoke(MockInvalidateThenRemove));
+    auto ret = AgentInvalidateImportDebtHelper<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ_REMOVED,
+                                                                         UbseDecoderState::DECODER_TEMP_INVALID);
+    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(nullptr, GetDebtObj<UbseMemFdBorrowImportObj>(MERGE_TEST_NODE, MERGE_TEST_OBJ_REMOVED));
 }
 
 } // namespace ubse::mem_controller::ut

@@ -271,4 +271,28 @@ TEST_F(TestMempoolingModule, CachedFunctionPointers)
 
     MOCKER(dlsym).reset();
 }
+
+TEST_F(TestMempoolingModule, DeInitClearsAllFunctionPointers)
+{
+    MempoolingModule module;
+    auto MockLibrary = TestLibrary();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&MockLibrary)));
+    MOCKER(dlclose).stubs().will(returnValue(0));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
+
+    EXPECT_EQ(module.Init(), VM_OK);
+    EXPECT_NE(MempoolingModule::UBSRMRSBatchBorrowStrategy(), nullptr);
+    EXPECT_NE(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped(), nullptr);
+
+    module.DeInit();
+
+    MOCKER(dlsym).reset();
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
+    EXPECT_EQ(MempoolingModule::UBSRMRSBatchBorrowStrategy(), nullptr);
+    EXPECT_EQ(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped(), nullptr);
+
+    MOCKER(dlopen).reset();
+    MOCKER(dlclose).reset();
+    MOCKER(dlsym).reset();
+}
 } // namespace ubse::ut::vm

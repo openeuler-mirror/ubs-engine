@@ -58,6 +58,8 @@ public:
 
     void RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc& loc);
 
+    void RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc& loc, uint64_t handle);
+
     void PrintPreHandleMap();
 
     bool IsNeedPreOnline(const decoder::utils::DecoderEntryLoc& loc, uint32_t dcna, UbseMamiMemImportResult& outValue);

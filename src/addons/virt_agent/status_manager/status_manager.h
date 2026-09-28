@@ -52,8 +52,8 @@ public:
 
     static void EscapeStrategyHandle(EscapeAction& escapeAction);
 
-    static void MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
-                                      const std::vector<uint64_t>& borrowSizes);
+    static VmResult MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
+                                          const std::vector<uint64_t>& borrowSizes);
 
     static VmResult PerformMemoryBorrow(const mempooling::SrcMemoryBorrowParam& borrowParam,
                                         const std::vector<uint64_t>& borrowSizes,

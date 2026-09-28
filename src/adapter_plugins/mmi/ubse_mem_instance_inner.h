@@ -42,6 +42,11 @@ using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
 using ubse::common::def::UbseResult;
 
+struct PreImportHandleRecord {
+    mem::decoder::utils::DecoderEntryLoc loc;
+    uint64_t handle;
+};
+
 class MemInstanceInnerCommon {
 public:
     static MemInstanceInnerCommon& GetInstance()

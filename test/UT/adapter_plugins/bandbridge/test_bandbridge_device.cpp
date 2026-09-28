@@ -179,8 +179,10 @@ TEST_F(BandbridgeDeviceTest, Close_NullPrivateData_ReturnsZero)
 TEST_F(BandbridgeDeviceTest, ValidateUserBuf_ValidBuf_ReturnsZero)
 {
     g_ctrlq_info.sq.depth = 32;
-    struct bandbridge_mbuf tmpbuf;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
     tmpbuf.sendbuf_size = 64;
+    tmpbuf.recvbuf_size = 64;
     EXPECT_EQ(test_validate_user_buf(&tmpbuf), 0);
 }
 
@@ -200,16 +202,20 @@ TEST_F(BandbridgeDeviceTest, ValidateUserBuf_SqSizeZero_ReturnsInval)
 TEST_F(BandbridgeDeviceTest, ValidateUserBuf_SendbufSizeZero_ReturnsInval)
 {
     g_ctrlq_info.sq.depth = 32;
-    struct bandbridge_mbuf tmpbuf;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
     tmpbuf.sendbuf_size = 0;
+    tmpbuf.recvbuf_size = 64;
     EXPECT_EQ(test_validate_user_buf(&tmpbuf), -EINVAL);
 }
 
 TEST_F(BandbridgeDeviceTest, ValidateUserBuf_SendbufSizeTooLarge_ReturnsInval)
 {
     g_ctrlq_info.sq.depth = 32;
-    struct bandbridge_mbuf tmpbuf;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
     tmpbuf.sendbuf_size = 32 * CTRLQ_BB_SIZE + 1;
+    tmpbuf.recvbuf_size = 64;
     EXPECT_EQ(test_validate_user_buf(&tmpbuf), -EINVAL);
 }
 
@@ -336,4 +342,155 @@ TEST_F(BandbridgeDeviceTest, CdevUnregister_Success)
 {
     bandbridge_cdev_register();
     bandbridge_cdev_unregister();
+}
+
+// ==================== 缓冲区安全校验回归测试 ====================
+
+// recvbuf_size为0应被校验拒绝
+TEST_F(BandbridgeDeviceTest, ValidateUserBuf_RecvbufSizeZero_ReturnsInval)
+{
+    g_ctrlq_info.sq.depth = 32;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = 64;
+    tmpbuf.recvbuf_size = 0;
+    EXPECT_EQ(test_validate_user_buf(&tmpbuf), -EINVAL);
+}
+
+// recvbuf_size为负数应被校验拒绝
+TEST_F(BandbridgeDeviceTest, ValidateUserBuf_RecvbufSizeNegative_ReturnsInval)
+{
+    g_ctrlq_info.sq.depth = 32;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = 64;
+    tmpbuf.recvbuf_size = -1;
+    EXPECT_EQ(test_validate_user_buf(&tmpbuf), -EINVAL);
+}
+
+// recvbuf_size超过rq实际大小(32*32=1024)应被校验拒绝
+TEST_F(BandbridgeDeviceTest, ValidateUserBuf_RecvbufSizeTooLarge_ReturnsInval)
+{
+    g_ctrlq_info.sq.depth = 32;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = 64;
+    tmpbuf.recvbuf_size = 32 * CTRLQ_BB_SIZE + 1;
+    EXPECT_EQ(test_validate_user_buf(&tmpbuf), -EINVAL);
+}
+
+// recvbuf_size等于rq实际大小的边界值应放行
+TEST_F(BandbridgeDeviceTest, ValidateUserBuf_RecvbufSizeBoundary_ReturnsZero)
+{
+    g_ctrlq_info.sq.depth = 32;
+    g_ctrlq_info.rq.depth = 32;
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = 64;
+    tmpbuf.recvbuf_size = 32 * CTRLQ_BB_SIZE;
+    EXPECT_EQ(test_validate_user_buf(&tmpbuf), 0);
+}
+
+// send_request完整路径, 超大recvbuf_size(100000)在校验阶段被拒;
+// 修复前会进入do_send_recv并以超大长度copy_to_user导致内核越界读
+TEST_F(BandbridgeDeviceTest, SendRequest_RecvbufSizeOversized_ReturnsInval)
+{
+    struct file filp = {0};
+    struct inode inode = {0};
+    setup_open_mbuf(filp, inode);
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
+
+    setup_sq_for_send_recv(16, 0x0042);
+
+    struct bandbridge_mbuf user_mbuf = {0};
+    user_mbuf.sendbuf_size = CTRLQ_BB_SIZE;
+    user_mbuf.recvbuf_size = 100000; // 超大接收长度, 超过rq实际大小(16*32=512)
+    char user_sendbuf[CTRLQ_BB_SIZE] = {0};
+    char* user_recvbuf = (char*)malloc(1024);
+    user_mbuf.sendbuf = user_sendbuf;
+    user_mbuf.recvbuf = user_recvbuf;
+    write_msg_header(user_sendbuf, 0x0042, 1);
+
+    int ret = (int)test_send_request(mbuf, &user_mbuf);
+    EXPECT_EQ(ret, -EINVAL);
+    free(user_recvbuf);
+
+    cleanup_sq_rq();
+    test_close(&inode, &filp);
+}
+
+// 修复前copy_to_user按用户传入的100000字节
+// 从mbuf->recvbuf(1024字节)越界读; 修复后实际接收长度回写为bb_num*32=32, 仅拷贝32字节
+TEST_F(BandbridgeDeviceTest, DoSendRecv_OversizedRecvbufSize_CopiesOnlyActualLength)
+{
+    struct file filp = {0};
+    struct inode inode = {0};
+    setup_open_mbuf(filp, inode);
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
+
+    setup_sq_for_send_recv(16, 0x0042); // 响应bb_num=1
+
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = CTRLQ_BB_SIZE;
+    tmpbuf.recvbuf_size = 100000;
+    char user_sendbuf[CTRLQ_BB_SIZE] = {0};
+    char* user_recvbuf = (char*)malloc(1024);
+    memset(user_recvbuf, 0xAA, 1024);
+    tmpbuf.sendbuf = user_sendbuf;
+    tmpbuf.recvbuf = user_recvbuf;
+    write_msg_header(user_sendbuf, 0x0042, 1);
+
+    EXPECT_EQ(test_do_send_recv(mbuf, &tmpbuf), 0);
+    EXPECT_EQ(tmpbuf.recvbuf_size, CTRLQ_BB_SIZE);
+
+    // 用户缓冲区32字节之后应保持原样(0xAA), 未被越界写入
+    bool untouched = true;
+    for (int i = CTRLQ_BB_SIZE; i < 1024; i++) {
+        if (user_recvbuf[i] != (char)0xAA) {
+            untouched = false;
+            break;
+        }
+    }
+    EXPECT_TRUE(untouched);
+    free(user_recvbuf);
+
+    cleanup_sq_rq();
+    test_close(&inode, &filp);
+}
+
+// 设备返回异常bb_num=255(8160字节), 虽未超过用户传入的recvbuf_size,
+// 但超过内核rq实际深度(2*32=64), 应返回-ENOSPC且不发生越界写;
+// 无防护时会向mbuf->recvbuf(1024字节)线性写8160字节, 破坏内核堆
+TEST_F(BandbridgeDeviceTest, DoSendRecv_AbnormalBbNumExceedsRqSize_ReturnsNospcNoOverflow)
+{
+    struct file filp = {0};
+    struct inode inode = {0};
+    setup_open_mbuf(filp, inode); // mbuf->recvbuf按rq depth=32分配, 即1024字节
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
+
+    g_ctrlq_info.sq.depth = 16;
+    g_ctrlq_info.sq.pi = 0;
+    g_ctrlq_info.sq.ci = 0;
+    mock_set_reg(CTRLQ_TX_HEAD_REG, 0);
+    g_ctrlq_info.sq.base_addr = malloc(16 * CTRLQ_BB_SIZE);
+
+    // rq实际深度仅2(64字节), 设备异常返回bb_num=255
+    setup_rq_with_response(2, 0x0042, 255);
+
+    struct bandbridge_mbuf tmpbuf = {0};
+    tmpbuf.sendbuf_size = CTRLQ_BB_SIZE;
+    tmpbuf.recvbuf_size = 255 * CTRLQ_BB_SIZE; // 用户值足够大, 旧守卫(仅比较用户值)会放行
+    char user_sendbuf[CTRLQ_BB_SIZE] = {0};
+    char* user_recvbuf = (char*)malloc(255 * CTRLQ_BB_SIZE);
+    tmpbuf.sendbuf = user_sendbuf;
+    tmpbuf.recvbuf = user_recvbuf;
+    write_msg_header(user_sendbuf, 0x0042, 1);
+
+    EXPECT_EQ(test_do_send_recv(mbuf, &tmpbuf), -ENOSPC);
+    free(user_recvbuf);
+
+    free(g_ctrlq_info.sq.base_addr);
+    g_ctrlq_info.sq.base_addr = NULL;
+    free(g_ctrlq_info.rq.base_addr);
+    g_ctrlq_info.rq.base_addr = NULL;
+    test_close(&inode, &filp);
 }

@@ -132,7 +132,7 @@ std::vector<MigrationAction> MemoryMigrationStrategy(
         if (borrowerIt == nodes.end()) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "MemoryMigrationStrategy error, borrowerKey:" << borrowerId << "not found.";
-            break;
+            continue;
         }
         std::vector<std::string> tempDockerIds;
         auto tagsIt = nodeTags.find(borrowerId);

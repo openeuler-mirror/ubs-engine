@@ -53,6 +53,13 @@ bool StrToUint(const std::string& src, uint32_t& value);
 
 std::string RemoveDashes(const std::string& str);
 
+constexpr uint32_t UBSE_HOSTNAME_LABEL_MAX_LEN = 63;
+// 节点上报主机名取自 gethostname, 受内核 HOST_NAME_MAX(64) 限制, 更长的配置值永远匹配不到节点。
+// 注意与 ubse_const_def.h 中的 IPC 字段容量宏 UBSE_HOST_NAME_MAX_LEN(128) 区分, 两者名字相近但值不同
+constexpr uint32_t UBSE_REPORTED_HOSTNAME_MAX_LEN = 64;
+
+bool IsValidHostName(const std::string& hostName);
+
 // 对动态参数做shell单引号转义，防止popen命令注入
 std::string ShellEscape(const std::string& str);
 

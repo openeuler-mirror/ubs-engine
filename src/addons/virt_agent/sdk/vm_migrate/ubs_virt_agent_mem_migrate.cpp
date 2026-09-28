@@ -37,7 +37,7 @@ int32_t update_page_flow_and_status(const char* opt, const char* uuid)
         return VA_ERROR_SERIALIZE_FAILED;
     }
     ubse_api_buffer_t requestBuffer = {memMigrateMsg.SerializedData(), memMigrateMsg.SerializedDataSize()};
-    ubse_api_buffer_t responseBuffer;
+    ubse_api_buffer_t responseBuffer = {nullptr, 0};
     ret = ubse_invoke_call(UBS_VA_VM_MIGRATE, UBS_VA_PAGE_FLOW_AND_UPDATE_STATUS, &requestBuffer, &responseBuffer);
     ubse_api_buffer_delete(&requestBuffer);
     if (ret != UBS_SUCCESS) {

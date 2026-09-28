@@ -36,7 +36,6 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_pointer_process.h"
-#include "ubse_ras_oom_handler.h"
 #include "ubse_str_util.h"
 #include "message/ubse_ras_message.h"
 #include "securec.h"

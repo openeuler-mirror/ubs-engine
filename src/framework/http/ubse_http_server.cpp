@@ -198,14 +198,20 @@ void UbseHttpServer::HandleRequest(const httplib::Request& req, httplib::Respons
     ProcessRequestHeadersAndParams(req, request);
     UbseHttpResponse response{};
     std::string routeKey = req.method + req.path;
-    auto it = routes_.find(routeKey);
-    if (it == routes_.end()) {
-        UBSE_LOG_ERROR << "url=" << req.path << "has not been registered in tcp server.";
-        res.status = httplib::NotFound_404;
-        res.set_content("Not Found", "text/plain");
-        return;
+    // RegisterRoute 可在 listen 后被插件并发调用，读取 routes_ 需加锁保护，避免数据竞争
+    UbseHttpHandlerFunc handler;
+    {
+        std::lock_guard<std::mutex> lock(routesMutex_);
+        auto it = routes_.find(routeKey);
+        if (it == routes_.end()) {
+            UBSE_LOG_ERROR << "url=" << req.path << "has not been registered in tcp server.";
+            res.status = httplib::NotFound_404;
+            res.set_content("Not Found", "text/plain");
+            return;
+        }
+        handler = it->second;
     }
-    it->second(request, response);
+    handler(request, response);
     BuildResponse(res, response);
 }
 

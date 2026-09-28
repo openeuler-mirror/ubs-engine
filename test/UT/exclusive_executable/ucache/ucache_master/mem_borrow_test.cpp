@@ -108,6 +108,12 @@ std::map<std::string, std::map<int, uint64_t>> loanableMemRawData = {
     {"Node3", {{0, 800}, {1, 800}, {2, 800}, {3, 800}}},
 };
 
+static std::map<std::string, std::map<int, int>> numaSocketMapData = {
+    {"Node1", {{0, 0}, {1, 0}, {2, 0}, {3, 0}}},
+    {"Node2", {{0, 0}, {1, 0}, {2, 0}, {3, 0}}},
+    {"Node3", {{0, 0}, {1, 0}, {2, 0}, {3, 0}}},
+};
+
 class BorrowNodeStatTest : public ::testing::Test {
 protected:
     void SetUp() override
@@ -364,6 +370,7 @@ protected:
         DataCollect::SetBorrowStrategyRawData(rawData);
         DataCollect::SetLoanableTotalBorrowMemMap(loanableMemRawData);
         DataCollect::SetPhysicalTopo(physicalTopo);
+        DataCollect::SetNumaSocketMap(numaSocketMapData);
         BorrowNodeStat::InitBorrowNodeStat();
         cout << "[Phase SetUp End]" << endl;
     }
@@ -375,6 +382,8 @@ protected:
         DataCollect::SetBorrowStrategyRawData(emptyData);
         std::map<std::string, std::map<int, uint64_t>> emptyLoanableMemRawData;
         DataCollect::SetLoanableTotalBorrowMemMap(emptyLoanableMemRawData);
+        std::map<std::string, std::map<int, int>> emptyNumaSocketMap;
+        DataCollect::SetNumaSocketMap(emptyNumaSocketMap);
         BorrowNodeStat::ClearBorrowNodeStat();
         ClearGlobalMemBorrowTopo();
         GlobalMockObject::verify();

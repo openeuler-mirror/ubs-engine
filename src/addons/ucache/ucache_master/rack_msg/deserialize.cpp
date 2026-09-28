@@ -12,6 +12,7 @@
 
 #include "deserialize.h"
 
+#include <algorithm>
 #include <regex>
 #include "ubse_com.h"
 #include "ubse_error.h"
@@ -45,7 +46,8 @@ uint32_t Deserialize::ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDeb
         info.size = ext.size;
         info.lentNodeId = ext.lentNodeId;
         info.lentNumaInfos.reserve(ext.lentNumaIdList.size());
-        for (size_t i = 0; i < ext.lentNumaIdList.size(); i++) {
+        size_t numaCnt = std::min(ext.lentNumaIdList.size(), ext.lentNumaSizeList.size());
+        for (size_t i = 0; i < numaCnt; i++) {
             LentNumaInfo lentNumaInfo{ext.lentNumaIdList[i], ext.lentNumaSizeList[i]};
             info.lentNumaInfos.emplace_back(lentNumaInfo);
         }
