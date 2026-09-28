@@ -1976,7 +1976,7 @@ ubs_error_t ubse_mem_shm_fault_get_resp_unpack(uint8_t* buffer, uint32_t len, ub
 ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t* ctx, ubs_urma_dev_t* urma_dev)
 {
     ubs_error_t ret = UBS_SUCCESS;
-    ret = unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX);
+    ret = unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX - 1);
     if (ret == UBS_SUCCESS) {
         ret = unpack_uint32(ctx, &urma_dev->healthy);
     }
@@ -2031,15 +2031,15 @@ ubs_error_t ubse_urma_dev_info_unpack(const uint8_t* buffer, uint32_t len, ubs_u
     ctx.ptr = buffer;
     ctx.remaining = len;
     ubs_error_t ret = UBS_SUCCESS;
-    ret = unpack_string(&ctx, dev_info->bonding_path, UBS_MAX_URMA_PATH_LENGTH);
+    ret = unpack_string(&ctx, dev_info->bonding_path, UBS_MAX_URMA_PATH_LENGTH - 1);
     if (ret == UBS_SUCCESS) {
-        ret = unpack_string(&ctx, dev_info->vfe_path[0], UBS_MAX_URMA_PATH_LENGTH);
+        ret = unpack_string(&ctx, dev_info->vfe_path[0], UBS_MAX_URMA_PATH_LENGTH - 1);
     }
     if (ret == UBS_SUCCESS) {
-        ret = unpack_string(&ctx, dev_info->vfe_path[UBS_VFE_PATH_NUM - 1], UBS_MAX_URMA_PATH_LENGTH);
+        ret = unpack_string(&ctx, dev_info->vfe_path[UBS_VFE_PATH_NUM - 1], UBS_MAX_URMA_PATH_LENGTH - 1);
     }
     if (ret == UBS_SUCCESS) {
-        ret = unpack_string(&ctx, dev_info->bonding_eid, UBS_MAX_URMA_PATH_LENGTH);
+        ret = unpack_string(&ctx, dev_info->bonding_eid, UBS_MAX_URMA_PATH_LENGTH - 1);
     }
     return ret;
 }
