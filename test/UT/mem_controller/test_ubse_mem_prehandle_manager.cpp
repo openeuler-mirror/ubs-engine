@@ -244,6 +244,29 @@ TEST_F(TestUbseMemPrehandleManager, RollbackPreImportHandle)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
+TEST_F(TestUbseMemPrehandleManager, RollbackSpecifiedPreImportHandle)
+{
+    MOCKER_CPP(MemDecoderUtils::GetAllHandles).stubs().will(returnValue(UBSE_OK));
+    std::vector<mmi::BasicPreImportInfo> preImportInfos;
+    auto& manager = UbseMemPrehandleManager::GetInstance();
+    manager.InitPreHandle(preImportInfos);
+
+    DecoderEntryLoc loc{1, 2, 0, 0};
+    UbseMamiMemImportResult firstHandle{};
+    firstHandle.handle = 1;
+    UbseMamiMemImportResult secondHandle{};
+    secondHandle.handle = 2;
+    manager.CreatePreHandle(loc, firstHandle, 100, 1024);
+    manager.CreatePreHandle(loc, secondHandle, 200, 1024);
+
+    manager.RollbackPreImportHandle(loc, firstHandle.handle);
+
+    UbseMamiMemImportResult outValue{};
+    EXPECT_EQ(manager.GetPreHandleByDcna(loc, 100, outValue), UBSE_ERROR);
+    EXPECT_EQ(manager.GetPreHandleByDcna(loc, 200, outValue), UBSE_OK);
+    EXPECT_EQ(outValue.handle, secondHandle.handle);
+}
+
 TEST_F(TestUbseMemPrehandleManager, InitAllEntryBlockPopulatesMap)
 {
     DecoderEntryLoc loc{};

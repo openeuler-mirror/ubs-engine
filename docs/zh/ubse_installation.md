@@ -194,7 +194,7 @@ cd ubs-engine
 bash docker/build_env.sh
 ```
 
-脚本会安装全部构建/UT 依赖（openEuler 仓库无 `ubs-comm-devel` 时按《构建指导》2.1.2 源码编译），并执行 Release 构建与 SDK 安装；仅安装依赖可执行 `bash docker/build_env.sh --skip-build`。该方式耗时较长，推荐使用方式一。
+脚本会安装全部构建/UT 依赖（openEuler 仓库无 `ubs-comm-devel` 时按[《构建指导》3.1.2](../build_install/构建指导.md#312-其他-openeuler-版本依赖安装说明)源码编译），并执行 Release 构建与 SDK 安装；仅安装依赖可执行 `bash docker/build_env.sh --skip-build`。该方式耗时较长，推荐使用方式一。
 
 ### 容器卸载与清理
 

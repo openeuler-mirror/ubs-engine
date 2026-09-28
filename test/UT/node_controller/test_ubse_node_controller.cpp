@@ -369,55 +369,6 @@ TEST_F(TestUbseNodeController, SerializeUbseNodeList)
     delete[] buffer;
 }
 
-TEST_F(TestUbseNodeController, CheckHostNameCharactersWhenNameInvalid)
-{
-    std::string hostName{".ho"};
-    auto ret = CheckHostNameCharacters(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameCharactersWhenSuccess)
-{
-    std::string hostName{"ho"};
-    auto ret = CheckHostNameCharacters(hostName);
-    ASSERT_EQ(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameWhenOverSize)
-{
-    std::string hostName{"hosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthost"};
-    auto ret = CheckHostName(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameWhenNameIsEmpty)
-{
-    std::string hostName{""};
-    auto ret = CheckHostName(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameWhenCharacterIsInvalid)
-{
-    std::string hostName{".ho"};
-    auto ret = CheckHostName(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameWhenContainDashAtBeginOrEnd)
-{
-    std::string hostName{"-ho"};
-    auto ret = CheckHostName(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeController, CheckHostNameWhenContainDigitAtBegin)
-{
-    std::string hostName{"1ho"};
-    auto ret = CheckHostName(hostName);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
 TEST_F(TestUbseNodeController, CheckGroupListWhenSizeNotMatch)
 {
     UbseNodeInfo info1{.nodeId = "0", .slotId = 0, .hostName = "ho0"};

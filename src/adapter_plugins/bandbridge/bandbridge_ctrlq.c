@@ -150,6 +150,13 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
             continue;
         }
 
+        /* bb_num comes from device message, must compare with actual rq size */
+        if (bb_num * CTRLQ_BB_SIZE > rq->depth * CTRLQ_BB_SIZE) {
+            bandbridge_ctrlq_update_rq_ci(bb_num);
+            bandbridge_log_err("bb_num %d exceeds rq size %d\n", bb_num, rq->depth * CTRLQ_BB_SIZE);
+            return -ENOSPC;
+        }
+
         if (bb_num * CTRLQ_BB_SIZE > *recvbuf_size) {
             bandbridge_ctrlq_update_rq_ci(bb_num);
             bandbridge_log_err("recvbuf is not enough\n");
@@ -158,6 +165,8 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
 
         bandbridge_ctrlq_read_data_from_rq(recvbuf, bb_num);
         bandbridge_ctrlq_update_rq_ci(bb_num);
+        /* write back actual recv length so copy_to_user copies real data only */
+        *recvbuf_size = bb_num * CTRLQ_BB_SIZE;
         return 0;
     }
     bandbridge_log_err("receive from rq timeout\n");

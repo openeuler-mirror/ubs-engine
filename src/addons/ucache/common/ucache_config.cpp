@@ -104,7 +104,7 @@ uint32_t UcacheConfig::LoadBottleneckConfig()
 
     JudgeThreshold(bottleneckShortThreshold, bottleneckLongThreshold);
 
-    JudgeWindowLength(bottleneckShortThreshold, bottleneckLongThreshold);
+    JudgeWindowLength(bottleneckShortSize, bottleneckLongSize);
 
     return UCACHE_OK;
 }
@@ -219,11 +219,13 @@ uint32_t UcacheConfig::LoadConfig()
         return UCACHE_ERR;
     }
 
-    if ((ret = LoadMasterConfig()) != UCACHE_OK) {
+    // 先加载 strategy 配置（含 borrowSize），再加载 master 配置，
+    // 避免 masterMaxBorrowSize % borrowSize 校验使用尚未加载的默认值
+    if ((ret = LoadStrategyConfig()) != UCACHE_OK) {
         return ret;
     }
 
-    if ((ret = LoadStrategyConfig()) != UCACHE_OK) {
+    if ((ret = LoadMasterConfig()) != UCACHE_OK) {
         return ret;
     }
 

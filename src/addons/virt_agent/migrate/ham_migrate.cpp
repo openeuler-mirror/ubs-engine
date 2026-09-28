@@ -299,6 +299,7 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer& req, UbseByteBuffer& res
         hamMigrateVmInfo.dstNodeState = NodeState::PANIC;
         if (hamMigrateVmInfo.uuid.empty()) {
             UBSE_LOG_WARN << "req uuid is empty.";
+            HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
             continue;
         }
         UBSE_LOG_INFO << "hamMigrateVmInfo.uuid=" << hamMigrateVmInfo.uuid;
@@ -308,10 +309,10 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer& req, UbseByteBuffer& res
         if (ret != VM_OK) {
             time_point<system_clock> timeZero;
             hamMigrateVmInfo.timeout = timeZero;
-            HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
             EnterClearQueue(hamMigrateVmInfo, true);
             res = VM_ERROR;
         }
+        HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
     }
     HttpUtil::SetResp(resp, res, nodeId);
     UBSE_LOG_INFO << "[HamMigrateCancel] req end.";

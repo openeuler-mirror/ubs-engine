@@ -12,7 +12,6 @@
 #include "ubse_mem_scheduler_node_manager.h"
 
 #include <algorithm>
-#include <cctype>
 #include <exception>
 #include <string>
 
@@ -26,7 +25,6 @@ namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
 constexpr uint16_t NO_512 = 512;
-constexpr uint16_t HOSTNAME_SHORT_MAX_LEN = 63;
 constexpr uint16_t NO_2 = 2;
 constexpr uint16_t DEFAULT_RADIUS = 65535;
 
@@ -40,31 +38,6 @@ constexpr char CONF_OS_SECTION[] = "os";
 constexpr char CONF_PAGE_SIZE[] = "page_size";
 constexpr char CONF_PROVIDER[] = "provider";
 constexpr char CONF_GROUP[] = "group";
-
-bool IsValidHostName(const std::string& hostName)
-{
-    if (hostName.empty()) {
-        UBSE_LOG_WARN << "The hostname is empty.";
-        return false;
-    }
-    if (hostName.size() > HOSTNAME_SHORT_MAX_LEN) {
-        UBSE_LOG_WARN << "The length of the hostname=" << hostName << " exceeds 63 characters.";
-        return false;
-    }
-    for (size_t i = 0; i < hostName.size(); i++) {
-        if (!std::isdigit(static_cast<unsigned char>(hostName[i])) &&
-            !std::islower(static_cast<unsigned char>(hostName[i])) &&
-            !std::isupper(static_cast<unsigned char>(hostName[i])) && hostName[i] != '-') {
-            UBSE_LOG_WARN << "The hostname=" << hostName << " has illegal characters.";
-            return false;
-        }
-    }
-    if (hostName.front() == '-' || hostName.back() == '-') {
-        UBSE_LOG_WARN << "The hostname=" << hostName << " contains '-' at the beginning or end.";
-        return false;
-    }
-    return true;
-}
 
 void LogNumaInfo(const UbseNumaInfo& numaInfo, UbseAllocator allocator, uint32_t pmd_mapping)
 {
@@ -458,7 +431,8 @@ void SchedulerNodeManager::UpdateProviderNodeList(const NodeId& nodeId, const st
     std::vector<std::string> providerListConfVec;
     utils::Split(providerConf, ",", providerListConfVec);
     for (auto it = providerListConfVec.begin(); it != providerListConfVec.end();) {
-        if (!IsValidHostName(*it)) {
+        if (!utils::IsValidHostName(*it)) {
+            UBSE_LOG_WARN << "The hostname=" << *it << " is invalid, ignore it.";
             it = providerListConfVec.erase(it);
         } else {
             ++it;
@@ -501,7 +475,8 @@ void SchedulerNodeManager::UpdateGroupNodeList(const NodeId& nodeId, const std::
         std::vector<std::string> groups;
         utils::Split(groupConf, ",", groups);
         for (auto it = groups.begin(); it != groups.end();) {
-            if (!IsValidHostName(*it)) {
+            if (!utils::IsValidHostName(*it)) {
+                UBSE_LOG_WARN << "The hostname=" << *it << " is invalid, ignore it.";
                 it = groups.erase(it);
             } else {
                 ++it;

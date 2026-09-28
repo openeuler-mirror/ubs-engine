@@ -207,8 +207,8 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
     PrintObmmMemDesc(*obmmMemDesc);
     if (memId == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport error! memid="
-                       << ", flag=" << obmmFlags << ", errno=" << errno
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport error! memid=" << memId << ", flag=" << obmmFlags
+                       << ", errno=" << errno
                        << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memId;
@@ -555,6 +555,10 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obm
                                          const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& privData)
 {
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "ObmmExportPid start";
+    if (obmmExportByPidFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmExportByPidFunc is nullptr, please check.";
+        return UBSE_ERROR_NULLPTR;
+    }
     auto obmmMemDesc = ConstructExportMemDesc(customMeta, privData);
     if (obmmMemDesc == nullptr) {
         return UBSE_ERROR_NULLPTR;

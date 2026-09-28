@@ -56,9 +56,11 @@ constexpr uint8_t H2N_RETRY_TIME = 120;
 #undef NPU_RESET_SLEEP_TIME
 #undef H2N_SLEEP_TIME
 #undef H2N_RETRY_TIME
+#undef SLEEP_TIME
 #define NPU_RESET_SLEEP_TIME 0
 #define H2N_SLEEP_TIME 0
 #define H2N_RETRY_TIME 1
+#define SLEEP_TIME 0
 #endif
 
 struct OperationHistory {
@@ -1421,6 +1423,10 @@ UbseResult UbseNpuManagerApi::BindVfeDavid(uint16_t upi, std::vector<std::shared
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::P_IDEV) {
             std::shared_ptr<CollectionDeviceIdevPfe> pfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(dev->GetBondingIdev());
+            if (pfe == nullptr || pfe->GetSubDevVfe().empty() || pfe->GetSubDevVfe()[0] == nullptr) {
+                UBSE_LOG_WARN << "david " << dev->GetIdStr() << " bonding pfe has no vfe, skip bind";
+                continue;
+            }
             std::shared_ptr<CollectionDeviceIdevVfe> vfe = pfe->GetSubDevVfe()[0];
             UbseMtiIdevVfe mtivfe = ConvertToUbseMtiIdevVfe(vfe);
             UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(dev);
@@ -1996,7 +2002,7 @@ UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<
         UBSE_LOG_DEBUG << "Unbind List is empty.";
         return UBSE_OK;
     }
-    UbseResult res;
+    UbseResult res = UBSE_ERROR;
     bool checkRes = false;
     for (uint8_t i = 0; i < retryTime_; i++) {
         UBSE_LOG_DEBUG << "Send Unbind Request start, retry: " << i;
@@ -2007,14 +2013,15 @@ UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<
             std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
-        if (checkRes = CheckResList(resList)) {
+        checkRes = CheckResList(resList);
+        if (checkRes) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     if (res != UBSE_OK || !checkRes) {
-        UBSE_LOG_ERROR << "Failed to unbind VFE and David";
-        return res;
+        UBSE_LOG_ERROR << "Failed to unbind VFE and David, res: " << FormatRetCode(res) << ", checkRes: " << checkRes;
+        return (res != UBSE_OK) ? res : UBSE_ERROR;
     }
     UBSE_LOG_DEBUG << "Unbind VFE and David request success";
     return res;
@@ -2027,7 +2034,7 @@ UbseResult UbseNpuManagerApi::SendBindRequest(uint16_t upi, const std::vector<Ub
         UBSE_LOG_DEBUG << "Bind List is empty.";
         return UBSE_OK;
     }
-    UbseResult res;
+    UbseResult res = UBSE_ERROR;
     bool checkRes = false;
     for (uint8_t i = 0; i < retryTime_; i++) {
         std::vector<bool> resList;
@@ -2037,14 +2044,15 @@ UbseResult UbseNpuManagerApi::SendBindRequest(uint16_t upi, const std::vector<Ub
             std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
-        if (checkRes = CheckResList(resList)) {
+        checkRes = CheckResList(resList);
+        if (checkRes) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     if (res != UBSE_OK || !checkRes) {
-        UBSE_LOG_ERROR << "Failed to bind VFE and David";
-        return res;
+        UBSE_LOG_ERROR << "Failed to bind VFE and David, res: " << FormatRetCode(res) << ", checkRes: " << checkRes;
+        return (res != UBSE_OK) ? res : UBSE_ERROR;
     }
     UBSE_LOG_DEBUG << "Bind VFE and David request success";
     return res;

@@ -101,6 +101,22 @@ PageCache管理模块采集IO信息识别瓶颈，自动调节PageCache与匿名
 rpm -ivh rmrs-*.aarch64.rpm
 ```
 
+安装完成后，需将 `ubse` 用户加入 `libvirt` 用户组和 `ubturbo` 用户组，并检查加入是否成功：
+
+```bash
+# 将ubse用户加入libvirt用户组和ubturbo用户组内
+usermod -aG libvirt ubse
+usermod -aG ubturbo ubse
+# 检查ubse是否成功加入ubturbo和libvirt组
+groups ubse
+```
+
+输出示例：
+
+```bash
+ubse : ubse libvirt ubturbo
+```
+
 ### 2.3 修改配置文件
 
 **`/etc/ubse/plugins/plugin_mempooling.conf`**

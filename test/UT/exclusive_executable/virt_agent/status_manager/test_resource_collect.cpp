@@ -7,6 +7,8 @@
 #include <ubse_storage.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include <ubse_mem_controller.h>
+
 #include "global_borrow_map_message.h"
 #include "migrate_state_storage.h"
 #include "resource_collect.h"
@@ -154,5 +156,34 @@ TEST_F(TestResourceCollect, TestSyncGlobalBorrowMap_Success)
     debtInfos.push_back({"borrowName3-rep", "1", {1}, 1024, {}});
     auto ret = ResourceCollect::SyncGlobalBorrowMap(debtInfos);
     EXPECT_EQ(ret, VM_OK);
+}
+uint32_t MockGetNodeNumaInfoForFillGlobal(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
+{
+    UbseNodeNumaInfo info{};
+    info.numaId = 0;
+    info.memLent = 2048;
+    numaNodeInfoList.push_back(info);
+    return VM_OK;
+}
+
+TEST_F(TestResourceCollect, FillGlobalWithNumaMemInfo_BasicCall)
+{
+    AlarmNumaInfo alarmNumaInfo{};
+    alarmNumaInfo.numaLoc.hostId = "host1";
+    alarmNumaInfo.numaLoc.numaId = 0;
+
+    std::vector<UbsVirtNumaMemoryDebtInfo> debtInfos;
+    UbsVirtNumaMemoryDebtInfo debtInfo{};
+    debtInfo.numaId = 0;
+    debtInfo.size = 1024;
+    debtInfos.push_back(debtInfo);
+
+    MOCKER(UbseGetNodeNumaInfoByNodeId).stubs().will(invoke(MockGetNodeNumaInfoForFillGlobal));
+    ResourceCollect::GetInstance().FillGlobalWithNumaMemInfo(alarmNumaInfo, debtInfos);
+
+    auto result = ResourceCollect::GetInstance().GetGlobalSampleNumaInfo();
+    EXPECT_FALSE(result.empty());
+
+    MOCKER(UbseGetNodeNumaInfoByNodeId).reset();
 }
 } // namespace ubse::vm::ut

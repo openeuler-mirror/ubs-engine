@@ -22,12 +22,15 @@
 #include <linux/cdev.h>
 #include <linux/dcache.h>
 #include <linux/device.h>
+#include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/nsproxy.h>
 #include <linux/pid_namespace.h>
 #include <linux/poll.h>
+#include <linux/rcupdate.h>
+#include <linux/sched/mm.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
@@ -60,12 +63,23 @@ static int bandbridge_check_permission(void)
         return -EPERM;
     }
 
-    struct mm_struct* mm = current->group_leader->mm;
+    /* hold refs to mm/exe_file to avoid UAF on concurrent execve/prctl */
+    struct mm_struct* mm = get_task_mm(current->group_leader);
     if (mm == NULL) {
         bandbridge_log_err("[bandbridge] mm is NULL, kernel thread not allowed.\n");
         return -EPERM;
     }
-    if (mm->exe_file == NULL) {
+    /* get_mm_exe_file() is not exported to modules, open-code its body:
+     * take a file ref under rcu to avoid UAF on concurrent execve/prctl */
+    struct file* exe_file;
+    rcu_read_lock();
+    exe_file = rcu_dereference(mm->exe_file);
+    if (exe_file != NULL && !get_file_rcu(exe_file)) {
+        exe_file = NULL;
+    }
+    rcu_read_unlock();
+    mmput(mm);
+    if (exe_file == NULL) {
         bandbridge_log_err("[bandbridge] exe_file is NULL.\n");
         return -EPERM;
     }
@@ -75,7 +89,8 @@ static int bandbridge_check_permission(void)
         bandbridge_log_err("[bandbridge] kmalloc path_buf failed.\n");
         return -ENOMEM;
     }
-    char* resolved = d_path(&mm->exe_file->f_path, path_buf, PATH_MAX);
+    char* resolved = d_path(&exe_file->f_path, path_buf, PATH_MAX);
+    fput(exe_file);
     if (IS_ERR_OR_NULL(resolved)) {
         kfree(path_buf);
         bandbridge_log_err("[bandbridge] d_path failed.\n");
@@ -178,6 +193,17 @@ static int bandbridge_validate_user_buf(struct bandbridge_mbuf* tmpbuf)
     if (tmpbuf->sendbuf_size <= 0 || tmpbuf->sendbuf_size > sq_alloc_size) {
         bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d.\n", tmpbuf->sendbuf_size,
                            sq_alloc_size);
+        return -EINVAL;
+    }
+    /* validate user recvbuf_size to prevent copy_to_user overread */
+    int rq_alloc_size = bandbridge_ctrlq_get_rq_size();
+    if (rq_alloc_size <= 0) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] rq alloc size %d invalid.\n", rq_alloc_size);
+        return -EINVAL;
+    }
+    if (tmpbuf->recvbuf_size <= 0 || tmpbuf->recvbuf_size > rq_alloc_size) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] recvbuf_size %d invalid, alloc=%d.\n", tmpbuf->recvbuf_size,
+                           rq_alloc_size);
         return -EINVAL;
     }
     return 0;

@@ -541,23 +541,51 @@ UbseResult MasterHandleSingleImportDebtWithExportNode(
     return ret;
 }
 
-template <typename ImportObjMap>
-UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std::string& name,
+template <typename ImportObjType>
+UbseResult AgentInvalidateImportDebtHelper(const std::string& nodeId, const std::string& name,
                                            UbseDecoderState targetState)
 {
     UBSE_LOG_INFO << "begin to invalidate import debt, name=" << name
                   << ", targetState=" << static_cast<int>(targetState);
-    if (importObjMap.find(name) == importObjMap.end()) {
-        UBSE_LOG_INFO << "ImportObjMap not found name=" << name;
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<ImportObjType>();
+    auto objPtr = debtMap.GetResource(nodeId, name);
+    if (!objPtr) {
+        UBSE_LOG_INFO << "ImportObj not found name=" << name;
         return UBSE_OK;
     }
-    auto& debtObj = importObjMap.at(name);
-    uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(debtObj.req.ubseMemPrivData);
+    uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(objPtr->req.ubseMemPrivData);
 
-    auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId, targetState);
+    // 硬件无效化在状态副本上执行，不直接改动账本对象
+    auto copyStatus = objPtr->status;
+    auto ret = AgentInvalidateDecoderEntry(objPtr->algoResult.attachSocketId, copyStatus, decoderId, targetState);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, " << FormatRetCode(ret);
         return ret;
+    }
+    // 原子合并：基于账本最新对象，仅吸收本次硬件已成功置为 targetState 的 decoder 状态，并复查资源生命周期，
+    // 避免整表快照回写覆盖并发路径（借用/归还RPC）对其他对象的状态更新，以及旧快照整对象覆盖本对象
+    // 并发写回（如PERMANENT_INVALID/销毁），导致账本状态丢失更新或decoder状态机与硬件状态偏离。
+    auto updated = debtMap.UpdateResource(nodeId, name, [&copyStatus, targetState, &name](auto& latest) {
+        if (latest.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+            UBSE_LOG_WARN << "Import obj destroyed concurrently, skip write back, name=" << name << ".";
+            return false;
+        }
+        for (const auto& invalidated : copyStatus.decoderResult) {
+            if (invalidated.state != targetState) {
+                continue;
+            }
+            for (auto& latestDec : latest.status.decoderResult) {
+                if (latestDec.marId == invalidated.marId && latestDec.handle == invalidated.handle &&
+                    IsValidDecoderStateTransition(latestDec.state, targetState)) {
+                    latestDec.state = targetState;
+                }
+            }
+        }
+        return true;
+    });
+    if (!updated) {
+        UBSE_LOG_WARN << "Import obj removed concurrently, skip write back, name=" << name << ".";
+        return UBSE_OK;
     }
     UBSE_LOG_INFO << "invalidate import debt done, name=" << name << ", targetState=" << static_cast<int>(targetState);
     return ret;
@@ -565,22 +593,21 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std
 
 UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type, UbseDecoderState targetState)
 {
-    auto agentDebtInfo = GetNodeMemDebtInfoMap();
     ubse::nodeController::UbseNodeInfo curNode = UbseNodeController::GetInstance().GetCurNode();
-    auto& debtInfo = agentDebtInfo.at(curNode.nodeId);
+    const std::string& nodeId = curNode.nodeId;
     uint32_t ret = UBSE_ERROR;
     switch (type) {
         case UbseMemBorrowType::FD_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.fdImportObjMap, name, targetState);
+            ret = AgentInvalidateImportDebtHelper<UbseMemFdBorrowImportObj>(nodeId, name, targetState);
             break;
         case UbseMemBorrowType::NUMA_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.numaImportObjMap, name, targetState);
+            ret = AgentInvalidateImportDebtHelper<UbseMemNumaBorrowImportObj>(nodeId, name, targetState);
             break;
         case UbseMemBorrowType::ADDR_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.addrImportObjMap, name, targetState);
+            ret = AgentInvalidateImportDebtHelper<UbseMemAddrBorrowImportObj>(nodeId, name, targetState);
             break;
         case UbseMemBorrowType::SHM_BORROW:
-            ret = AgentInvalidateImportDebtHelper(debtInfo.shareImportObjMap, name, targetState);
+            ret = AgentInvalidateImportDebtHelper<UbseMemShareBorrowImportObj>(nodeId, name, targetState);
             break;
         default:
             break;
@@ -589,7 +616,6 @@ UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType 
         UBSE_LOG_ERROR << "InvalidateImportDebt failed, " << FormatRetCode(ret);
         return ret;
     }
-    UbseMemDebtLedger::GetInstance().LoadFromNodeMemDebtInfo(curNode.nodeId, debtInfo);
     return ret;
 }
 

@@ -426,15 +426,22 @@ uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t* buffer, si
     }
     ptr += sizeof(uint32_t);
 
+    if (entries_count > MAX_NODE_NUM) {
+        UBSE_LOG_ERROR << "entries_count " << entries_count << " exceeds limit " << MAX_NODE_NUM;
+        return VM_ERROR;
+    }
+
     for (uint32_t i = 0; i < entries_count; ++i) {
         auto entry = ParseEntry(buffer, buffer_size, ptr);
-        if (!entry.first.empty()) {
-            if (tmpNodeAntiAffinityMap.find(entry.first) == tmpNodeAntiAffinityMap.end()) {
-                UBSE_LOG_ERROR << "Invalid node ID=" << entry.first << " is not in the configured node list.";
-                return VM_ERROR;
-            }
-            node_dict_map[entry.first] = entry.second;
+        if (entry.first.empty()) {
+            UBSE_LOG_ERROR << "ParseEntry failed at index " << i << ", buffer exhausted.";
+            return VM_ERROR;
         }
+        if (tmpNodeAntiAffinityMap.find(entry.first) == tmpNodeAntiAffinityMap.end()) {
+            UBSE_LOG_ERROR << "Invalid node ID=" << entry.first << " is not in the configured node list.";
+            return VM_ERROR;
+        }
+        node_dict_map[entry.first] = entry.second;
     }
 
     for (const auto& it : tmpNodeAntiAffinityMap) {
@@ -1657,6 +1664,10 @@ VmResult VirtMemFragSdk::GetRemoteNodeInfoDestReceiver(const UbseByteBuffer& req
     // param should be empty, no need to validate
     std::vector<NumaInfo> numaInfoList{};
     auto ret = GetNumaInfoList(numaInfoList);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "GetNumaInfoList fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
     std::string curNodeId{};
     ret = UbseGetCurrentNodeId(curNodeId);
     if (ret != VM_OK) {

@@ -73,6 +73,12 @@ void SendAddrImportObjMockSetError()
         &com::UbseComModule::RpcSend<mem::controller::message::UbseMemAddrBorrowImportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
 }
+void SendAddrImportObjMockSetAlwaysError()
+{
+    const auto func =
+        &com::UbseComModule::RpcSend<mem::controller::message::UbseMemAddrBorrowImportobjSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
+}
 void BuildOperationMockSet()
 {
     const auto func =
@@ -1075,6 +1081,46 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
     AddToExportObjMap(req.name, NODE_ONE, exportObj);
     auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERR_NOT_EXIST, ret);
+}
+
+/*
+* 用例描述
+* 回归用例：import存在且export不存在（hasExport == false，exportObj为默认构造，exportNumaInfos为空）时，
+* SendAddrImportObj重试全部失败，AddrReturnExistImport失败路径不得对空vector取[0]导致崩溃；
+* 修复前此处对空exportNumaInfos执行operator[](0)产生段错误。
+* 测试步骤：
+* 1.仅向import账本放置state为SUCCESS的对象，不放置export对象；
+* 2.mock RpcSend发送import对象始终失败；
+* 3.调用UbseMemAddrReturn。
+* 预期结果：
+* 1.函数返回UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED，进程不崩溃。
+*/
+TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnImportOnlySendImportFailNoCrash)
+{
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
+    const std::string nodeId = NODE_ONE;
+    const std::string name = "addr_test_mem_import_only";
+    UbseMemAddrBorrowImportObj addrBorrowImportObj{};
+    addrBorrowImportObj.req.name = name;
+    addrBorrowImportObj.req.importNodeId = nodeId;
+    addrBorrowImportObj.req.requestNodeId = nodeId;
+    addrBorrowImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    // 注意：不调用AddToExportObjMap，构造hasExport == false（exportObj为默认构造，exportNumaInfos为空）
+    AddToImportObjMap(name, nodeId, addrBorrowImportObj);
+
+    std::shared_ptr<com::UbseComModule> module = std::make_shared<com::UbseComModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+    SendAddrImportObjMockSetAlwaysError(); // 重试5次均失败，覆盖SendAddrImportObj失败路径
+    BuildOperationMockSet();
+
+    UbseMemReturnReq req;
+    UbseMemOperationResp resp;
+    req.name = name;
+    req.importNodeId = nodeId;
+    req.requestNodeId = nodeId;
+    const auto ret = mem::controller::UbseMemAddrReturn(req, resp, nodeId);
+    EXPECT_EQ(UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED, ret);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, DeleteAddrExport)

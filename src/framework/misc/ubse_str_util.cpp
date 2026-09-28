@@ -13,6 +13,7 @@
 #include "ubse_str_util.h"
 
 #include <securec.h>
+#include <cctype>
 #include <limits>
 #include <random>
 #include <regex>
@@ -60,6 +61,35 @@ void Split(const std::string& src, const std::string& sep, std::set<std::string>
         tmpStr = src.substr(pos1);
         out.insert(tmpStr);
     }
+}
+
+bool IsValidHostName(const std::string& hostName)
+{
+    if (hostName.empty() || hostName.size() > UBSE_REPORTED_HOSTNAME_MAX_LEN) {
+        return false;
+    }
+    // RFC 952/1123 要求 hostname 以字母数字结尾；尾点仅是 DNS 绝对 FQDN 的根域标记，
+    // 且下游与节点上报 hostname 做精确匹配（gethostname 不带尾点），故拒绝
+    if (hostName.back() == '.') {
+        return false;
+    }
+    std::vector<std::string> labels;
+    Split(hostName, ".", labels);
+    for (const auto& label : labels) {
+        if (label.empty() || label.size() > UBSE_HOSTNAME_LABEL_MAX_LEN) {
+            return false;
+        }
+        if (label.front() == '-' || label.back() == '-') {
+            return false;
+        }
+        for (const char c : label) {
+            const auto uc = static_cast<unsigned char>(c);
+            if (!std::isdigit(uc) && !std::islower(uc) && !std::isupper(uc) && c != '-') {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 // 函数用于从字符串中提取指定键的值

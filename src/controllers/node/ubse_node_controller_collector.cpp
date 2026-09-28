@@ -13,7 +13,6 @@
 
 #include "ubse_com.h"
 #include "ubse_conf_module.h"
-#include "ubse_const_def.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_net_util.h"
 #include "ubse_node_controller_util.h"
@@ -55,8 +54,8 @@ static std::string OBMM_POOL_PATH = "/sys/kernel/obmm_mempool/obmm-";
 UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo)
 {
     GetCurNodeInfo(ubseNodeInfo);
-    char hostname[UBSE_HOST_NAME_MAX_LEN + 1];
-    auto ret = gethostname(hostname, UBSE_HOST_NAME_MAX_LEN + 1);
+    char hostname[UBSE_REPORTED_HOSTNAME_MAX_LEN + 1];
+    auto ret = gethostname(hostname, UBSE_REPORTED_HOSTNAME_MAX_LEN + 1);
     if (ret != EOK) {
         UBSE_LOG_ERROR << "get hostname failed, ErrorCode=" << ret;
         return ret;

@@ -7,7 +7,6 @@
 #include "ubse_ras_com_handler.h"
 #include "ubse_ras_handler.h"
 #include "message/ubse_ras_message.h"
-#include "message/ubse_ras_oom_message.h"
 
 namespace ubse::ras {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -128,38 +127,6 @@ UbseResult UbseRasSwitchRoleHandler::Handle(const UbseBaseMessagePtr& req, const
         return UBSE_ERROR_NULLPTR;
     }
     electionModule->SwitchMasterFromStandby();
-    return UBSE_OK;
-}
-
-UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
-                                  UbseComBaseMessageHandlerCtxPtr ctx)
-{
-    UbseRasOomMessagePtr request = UbseBaseMessage::DeConvert<UbseRasOomMessage>(req);
-    if (request == nullptr) {
-        UBSE_LOG_ERROR << "Oom request is invalid.";
-        return UBSE_ERROR;
-    }
-    UbseRasOomMessagePtr response = UbseBaseMessage::DeConvert<UbseRasOomMessage>(rsp);
-    if (response == nullptr) {
-        UBSE_LOG_ERROR << "Oom response is invalid.";
-        return UBSE_ERROR;
-    }
-    auto nodeId = request->GetNodeId();
-    auto numaId = request->GetNumaId();
-    if (!IsDigitString(nodeId)) {
-        UBSE_LOG_ERROR << "Invalid nodeId, expect integer value in string format" << nodeId;
-        return UBSE_ERROR_INVAL;
-    }
-    UBSE_LOG_INFO << "Manager start to process oom event request, oom numaId=" << numaId << ", nodeId=" << nodeId;
-    ubse::nodeController::UbseNodeInfo nodeInfo = UbseNodeController::GetInstance().GetCurNode();
-    auto numaLocation = ubse::nodeController::UbseNumaLocation{nodeId, static_cast<uint32_t>(numaId)};
-    if (nodeInfo.numaInfos.find(numaLocation) == nodeInfo.numaInfos.end()) {
-        UBSE_LOG_ERROR << "Numa location is invalid, nodeId=" << nodeId << ", numaId=" << numaId;
-        return UBSE_ERROR;
-    }
-    auto numaInfo = nodeInfo.numaInfos[numaLocation];
-    // OOM 事件处理已经移交virt,
-    response->SetErrCode(UBSE_OK);
     return UBSE_OK;
 }
 

@@ -159,8 +159,8 @@ VmResult StatusManager::PerformMemoryBorrow(const SrcMemoryBorrowParam& borrowPa
     return VM_OK;
 }
 
-void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
-                                          const std::vector<uint64_t>& borrowSizes)
+VmResult StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
+                                              const std::vector<uint64_t>& borrowSizes)
 {
     UBSE_LOG_INFO << "[borrow] task start, borrow_item_size = " << borrowSizes.size();
 
@@ -175,14 +175,14 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "[borrow] borrow memory failed.";
         UBSE_LOG_INFO << "[borrow] task end.";
-        return;
+        return VM_ERROR;
     }
     // Borrowing result, if borrowIds is empty, borrowing failed. Need to remove from the result set
     CleanEmptyBorrowRes(borrowResult);
     if (borrowResult.borrowIds.empty()) {
         UBSE_LOG_ERROR << "[borrow] borrow result is empty, borrow memory failed.";
         UBSE_LOG_INFO << "[borrow] task end.";
-        return;
+        return VM_ERROR;
     }
     UBSE_LOG_INFO << "[borrow] succeed to borrow memory.";
     auto BorrowIdStatuses = GenerateBorrowIdStatuses(originNode, borrowResult);
@@ -193,19 +193,22 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
     if (UBSRMRSMemMigrate == nullptr) {
         UBSE_LOG_ERROR << "[borrow] UBSRMRSMemMigrate is nullptr.";
-        return;
+        return VM_ERROR;
     }
     uint32_t res = UBSRMRSMemMigrate(borrowParam, vmPresetParam, borrowResult);
     if (VmResultFail(res)) {
         UBSE_LOG_WARN << "[borrow] failed to migrate memory, " << FormatRetCode(res);
-    } else {
-        UBSE_LOG_INFO << "[borrow] succeed to migrate memory.";
-        MigrateSuccessBorrowId(BorrowIdStatuses);
-        ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
+        markFirstMigOperation();
+        UBSE_LOG_INFO << "[borrow] task end.";
+        return VM_ERROR;
     }
+    UBSE_LOG_INFO << "[borrow] succeed to migrate memory.";
+    MigrateSuccessBorrowId(BorrowIdStatuses);
+    ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
     markFirstMigOperation();
 
     UBSE_LOG_INFO << "[borrow] task end.";
+    return VM_OK;
 }
 
 std::vector<BorrowIdStatus> StatusManager::GenerateBorrowIdStatuses(const VMNodeLocInfo& nodeLoc,
@@ -433,14 +436,6 @@ void StatusManager::BorrowQueueOperation()
         std::lock_guard lockGuard(ResourceCollect::mAllLock);
         std::vector<pid_t> pids = ResourceCollect.GetPidsOnNuma(curNodeLoc, "withOutMigrating");
         if (pids.empty()) {
-            if (completionState) {
-                completionState->promise.set_value(VM_OK);
-            }
-            {
-                std::scoped_lock lock(g_inFlightBorrowMutex);
-                g_inFlightBorrowMap.erase(curNodeLoc.toString());
-            }
-            RemoveTaskFilterSet(curNodeLoc);
             UBSE_LOG_WARN << "[borrow] pid is empty.";
             if (completionState) {
                 completionState->promise.set_value(VM_ERROR);
@@ -449,11 +444,11 @@ void StatusManager::BorrowQueueOperation()
                 std::scoped_lock lock(g_inFlightBorrowMutex);
                 g_inFlightBorrowMap.erase(curNodeLoc.toString());
             }
+            RemoveTaskFilterSet(curNodeLoc);
             continue;
         }
-        VmResult borrowResult = VM_OK;
         VmTaskCounter::StartTask("memoryBorrow");
-        MemoryBorrowOperation(curNodeLoc, pids, borrowSizes);
+        VmResult borrowResult = MemoryBorrowOperation(curNodeLoc, pids, borrowSizes);
         RemoveTaskFilterSet(curNodeLoc);
         VmTaskCounter::CompleteTask("memoryBorrow");
         if (completionState) {

@@ -14,6 +14,9 @@
 #include <grp.h>
 #include <httplib.h>
 #include <securec.h>
+#include <atomic>
+#include <thread>
+#include <vector>
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -286,6 +289,51 @@ TEST_F(TestUbseHttpTcpServer, RegisterRoute_Duplicate)
 {
     UbseHttpServer::GetInstance().RegisterRoute("/test", "GET", TestHandlerForTcpReg);
     EXPECT_NO_THROW(UbseHttpServer::GetInstance().RegisterRoute("/test", "GET", TestHandlerForTcpReg));
+}
+
+/*
+* 用例描述：HandleRequest与RegisterRoute并发冒烟用例（路由锁守护）。
+* HandleRequest读取routes_时必须持锁（锁内拷贝handler、锁外调用），
+* 若锁保护被移除，本用例在TSAN或高并发下可暴露数据竞争。
+* 测试步骤：
+* 1.注册基准路由；
+* 2.多线程并发调用HandleRequest，同时主线程并发RegisterRoute注册新路由（模拟listen后插件动态注册）。
+* 预期结果：
+* 1.全流程不崩溃，所有请求均返回200。
+*/
+TEST_F(TestUbseHttpTcpServer, HandleRequestConcurrentWithRegisterRoute)
+{
+    const std::string path = "/concurrent_test";
+    UbseHttpServer::GetInstance().RegisterRoute(path, "GET", TestHandlerForTcpReg);
+
+    constexpr int kWorkerCount = 4;
+    std::atomic<bool> stop{false};
+    std::atomic<int> okCount{0};
+    std::vector<std::thread> workers;
+    workers.reserve(kWorkerCount);
+    for (int i = 0; i < kWorkerCount; ++i) {
+        workers.emplace_back([&stop, &okCount, &path] {
+            httplib::Request req{};
+            req.method = "GET";
+            req.path = path;
+            while (!stop.load()) {
+                httplib::Response resp{};
+                UbseHttpServer::GetInstance().HandleRequest(req, resp);
+                if (resp.status == OK_200) {
+                    ++okCount;
+                }
+            }
+        });
+    }
+    // 并发注册新路由，模拟listen后插件动态注册场景
+    for (int i = 0; i < 50; ++i) {
+        UbseHttpServer::GetInstance().RegisterRoute("/dyn_" + std::to_string(i), "GET", TestHandlerForTcpReg);
+    }
+    stop.store(true);
+    for (auto& worker : workers) {
+        worker.join();
+    }
+    EXPECT_GT(okCount.load(), 0);
 }
 
 TEST_F(TestUbseHttpTcpServer, GetParentDirectory)
