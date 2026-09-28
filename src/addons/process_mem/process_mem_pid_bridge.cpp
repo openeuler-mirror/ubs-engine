@@ -526,6 +526,7 @@ uint32_t ProcessMemPidBridge::Init()
     auto decisionRet = process_mem::decision::ProcessMemPidDecision::GetInstance().Init();
     if (decisionRet != UBSE_OK) {
         UBSE_LOG_ERROR << "ProcessMemPidDecision Init failed, " << ubse::log::FormatRetCode(decisionRet);
+        return decisionRet;
     }
 
     return UBSE_OK;

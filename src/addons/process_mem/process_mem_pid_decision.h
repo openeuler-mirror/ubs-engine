@@ -211,7 +211,17 @@ private:
     void LoadConfig();
     void LoadOomReturnConfig();
     bool StartExecutors();
+    // 就绪门: 对应线程池未启动前拒绝入队, 避免空指针解引用(Init 失败时 bridge 侧已返回错误, 此处为兜底)
+    bool BorrowExecutorReady() const
+    {
+        return !stopping_.load() && borrowExecutor_ != nullptr && borrowExecutor_->IsStart();
+    }
+    bool ReturnExecutorReady() const
+    {
+        return !stopping_.load() && returnExecutor_ != nullptr && returnExecutor_->IsStart();
+    }
     void RunBorrowRound(uint64_t roundNum);
+    void RedriveStrandedReturns(uint64_t roundNum);
     void LogBorrowCandidates(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates);
 
     void RemoveSlotFinalize(pid_t pid, const std::string& debtId);
@@ -283,6 +293,12 @@ private:
     std::set<std::string> inFlightDebtReturns_{};
     std::set<pid_t> inFlightPidReturns_{};
     std::mutex inFlightReturnsMutex_{};
+
+    // 借用轮整轮串行: 定时轮与 OOM 紧急轮并发会重复消费同一 pid 的 canMigrate(瞬态双倍超借)
+    std::mutex borrowRoundMutex_{};
+
+    // 搁浅 RETURNING 槽兜底扫描的上次执行时刻(默认 time_point 表示尚未开始计时)
+    std::chrono::steady_clock::time_point lastStrandedSweep_{};
 
     std::atomic<uint64_t> roundNumber_{0};
     std::atomic<bool> cycleRunning_{false};

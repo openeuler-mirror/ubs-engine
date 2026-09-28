@@ -12,6 +12,10 @@
 
 #include "test_process_mem_pid_collect.h"
 
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -112,10 +116,22 @@ INSTANTIATE_TEST_SUITE_P(ParseLineCases, TestProcessMemPidCollectParseLine,
                                          NumaLineCase{"   N0=100    N1=200   ", {{0, 100}, {1, 200}}},
                                          NumaLineCase{"N0=100\nN1=200", {{0, 100}, {1, 200}}}));
 
-TEST_F(TestProcessMemPidCollect, GetChildrenPidsReturnsVector)
+TEST_F(TestProcessMemPidCollect, GetChildrenPidsFindsForkedChild)
 {
-    auto children = GetChildrenPids(1);
-    EXPECT_TRUE(children.empty() || !children.empty());
+    // GetChildrenPids 读 /proc/<pid>/task/<pid>/children, 只有从主线程 fork(tid == pid)子进程才会被列出
+    pid_t childPid = fork();
+    ASSERT_GE(childPid, 0);
+    if (childPid == 0) {
+        _exit(0);
+    }
+
+    auto children = GetChildrenPids(getpid());
+    bool found = std::find(children.begin(), children.end(), childPid) != children.end();
+
+    kill(childPid, SIGKILL);
+    (void)waitpid(childPid, nullptr, 0);
+
+    EXPECT_TRUE(found);
 }
 
 TEST_F(TestProcessMemPidCollect, CollectNodeFreeMemorySnapshot)
@@ -157,12 +173,6 @@ TEST_F(TestProcessMemPidCollect, CollectProcessNumaMemDistributionInitPid)
     std::unordered_map<uint32_t, size_t> numaMemDistribution;
     auto ret = collector.CollectProcessNumaMemDistribution(1, numaMemDistribution);
     (void)ret;
-}
-
-TEST_F(TestProcessMemPidCollect, GetChildrenPidsForKnownPid)
-{
-    auto children = GetChildrenPids(1);
-    EXPECT_TRUE(children.empty() || !children.empty());
 }
 
 } // namespace ubse::ut::process_mem

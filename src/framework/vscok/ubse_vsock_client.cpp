@@ -17,10 +17,12 @@
 #include <linux/vm_sockets.h>
 #include <securec.h>
 #include <unistd.h>
+#include <cerrno>
 #include <chrono>
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
 
 #include "ubse_cert_def.h"
 #include "ubse_cert_validator.h"
@@ -36,10 +38,39 @@ using namespace ubse::log;
 constexpr int INVALID_SOCK_FD = -1;
 constexpr uint32_t HOST_PORT = 6174;
 constexpr uint32_t HOST_CID = 0;
-constexpr uint32_t BUF_SIZE = 4096;
 constexpr int MAX_RETRY = 3;
 constexpr int RETRY_INTERVAL_MS = 100;
 constexpr int SSL_CERT_VERIFY_DEPTH = 3;
+constexpr uint32_t MAX_RSP_LEN = 1 << 20; // 与发送侧长度上限对齐, 防伪造长度字段造成内存放大
+
+namespace {
+// 收满 len 字节: TLS 记录层分段到达时单次 SSL_read 可能短读, 按协议头长度收全才能保证
+// 后续响应不错位; WANT_READ/WANT_WRITE/EINTR 为可重试错误, 其余(含 EOF)判为收包失败
+bool SslReadExact(SSL* ssl, void* buf, size_t len)
+{
+    auto* cursor = static_cast<char*>(buf);
+    size_t received = 0;
+    while (received < len) {
+        int ret = SSL_read(ssl, cursor + received, static_cast<int>(len - received));
+        if (ret > 0) {
+            received += static_cast<size_t>(ret);
+            continue;
+        }
+        // SSL_get_error 不承诺保留 errno, 需在 SSL_read 失败后立即保存
+        int savedErrno = errno;
+        int sslErr = SSL_get_error(ssl, ret);
+        if (sslErr == SSL_ERROR_WANT_READ || sslErr == SSL_ERROR_WANT_WRITE) {
+            continue;
+        }
+        if (sslErr == SSL_ERROR_SYSCALL && savedErrno == EINTR) {
+            continue;
+        }
+        UBSE_LOG_ERROR << "SSL_read failed, ssl_error=" << sslErr << ", received=" << received << "/" << len;
+        return false;
+    }
+    return true;
+}
+} // namespace
 
 UbseVsockClient::UbseVsockClient() : sockFd_(INVALID_SOCK_FD), hostPort_(HOST_PORT), hostCid_(HOST_CID)
 {
@@ -254,7 +285,7 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, 
 
     ssize_t sent = SSL_write(ssl_, buffer.get(), total_size);
     if (sent != static_cast<ssize_t>(total_size)) {
-        UBSE_LOG_ERROR << "Send failed " << sent;
+        UBSE_LOG_ERROR << "Send failed " << sent << "/" << total_size;
         return false;
     }
     return true;
@@ -262,26 +293,31 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, 
 
 bool UbseVsockClient::RecvMessage(UbseSignRsp& rsp)
 {
-    if (sockFd_ < 0) {
+    if (sockFd_ < 0 || ssl_ == nullptr) {
         return false;
     }
-    char buf[BUF_SIZE];
-    const auto headerSize = sizeof(MsgHeader);
-    int bytes_received = SSL_read(ssl_, buf, BUF_SIZE);
-    if (bytes_received <= 0) {
-        if (bytes_received < 0) {
-            UBSE_LOG_ERROR << "Recv response failed";
-        } else {
-            UBSE_LOG_ERROR << "Connection closed by peer";
-        }
+    char hdrBuf[sizeof(MsgHeader)]{};
+    if (!SslReadExact(ssl_, hdrBuf, sizeof(hdrBuf))) {
+        UBSE_LOG_ERROR << "Recv response header failed";
+        return false;
+    }
+    MsgHeader hdr{};
+    errno_t ret = memcpy_s(&hdr, sizeof(hdr), hdrBuf, sizeof(hdrBuf));
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << "Copy response header failed";
+        return false;
+    }
+    if (hdr.len == 0 || hdr.len > MAX_RSP_LEN) {
+        UBSE_LOG_ERROR << "Recv response len illegal: " << hdr.len;
         return false;
     }
 
-    if (bytes_received <= headerSize) {
+    std::string signedData(hdr.len, '\0');
+    if (!SslReadExact(ssl_, signedData.data(), signedData.size())) {
+        UBSE_LOG_ERROR << "Recv response payload failed, len=" << hdr.len;
         return false;
     }
-
-    rsp.signedData.assign(buf + headerSize, bytes_received - headerSize);
+    rsp.signedData = std::move(signedData);
     return true;
 }
 
