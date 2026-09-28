@@ -488,18 +488,18 @@ public:
     bool IsRemoteCall() const;
 
 private:
-    UbseComMessagePtr message_;    // 消息指针
-    UBSHcomChannelPtr channelPtr_; // 收到消息的链路指针
-    std::string srcId_;            // 源节点Id
-    std::string dstId_;            // 目标节点Id
-    uintptr_t rspCtx_ = 0;         // 放回消息上下文指针
-    UbseChannelType channelType_;  // 消息通道类型
-    uint64_t channelId_ = 0;       // 通道Id
-    std::string engineName_;       // 引擎名
+    UbseComMessagePtr message_;     // 消息指针
+    UBSHcomChannelPtr channelPtr_;  // 收到消息的链路指针
+    std::string srcId_;             // 源节点Id
+    std::string dstId_;             // 目标节点Id
+    uintptr_t rspCtx_ = 0;          // 放回消息上下文指针
+    UbseChannelType channelType_{}; // 消息通道类型
+    uint64_t channelId_ = 0;        // 通道Id
+    std::string engineName_;        // 引擎名
     UbseUdsIdInfo udsInfo_;
     std::string traceId_;
-    uint64_t ctxModuleCode_;
-    uint64_t ctxOpCode_;
+    uint64_t ctxModuleCode_ = 0;
+    uint64_t ctxOpCode_ = 0;
     bool isRemoteCall_ = false;
 };
 

@@ -1004,7 +1004,14 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
     auto payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
     std::string ip;
     UbseComChannelConnectInfo connectInfo;
-    queryCb_(payLoadPair.first, ip);
+    auto queryRet = queryCb_(payLoadPair.first, ip);
+    if (!queryRet || ip.empty()) {
+        // 查询失败或IP为空时拒绝插入空IP映射，断开该通道
+        UBSE_LOG_ERROR << "Query ip by nodeId=" << payLoadPair.first << " fail, will disconnect channel "
+                       << ch.Get()->GetId();
+        hcomNetService_->Disconnect(ch);
+        return;
+    }
     connectInfo.SetPort(TCP_LISTEN_PORT);
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);
