@@ -990,6 +990,7 @@ TEST_F(TestProcessMemPidDecision, RecoverSmapConfigKeepsLedgerValuesWhenBigSlotF
 
 TEST_F(TestProcessMemPidDecision, RecoverSmapConfigKeepsLedgerValuesWhenSmallSlotFirst)
 {
+    ubse::config::ScopedRootFilterDisabled rootFilterOff;
     pid_t pid = getpid();
     BorrowState borrow;
     BorrowSlot smallFirst;
