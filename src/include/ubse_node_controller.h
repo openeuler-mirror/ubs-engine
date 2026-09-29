@@ -25,11 +25,20 @@
 #include <utility>
 #include <vector>
 
+#include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "adapter_plugins/urma/ubse_urma_uvs_def.h"
 #include "ubse_thread_pool.h"
 
+// 前向声明（完整定义在 ubse_serial_util.h，仅实现文件包含，避免头文件强依赖 serde include path）
+namespace ubse::serial {
+class UbseSerialization;
+class UbseDeSerialization;
+} // namespace ubse::serial
+
 namespace ubse::nodeController {
+using UbseResult = ubse::common::def::UbseResult;
+
 enum class PortStatus {
     UP = 0,
     DOWN = 1
@@ -296,6 +305,11 @@ uint32_t DeSerializeUbseNode(UbseNodeInfo& info, uint8_t* buffer, size_t size);
 
 uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo>& infos, uint8_t* buffer, size_t size);
 
+// 主备同步消息拼装/解析用的节点序列化原语（嵌套流，供 NODE_INFO_SYNC/FULL 消息复用）
+UbseResult GetUbseNodeInfoOffset(UbseNodeInfo info, ubse::serial::UbseSerialization& outStream);
+
+uint32_t ParseNodeInfo(UbseNodeInfo& info, ubse::serial::UbseDeSerialization& inStream);
+
 uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink>& devDirConnectInfo, uint8_t* buffer,
                                       size_t size);
 
@@ -369,6 +383,12 @@ public:
     void UpdateNodeInfoLocalState(UbseNodeLocalState state);
 
     uint32_t UpdateNodeInfoClusterState(const std::string& nodeId, UbseNodeClusterState state);
+
+    // 获取FAULT节点登记时刻（system_clock epoch ms），供主节点全量快照/单点推送携带（镜像继承保护窗口用）
+    std::unordered_map<std::string, uint64_t> GetFaultUpdateTimeSysMs();
+
+    // 升主消费：从镜像恢复节点信息，保留clusterState（不强制INIT），FAULT节点继承保护窗口登记时刻
+    uint32_t RestoreNodeInfoFromMirror(const UbseNodeInfo& info, uint64_t faultUpdateTimeSysMs);
 
     void SetCurrentNodeId(const std::string& nodeId);
 
@@ -503,6 +523,8 @@ private:
     std::map<std::string, PhysicalLink>
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> faultUpdateTimes; // fault状态更新时间
+    std::unordered_map<std::string, uint64_t>
+        faultUpdateTimeSysMs; // fault登记时刻(system_clock epoch ms)，与faultUpdateTimes同写同擦
     bool isHostUrmaDevOccupied{false};
 
     // 亚健康缓存

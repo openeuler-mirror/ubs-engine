@@ -130,6 +130,9 @@ enum class UbseNodeControllerOpCode
     NODE_CONTROLLER_SINGLE_NODE_REPORT = 0x0009,          // 单节点上报
     NODE_CONTROLLER_CASCADE_NODE_REPORT = 0x0010,         // 级联主下线事件通知
     NODE_CONTROLLER_CLUSTER_INFO = 0x000A,                // 集群信息查询
+    NODE_CONTROLLER_NODE_INFO_SYNC = 0x0011,              // 主→备 单点节点信息增量同步
+    NODE_CONTROLLER_NODE_INFO_SYNC_FULL = 0x0012,         // 主→备 全量节点信息快照同步
+    NODE_CONTROLLER_NODE_INFO_SYNC_REQ = 0x0013,          // 备→主 全量节点信息拉取请求
 };
 
 // UBSE内存响应控制操作码

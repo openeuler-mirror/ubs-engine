@@ -805,7 +805,10 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenGetModuleFailed)
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
     MockOneDimensionalTopology();
-    MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
+    UbseRoleInfo standby;
+    standby.nodeId = "standby-1";
+    MOCKER_CPP(UbseGetStandbyInfo).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseElectionModule>()));
@@ -821,7 +824,10 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenRpcSendFailed)
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
     MockOneDimensionalTopology();
-    MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
+    UbseRoleInfo standby;
+    standby.nodeId = "standby-1";
+    MOCKER_CPP(UbseGetStandbyInfo).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseElectionModule>()));
@@ -839,7 +845,10 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
     MockOneDimensionalTopology();
-    MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
+    UbseRoleInfo standby;
+    standby.nodeId = "standby-1";
+    MOCKER_CPP(UbseGetStandbyInfo).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::SwitchAgentFromMaster).expects(once());
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseElectionModule>()));
