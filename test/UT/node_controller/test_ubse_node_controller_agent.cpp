@@ -379,9 +379,6 @@ TEST_F(TestUbseNodeControllerAgent, HandleGetDirConnectInfoCallback_Success)
     std::string nodeId = "test-node";
     std::map<std::string, PhysicalLink> devDirConnectInfoRemote{};
     UbseResult getRet = UBSE_OK;
-    bool callbackCalled = false;
-    std::mutex mtx;
-    std::condition_variable cv;
 
     uint8_t buffer[10] = {0};
     UbseByteBuffer respData{buffer, 10, nullptr};
@@ -389,11 +386,9 @@ TEST_F(TestUbseNodeControllerAgent, HandleGetDirConnectInfoCallback_Success)
 
     MOCKER(DeSerializeDevDirConnectInfo).stubs().will(returnValue(UBSE_OK));
 
-    HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote, getRet, callbackCalled, mtx,
-                                    cv);
+    HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote, getRet);
 
     EXPECT_EQ(getRet, UBSE_OK);
-    EXPECT_TRUE(callbackCalled);
 }
 
 TEST_F(TestUbseNodeControllerAgent, UbseGetDirConnectInfoFromRemote_AllocFail)

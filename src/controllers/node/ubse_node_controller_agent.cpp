@@ -13,7 +13,6 @@
 #include "ubse_node_controller_agent.h"
 
 #include <unistd.h>
-#include <condition_variable>
 #include <mutex>
 
 #include "ubse_common_def.h"
@@ -30,7 +29,6 @@
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;
 const uint32_t UBSE_NODE_REPORT_INTERVAL = 2;
-constexpr int UBSE_RPC_TIMEOUT_MS = 60000;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -340,16 +338,6 @@ UbseResult UbseNodeReportNodeInfo(const std::string& nodeId, const UbseNodeInfo&
         .address = nodeId,
     };
 
-    // 使用智能指针管理同步对象
-    struct SyncData {
-        UbseResult reportRet = UBSE_OK;
-        bool callbackCalled = false;
-        std::mutex mtx;
-        std::condition_variable cv;
-    };
-
-    auto syncData = std::make_shared<SyncData>();
-
     // 使用辅助函数序列化
     UbseByteBuffer reqBuffer;
     auto ret = SafeSerializeUbseNode(info, reqBuffer);
@@ -357,19 +345,15 @@ UbseResult UbseNodeReportNodeInfo(const std::string& nodeId, const UbseNodeInfo&
         return ret;
     }
 
+    UbseResult reportRet = UBSE_OK;
+    // UbseRpcSend 为同步接口：回调在返回前已在本线程执行完毕，栈引用捕获安全（勿改用 UbseRpcAsyncSend）
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [syncData, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
+                      [&reportRet, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
                           if (resCode != UBSE_OK) {
                               UBSE_LOG_ERROR << "report node to nodeId=" << nodeId << " failed, "
                                              << FormatRetCode(resCode);
-                              syncData->reportRet = resCode;
+                              reportRet = resCode;
                           }
-
-                          {
-                              std::lock_guard<std::mutex> lock(syncData->mtx);
-                              syncData->callbackCalled = true;
-                          }
-                          syncData->cv.notify_one();
                       });
 
     if (ret != UBSE_OK) {
@@ -377,17 +361,7 @@ UbseResult UbseNodeReportNodeInfo(const std::string& nodeId, const UbseNodeInfo&
         return ret;
     }
 
-    // 等待回调完成
-    {
-        std::unique_lock<std::mutex> lock(syncData->mtx);
-        auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
-        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
-            UBSE_LOG_ERROR << "report node to " << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
-            return UBSE_ERROR_TIMEOUT;
-        }
-    }
-
-    return syncData->reportRet;
+    return reportRet;
 }
 
 // Agent向Master上报LCNE拓扑变化
@@ -399,16 +373,6 @@ UbseResult LcneChangeReportNodeInfo(const std::string& nodeId, const UbseNodeInf
         .address = nodeId,
     };
 
-    // 使用智能指针
-    struct SyncData {
-        UbseResult reportRet = UBSE_OK;
-        bool callbackCalled = false;
-        std::mutex mtx;
-        std::condition_variable cv;
-    };
-
-    auto syncData = std::make_shared<SyncData>();
-
     // 使用辅助函数序列化
     UbseByteBuffer reqBuffer;
     auto ret = SafeSerializeUbseNode(info, reqBuffer);
@@ -416,19 +380,14 @@ UbseResult LcneChangeReportNodeInfo(const std::string& nodeId, const UbseNodeInf
         return ret;
     }
 
+    UbseResult reportRet = UBSE_OK;
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [syncData, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
+                      [&reportRet, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
                           if (resCode != UBSE_OK) {
                               UBSE_LOG_ERROR << "lcne, report node to nodeId=" << nodeId << " failed, "
                                              << FormatRetCode(resCode);
-                              syncData->reportRet = resCode;
+                              reportRet = resCode;
                           }
-
-                          {
-                              std::lock_guard<std::mutex> lock(syncData->mtx);
-                              syncData->callbackCalled = true;
-                          }
-                          syncData->cv.notify_one();
                       });
 
     if (ret != UBSE_OK) {
@@ -436,17 +395,7 @@ UbseResult LcneChangeReportNodeInfo(const std::string& nodeId, const UbseNodeInf
         return ret;
     }
 
-    // 等待回调完成
-    {
-        std::unique_lock<std::mutex> lock(syncData->mtx);
-        auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
-        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
-            UBSE_LOG_ERROR << "lcne change report to " << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
-            return UBSE_ERROR_TIMEOUT;
-        }
-    }
-
-    return syncData->reportRet;
+    return reportRet;
 }
 
 // 创建错误响应
@@ -869,48 +818,24 @@ void UbseNodeControllerAgent::PullNodeInfoFromMaster()
                                  SafeDeleteArray(p, size);
                              }};
 
-    // 回调共享数据：与 UbseNodeReportNodeInfo/LcneChangeReportNodeInfo 的 SyncData 模式保持一致，
-    // 回调按值捕获 shared_ptr 延长生命周期，避免捕获栈引用依赖"同步内联回调"的隐含语义。
-    struct SyncData {
-        UbseResult pullRet = UBSE_OK;
-        bool callbackCalled = false;
-        std::mutex mtx;
-        std::condition_variable cv;
-    };
-    auto syncData = std::make_shared<SyncData>();
-
+    UbseResult pullRet = UBSE_OK;
     auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                           [this, syncData](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) {
+                           [this, &pullRet](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) {
                                if (resCode != UBSE_OK) {
                                    UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(resCode);
-                                   syncData->pullRet = resCode;
+                                   pullRet = resCode;
                                } else if (respData.data != nullptr && respData.len != 0) {
-                                   syncData->pullRet = ProcessNodeInfoSyncFull(respData.data, respData.len);
+                                   pullRet = ProcessNodeInfoSyncFull(respData.data, respData.len);
                                } else {
-                                   syncData->pullRet = UBSE_ERROR_NULLPTR;
+                                   pullRet = UBSE_ERROR_NULLPTR;
                                }
-                               {
-                                   std::lock_guard<std::mutex> lock(syncData->mtx);
-                                   syncData->callbackCalled = true;
-                               }
-                               syncData->cv.notify_one();
                            });
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "send node info sync req failed, " << FormatRetCode(ret);
         return;
     }
-    // 等待回调完成：必须带超时。agent工作线程为单线程，若主节点RPC无响应而无限等待，
-    // 会永久阻塞周期上报/节点采集等全部任务（与UbseNodeReportNodeInfo超时策略保持一致）
-    {
-        std::unique_lock<std::mutex> lock(syncData->mtx);
-        auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
-        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
-            UBSE_LOG_WARN << "pull node info from master timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
-            return;
-        }
-    }
-    if (syncData->pullRet != UBSE_OK) {
-        UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(syncData->pullRet);
+    if (pullRet != UBSE_OK) {
+        UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(pullRet);
         return;
     }
     // 观测日志：备节点首次全量拉取成功（含镜像节点状态摘要）
@@ -936,11 +861,7 @@ UbseResult GetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseN
         .address = nodeId,
     };
 
-    // 同步机制
     UbseResult getRet = UBSE_OK;
-    bool callbackCalled = false;
-    std::mutex mtx;
-    std::condition_variable cv;
 
     uint8_t* buffer = nullptr;
     size_t size = 0;
@@ -959,24 +880,13 @@ UbseResult GetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseN
                              }};
 
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [&infos, &getRet, &callbackCalled, &mtx, &cv, nodeId](void* ctx, const UbseByteBuffer& respData,
-                                                                            uint32_t resCode) -> void {
+                      [&infos, &getRet, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
                           GetAllNodeInfoFromRemoteRespHandler(nodeId, respData, resCode, infos, getRet);
-                          {
-                              std::lock_guard<std::mutex> lock(mtx);
-                              callbackCalled = true;
-                          }
-                          cv.notify_one();
                       });
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
         return ret;
-    }
-
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&callbackCalled] { return callbackCalled; });
     }
 
     return getRet;
@@ -985,8 +895,7 @@ UbseResult GetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseN
 // 处理获取链路信息的回调
 static void HandleGetDirConnectInfoCallback(const std::string& nodeId, const UbseByteBuffer& respData, uint32_t resCode,
                                             std::map<std::string, PhysicalLink>& devDirConnectInfoRemote,
-                                            UbseResult& getRet, bool& callbackCalled, std::mutex& mtx,
-                                            std::condition_variable& cv)
+                                            UbseResult& getRet)
 {
     if (resCode != UBSE_OK) {
         UBSE_LOG_ERROR << "get all node info failed, " << FormatRetCode(resCode);
@@ -1000,12 +909,6 @@ static void HandleGetDirConnectInfoCallback(const std::string& nodeId, const Ubs
             UBSE_LOG_ERROR << "get devDirConnectInfo deserialize failed, " << FormatRetCode(getRet);
         }
     }
-
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        callbackCalled = true;
-    }
-    cv.notify_one();
 }
 
 // 向Master节点请求全量链路信息
@@ -1019,9 +922,6 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
     };
 
     UbseResult getRet = UBSE_OK;
-    bool callbackCalled = false;
-    std::mutex mtx;
-    std::condition_variable cv;
 
     uint8_t* buffer = new (std::nothrow) uint8_t[1]; // com不允许空请求
     if (buffer == nullptr) {
@@ -1033,21 +933,16 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
                                  SafeDeleteArray(p, size);
                              }};
 
-    auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                           [&devDirConnectInfoRemote, &getRet, &callbackCalled, &mtx, &cv,
-                            nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
-                               HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote,
-                                                               getRet, callbackCalled, mtx, cv);
-                           });
+    auto ret =
+        UbseRpcSend(endpoint, reqBuffer, nullptr,
+                    [&devDirConnectInfoRemote, &getRet, nodeId](void* ctx, const UbseByteBuffer& respData,
+                                                                uint32_t resCode) -> void {
+                        HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote, getRet);
+                    });
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
         return ret;
-    }
-
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&callbackCalled] { return callbackCalled; });
     }
 
     return getRet;
