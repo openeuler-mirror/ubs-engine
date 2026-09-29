@@ -157,7 +157,6 @@ TEST_F(TestUbseNodeControllerMaster, ReportAggregation_Process_stop)
     // auto func = std::thread([&master]() -> void { EXPECT_NO_THROW(master.ReportAggregation()); });
     sleep(5);
     g_globalStop.store(true);
-    master.cv_.notify_all();
     // if (func.joinable()) {
     //     func.join();
     // }
@@ -173,7 +172,6 @@ TEST_F(TestUbseNodeControllerMaster, ReportAggregation_Not_Running)
     // auto func = std::thread([&master]() -> void { EXPECT_NO_THROW(master.ReportAggregation()); });
     sleep(5);
     master.isLogAggregationRunning_.store(false);
-    master.cv_.notify_all();
     // if (func.joinable()) {
     //     func.join();
     // }
@@ -189,11 +187,9 @@ TEST_F(TestUbseNodeControllerMaster, ReportAggregation)
     // auto func = std::thread([&master]() -> void { EXPECT_NO_THROW(master.ReportAggregation()); });
     // print report
     sleep(5);
-    master.cv_.notify_all();
     // stop aggregation
     sleep(5);
     master.isLogAggregationRunning_.store(false);
-    master.cv_.notify_all();
     // if (func.joinable()) {
     //     func.join();
     // }

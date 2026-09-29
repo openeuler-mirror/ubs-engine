@@ -13,7 +13,6 @@
 #include "ubse_node_controller_master.h"
 
 #include <unistd.h>
-#include <condition_variable>
 #include <mutex>
 #include <unordered_set>
 
@@ -43,7 +42,6 @@ const std::string UBSE_NODE_SYNC_FULL_TIMER = "UbseNodeSyncFull";
 const std::string UBSE_NODE_MASTER_ONLINE = "UbseMasterOnLine";
 const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
-constexpr int UBSE_RPC_TIMEOUT_MS = 60000;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -1101,16 +1099,6 @@ UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
         .address = nodeId,
     };
 
-    // 使用shared_ptr管理同步对象
-    struct SyncData {
-        UbseResult collectRet = UBSE_OK;
-        bool callbackCalled = false;
-        std::mutex mtx;
-        std::condition_variable cv;
-    };
-
-    auto syncData = std::make_shared<SyncData>();
-
     uint8_t* buffer = nullptr;
     size_t size = 0;
     auto ret = SerializeUbseNode(UbseNodeInfo{}, buffer, size);
@@ -1126,32 +1114,19 @@ UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
                                  SafeDeleteArray(p, size);
                              }};
 
-    ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [&info, syncData, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
-                          CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, syncData->collectRet);
-                          {
-                              std::lock_guard<std::mutex> lock(syncData->mtx);
-                              syncData->callbackCalled = true;
-                          }
-                          syncData->cv.notify_one();
-                      });
+    UbseResult collectRet = UBSE_OK;
+    ret =
+        UbseRpcSend(endpoint, reqBuffer, nullptr,
+                    [&info, &collectRet, nodeId](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
+                        CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, collectRet);
+                    });
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send collect nodeId=" << nodeId << " msg failed, " << FormatRetCode(ret);
         return ret;
     }
 
-    // 等待回调完成
-    {
-        std::unique_lock<std::mutex> lock(syncData->mtx);
-        auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
-        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
-            UBSE_LOG_ERROR << "collect nodeId=" << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
-            return UBSE_ERROR_TIMEOUT;
-        }
-    }
-
-    return syncData->collectRet;
+    return collectRet;
 }
 
 void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string& nodeId, std::string action)

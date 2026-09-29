@@ -104,8 +104,6 @@ private:
     // map<nodeId, reportCount>
     std::unordered_map<std::string, uint64_t> reportCounters_{};
     std::shared_mutex rwReportMutex_{};
-    std::mutex cvMutex_{};
-    std::condition_variable cv_{};
     std::atomic<bool> isLogAggregationRunning_ = false;
 
     // 故障节点计数器
