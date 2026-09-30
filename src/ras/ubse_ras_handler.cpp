@@ -199,6 +199,19 @@ struct BmcFaultTimer {
     std::mutex mtx;
     std::condition_variable cv;
     bool cancelled{false};
+    // 兜底析构：防止上层未调用 StopAllBmcFaultTimers 即销毁对象，
+    // 导致 std::thread 在 joinable 状态下析构触发 std::terminate。
+    ~BmcFaultTimer()
+    {
+        {
+            std::lock_guard<std::mutex> lk(mtx);
+            cancelled = true;
+        }
+        cv.notify_all();
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
 };
 
 static std::unordered_map<std::string, BmcFaultState> g_nodeBmcFaultState;
