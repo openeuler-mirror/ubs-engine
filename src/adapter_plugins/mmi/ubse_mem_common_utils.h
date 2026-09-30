@@ -84,11 +84,11 @@ inline std::string GenerateExportKey(const std::string& name, const std::string&
 UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std::string& name,
                                  UbseMemLocalObmmCustomMeta& customMeta, const bool isAppendNodeId);
 
-UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint32_t& mask);
+UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint8_t (&mask)[REGION_MASK_BYTE_SIZE]);
 
-inline bool IsBitSet(uint32_t mask, int bit)
+inline bool IsBitSet(const uint8_t (&mask)[REGION_MASK_BYTE_SIZE], uint32_t bit)
 {
-    return (mask & (1u << bit)) != 0;
+    return bit < MAX_NODE_NUM && (mask[bit / 8u] & (1u << (bit % 8u))) != 0;
 }
 class RmCommonUtils {
 public:

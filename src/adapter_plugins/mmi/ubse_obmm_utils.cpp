@@ -283,13 +283,11 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& expo
     for (auto i = 0; i < exportObj.req.shmRegion.nodeNum; i++) {
         regionNodeIndex.push_back(exportObj.req.shmRegion.nodelist[i].index);
     }
-    uint32_t regionMask = 0;
-    auto ret = SetMaskFromRegionIndex(regionNodeIndex, regionMask);
+    auto ret = SetMaskFromRegionIndex(regionNodeIndex, customMeta.regionMask);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Construct shmExportObj failed, shm exportObj name=" << exportObj.req.name;
         return ret;
     }
-    customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
@@ -324,13 +322,11 @@ UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& impo
     for (size_t i = 0; i < importObj.req.shmRegion.nodelist.size(); i++) {
         regionNodeIndex.push_back(importObj.req.shmRegion.nodelist[i].index);
     }
-    uint32_t regionMask = 0;
-    auto ret = SetMaskFromRegionIndex(regionNodeIndex, regionMask);
+    auto ret = SetMaskFromRegionIndex(regionNodeIndex, customMeta.regionMask);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Construct shmExportObj failed, shmObj name=" << importObj.req.name;
         return ret;
     }
-    customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
