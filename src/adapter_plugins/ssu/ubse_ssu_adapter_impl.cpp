@@ -231,6 +231,10 @@ std::string TrimTrailingWhitespace(std::string s)
 
 uint32_t ExecWithSudo(const std::string &cmd, std::string &output)
 {
+    // mdadm/LVM 等特权命令经 sudo 在 root 子进程内执行，特权通道由 ubs-engine-ssu 子包
+    // 携带的两个 drop-in 构成：/etc/sudoers.d/ubse-ssu（免密命令白名单）+
+    // ubse.service.d/10-ssu-capabilities.conf（CapabilityBoundingSet 上限，随 fork/exec
+    // 继承），守护进程自身不持有这些能力
     std::string sudoCmd = "sudo " + cmd + " 2>&1";
     std::array<char, CMD_OUT_BUF_SIZE> buffer{};
     output.clear();

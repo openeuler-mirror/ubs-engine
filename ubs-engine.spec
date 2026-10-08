@@ -131,6 +131,17 @@ Summary: ssu
 Requires: %{name} = %{version}-%{release}
 %description ssu
 Package for ssu
+%post ssu
+# SSU 特权通道由本包携带的两个 drop-in 构成，均由 RPM 自动管理（卸载即回收）：
+# 1. ubse.service.d/10-ssu-capabilities.conf — sudo root 子进程的 CapabilityBoundingSet
+#    上限（systemd 多次赋值取并集；主包重装/升级覆盖 ubse.service 不影响合并结果）；
+# 2. /etc/sudoers.d/ubse-ssu — ubse 用户对 mdadm/LVM 命令的免密白名单。
+systemctl daemon-reload
+echo "Info: restart ubse.service to activate the ssu plugin and its capabilities"
+
+%postun ssu
+# drop-in 文件由 RPM 自动删除，此处仅需刷新 systemd 缓存（升级 $1 > 0 同样无害）
+systemctl daemon-reload
 
 
 # ========================================================
@@ -413,6 +424,14 @@ chmod 644 %{buildroot}/usr/lib64/libubse-ssu-client.a
 mkdir -p %{buildroot}/usr/lib64/ubse_plugin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libssu_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
+mkdir -p %{buildroot}/usr/lib/systemd/system/ubse.service.d
+cp %{_builddir}/%{project_dir}/scripts/rpm/ubse.service.d/10-ssu-capabilities.conf \
+    %{buildroot}/usr/lib/systemd/system/ubse.service.d/
+# sudo 免密白名单，visudo 构建期校验
+mkdir -p %{buildroot}/etc/sudoers.d
+cp %{_builddir}/%{project_dir}/scripts/rpm/ubse-ssu.sudoers %{buildroot}/etc/sudoers.d/ubse-ssu
+chmod 0440 %{buildroot}/etc/sudoers.d/ubse-ssu
+/usr/sbin/visudo -cf %{buildroot}/etc/sudoers.d/ubse-ssu
 
 #install python-ssu (通过清单驱动,扩展 ubse namespace)
 python3 build_subpackage.py ssu install --root=%{buildroot} --prefix=/usr --no-compile
@@ -690,6 +709,10 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/ubse_plugin/libssu_plugin.so
 /usr/bin/ubsectl-ssu
+%defattr(644,root,root,-)
+%dir /usr/lib/systemd/system/ubse.service.d
+/usr/lib/systemd/system/ubse.service.d/10-ssu-capabilities.conf
+%attr(0440,root,root) /etc/sudoers.d/ubse-ssu
 
 %files ssu-client-libs
 %defattr(755,root,root,-)
