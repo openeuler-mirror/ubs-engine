@@ -278,7 +278,6 @@ sudo ubsectl display cluster
 ### 5.2 构建第 2、3 节的示例 demo
 
 > 确保你的 CMake 版本至少为 3.11。
-
 > **前置条件**：构建示例前，请先完成 [1.2 安装开发包](#12-安装开发包)，
 > 确保 `/usr/include/ubse/`（SDK 头文件）与 `libubse-client`（动态库）已就绪。
 

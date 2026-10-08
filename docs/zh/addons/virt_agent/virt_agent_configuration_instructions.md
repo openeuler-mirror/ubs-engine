@@ -60,7 +60,8 @@ low.watermark=80
 
 ## 内存开销估算与 MemoryMax 配置
 
-UBSE 以 systemd 服务（`ubse.service`）运行，进程内存上限由 unit 中的 `MemoryMax` 控制（默认 `256M`，见 `/usr/lib/systemd/system/ubse.service`）。UBS VirtAgent 作为 UBSE 的插件在同一进程内运行，其内存开销随纳管 Pod 数、活跃 borrowId 数、虚机迁出容量和超分虚机数变化；baseline 随集群节点数增长，不宜直接套用其他环境的固定值，应按式估算或在目标节点空跑实测。
+UBSE 以 systemd 服务（`ubse.service`）运行，进程内存上限由 unit 中的 `MemoryMax` 控制（默认 `256M`，见 `/usr/lib/systemd/system/ubse.service`）。
+ UBS VirtAgent 作为 UBSE 的插件在同一进程内运行，其内存开销随纳管 Pod 数、活跃 borrowId 数、虚机迁出容量和超分虚机数变化；baseline 随集群节点数增长，不宜直接套用其他环境的固定值，应按式估算或在目标节点空跑实测。
 
 **超出上限的后果**：UBSE 进程会被 cgroup 直接杀死（由 `Restart=on-failure` 重启），内存借用业务随之中断，务必预留余量。
 
@@ -137,4 +138,6 @@ UBSE 以 systemd 服务（`ubse.service`）运行，进程内存上限由 unit �
 | 虚机碎片迁出 | 迁出约 357 GB | ≈ 715 MB（最大 K≈4；平均 K≈2 时约 360 MB） | 已超过默认值，需要上调 |
 | 虚机超分 | 300 个 8G 虚机（受 MAX_VM_NUM 约束） | ≈ 3 GB | 已超过默认值，需要上调 |
 
-- 表内增量为各场景上界，判断余量应按 `baseline(n) + 增量` 与 `MemoryMax` 比较（`baseline(n)` 见本章开头的「基线占用」，如 3 节点约 98 MB、8 节点约 218 MB）；调整方法与超限后果见本章开头的「MemoryMax 调整」。
+> [!NOTE] 说明
+> 
+> 表内增量为各场景上界，判断余量应按 `baseline(n) + 增量` 与 `MemoryMax` 比较（`baseline(n)` 见本章开头的「基线占用」，如 3 节点约 98 MB、8 节点约 218 MB）；调整方法与超限后果见本章开头的「MemoryMax 调整」。
