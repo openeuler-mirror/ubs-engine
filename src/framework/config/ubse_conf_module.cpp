@@ -152,8 +152,13 @@ bool UbseConfModule::IsUbFeatureSupported(uint64_t featureMask) const
 
 bool UbseConfModule::IsUrmaSupported() const
 {
-    const auto ubFeature = ubFeature_.load();
-    return (ubFeature & UB_URMA_ALL_MASK) != 0;
+    const auto urmaFeature = ubFeature_.load() & UB_URMA_ALL_MASK;
+    // 仅支持 URMA CTP-ROI 这一项不足以支撑 urma 通信，视为不支持（走 TCP 回退），
+    // 其余情况下只要任一 urma 特性被使能即视为支持。
+    if (urmaFeature == UB_URMA_CTP_ROI_MASK) {
+        return false;
+    }
+    return urmaFeature != 0;
 }
 
 bool UbseConfModule::IsMemBorrowNcSupported() const
