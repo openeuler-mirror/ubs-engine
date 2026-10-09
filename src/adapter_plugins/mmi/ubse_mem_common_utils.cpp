@@ -139,18 +139,17 @@ UbseResult RmCommonUtils::GetFileFirstLine(const std::string& path, std::string&
     return UBSE_OK;
 }
 
-UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint32_t& mask)
+UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint8_t (&mask)[REGION_MASK_BYTE_SIZE])
 {
-    for (int i = 0; i < regionNodeIndex.size(); i++) {
-        if (regionNodeIndex[i] >= 0 && regionNodeIndex[i] < 32u) {
+    for (size_t i = 0; i < regionNodeIndex.size(); i++) {
+        if (regionNodeIndex[i] < MAX_NODE_NUM) {
             UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
-            mask |= (1u << regionNodeIndex[i]); // 1 << bit 转为无符号操作
+            mask[regionNodeIndex[i] / 8u] |= static_cast<uint8_t>(1u << (regionNodeIndex[i] % 8u));
         } else {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
             return UBSE_ERROR_INVAL;
         }
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit=" << mask;
     return UBSE_OK;
 }
 

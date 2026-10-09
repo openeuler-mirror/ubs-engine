@@ -29,4 +29,26 @@ TEST_F(TestUbseMemCommonUtils, GetFileFirstLine_Fail)
     auto ret = RmCommonUtils::GetFileFirstLine(path, line);
     EXPECT_NE(ret, UBSE_OK);
 }
+
+TEST_F(TestUbseMemCommonUtils, SetMaskFromRegionIndex_Supports72Nodes)
+{
+    UbseMemLocalObmmCustomMeta customMeta{};
+    const std::vector<uint32_t> regionNodeIndex = {0u, 31u, 32u, 71u};
+
+    EXPECT_EQ(SetMaskFromRegionIndex(regionNodeIndex, customMeta.regionMask), UBSE_OK);
+    EXPECT_TRUE(IsBitSet(customMeta.regionMask, 0u));
+    EXPECT_TRUE(IsBitSet(customMeta.regionMask, 31u));
+    EXPECT_TRUE(IsBitSet(customMeta.regionMask, 32u));
+    EXPECT_TRUE(IsBitSet(customMeta.regionMask, 71u));
+    EXPECT_FALSE(IsBitSet(customMeta.regionMask, 70u));
+    EXPECT_EQ(sizeof(customMeta.regionMask), 9u);
+}
+
+TEST_F(TestUbseMemCommonUtils, SetMaskFromRegionIndex_RejectsOutOfRangeNode)
+{
+    uint8_t mask[REGION_MASK_BYTE_SIZE]{};
+
+    EXPECT_EQ(SetMaskFromRegionIndex({MAX_NODE_NUM}, mask), UBSE_ERROR_INVAL);
+    EXPECT_FALSE(IsBitSet(mask, MAX_NODE_NUM));
+}
 } // namespace ubse::ut::mmi

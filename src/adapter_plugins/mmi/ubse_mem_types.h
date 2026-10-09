@@ -30,7 +30,8 @@ inline constexpr char const* MMI_LOG_INFO = "[MMI] ";
 
 constexpr uint16_t INVALID_VALUE16 = 0xFFFF;
 constexpr uint64_t DEFAULT_BLOCK_SIZE = 128;
-constexpr int MAX_NODE_NUM = 32;
+constexpr uint32_t MAX_NODE_NUM = 72u;
+constexpr uint32_t REGION_MASK_BYTE_SIZE = (MAX_NODE_NUM + 7u) / 8u;
 constexpr uint64_t MIN_BLOCK_SIZE = 2u;
 constexpr uint64_t MAX_BLOCK_SIZE = 1024u;
 constexpr uint16_t MOVE20_BIT = 20;
@@ -83,7 +84,7 @@ struct UbseMemLocalObmmCustomMeta {
     uint32_t attachSocket{};               // 导入时实际挂载的socketId
     char name[UBSE_MEM_MAX_NAME_LENGTH]{}; // 全局uuid，控制面需要！
     uint16_t memidCount{}; // memid的总个数，芯片表项碎片导致一次借用，会有多个memid，决策完之后就能知道，用于回滚
-    uint32_t regionMask{0};                                // 共享域的bit位
+    uint8_t regionMask[REGION_MASK_BYTE_SIZE]{};           // 共享域的bit位
     uint8_t importNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{}; // 共享没有import numaid
     uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
     int32_t importSocket{};

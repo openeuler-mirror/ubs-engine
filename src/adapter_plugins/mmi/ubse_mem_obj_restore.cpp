@@ -533,7 +533,7 @@ void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     UbseShmRegionDesc shmRegions{0};
     for (uint32_t i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "region mask is " << obmmMetaData.customMeta.regionMask << ", index=" << i;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask index=" << i;
             shmRegions.nodeNum++;
             shmRegions.nodelist.push_back({i});
         }
@@ -675,9 +675,9 @@ void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq
                   << ", gid=" << req.udsInfo.gid;
     UbseShmRegionDesc shmRegions{};
     shmRegions.nodeNum = 0;
-    for (int i = 0; i < MAX_NODE_NUM; i++) {
+    for (uint32_t i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask is " << obmmMetaData.customMeta.regionMask << ", index=" << i;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask index=" << i;
             shmRegions.nodeNum++;
             UbseNodeInfo mxeNodeInfo{};
             mxeNodeInfo.index = i;
