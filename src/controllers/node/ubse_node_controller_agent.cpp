@@ -13,6 +13,8 @@
 #include "ubse_node_controller_agent.h"
 
 #include <unistd.h>
+#include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 
@@ -54,6 +56,13 @@ using namespace ubse::task_executor;
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001; // 超时错误码
 const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
 std::string UBSE_TOPOLOGY_CHANGE_EVENT = UBSE_EVENT_TOPOLOGY_CHANGE;
+// 备侧同步事件处理器序列号（相同序号但事件类型不同且互斥：CHANGE_TO_STANDBY/CHANGE_TO_GLOBAL_STANDBY/CHANGE_TO_AGENT）
+const uint32_t AGENT_STANDBY_PULL_SEQUENCE = 102;
+const std::string UBSE_NODE_STANDBY_PULL_HANDLER = "UbseStandbyPullNodeInfo";
+const std::string UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER = "UbseAgentClearMirror";
+const std::string UBSE_NODE_GLOBAL_STANDBY_PULL_HANDLER = "UbseGlobalStandbyPullNodeInfo";
+// 全量快照节点数上限（防恶意/异常报文导致 reserve 异常），与 node_mgr 集群容量口径联动，避免超大 CLOS 拓扑被拒绝
+constexpr size_t MAX_MIRROR_NODE_NUM = nodeMgr::MAX_CLUSTER_SIZE;
 
 // Agent端消息处理注册
 UbseResult RegAgentMsgHandler()
@@ -66,7 +75,27 @@ UbseResult RegAgentMsgHandler()
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_CHANGE)};
 
-    auto ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
+    const ubse::com::UbseComEndpoint nodeInfoSyncEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC)};
+
+    const ubse::com::UbseComEndpoint nodeInfoSyncFullEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC_FULL)};
+
+    auto ret = UbseRegRpcService(nodeInfoSyncEndpoint, NodeInfoSyncHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register node info sync endpoint failed";
+        return ret;
+    }
+
+    ret = UbseRegRpcService(nodeInfoSyncFullEndpoint, NodeInfoSyncFullHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register node info sync full endpoint failed";
+        return ret;
+    }
+
+    ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register collect endpoint failed";
         return ret;
@@ -93,6 +122,44 @@ UbseResult UbseNodeControllerAgent::Initialize()
     }
 
     GetClosRole();
+
+    // 升备：主动拉取全量快照重建镜像（唯一拉取触发点，覆盖委派新备/主降备/重启即备/从转备）
+    UbseElectionHandlerBuilder standbyBuilder;
+    standbyBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE) -> UbseResult {
+        if (taskExecutor_ != nullptr) {
+            taskExecutor_->Execute([this]() -> void { PullNodeInfoFromMaster(); });
+        }
+        return UBSE_OK;
+    });
+    standbyBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    standbyBuilder.SetSequenceId(AGENT_STANDBY_PULL_SEQUENCE);
+    standbyBuilder.SetType(UbseElectionEventType::CHANGE_TO_STANDBY);
+    standbyBuilder.SetName(UBSE_NODE_STANDBY_PULL_HANDLER);
+    UbseElectionChangeAttachHandler(standbyBuilder.Build());
+
+    UbseElectionHandlerBuilder globalStandbyBuilder;
+    globalStandbyBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE) -> UbseResult {
+        if (taskExecutor_ != nullptr) {
+            taskExecutor_->Execute([this]() -> void { PullNodeInfoFromMaster(); });
+        }
+        return UBSE_OK;
+    });
+    globalStandbyBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    globalStandbyBuilder.SetSequenceId(AGENT_STANDBY_PULL_SEQUENCE);
+    globalStandbyBuilder.SetType(UbseElectionEventType::CHANGE_TO_GLOBAL_STANDBY);
+    globalStandbyBuilder.SetName(UBSE_NODE_GLOBAL_STANDBY_PULL_HANDLER);
+    UbseElectionChangeAttachHandler(globalStandbyBuilder.Build());
+
+    UbseElectionHandlerBuilder agentBuilder;
+    agentBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE) -> UbseResult {
+        ClearMirror();
+        return UBSE_OK;
+    });
+    agentBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    agentBuilder.SetSequenceId(AGENT_STANDBY_PULL_SEQUENCE);
+    agentBuilder.SetType(UbseElectionEventType::CHANGE_TO_AGENT);
+    agentBuilder.SetName(UBSE_NODE_AGENT_CLEAR_MIRROR_HANDLER);
+    UbseElectionChangeAttachHandler(agentBuilder.Build());
 
     UBSE_LOG_INFO << "UbseNodeControllerAgent initialized successfully";
     return UBSE_OK;
@@ -342,6 +409,304 @@ void UbseNodeControllerAgent::Stop()
     // 解除注册 LCNE 变更回调
     UbseUnSubEvent(UBSE_TOPOLOGY_CHANGE_EVENT, UbseNodeInfoLcneNotifyHandler);
     UBSE_LOG_INFO << "ubse node agent stopped.";
+}
+
+// ====== 主备数据同步（备侧）实现 ======
+UbseSyncStandbyRole UbseNodeControllerAgent::GetSyncStandbyRole() const
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return UbseSyncStandbyRole::NONE;
+    }
+    ubse::election::HaTopologyInfo topology{};
+    if (module->GetCurNodeGlobalTopoInfo(topology) != UBSE_OK) {
+        return UbseSyncStandbyRole::NONE;
+    }
+    // 全局备同步所有机柜数据；普通组内备只同步本机柜数据
+    if (topology.currentNode.globalRole == ubse::election::GlobalRoleType::GLOBAL_STANDBY) {
+        return UbseSyncStandbyRole::GLOBAL_STANDBY;
+    }
+    if (topology.currentNode.groupRole == ubse::election::RoleType::STANDBY) {
+        return UbseSyncStandbyRole::CABINET_STANDBY;
+    }
+    return UbseSyncStandbyRole::NONE;
+}
+
+bool UbseNodeControllerAgent::IsStandbyNode() const
+{
+    return GetSyncStandbyRole() != UbseSyncStandbyRole::NONE;
+}
+
+bool UbseNodeControllerAgent::GetMasterNodeForStandby(ubse::election::Node& masterNode) const
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return false;
+    }
+    if (GetSyncStandbyRole() == UbseSyncStandbyRole::GLOBAL_STANDBY) {
+        return module->UbseGetMasterNode(masterNode) == UBSE_OK && !masterNode.id.empty();
+    }
+    // 柜内备取本机柜主；全局主所在机柜的柜内备也从全局主拉取，但靠ShouldKeepNodeInMirror只保留本机柜
+    return module->GetLocalMasterNode(masterNode) == UBSE_OK && !masterNode.id.empty();
+}
+
+bool UbseNodeControllerAgent::ShouldKeepNodeInMirror(const UbseNodeInfo& info) const
+{
+    if (GetSyncStandbyRole() == UbseSyncStandbyRole::CABINET_STANDBY) {
+        return info.groupId == GetGroupId();
+    }
+    return true;
+}
+
+void UbseNodeControllerAgent::ClearMirror()
+{
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    nodeInfoMirror_.clear();
+    faultProtectMirror_.clear();
+    lastSyncSeq_ = 0;
+    UBSE_LOG_INFO << "node info mirror cleared";
+}
+
+void UbseNodeControllerAgent::RemoveMirrorNode(const std::string& nodeId)
+{
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    nodeInfoMirror_.erase(nodeId);
+    faultProtectMirror_.erase(nodeId);
+    if (nodeInfoMirror_.empty()) {
+        faultProtectMirror_.clear();
+        lastSyncSeq_ = 0;
+        UBSE_LOG_INFO << "node info mirror empty after remove, cleared";
+    }
+}
+
+void UbseNodeControllerAgent::GetMirrorSnapshot(std::unordered_map<std::string, UbseNodeInfo>& mirror,
+                                                std::unordered_map<std::string, uint64_t>& faultProtect)
+{
+    std::shared_lock<std::shared_mutex> lock(mirrorMutex_);
+    mirror = nodeInfoMirror_;
+    faultProtect = faultProtectMirror_;
+}
+
+UbseResult NodeInfoSyncHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    return UbseNodeControllerAgent::GetInstance().HandleNodeInfoSync(req, resp);
+}
+
+UbseResult NodeInfoSyncFullHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    return UbseNodeControllerAgent::GetInstance().HandleNodeInfoSyncFull(req, resp);
+}
+
+UbseResult UbseNodeControllerAgent::HandleNodeInfoSync(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, ignore node info sync";
+        return UBSE_OK;
+    }
+    if (req.data == nullptr || req.len == 0) {
+        return UBSE_ERROR;
+    }
+
+    UbseDeSerialization inStream(req.data, req.len);
+    uint64_t syncSeq = 0;
+    uint64_t faultUpdateTimeMs = 0;
+    UbseNodeInfo nodeInfo{};
+    inStream >> syncSeq >> faultUpdateTimeMs;
+    UbseDeSerialization item;
+    inStream >> item;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync head failed";
+        return UBSE_ERROR;
+    }
+    auto ret = ParseNodeInfo(nodeInfo, item);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "parse node info sync node failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    ubse::election::Node masterNode{};
+    (void)GetMasterNodeForStandby(masterNode);
+    auto selfId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (nodeInfo.nodeId == masterNode.id || nodeInfo.nodeId == selfId) {
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << " is master/self, skip mirror";
+        return UBSE_OK;
+    }
+    if (!ShouldKeepNodeInMirror(nodeInfo)) {
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << " groupId=" << nodeInfo.groupId
+                      << " not in current cabinet, skip mirror";
+        return UBSE_OK;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    if (syncSeq <= lastSyncSeq_) {
+        UBSE_LOG_DEBUG << "node info sync out of order, syncSeq=" << syncSeq << ", lastSyncSeq=" << lastSyncSeq_;
+        return UBSE_OK;
+    }
+    nodeInfoMirror_[nodeInfo.nodeId] = nodeInfo;
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT && faultUpdateTimeMs != 0) {
+        faultProtectMirror_[nodeInfo.nodeId] = faultUpdateTimeMs;
+    } else if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
+        faultProtectMirror_.erase(nodeInfo.nodeId);
+    }
+    lastSyncSeq_ = syncSeq;
+    UBSE_LOG_INFO << "[NODE_SYNC] standby upsert mirror, nodeId=" << nodeInfo.nodeId
+                  << ", state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                  << ", faultUpdateTimeMs=" << faultUpdateTimeMs << ", syncSeq=" << syncSeq;
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeControllerAgent::HandleNodeInfoSyncFull(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    if (req.data == nullptr || req.len == 0) {
+        return UBSE_ERROR;
+    }
+    return ProcessNodeInfoSyncFull(req.data, req.len, false);
+}
+
+UbseResult UbseNodeControllerAgent::ProcessNodeInfoSyncFull(const uint8_t* data, uint32_t len, bool isPullReply)
+{
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, ignore node info sync full";
+        return UBSE_OK;
+    }
+
+    UbseDeSerialization inStream(data, len);
+    uint64_t syncSeq = 0;
+    size_t num = 0;
+    inStream >> syncSeq >> num;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync full head failed";
+        return UBSE_ERROR;
+    }
+    if (num > MAX_MIRROR_NODE_NUM) {
+        UBSE_LOG_ERROR << "node info sync full node num too large, num=" << num;
+        return UBSE_ERROR;
+    }
+
+    std::vector<UbseNodeInfo> nodeList;
+    nodeList.reserve(num);
+    for (size_t i = 0; i < num; i++) {
+        UbseDeSerialization item;
+        inStream >> item;
+        if (!inStream.Check()) {
+            UBSE_LOG_ERROR << "deserialize node info sync full item failed, index=" << i;
+            return UBSE_ERROR;
+        }
+        UbseNodeInfo info{};
+        auto ret = ParseNodeInfo(info, item);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "parse node info sync full item failed, index=" << i << ", " << FormatRetCode(ret);
+            return ret;
+        }
+        nodeList.push_back(info);
+    }
+    std::map<std::string, uint64_t> faultProtectMap;
+    inStream >> faultProtectMap;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "deserialize node info sync full fault map failed";
+        return UBSE_ERROR;
+    }
+
+    ubse::election::Node masterNode{};
+    (void)GetMasterNodeForStandby(masterNode);
+    auto selfId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    std::unordered_map<std::string, UbseNodeInfo> filteredMap;
+    std::unordered_map<std::string, uint64_t> filteredFaultMap;
+    for (const auto& node : nodeList) {
+        if (node.nodeId == masterNode.id || node.nodeId == selfId) {
+            continue;
+        }
+        if (!ShouldKeepNodeInMirror(node)) {
+            continue;
+        }
+        filteredMap[node.nodeId] = node;
+        auto iter = faultProtectMap.find(node.nodeId);
+        if (iter != faultProtectMap.end()) {
+            filteredFaultMap[node.nodeId] = iter->second;
+        }
+    }
+
+    std::unique_lock<std::shared_mutex> lock(mirrorMutex_);
+    // 拉取回包是备侧主动发起的权威全量快照，无条件应用；收包路径按 seq 做乱序过滤
+    if (!isPullReply && syncSeq <= lastSyncSeq_) {
+        UBSE_LOG_DEBUG << "node info sync full out of order, syncSeq=" << syncSeq << ", lastSyncSeq=" << lastSyncSeq_;
+        return UBSE_OK;
+    }
+    nodeInfoMirror_ = std::move(filteredMap);
+    faultProtectMirror_ = std::move(filteredFaultMap);
+    lastSyncSeq_ = std::max(syncSeq, lastSyncSeq_);
+    UBSE_LOG_INFO << "[NODE_SYNC_FULL] standby apply full snapshot, syncSeq=" << syncSeq
+                  << ", mirrorSize=" << nodeInfoMirror_.size();
+    return UBSE_OK;
+}
+
+void UbseNodeControllerAgent::PullNodeInfoFromMaster()
+{
+    if (!IsStandbyNode()) {
+        UBSE_LOG_INFO << "current node not standby, skip pull node info";
+        return;
+    }
+    ubse::election::Node masterNode{};
+    if (!GetMasterNodeForStandby(masterNode)) {
+        UBSE_LOG_WARN << "get master node failed, skip pull node info";
+        return;
+    }
+
+    ClearMirror();
+
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_INFO_SYNC_REQ),
+        .address = masterNode.id,
+    };
+
+    UbseSerialization outStream;
+    outStream << UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "serialize node info sync req failed";
+        return;
+    }
+    size_t size = outStream.GetLength();
+    uint8_t* buffer = outStream.GetBuffer(true);
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t* p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
+
+    UbseResult pullRet = UBSE_OK;
+    bool callbackCalled = false;
+    std::mutex mtx;
+    std::condition_variable cv;
+
+    auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+                           [this, &pullRet, &callbackCalled, &mtx, &cv](void* ctx, const UbseByteBuffer& respData,
+                                                                       uint32_t resCode) {
+                               if (resCode != UBSE_OK) {
+                                   UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(resCode);
+                                   pullRet = resCode;
+                               } else if (respData.data != nullptr && respData.len != 0) {
+                                   pullRet = ProcessNodeInfoSyncFull(respData.data, respData.len, true);
+                               } else {
+                                   pullRet = UBSE_ERROR_NULLPTR;
+                               }
+                               {
+                                   std::lock_guard<std::mutex> lock(mtx);
+                                   callbackCalled = true;
+                               }
+                               cv.notify_one();
+                           });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "send node info sync req failed, " << FormatRetCode(ret);
+        return;
+    }
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&callbackCalled] { return callbackCalled; });
+    }
+    if (pullRet != UBSE_OK) {
+        UBSE_LOG_WARN << "pull node info from master failed, " << FormatRetCode(pullRet);
+        return;
+    }
+    UBSE_LOG_INFO << "[NODE_SYNC_PULL] standby pull full snapshot success";
 }
 
 // 安全的序列化辅助函数

@@ -15,12 +15,20 @@
 
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
+#include "ubse_election_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_thread_pool.h"
 
 namespace ubse::nodeController {
 using ubse::common::def::UbseResult;
 using ubse::task_executor::UbseTaskExecutorPtr;
+
+// 备侧主备数据同步角色：柜内备只同步本机柜数据，全局备同步所有机柜数据
+enum class UbseSyncStandbyRole {
+    NONE,
+    CABINET_STANDBY,
+    GLOBAL_STANDBY,
+};
 
 class UbseNodeControllerAgent {
 public:
@@ -37,6 +45,33 @@ public:
     UbseResult Start();
 
     void Stop();
+
+    // ====== 主备数据同步（备侧）======
+    // 判定当前节点的备同步角色（非备返回NONE）
+    UbseSyncStandbyRole GetSyncStandbyRole() const;
+
+    // 升主/降从时清理镜像与同步序号
+    void ClearMirror();
+
+    // 移除镜像中单个节点条目（升主按范围消费时使用），镜像为空时整体清理并复位 lastSyncSeq_
+    void RemoveMirrorNode(const std::string& nodeId);
+
+    // 导出镜像快照（供升主消费继承）
+    void GetMirrorSnapshot(std::unordered_map<std::string, UbseNodeInfo>& mirror,
+                           std::unordered_map<std::string, uint64_t>& faultProtect);
+
+    // 主→备 单点节点信息增量同步处理
+    UbseResult HandleNodeInfoSync(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+    // 主→备 全量节点信息快照同步处理
+    UbseResult HandleNodeInfoSyncFull(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+    // 解析并应用全量快照（收包与主动拉取响应共用）
+    // @param isPullReply true=升备主动拉取回包（跳过乱序过滤无条件应用）；false=主周期/单点推送收包
+    UbseResult ProcessNodeInfoSyncFull(const uint8_t* data, uint32_t len, bool isPullReply);
+
+    // 升备时向主节点主动拉取全量快照
+    void PullNodeInfoFromMaster();
 
 private:
     /**
@@ -58,6 +93,15 @@ private:
 
     void StartExec();
 
+    // 当前节点是否为备节点（全局备或柜内备，非备角色忽略同步消息）
+    bool IsStandbyNode() const;
+
+    // 备节点对应的主节点（全局备取全局主，柜内备取本机柜主）
+    bool GetMasterNodeForStandby(ubse::election::Node& masterNode) const;
+
+    // 是否将该节点写入镜像（柜内备仅保留本机柜节点，全局备保留全部）
+    bool ShouldKeepNodeInMirror(const UbseNodeInfo& info) const;
+
     UbseResult ReportSingleNodeToPrev(const UbseNodeInfo &info);
 
     UbseResult ReportCabinetFullInfo();
@@ -67,6 +111,14 @@ private:
     UbseResult ForwardCabinetFullToPrev();
 
     UbseTaskExecutorPtr taskExecutor_{};
+
+    // 备节点镜像：主节点除"主/备自身"外的存量节点快照
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMirror_;
+    // FAULT节点保护窗口登记时刻(system_clock epoch ms)
+    std::unordered_map<std::string, uint64_t> faultProtectMirror_;
+    // 已应用的最大同步序号（乱序过滤）
+    uint64_t lastSyncSeq_{0};
+    std::shared_mutex mirrorMutex_;
 };
 
 /**
@@ -98,6 +150,12 @@ UbseResult RegAgentMsgHandler();
  * @return UbseResult 处理结果
  */
 UbseResult CollectNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+// 主→备 单点增量收包（0x0011）
+UbseResult NodeInfoSyncHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+// 主→备 全量快照收包（0x0012）
+UbseResult NodeInfoSyncFullHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * Agent向Master周期上报节点信息

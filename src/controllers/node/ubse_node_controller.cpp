@@ -44,6 +44,7 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_collector.h"
+#include "ubse_node_controller_master.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_node_mgr.h"
 #include "ubse_serial_util.h"
@@ -74,6 +75,15 @@ const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
 constexpr size_t MAX_IP_ADDR_NUM = 1024;
 constexpr uint32_t FAULT_STATE_PROTECT_SECONDS = 60;
+
+// 当前system_clock epoch毫秒时刻，用于FAULT节点登记时刻同步（镜像继承剩余保护窗口）
+static uint64_t GetSysEpochMs()
+{
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
+}
+
 const std::string UBSE_NODE_SUB_HEALTH_TIMER = "UbseNodeSubHealth";
 const std::string UBSE_PORT_UP_DOWN_EVENT = "topology.port.linkupdown";
 const std::string SUB_HEALTH_CONF_SECTION = "ubse.memory";
@@ -1772,6 +1782,9 @@ UbseResult UbseNodeController::UpdateNodeInfoExistingRecovery(const std::string&
     } else {
         UBSE_LOG_INFO << "[RECOVERY] notify success, nodeId=" << nodeId;
     }
+    // 非本机柜节点被动接受上报后 clusterState 发生变化：实时单点推给全局备，避免只靠 60s 全量兜底。
+    // 本机柜节点在本路径 clusterState 保持不变不会走到这里；SyncPushNodeToStandby 对非主角色内部短路。
+    UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
     return ret;
 }
 
@@ -1812,6 +1825,7 @@ UbseResult UbseNodeController::UpdateNodeInfoExistingNormal(const std::string& n
                       << ", oldState=" << static_cast<uint32_t>(oldClusterState)
                       << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState);
     }
+    UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
     return ret;
 }
 
@@ -2017,6 +2031,18 @@ uint32_t GenerateFaultUbseNode(const std::string& nodeId, UbseNodeInfo& faultNod
     }
     UBSE_LOG_INFO << "generate fault nodeId=" << nodeId << ", slotId=" << faultNodeInfo.slotId;
     faultNodeInfo.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+
+    // 回填 groupId：指定根节点选主（单层，1D fullmesh）无逻辑机柜概念，groupId 恒为 0；
+    // CLOS 层级选主从静态拓扑反查真实机柜号（覆盖 PD 主管理多机柜的场景），避免备侧按 groupId 过滤时误丢弃本机柜故障节点。
+    if (!IsHierarchicalElection()) {
+        faultNodeInfo.groupId = 0;
+    } else {
+        auto staticNode = nodeMgr::GetUbseNodeById(nodeId);
+        if (!staticNode.nodeId.empty()) {
+            faultNodeInfo.groupId = staticNode.groupId;
+        }
+    }
+
     ret = CollectCpuInfo(faultNodeInfo, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", cpu info failed, " << FormatRetCode(ret);
@@ -2089,9 +2115,12 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
         (void)GenerateFaultUbseNode(nodeId, faultNodeInfo);
         nodeInfos[nodeId] = faultNodeInfo;
         faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
+        faultUpdateTimeSysMs[nodeId] = GetSysEpochMs();
         rwMutex.unlock();
         ClearSubHealthCacheForNode(nodeId);
         UBSE_LOG_WARN << "nodeId=" << nodeId << " cluster node info not collect, set default item.";
+        // 幽灵故障节点同步给备节点，携带faultUpdateTimeSysMs供镜像继承剩余保护窗口
+        UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
         return UBSE_OK;
     }
 
@@ -2123,8 +2152,10 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
 
     if (curState != UbseNodeClusterState::UBSE_NODE_FAULT && state == UbseNodeClusterState::UBSE_NODE_FAULT) {
         faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
+        faultUpdateTimeSysMs[nodeId] = GetSysEpochMs();
     } else if (state != UbseNodeClusterState::UBSE_NODE_FAULT) {
         faultUpdateTimes.erase(nodeId);
+        faultUpdateTimeSysMs.erase(nodeId);
     }
 
     nodeInfos[nodeId].clusterState = state;
@@ -2150,6 +2181,8 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
         UBSE_LOG_ERROR << "nodeId=" << nodeId << " update state=" << static_cast<uint32_t>(state)
                        << " exec handler failed, " << FormatRetCode(ret);
     }
+    // 主节点状态变更实时单点推送，备节点镜像同步；非主节点在SyncPushNodeToStandby内短路
+    UbseNodeControllerMaster::GetInstance().SyncPushNodeToStandby(nodeId);
     return ret;
 }
 
@@ -2161,6 +2194,46 @@ void UbseNodeController::SetCurrentNodeId(const std::string& nodeId)
 std::string UbseNodeController::GetCurrentNodeId()
 {
     return currentNodeId;
+}
+
+std::unordered_map<std::string, uint64_t> UbseNodeController::GetFaultUpdateTimeSysMs()
+{
+    std::shared_lock<std::shared_mutex> lock(rwMutex);
+    return faultUpdateTimeSysMs;
+}
+
+uint32_t UbseNodeController::RestoreNodeInfoFromMirror(const UbseNodeInfo& info, uint64_t faultTimeSysMs)
+{
+    if (info.nodeId.empty()) {
+        return UBSE_ERROR_INVAL;
+    }
+    rwMutex.lock();
+    nodeInfos[info.nodeId] = info;
+    // 仅本机柜节点维护故障保护窗口：全局主消费镜像时，非本机柜FAULT节点只继承状态、不登记故障时刻
+    // （全局主只被动接受其他机柜上报，不管理其故障窗口，也不应将该故障时刻回灌给全局备）。
+    if (info.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT &&
+        info.groupId == nodeMgr::GetCurrentNode().groupId) {
+        // 折算剩余保护窗口：用镜像携带的故障登记时刻（system_clock epoch ms）换算steady起点，而非重置为满窗口。
+        // 窗口已过/无镜像时刻时不登记防抖，保证升主后FAULT节点可恢复。
+        faultUpdateTimes.erase(info.nodeId);
+        if (faultTimeSysMs != 0) {
+            uint64_t sysNowMs = GetSysEpochMs();
+            if (sysNowMs > faultTimeSysMs) {
+                uint64_t elapsedMs = sysNowMs - faultTimeSysMs;
+                if (elapsedMs < static_cast<uint64_t>(FAULT_STATE_PROTECT_SECONDS) * 1000) {
+                    faultUpdateTimes[info.nodeId] =
+                        std::chrono::steady_clock::now() - std::chrono::milliseconds(elapsedMs);
+                }
+            }
+        }
+        faultUpdateTimeSysMs[info.nodeId] = faultTimeSysMs != 0 ? faultTimeSysMs : GetSysEpochMs();
+    }
+    // 使用numaInfos更新拓扑数据中的本端信息
+    UbseSocketIdChange(info.nodeId);
+    rwMutex.unlock();
+    UBSE_LOG_INFO << "nodeId=" << info.nodeId << " restored from mirror, state="
+                  << static_cast<uint32_t>(info.clusterState) << ", faultUpdateTimeSysMs=" << faultTimeSysMs;
+    return UBSE_OK;
 }
 
 void UbseNodeController::CleanAfterMasterSwitchRole()
@@ -2183,7 +2256,8 @@ void UbseNodeController::CleanAfterGlobalMasterSwitchRole()
         if (it->second.groupId != nodeMgr::GetCurrentNode().groupId) {
             it = nodeInfos.erase(it);
         } else {
-            it->second.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
+            // 本机柜节点由全局主自身作为柜内主持续在管，全局侧数据天然就绪，无需恢复回调，直接置 READY
+            it->second.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY;
             ++it;
         }
     }

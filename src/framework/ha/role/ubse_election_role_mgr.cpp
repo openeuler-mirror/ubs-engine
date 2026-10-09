@@ -194,6 +194,7 @@ void RoleMgr::SwitchGlobalRole(GlobalRoleType globalRoleType, RoleContext &ctx)
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
                 return;
             }
+            RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_GLOBAL_STANDBY, ctx.standbyId);
             UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Standby: " << ctx.standbyId << ".";
             break;
         case GlobalRoleType::GLOBAL_AGENT:

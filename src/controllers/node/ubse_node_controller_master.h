@@ -67,6 +67,17 @@ public:
 
     UbseResult UbseSingleNodeReportHandler(const UbseNodeInfo &info);
 
+    /**
+     * 主节点向备节点实时单点推送节点信息（非主/无备时短路）
+     * @param nodeId 发生状态变更的节点ID
+     */
+    void SyncPushNodeToStandby(const std::string& nodeId);
+
+    /**
+     * 生成下一个全局单调递增同步序号（供自由函数NodeInfoSyncReqHandler调用）
+     */
+    uint64_t GetNextSyncSeq();
+
 private:
     UbseResult UbseMasterOnlineHandler(const std::string& nodeId);
 
@@ -107,9 +118,29 @@ private:
     void UbseMasterNotifyAllAgentsAction(const std::string& nodeId, std::string action);
 
     /**
+     * 升主消费：从镜像恢复节点信息。
+     * @param globalScope true=升全局主：仅重建非本机柜节点，状态原样继承不做对账；false=升柜内主（默认）：
+     *        FAULT/UNKNOWN/INIT直接继承，WORKING/SMOOTHING转INIT并立即重对账
+     */
+    void ConsumeMirrorOnPromote(bool globalScope = false);
+
+    /**
+     * 升主时以 epoch 毫秒为起点重置同步序号，使序号随时间单调、跨进程重启不归零
+     */
+    void InitSyncSeq();
+
+    /**
+     * 60s周期全量快照：生成NODE_INFO_SYNC_FULL推送备节点（仅主节点执行）
+     */
+    void UbseNodeSyncFullTimerHandler();
+
+    /**
      * 节点上报汇聚，每隔1min，打印一次节点上报记录
      */
     void ReportAggregation();
+
+    // 全局单调递增同步序号（主侧唯一生成，备侧仅按序应用）
+    std::atomic<uint64_t> syncSeq_{0};
 
     UbseTaskExecutorPtr taskExecutor_{};
 
@@ -142,6 +173,11 @@ private:
  * 注册Master端RPC处理器
  */
 UbseResult RegMasterMsgHandler();
+
+/**
+ * 处理备节点主动全量拉取请求：回复全量快照（seq取主侧最新）
+ */
+UbseResult NodeInfoSyncReqHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * 处理Agent上报的LCNE拓扑变化
