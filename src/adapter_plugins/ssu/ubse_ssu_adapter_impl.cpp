@@ -607,7 +607,9 @@ void UbseSsuAdapterImpl::ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo&
         UbseSsuDevNameSpace nsInfo;
         nsInfo.namespaceId = ns.namespaceId;
         nsInfo.subSystem.eid = info.subSystem.eid;
-        nsInfo.subSystem.subNqn = info.subSystem.subNqn;
+        // 回写ns级subNqn， attach/detach 需用它连接对应 subsystem；为空时回退设备级 subNqn
+        nsInfo.subSystem.subNqn = (ns.devAddr.subNqn[0] != 0) ? std::string(ns.devAddr.subNqn)
+                                                              : info.subSystem.subNqn;
         nsInfo.guid = std::string(reinterpret_cast<const char*>(ns.guid), GUID_SIZE);
         nsInfo.uuid = std::string(reinterpret_cast<const char*>(ns.uuid), UUID_SIZE);
         nsInfo.nsDevPath = std::string(ns.devPath);
@@ -873,6 +875,8 @@ uint32_t UbseSsuAdapterImpl::CreateDevNameSpace(UbseSsuDevNameSpace &nameSpace)
 
     nameSpace.namespaceId = nsInfo.namespaceId;
     nameSpace.nsDevPath = std::string(nsInfo.devPath);
+    // 回写ns级subNqn
+    nameSpace.subSystem.subNqn = std::string(nsInfo.devAddr.subNqn);
     // nsInfo.usedBytes为字节（C库返回），nameSpace.nuse按NVMe规范为LBA数量，需除以LBA Size
     nameSpace.nuse = nsInfo.usedBytes / GetLbaSize(nsInfo.baseAttr.flbas);
     nameSpace.guid = std::string(reinterpret_cast<const char*>(nsInfo.guid), GUID_SIZE);

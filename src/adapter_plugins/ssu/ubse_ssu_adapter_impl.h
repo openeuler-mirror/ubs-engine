@@ -33,11 +33,11 @@ constexpr int EID_SIZE = 16;
 constexpr int MAX_NAMESPACES_PER_CTRL = 64;
 constexpr uint32_t DEV_PATH_SIZE = 128;
 constexpr uint32_t DEV_IP_SIZE = 46;   // 同 INET6_ADDRSTRLEN，IPv6 文本最长 45 + NUL
-constexpr uint32_t SUBNQN_SIZE = 32;
+constexpr uint32_t SUBNQN_SIZE = 69;
 constexpr uint32_t GUID_SIZE = 16;
 constexpr uint32_t UUID_SIZE = 16;
 constexpr uint32_t USER_DATA_SIZE = 1024;
-constexpr uint32_t DEV_NAME_SIZE = 32;
+constexpr uint32_t DEV_NAME_SIZE = 69;
 constexpr uint32_t SN_SIZE = 21;
 constexpr uint32_t MN_SIZE = 41;
 
