@@ -640,12 +640,6 @@ uint32_t UbseMemShareBorrowExportObjCallback(const UbseMemShareBorrowExportObj &
 {
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Failed to get master's info, " << FormatRetCode(ret);
-        return ret;
-    }
     if (exportObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_WARN << "The exportObj with no export numa info will be ignored.";
         return UBSE_ERROR;
