@@ -35,7 +35,8 @@ namespace ubse::vsock {
  * @brief vsock server 配置
  *
  * 配置来源:ubse.conf 中 [ubse.ssu] 段(virtConfig 映射):
- *   vsockServerPort / enable_tls / cert_dir / thread_pool_size / thread_pool_queue_size
+ *   vsockServerPort / enable_tls
+ *   (certDir / threadPoolSize / threadPoolQueueSize 为固定路径 /var/lib/ubse/lcne_cert/,不支持配置)
  */
 struct UbseVsockConfig {
     uint32_t port{UBSE_VSOCK_DEFAULT_PORT};          // vsock 监听端口

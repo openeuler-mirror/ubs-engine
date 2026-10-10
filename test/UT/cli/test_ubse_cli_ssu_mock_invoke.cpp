@@ -36,6 +36,7 @@ UbseCliSsuAttachStripedReq g_ssuMockLastAttachStripedReq{};
 UbseCliSsuDetachSpaceReq g_ssuMockLastDetachSpaceReq{};
 UbseCliSsuDetachLinearReq g_ssuMockLastDetachLinearReq{};
 UbseCliSsuDetachStripedReq g_ssuMockLastDetachStripedReq{};
+UbseCliSsuConnectInfoReq g_ssuMockLastConnectInfoReq{};
 std::vector<uint8_t> g_ssuMockLastRequestPayload;
 bool g_ssuMockLastRequestDeserialized = false;
 
@@ -52,6 +53,7 @@ void ResetSsuMockCapture()
     g_ssuMockLastDetachSpaceReq = {};
     g_ssuMockLastDetachLinearReq = {};
     g_ssuMockLastDetachStripedReq = {};
+    g_ssuMockLastConnectInfoReq = {};
     g_ssuMockLastRequestPayload.clear();
     g_ssuMockLastRequestDeserialized = false;
 }
@@ -329,6 +331,12 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
                         g_ssuMockLastDetachStripedReq.srcEid) &&
             unpack.UnpackString(g_ssuMockLastDetachStripedReq.devName, SSU_CLI_MAX_DEV_NAME_LENGTH) &&
             UnpackStripedTail(unpack, g_ssuMockLastDetachStripedReq.level, g_ssuMockLastDetachStripedReq.chunkSize);
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_GET_CONNECT_INFO)) {
+        // CLI 侧 connect_info 请求固定携带 hasVfe=0（无 VFE 过滤），与服务端 SsuGetConnectInfoUnpack 对齐
+        uint8_t hasVfe = 1;
+        g_ssuMockLastRequestDeserialized =
+            unpack.UnpackString(g_ssuMockLastConnectInfoReq.name, SSU_CLI_MAX_NAME_LENGTH) &&
+            unpack.UnpackUint8(hasVfe) && hasVfe == 0;
     }
 }
 } // namespace
@@ -577,4 +585,51 @@ uint32_t mock_ssu_detach_invoke_call_normal(uint16_t moduleCode, uint16_t opCode
         responseData->length = 0;
     }
     return UBSE_OK;
+}
+
+// 线报文与服务端 SsuGetConnectInfoPack/ConnectInfoPack 对齐：count + (srcEid/tgtEid/tgtNqn/hostNqn/nsUuid + nsId)
+uint32_t BuildConnectInfoListResponse(const std::vector<UbseCliSsuConnectInfo>& values,
+                                      ubse_api_buffer_t* responseData)
+{
+    uint32_t size = sizeof(uint32_t);
+    for (const auto& value : values) {
+        size += StringSize(value.srcEid) + StringSize(value.tgtEid) + StringSize(value.tgtNqn) +
+                StringSize(value.hostNqn) + StringSize(value.nsUuid) + static_cast<uint32_t>(sizeof(uint32_t));
+    }
+    return BuildResponse(size, responseData, [&values](UbsePackUtil& pack) {
+        if (!pack.UbsePackUint32(static_cast<uint32_t>(values.size()))) {
+            return false;
+        }
+        for (const auto& value : values) {
+            if (!PackString(pack, value.srcEid) || !PackString(pack, value.tgtEid) ||
+                !PackString(pack, value.tgtNqn) || !PackString(pack, value.hostNqn) ||
+                !PackString(pack, value.nsUuid) || !pack.UbsePackUint32(value.nsId)) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
+uint32_t mock_ssu_connect_info_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
+                                                  const ubse_api_buffer_t* requestData,
+                                                  ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    UbseCliSsuConnectInfo info;
+    info.srcEid = "e2";
+    info.tgtEid = "e3";
+    info.tgtNqn = "nqn.2024-01:target";
+    info.hostNqn = "nqn.2026-07:host-a";
+    info.nsUuid = "uuid-aa";
+    info.nsId = 1;
+    return BuildConnectInfoListResponse({info}, responseData);
+}
+
+uint32_t mock_ssu_connect_info_invoke_call_empty(uint16_t moduleCode, uint16_t opCode,
+                                                 const ubse_api_buffer_t* requestData,
+                                                 ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    return BuildConnectInfoListResponse({}, responseData);
 }

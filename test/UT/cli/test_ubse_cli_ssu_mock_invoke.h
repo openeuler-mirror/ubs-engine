@@ -32,6 +32,7 @@ extern ubse::cli::reg::UbseCliSsuAttachStripedReq g_ssuMockLastAttachStripedReq;
 extern ubse::cli::reg::UbseCliSsuDetachSpaceReq g_ssuMockLastDetachSpaceReq;
 extern ubse::cli::reg::UbseCliSsuDetachLinearReq g_ssuMockLastDetachLinearReq;
 extern ubse::cli::reg::UbseCliSsuDetachStripedReq g_ssuMockLastDetachStripedReq;
+extern ubse::cli::reg::UbseCliSsuConnectInfoReq g_ssuMockLastConnectInfoReq;
 extern std::vector<uint8_t> g_ssuMockLastRequestPayload;
 extern bool g_ssuMockLastRequestDeserialized;
 
@@ -136,5 +137,13 @@ uint32_t mock_ssu_attach_striped_invoke_call_already_attached(uint16_t module_co
 
 uint32_t mock_ssu_detach_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                             const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_connect_info_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                  const ubse_api_buffer_t* request_data,
+                                                  ubse_api_buffer_t* response_data);
+
+uint32_t mock_ssu_connect_info_invoke_call_empty(uint16_t module_code, uint16_t op_code,
+                                                 const ubse_api_buffer_t* request_data,
+                                                 ubse_api_buffer_t* response_data);
 
 #endif // TEST_UBSE_CLI_SSU_MOCK_INVOKE_H

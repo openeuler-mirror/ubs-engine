@@ -356,4 +356,45 @@ bool UbseCliSsuAllocListRsp::Deserialize(const uint8_t *buffer, uint32_t length)
     allocations = std::move(decoded);
     return true;
 }
+
+bool UbseCliSsuConnectInfoReq::Serialize(std::vector<uint8_t> &payload) const
+{
+    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH)) {
+        return false;
+    }
+    // 线报文与服务端 SsuGetConnectInfoUnpack 对齐：name + hasVfe(uint8)，CLI 固定 0 表示无 VFE 过滤
+    return BuildPayload(StringSize(name) + sizeof(uint8_t), payload, [this](UbsePackUtil &pack) {
+        return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH) && pack.UbsePackUint8(0);
+    });
+}
+
+bool UbseCliSsuConnectInfoRsp::Deserialize(const uint8_t *buffer, uint32_t length)
+{
+    std::vector<UbseCliSsuConnectInfo> decoded;
+    const bool success = DecodePayload(buffer, length, [&decoded](UbseUnpackUtil &unpack) {
+        uint32_t infoCount = 0;
+        if (!unpack.UnpackUint32(infoCount) || infoCount > SSU_CLI_MAX_DESERIALIZED_CONNECT_INFOS) {
+            return false;
+        }
+        decoded.reserve(infoCount);
+        for (uint32_t i = 0; i < infoCount; ++i) {
+            UbseCliSsuConnectInfo info;
+            // 字段顺序与服务端 ConnectInfoPack 一致：srcEid/tgtEid/tgtNqn/hostNqn/nsUuid + nsId
+            if (!UnpackString(unpack, info.srcEid, SSU_CLI_MAX_SRC_EID_LENGTH) ||
+                !UnpackString(unpack, info.tgtEid, SSU_CLI_MAX_SRC_EID_LENGTH) ||
+                !UnpackString(unpack, info.tgtNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) ||
+                !UnpackString(unpack, info.hostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) ||
+                !UnpackString(unpack, info.nsUuid, SSU_CLI_MAX_UUID_LENGTH) || !unpack.UnpackUint32(info.nsId)) {
+                return false;
+            }
+            decoded.emplace_back(std::move(info));
+        }
+        return true;
+    });
+    if (!success) {
+        return false;
+    }
+    connectInfoList = std::move(decoded);
+    return true;
+}
 } // namespace ubse::cli::reg
