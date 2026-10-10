@@ -1,8 +1,8 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of the Mulan PSL v2 at:
+ * You may obtain a copy of Mulan PSL v2 at:
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -37,6 +37,7 @@
 #include "ubse_ssu_direct_to_vm_manager.h"
 #include "ubse_ssu_scheduler.h"
 #include "ubse_ssu_utils.h"
+#include "ubse_ssu_vm_cache.h"
 
 namespace ubse::ssu::service {
 
@@ -49,6 +50,7 @@ using namespace ubse::misc::future;
 using namespace ubse::utils;
 using namespace ubse::ssu::debt;
 using namespace ubse::ssu::utils;
+using ubse::ssu::controller::UbseSsuVmCache;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -220,6 +222,11 @@ static uint32_t AllocSpaceViaRpc(const UbseSsuAllocSpaceReq &req, const UbseSsuA
 uint32_t UbseSsuServiceImp::AllocSpace(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                                        UbseSsuAllocResult &result)
 {
+    // VM 模式不支持 alloc(盘由 openstack 分配)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "AllocSpace: not supported in VM mode, name=" << req.name;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -582,6 +589,12 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllo
         return UBSE_ERR_INVALID_ARG;
     }
 
+    // VM 模式不支持 free(盘由 openstack 分配)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "FreeSpace: not supported in VM mode, name=" << name;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -623,6 +636,14 @@ static const UbseSsuDevNameSpace *FindNsInDevice(const std::unordered_map<std::s
         }
     }
     return nullptr;
+}
+
+// 按NVMe规范将nuse(LBA数量)换算为已用字节数，与API契约(单位字节)保持一致
+// flbas==1 表示 4096 字节 LBA，其余为 512 字节
+static uint64_t NsUsedSizeBytes(const UbseSsuDevNameSpace &ns)
+{
+    uint64_t lbaSize = (ns.nsOptions.flbas == 1) ? 4096ULL : 512ULL;
+    return ns.nuse * lbaSize;
 }
 
 // 校验命名空间是否与请求身份匹配
@@ -988,6 +1009,21 @@ static uint32_t ValidateAllocStrategyMatch(const std::string &name, UbseSsuAlloc
         return UBSE_SSU_ERROR_STRATEGY_MISMATCH;
     }
     return UBSE_OK;
+}
+
+// VM 模式没有 host 侧账本,从本地缓存读取分配策略并复用统一的策略匹配校验。
+// 缓存未命中时保持 VM 挂载/卸载接口现有的 NS_NOT_FOUND 语义。
+static uint32_t ValidateVmAllocStrategy(UbseSsuVmCache *cache, const std::string &name,
+                                        UbseSsuAllocStrategy expectedStrategy)
+{
+    if (cache == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseSsuAllocResult allocResult{};
+    if (cache->GetAllocInfo(name, allocResult) != UBSE_OK) {
+        return UBSE_SSU_ERROR_NS_NOT_FOUND;
+    }
+    return ValidateAllocStrategyMatch(name, allocResult.strategy, expectedStrategy);
 }
 
 // Probe→Create/Assemble 决策辅助函数，消除 AgentAttach 与 AttachNsAndCreateBlockDevice 中的重复逻辑。
@@ -1408,6 +1444,310 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
     return ret;
 }
 
+// ============================================================================
+// VM 模式私有辅助实现
+// 仅按照 UbseSsuVmCache / UbseSsuAdapterInterface 公开接口调用
+// ============================================================================
+
+// VM 模式 AttachSpace:校验缓存命中 → adapter AttachDevNameSpace → MarkAttached
+// 幂等性:已 attach 直接返回成功
+// 未在缓存中:返回 UBSE_SSU_ERROR_NS_NOT_FOUND
+uint32_t UbseSsuServiceImp::VmAttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths)
+{
+    if (vmCache_ == nullptr) {
+        UBSE_LOG_ERROR << "VmAttachSpace: vmCache_ is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 1) 校验缓存命中
+    UbseSsuAllocResult allocResult{};
+    auto cacheRet = vmCache_->GetAllocInfo(req.name, allocResult);
+    if (cacheRet != UBSE_OK) {
+        UBSE_LOG_WARN << "VmAttachSpace: name not in vm cache, name=" << req.name;
+        return UBSE_SSU_ERROR_NS_NOT_FOUND;
+    }
+    // 2) 身份校验:与master路径AttachSingleNs语义一致,通过本地适配器customData校验identity,
+    //    不匹配返回UBSE_ERR_ACCESS_DENIED(防止非属主attach任意缓存中的namespace)
+    std::unordered_map<std::string, UbseSsuDevInfoPtr> devMap;
+    std::unordered_set<std::string> refreshedEids;
+    bool allNsFound = true;
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        }
+        if (targetNs == nullptr) {
+            // 本地适配器不可见:可能尚未直通或已被外部detach,记录后在attach前统一拒绝
+            UBSE_LOG_WARN << "VmAttachSpace: namespace not found in local adapter, name=" << req.name
+                          << ", eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            allNsFound = false;
+            continue;
+        }
+        if (!IsNsIdentityMatch(*targetNs, req.identity)) {
+            UBSE_LOG_ERROR << "VmAttachSpace: uid or userName not match, name=" << req.name
+                           << ", eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+    }
+    // 3) 幂等性:已 attach 直接返回成功
+    if (vmCache_->IsAttached(req.name)) {
+        UBSE_LOG_INFO << "VmAttachSpace: already attached, name=" << req.name;
+        nsDevPaths.clear();
+        for (const auto &nsInfo : allocResult.nameSpaceList) {
+            nsDevPaths.push_back(nsInfo.nsDevPath);
+        }
+        return UBSE_OK;
+    }
+    // 4) attach前要求所有namespace在本地适配器可见(与AttachSingleNs语义一致),
+    //    避免部分attach后因ns不可见失败产生回滚
+    if (!allNsFound) {
+        UBSE_LOG_ERROR << "VmAttachSpace: namespace not found in local adapter, name=" << req.name;
+        return UBSE_SSU_ERROR_NS_NOT_FOUND;
+    }
+    // 5) 调用本地适配器 attach 每个 namespace
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    nsDevPaths.clear();
+    nsDevPaths.reserve(allocResult.nameSpaceList.size());
+    std::vector<std::string> attachedNqnList;
+    attachedNqnList.reserve(allocResult.nameSpaceList.size());
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
+        // VM 内 attach 使用已直通的设备,从缓存中的 UbseSsuNameSpaceInfo 构造 UbseSsuDevNameSpace
+        // nqn 归一化与master路径一致:用户未指定时使用设备customData.defaultNqn
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        auto nqnFinal = (targetNs != nullptr) ? ResolveNqn(req.nqn, targetNs->customData.defaultNqn) : req.nqn;
+        UbseSsuDevNameSpace ns{};
+        ns.subSystem = {.eid = nsInfo.tgtEid, .subNqn = nsInfo.tgtNqn};
+        ns.guid = nsInfo.nsUuid;
+        ns.namespaceId = nsInfo.namespaceId;
+        ns.nsDevPath = nsInfo.nsDevPath;
+        auto attachRet = adapter.AttachDevNameSpace(nqnFinal, ns);
+        if (attachRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "VmAttachSpace: adapter AttachDevNameSpace failed, name=" << req.name
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << attachRet;
+            // 中途失败:逆序回滚已 attach 的 namespace,避免留下部分 attach 状态
+            // (nsDevPaths/attachedNqnList 中记录的正是已成功 attach 的 namespace,与 nameSpaceList 前缀一一对应)
+            for (size_t j = nsDevPaths.size(); j > 0; --j) {
+                const auto &doneInfo = allocResult.nameSpaceList[j - 1];
+                UbseSsuDevNameSpace doneNs{};
+                doneNs.subSystem = {.eid = doneInfo.tgtEid, .subNqn = doneInfo.tgtNqn};
+                doneNs.guid = doneInfo.nsUuid;
+                doneNs.namespaceId = doneInfo.namespaceId;
+                doneNs.nsDevPath = doneInfo.nsDevPath;
+                auto rollbackRet = adapter.DetachDevNameSpace(attachedNqnList[j - 1], doneNs);
+                if (rollbackRet != UBSE_OK) {
+                    UBSE_LOG_ERROR << "VmAttachSpace: rollback DetachDevNameSpace failed, name=" << req.name
+                                   << ", nsId=" << doneInfo.namespaceId << ", ret=" << rollbackRet;
+                }
+            }
+            return attachRet;
+        }
+        nsDevPaths.push_back(nsInfo.nsDevPath);
+        attachedNqnList.push_back(nqnFinal);
+    }
+    // 6) 标记已 attach
+    vmCache_->MarkAttached(req.name);
+    UBSE_LOG_INFO << "VmAttachSpace success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
+    return UBSE_OK;
+}
+
+// VM 模式 DetachSpace:校验缓存命中 → adapter DetachDevNameSpace → MarkDetached
+// 幂等性边界:
+//   - 未在缓存中(VM 不感知该 namespace):返回 UBSE_SSU_ERROR_NS_NOT_FOUND
+//   - 在缓存中但未 attach(重复 detach):返回 UBSE_OK(幂等容错)
+uint32_t UbseSsuServiceImp::VmDetachSpace(const UbseSsuSpaceReq &req)
+{
+    if (vmCache_ == nullptr) {
+        UBSE_LOG_ERROR << "VmDetachSpace: vmCache_ is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 1) 校验缓存命中:未在缓存中视为不可 detach(VM 不感知该 namespace)
+    UbseSsuAllocResult allocResult{};
+    auto cacheRet = vmCache_->GetAllocInfo(req.name, allocResult);
+    if (cacheRet != UBSE_OK) {
+        UBSE_LOG_WARN << "VmDetachSpace: name not in vm cache, name=" << req.name;
+        return UBSE_SSU_ERROR_NS_NOT_FOUND;
+    }
+    // 2) 幂等性:未 attach 直接返回成功
+    if (!vmCache_->IsAttached(req.name)) {
+        UBSE_LOG_INFO << "VmDetachSpace: not attached, idempotent success, name=" << req.name;
+        return UBSE_OK;
+    }
+    // 3) 身份预校验:与master路径DetachSingleNs语义一致,通过本地适配器customData校验identity,
+    //    任意一个ns不匹配即返回UBSE_ERR_ACCESS_DENIED(在任何设备操作前完成,避免部分detach);
+    //    ns在本地适配器不可见视为已被外部detach,跳过设备操作(幂等)
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    std::unordered_map<std::string, UbseSsuDevInfoPtr> devMap;
+    std::unordered_set<std::string> refreshedEids;
+    std::unordered_set<uint32_t> goneNsIds;
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        }
+        if (targetNs == nullptr) {
+            UBSE_LOG_INFO << "VmDetachSpace: device or namespace not found in adapter, treat as already detached, name="
+                          << req.name << ", eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            goneNsIds.insert(nsInfo.namespaceId);
+            continue;
+        }
+        if (!IsNsIdentityMatch(*targetNs, req.identity)) {
+            UBSE_LOG_ERROR << "VmDetachSpace: uid or userName not match, name=" << req.name
+                           << ", eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+    }
+    // 4) 调用本地适配器 detach 每个 namespace
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
+        if (goneNsIds.count(nsInfo.namespaceId) != 0) {
+            continue;
+        }
+        // nqn 归一化与master路径一致:用户未指定时使用设备customData.defaultNqn
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        auto nqnFinal = (targetNs != nullptr) ? ResolveNqn(req.nqn, targetNs->customData.defaultNqn) : req.nqn;
+        UbseSsuDevNameSpace ns{};
+        ns.subSystem = {.eid = nsInfo.tgtEid, .subNqn = nsInfo.tgtNqn};
+        ns.guid = nsInfo.nsUuid;
+        ns.namespaceId = nsInfo.namespaceId;
+        ns.nsDevPath = nsInfo.nsDevPath;
+        auto detachRet = adapter.DetachDevNameSpace(nqnFinal, ns);
+        if (detachRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "VmDetachSpace: adapter DetachDevNameSpace failed, name=" << req.name
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << detachRet;
+            return detachRet;
+        }
+    }
+    // 5) 标记已 detach
+    vmCache_->MarkDetached(req.name);
+    UBSE_LOG_INFO << "VmDetachSpace success: name=" << req.name;
+    return UBSE_OK;
+}
+
+// VM 模式 AttachLinearSpace/AttachStripedSpace:复用 VmAttachSpace + adapter CreateBlockDevice
+// options 由调用方构造并透传(LINEAR 或 STRIPED+level/chunkSize),返回聚合设备路径
+uint32_t UbseSsuServiceImp::VmAttachAggregated(const UbseSsuLinearSpaceReq &req,
+                                                std::vector<std::string> &nsDevPaths, std::string &devPath,
+                                                const UbseCreateBlockDeviceOptions &options)
+{
+    if (vmCache_ == nullptr) {
+        UBSE_LOG_ERROR << "VmAttachAggregated: vmCache_ is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 1) 幂等性:已 attach 直接返回已挂载的 nsDevPath 列表和聚合设备路径,
+    //    不重复调用 CreateBlockDevice
+    if (vmCache_->IsAttached(req.name)) {
+        UBSE_LOG_INFO << "VmAttachAggregated: already attached, idempotent success, name=" << req.name;
+        if (!IsValidDevName(req.devName)) {
+            UBSE_LOG_ERROR << "VmAttachAggregated: invalid devName, name=" << req.name
+                           << ", devName=" << req.devName;
+            return UBSE_ERR_INVALID_ARG;
+        }
+        nsDevPaths.clear();
+        UbseSsuAllocResult allocResult{};
+        auto cacheRet = vmCache_->GetAllocInfo(req.name, allocResult);
+        if (cacheRet != UBSE_OK) {
+            // 已 attach 但缓存查询失败:状态不一致,不得静默返回空设备列表
+            UBSE_LOG_ERROR << "VmAttachAggregated: attached but GetAllocInfo failed, name=" << req.name
+                           << ", ret=" << cacheRet;
+            return UBSE_SSU_ERROR_STATE_INVALID;
+        }
+        for (const auto &nsInfo : allocResult.nameSpaceList) {
+            nsDevPaths.push_back(nsInfo.nsDevPath);
+        }
+        // 聚合块设备路径恒为/dev/ssu/{devName},与master端账本回填规则一致
+        devPath = SSU_AGGREGATE_DEV_ROOT + req.devName;
+        return UBSE_OK;
+    }
+    // 2) 先 attach 所有 namespace(复用 VmAttachSpace 逻辑)
+    auto ret = VmAttachSpace(req, nsDevPaths);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    // 3) 创建聚合块设备,options 由调用方透传
+    //    (Linear: LINEAR;Striped: STRIPED+level/chunkSize)
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    ret = adapter.CreateBlockDevice(req.devName, nsDevPaths, options, devPath);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "VmAttachAggregated: CreateBlockDevice failed, name=" << req.name
+                       << ", devName=" << req.devName << ", ret=" << ret;
+        // 失败时回滚已 attach 的 namespace
+        VmDetachSpace(req);
+        return ret;
+    }
+    UBSE_LOG_INFO << "VmAttachAggregated success: name=" << req.name << ", devPath=" << devPath;
+    return UBSE_OK;
+}
+
+// VM 模式 DetachLinearSpace/DetachStripedSpace:adapter DeleteBlockDevice + VmDetachSpace
+uint32_t UbseSsuServiceImp::VmDetachAggregated(const UbseSsuLinearSpaceReq &req, bool isStriped)
+{
+    // 1) 删除聚合块设备
+    //    聚合设备仍依赖各 namespace,删除失败时不得继续 detach 破坏依赖状态,直接报错;
+    //    DeleteBlockDevice 幂等(块设备已删不会失败),调用方可重试收敛
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    auto ret = adapter.DeleteBlockDevice(req.devName);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "VmDetachAggregated: DeleteBlockDevice failed, strategy="
+                       << (isStriped ? "STRIPED" : "LINEAR") << ", name=" << req.name
+                       << ", devName=" << req.devName << ", ret=" << ret;
+        return UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED;
+    }
+    // 2) detach 所有 namespace(幂等性保证)
+    return VmDetachSpace(req);
+}
+
+// VM 模式 GetNsStats:校验 vmCache_ 命中 → 走本地适配器查询 namespace 统计
+// VM 内无 master 账本与 collector 缓存,按需 RefreshDevCache(本地适配器 GetDevList)获取 nuse;
+// identity 校验与 master 路径一致(IsNsIdentityMatch),不匹配返回 UBSE_ERR_ACCESS_DENIED
+uint32_t UbseSsuServiceImp::VmGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                                         const UbseSsuAllocIdentityInfo &identity)
+{
+    if (vmCache_ == nullptr) {
+        UBSE_LOG_ERROR << "VmGetNsStats: vmCache_ is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 1) 校验缓存命中:VM 内只感知推送过的 namespace,未在缓存中返回 UBSE_SSU_ERROR_SPACE_NOT_FOUND
+    UbseSsuAllocResult allocResult{};
+    auto cacheRet = vmCache_->GetAllocInfo(name, allocResult);
+    if (cacheRet != UBSE_OK) {
+        UBSE_LOG_WARN << "VmGetNsStats: name not in vm cache, name=" << name;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    }
+    // 2) 构建本地设备映射:VM 内无 collector 缓存,起始为空,FindNsInDevice 未命中即触发 RefreshDevCache
+    std::unordered_map<std::string, UbseSsuDevInfoPtr> devMap;
+    std::unordered_set<std::string> refreshedEids;
+    statsList.clear();
+    statsList.reserve(allocResult.nameSpaceList.size());
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        }
+        if (targetNs == nullptr) {
+            UBSE_LOG_ERROR << "VmGetNsStats: namespace not found in local adapter, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            statsList.clear();
+            return UBSE_SSU_ERROR_NS_NOT_FOUND;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << "VmGetNsStats: identity not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            statsList.clear();
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+        UbseSsuNsStats stats;
+        stats.nsUuid = nsInfo.nsUuid;
+        stats.nsId = nsInfo.namespaceId;
+        stats.totalSize = nsInfo.nsSize;
+        // targetNs->nuse为LBA数量，统一走NsUsedSizeBytes换算为字节(与master路径一致)
+        stats.usedSize = NsUsedSizeBytes(*targetNs);
+        statsList.push_back(std::move(stats));
+    }
+    UBSE_LOG_INFO << "VmGetNsStats success: name=" << name << ", count=" << statsList.size();
+    return UBSE_OK;
+}
+
 // 挂载空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths)
 {
@@ -1422,6 +1762,16 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
 
     UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << req.nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
+
+    // VM 模式:校验 vmCache_ 命中 → 调 adapter AttachDevNameSpace → MarkAttached
+    // 幂等性:已 attach 直接返回成功;未在缓存中返回 UBSE_SSU_ERROR_NS_NOT_FOUND
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::NORMAL);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        return VmAttachSpace(req, nsDevPaths);
+    }
 
     std::string role;
     auto roleRet = UbseGetRole(role);
@@ -1514,6 +1864,16 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 
     UBSE_LOG_INFO << "DetachSpace: name=" << req.name << ", nqn=" << req.nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
+
+    // VM 模式:调 adapter DetachDevNameSpace → MarkDetached
+    // 幂等性:未 attach 直接返回成功
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::NORMAL);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        return VmDetachSpace(req);
+    }
 
     std::string role;
     auto roleRet = UbseGetRole(role);
@@ -1652,6 +2012,17 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
     UbseCreateBlockDeviceOptions options;
     options.addressingType = UbseSsuAddressingType::LINEAR;
 
+    // VM 模式:走本地适配器,返回聚合块设备路径,透传 LINEAR options
+    // 幂等性:已 attach 直接返回成功
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::LINEAR);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        UBSE_LOG_INFO << "AttachLinearSpace: VM mode, name=" << req.name << ", devName=" << req.devName;
+        return VmAttachAggregated(req, nsDevPaths, devPath, options);
+    }
+
     std::string role;
     auto roleRet = UbseGetRole(role);
     if (roleRet != UBSE_OK) {
@@ -1744,18 +2115,28 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    UbseCreateBlockDeviceOptions options = {.addressingType = UbseSsuAddressingType::STRIPED,
+                                            .raidLevel = req.level == UbseSsuAggregationRaidLevel::RAID0 ?
+                                                             UbseSsuRaidLevel::RAID0 :
+                                                             UbseSsuRaidLevel::RAID5,
+                                            .chunkSize = static_cast<uint32_t>(req.chunkSize)};
+
+    // VM 模式:走本地适配器,返回聚合块设备路径,透传 level/chunkSize
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::STRIPED);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        UBSE_LOG_INFO << "AttachStripedSpace: VM mode, name=" << req.name << ", devName=" << req.devName;
+        return VmAttachAggregated(req, nsDevPaths, devPath, options);
+    }
+
     std::string role;
     auto roleRet = UbseGetRole(role);
     if (roleRet != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: failed to get node role, ret=" << roleRet;
         return roleRet;
     }
-
-    UbseCreateBlockDeviceOptions options = {.addressingType = UbseSsuAddressingType::STRIPED,
-                                            .raidLevel = req.level == UbseSsuAggregationRaidLevel::RAID0 ?
-                                                             UbseSsuRaidLevel::RAID0 :
-                                                             UbseSsuRaidLevel::RAID5,
-                                            .chunkSize = static_cast<uint32_t>(req.chunkSize)};
 
     // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
     if (role != ELECTION_ROLE_MASTER) {
@@ -1901,6 +2282,16 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    // VM 模式:DeleteBlockDevice + VmDetachSpace
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::LINEAR);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        UBSE_LOG_INFO << "DetachLinearSpace: VM mode, name=" << req.name << ", devName=" << req.devName;
+        return VmDetachAggregated(req, false);
+    }
+
     std::string role;
     auto roleRet = UbseGetRole(role);
     if (roleRet != UBSE_OK) {
@@ -1965,6 +2356,16 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     UBSE_LOG_INFO << "DetachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
+
+    // VM 模式:DeleteBlockDevice + VmDetachSpace
+    if (vmMode_) {
+        auto strategyRet = ValidateVmAllocStrategy(vmCache_, req.name, UbseSsuAllocStrategy::STRIPED);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+        UBSE_LOG_INFO << "DetachStripedSpace: VM mode, name=" << req.name << ", devName=" << req.devName;
+        return VmDetachAggregated(req, true);
+    }
 
     std::string role;
     auto roleRet = UbseGetRole(role);
@@ -2232,6 +2633,12 @@ uint32_t UbseSsuServiceImp::AddAccessPermission(const std::string &name, const s
         return UBSE_ERR_INVALID_ARG;
     }
 
+    // VM 模式不支持权限管理(权限由 ubse@host 管理)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "AddAccessPermission: not supported in VM mode, name=" << name;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -2262,6 +2669,12 @@ uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, cons
         return UBSE_ERR_INVALID_ARG;
     }
 
+    // VM 模式不支持权限管理(权限由 ubse@host 管理)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "RemoveAccessPermission: not supported in VM mode, name=" << name;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -2283,16 +2696,31 @@ uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, cons
 
 uint32_t UbseSsuServiceImp::GetFeDeviceList(std::vector<UbseSsuFe> &feList)
 {
+    // VM 模式不支持 FeDevice 查询(设备直通由 ubse@host 负责)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "GetFeDeviceList: not supported in VM mode";
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseSsuDirectToVmManager::GetInstance().GetFeDeviceList(feList);
 }
 
 uint32_t UbseSsuServiceImp::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid)
 {
+    // VM 模式不支持 FeDevice 分配(设备直通由 ubse@host 负责)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "FeDeviceAlloc: not supported in VM mode, upi=" << upi;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseSsuDirectToVmManager::GetInstance().FeDeviceAlloc(upi, vfe, busInstanceGuid);
 }
 
 uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe)
 {
+    // VM 模式不支持 FeDevice 释放(设备直通由 ubse@host 负责)
+    if (vmMode_) {
+        UBSE_LOG_WARN << "FeDeviceFree: not supported in VM mode, upi=" << upi;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe);
 }
 
@@ -2381,9 +2809,8 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
         stats.nsUuid = nsInfo.nsUuid;
         stats.nsId = nsInfo.namespaceId;
         stats.totalSize = nsInfo.nsSize;
-        // targetNs->nuse按NVMe规范为LBA数量，需乘LBA Size换算为字节，与API契约(单位字节)保持一致
-        uint64_t lbaSize = (targetNs->nsOptions.flbas == 1) ? 4096ULL : 512ULL;
-        stats.usedSize = targetNs->nuse * lbaSize;
+        // targetNs->nuse为LBA数量，统一走NsUsedSizeBytes换算为字节，与API契约(单位字节)保持一致
+        stats.usedSize = NsUsedSizeBytes(*targetNs);
         statsList.push_back(std::move(stats));
     }
     UBSE_LOG_INFO << "ExecuteGetNsStats success: name=" << name << ", count=" << statsList.size();
@@ -2395,6 +2822,13 @@ uint32_t UbseSsuServiceImp::GetNsStats(const std::string &name, std::vector<Ubse
                                        const UbseSsuAllocIdentityInfo &identity)
 {
     UBSE_LOG_INFO << "GetNsStats: name=" << name;
+
+    // VM 模式走本地适配器查询 namespace 统计
+    // VM 内无 master 账本与 collector,通过本地适配器 GetDevList 获取 usedSize(nuse)
+    if (vmMode_) {
+        UBSE_LOG_INFO << "GetNsStats: VM mode, query via local adapter, name=" << name;
+        return VmGetNsStats(name, statsList, identity);
+    }
 
     std::string role;
     auto ret = UbseGetRole(role);
@@ -2511,13 +2945,16 @@ static uint32_t GetAllocInfoByNameViaRpc(const std::string &name, UbseSsuAllocRe
     return UBSE_OK;
 }
 
-// 校验ledger entry是否属于指定identity：所有可在设备缓存中找到的namespace的identity都必须匹配
-static bool IsLedgerEntryIdentityMatch(const UbseSsuLedgerEntry &entry, const UbseSsuAllocIdentityInfo &identity,
+// 校验allocResult是否属于指定identity:所有能在本地适配器中查到的namespace的identity都必须匹配,
+// 且至少查到过1个namespace(anyChecked);VM 模式查询分支与 master 账本校验共用该语义
+// (VM 内无账本,identity 权威源为本地适配器 customData)
+static bool IsAllocResultIdentityMatch(const UbseSsuAllocResult &allocResult,
+                                       const UbseSsuAllocIdentityInfo &identity,
                                        std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
 {
     std::unordered_set<std::string> refreshedEids;
     bool anyChecked = false;
-    for (const auto &nsInfo : entry.allocResult.nameSpaceList) {
+    for (const auto &nsInfo : allocResult.nameSpaceList) {
         const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
         if (targetNs == nullptr) {
             RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
@@ -2532,8 +2969,14 @@ static bool IsLedgerEntryIdentityMatch(const UbseSsuLedgerEntry &entry, const Ub
         }
         anyChecked = true;
     }
-    // 所有能查到的namespace都匹配且至少查到过1个，才算放行
     return anyChecked;
+}
+
+// 校验ledger entry是否属于指定identity(委托 IsAllocResultIdentityMatch,语义一致)
+static bool IsLedgerEntryIdentityMatch(const UbseSsuLedgerEntry &entry, const UbseSsuAllocIdentityInfo &identity,
+                                       std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    return IsAllocResultIdentityMatch(entry.allocResult, identity, devMap);
 }
 
 // master端：校验identity并返回该identity有权访问的name列表
@@ -2638,6 +3081,30 @@ static void FillAllowHostNqnList(UbseSsuAllocResult &result, std::unordered_map<
 uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &result,
                                           const UbseSsuAllocIdentityInfo &identity)
 {
+    // VM 模式走本地缓存,缓存为只读,VM 内不可修改分配信息;未收到推送时返回空列表
+    // 身份校验:identity 权威源为本地适配器 customData,过滤非本 identity 的条目
+    if (vmMode_) {
+        UBSE_LOG_INFO << "ListAllocInfo: VM mode, query from local cache";
+        if (vmCache_ == nullptr) {
+            UBSE_LOG_ERROR << "ListAllocInfo: vmCache_ is null";
+            return UBSE_ERROR_NULLPTR;
+        }
+        auto ret = vmCache_->ListAllocInfo(result);
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+        auto devMap = collector_.GetCachedDevMap();
+        for (auto it = result.begin(); it != result.end();) {
+            if (!IsAllocResultIdentityMatch(*it, identity, devMap)) {
+                UBSE_LOG_WARN << "ListAllocInfo: VM mode, identity not match, name=" << it->name;
+                it = result.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        return UBSE_OK;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -2687,6 +3154,28 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
         return UBSE_ERR_INVALID_ARG;
     }
     UBSE_LOG_INFO << "GetAllocInfoByName: name=" << name;
+
+    // VM 模式走本地缓存
+    // 缓存中不存在返回 UBSE_SSU_ERROR_SPACE_NOT_FOUND
+    // 身份校验:不匹配返回 UBSE_ERR_ACCESS_DENIED,语义与 master 路径一致
+    if (vmMode_) {
+        UBSE_LOG_INFO << "GetAllocInfoByName: VM mode, query from local cache, name=" << name;
+        if (vmCache_ == nullptr) {
+            UBSE_LOG_ERROR << "GetAllocInfoByName: vmCache_ is null";
+            return UBSE_ERROR_NULLPTR;
+        }
+        auto cacheRet = vmCache_->GetAllocInfo(name, result);
+        if (cacheRet != UBSE_OK) {
+            UBSE_LOG_WARN << "GetAllocInfoByName: not found in vm cache, name=" << name;
+            return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+        }
+        auto devMap = collector_.GetCachedDevMap();
+        if (!IsAllocResultIdentityMatch(result, identity, devMap)) {
+            UBSE_LOG_WARN << "GetAllocInfoByName: VM mode, identity not match, name=" << name;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+        return UBSE_OK;
+    }
 
     std::string role;
     auto ret = UbseGetRole(role);
@@ -2859,6 +3348,30 @@ uint32_t UbseSsuServiceImp::GetConnectInfo(const std::string &name, const UbseSs
                                            const UbseSsuAllocIdentityInfo &identity)
 {
     UBSE_LOG_INFO << "GetConnectInfo: name=" << name;
+
+    // VM 模式走本地缓存
+    // 身份校验:通过缓存中的分配信息走本地适配器校验 identity,不匹配返回 UBSE_ERR_ACCESS_DENIED;
+    // 分配信息未推送(缓存miss)时无法校验身份,fail-closed直接拒绝,避免非属主读取连接信息
+    // (与master路径ExecuteGetConnectInfo的fail-closed语义一致)
+    if (vmMode_) {
+        UBSE_LOG_INFO << "GetConnectInfo: VM mode, query from local cache, name=" << name;
+        if (vmCache_ == nullptr) {
+            UBSE_LOG_ERROR << "GetConnectInfo: vmCache_ is null";
+            return UBSE_ERROR_NULLPTR;
+        }
+        (void)vfe; // VM 模式下 vfe 参数无意义,连接信息已由 ub-device-manager 推送
+        UbseSsuAllocResult allocResult{};
+        if (vmCache_->GetAllocInfo(name, allocResult) != UBSE_OK) {
+            UBSE_LOG_WARN << "GetConnectInfo: VM mode, name not in vm cache, name=" << name;
+            return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+        }
+        auto devMap = collector_.GetCachedDevMap();
+        if (!IsAllocResultIdentityMatch(allocResult, identity, devMap)) {
+            UBSE_LOG_WARN << "GetConnectInfo: VM mode, identity not match, name=" << name;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+        return vmCache_->GetConnectInfo(name, connectInfoList);
+    }
 
     std::string role;
     auto ret = UbseGetRole(role);
