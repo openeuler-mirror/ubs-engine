@@ -1,0 +1,4 @@
+# UBSE SSU 插件 sudo 免密白名单（安装为 /etc/sudoers.d/ubse-ssu）
+ubse ALL=(root) NOPASSWD: /usr/sbin/pvcreate, /usr/sbin/pvremove, /usr/sbin/pvs, \
+    /usr/sbin/vgcreate, /usr/sbin/vgremove, /usr/sbin/vgchange, \
+    /usr/sbin/lvcreate, /usr/sbin/lvremove, /usr/sbin/lvchange, /usr/sbin/mdadm
