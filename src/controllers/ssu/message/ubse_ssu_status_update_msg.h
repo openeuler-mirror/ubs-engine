@@ -24,6 +24,7 @@ struct UbseSsuStatusUpdateReq {
     std::string requestName;
     UbseSsuNsState state{UbseSsuNsState::IDLE};
     std::string devName; // 聚合块设备名称（Linear/Striped场景），agent attach成功时随状态上报，master写入账本
+    std::string nodeId;  // 上报节点ID，NORMAL策略多节点共挂时master按节点对账维护attachNodes
 };
 
 struct UbseSsuStatusUpdateRsp {
@@ -34,7 +35,8 @@ class UbseSsuStatusReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusReqMsg() = default;
 
-    UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state, const std::string &devName = "");
+    UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state, const std::string &devName = "",
+                        const std::string &nodeId = "");
 
     const UbseSsuStatusUpdateReq &GetStatusUpdateReq() const;
 

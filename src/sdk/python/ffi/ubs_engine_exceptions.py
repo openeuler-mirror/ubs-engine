@@ -136,6 +136,11 @@ class UbsEngineStrategyMismatchError(UbsError):
     pass
 
 
+class UbsEngineAttacherMismatchError(UbsError):
+    """独占策略空间已被其他节点挂载，当前节点无权操作（仅attacher节点可重复挂载/卸载）"""
+    pass
+
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

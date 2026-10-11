@@ -113,6 +113,7 @@
 #define UBSE_SSU_ERROR_SPACE_NOT_FOUND UBSE_ERROR_DEF(1200)         /* 空间不存在 */
 #define UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE UBSE_ERROR_DEF(1201) /* 命名空间已挂载，释放前需先卸载 */
 #define UBSE_SSU_ERROR_STRATEGY_MISMATCH UBSE_ERROR_DEF(1202)       /* 分配策略与挂载/卸载策略不匹配 */
+#define UBSE_SSU_ERROR_ATTACHER_MISMATCH UBSE_ERROR_DEF(1203)       /* 独占策略空间已被其他节点挂载，当前节点无权操作 */
 
 /* ****************************************************** */
 /* 重复操作错误码定义，全局唯一，范围2000~2099，语义为失败（重复操作一律报错） */

@@ -5740,6 +5740,8 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
 
 将指定的存储空间挂载到系统，使其可被主机访问。
 
+对应 NORMAL 分配策略，支持多节点共享挂载：多个节点可同时挂载同一空间的裸命名空间设备，其他节点已挂载不影响本节点挂载；仅本节点重复挂载报 `UBS_ENGINE_ERR_ALREADY_ATTACHED`。
+
 **参数 PARAMETERS**
 
 | name              | IN/OUT | description                                                                                              |
@@ -5770,7 +5772,7 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 本节点已挂载，重复挂载报错     |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 
@@ -5840,6 +5842,8 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 
 将指定的存储空间从系统卸载，释放设备占用。
 
+对应 NORMAL 分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，仅当最后一个节点卸载后空间才回退为未挂载状态。
+
 **参数 PARAMETERS**
 
 | name | IN/OUT | description                                                |
@@ -5866,7 +5870,7 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 
@@ -5896,6 +5900,8 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
 **描述 DESCRIPTION**
 
 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
+
+对应 LINEAR 分配策略，独占挂载：同一时间仅允许一个节点挂载。仅 attacher 节点重复挂载返回 `UBS_ENGINE_ERR_ALREADY_ATTACHED`；空间被其他节点挂载时返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
 
 **参数 PARAMETERS**
 
@@ -5930,7 +5936,8 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 本节点已挂载，重复挂载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间已被其他节点挂载，独占策略下无权挂载 |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 
@@ -5960,6 +5967,8 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
 
 将线性聚合的块设备卸载并释放。
 
+对应 LINEAR 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
+
 **参数 PARAMETERS**
 
 | name | IN/OUT | description                                                                 |
@@ -5987,7 +5996,8 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 
@@ -6017,6 +6027,8 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
 **描述 DESCRIPTION**
 
 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，支持 RAID0 和 RAID5 两种级别。
+
+对应 STRIPED 分配策略，独占挂载：同一时间仅允许一个节点挂载。仅 attacher 节点重复挂载返回 `UBS_ENGINE_ERR_ALREADY_ATTACHED`；空间被其他节点挂载时返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
 
 **参数 PARAMETERS**
 
@@ -6054,7 +6066,8 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 空间已挂载，重复挂载报错       |
+| UBS\_ENGINE\_ERR\_ALREADY\_ATTACHED    | 本节点已挂载，重复挂载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间已被其他节点挂载，独占策略下无权挂载 |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 
@@ -6084,6 +6097,8 @@ int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
 
 将条带化聚合的块设备卸载并释放。
 
+对应 STRIPED 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
+
 **参数 PARAMETERS**
 
 | name | IN/OUT | description                                                                 |
@@ -6111,7 +6126,8 @@ int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
-| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 空间已卸载或未挂载，无需卸载报错 |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
 

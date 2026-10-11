@@ -51,7 +51,7 @@ void TestUbseSsuServiceImpNormal::TearDown()
 
 /*
  * 用例：AttachSpace_Master_AttachedIdempotent
- * 预置 ATTACHED 条目，master 幂等返回 nsDevPaths。
+ * 预置 ATTACHED 条目且本节点在挂载记录中，master 幂等返回 nsDevPaths。
  */
 TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AttachedIdempotent)
 {
@@ -62,7 +62,7 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AttachedIdempotent)
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1, 4096));
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2, 4096));
-    PutLedgerEntry("test_attach_idempotent", UbseSsuNsState::ATTACHED, result);
+    PutLedgerEntry("test_attach_idempotent", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
 
     auto identity = MakeIdentity();
     auto req = MakeSpaceReq("test_attach_idempotent", "", identity);
@@ -234,13 +234,14 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Agent_RpcGetCurrentNodeInfoFaile
 
 /*
  * 用例：DetachSpace_Master_NotAttached_Created
- * 预置 CREATED 条目（已 detach），幂等返回。
+ * 预置 CREATED 条目（已 detach，本节点不在挂载记录中），幂等返回。
  */
 TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Created)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     UbseSsuAllocResult result;
     result.name = "test_detach_created";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     PutLedgerEntry("test_detach_created", UbseSsuNsState::CREATED, result);
 
@@ -249,15 +250,16 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Created)
 
 /*
  * 用例：DetachSpace_Master_NotAttached_Other
- * 预置 IDLE 条目，返回 UBSE_ERROR。
+ * 预置 IDLE 条目（本节点在挂载记录中），返回 UBSE_ERROR。
  */
 TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Other)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     UbseSsuAllocResult result;
     result.name = "test_detach_idle";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
-    PutLedgerEntry("test_detach_idle", UbseSsuNsState::IDLE, result);
+    PutLedgerEntry("test_detach_idle", UbseSsuNsState::IDLE, result, {"master_node_1"});
 
     EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_idle")), UBSE_SSU_ERROR_STATE_INVALID);
 }
@@ -278,7 +280,7 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_Success)
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2));
-    PutLedgerEntry("test_detach_success", UbseSsuNsState::ATTACHED, result);
+    PutLedgerEntry("test_detach_success", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
 
     auto identity = MakeIdentity();
     EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_success", "", identity)), UBSE_OK);
@@ -305,7 +307,7 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_PartialFail)
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2));
-    PutLedgerEntry("test_detach_partial_fail", UbseSsuNsState::ATTACHED, result);
+    PutLedgerEntry("test_detach_partial_fail", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
 
     g_detachFailAfter.store(1); // 2nd call fails
 
@@ -341,7 +343,7 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_AccessDenied)
     result.name = "test_detach_denied";
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
-    PutLedgerEntry("test_detach_denied", UbseSsuNsState::ATTACHED, result);
+    PutLedgerEntry("test_detach_denied", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
 
     g_detachFailAfter.store(0);  // 1st call fails
     g_detachFailRet.store(SSU_ERR_UNAUTHORIZED);
@@ -372,7 +374,7 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_PartialAccessDenied)
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2));
-    PutLedgerEntry("test_detach_partial_denied", UbseSsuNsState::ATTACHED, result);
+    PutLedgerEntry("test_detach_partial_denied", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
 
     g_detachFailAfter.store(1);  // 2nd call fails
     g_detachFailRet.store(SSU_ERR_UNAUTHORIZED);

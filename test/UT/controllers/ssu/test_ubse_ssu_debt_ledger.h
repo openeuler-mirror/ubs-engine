@@ -38,7 +38,6 @@ protected:
 
     // 构造一个设备，包含多个命名空间
     static UbseSsuDevInfo MakeDev(const std::string& eid, const std::vector<UbseSsuDevNameSpace>& nsList,
-                                  const std::vector<UbseSsuDevNameSpaceAttachInfo>& attachList = {},
                                   uint64_t totalBytes = 4096, uint64_t usedBytes = 0);
 };
 

@@ -518,6 +518,8 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error)
 
 将指定的存储空间挂载到系统，使其可被主机访问。
 
+对应 NORMAL 分配策略，支持多节点共享挂载：多个节点可同时挂载同一空间的裸命名空间设备，其他节点已挂载不影响本节点挂载；仅本节点重复挂载报已挂载错误。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -538,7 +540,7 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error)
 | 参数校验错误 | `req` 字段不合法 |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 已挂载错误 | 空间已挂载（`errcode.ErrAlreadyAttached`）；此时第 1 个返回值为已挂载的设备路径列表，第 2 个返回值为原始错误 |
+| 已挂载错误 | 本节点已挂载，返回已挂载的设备路径列表 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -601,6 +603,8 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 
 将指定的存储空间从系统卸载，释放设备占用。
 
+对应 NORMAL 分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，仅当最后一个节点卸载后空间才回退为未挂载状态。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -620,7 +624,7 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 | 参数校验错误 | `req` 字段不合法 |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 不存在错误 | 空间已卸载或未挂载，无需卸载报错 |
+| 不存在错误 | 本节点未挂载，无需卸载报错 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -651,6 +655,8 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 
 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
 
+对应 LINEAR 分配策略，独占挂载：同一时间仅允许一个节点挂载。仅 attacher 节点重复挂载返回已挂载错误；空间被其他节点挂载时返回 `errcode.ErrSsuAttacherMismatch`。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -673,7 +679,8 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
 | 不存在错误 | 存储空间不存在 |
-| 已挂载错误 | 空间已挂载（`errcode.ErrAlreadyAttached`）；此时前两个返回值为已挂载的路径信息 |
+| 已挂载错误 | 本节点已挂载，返回已挂载的路径信息 |
+| 挂载者不匹配错误 | 空间已被其他节点挂载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -705,6 +712,8 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 
 将线性聚合的块设备卸载并释放。
 
+对应 LINEAR 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `errcode.ErrSsuAttacherMismatch`。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -725,6 +734,7 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
 | 不存在错误 | 存储空间不存在或已卸载，无需卸载报错 |
+| 挂载者不匹配错误 | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -755,6 +765,8 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 
 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，支持 RAID0 和 RAID5 两种级别。
 
+对应 STRIPED 分配策略，独占挂载：同一时间仅允许一个节点挂载。仅 attacher 节点重复挂载返回已挂载错误；空间被其他节点挂载时返回 `errcode.ErrSsuAttacherMismatch`。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -776,7 +788,8 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 | 参数校验错误 | `req` 字段不合法 |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 已挂载错误 | 空间已挂载（`errcode.ErrAlreadyAttached`）；此时前两个返回值为已挂载的路径信息 |
+| 已挂载错误 | 本节点已挂载，返回已挂载的路径信息 |
+| 挂载者不匹配错误 | 空间已被其他节点挂载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -810,6 +823,8 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 
 将条带化聚合的块设备卸载并释放。
 
+对应 STRIPED 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `errcode.ErrSsuAttacherMismatch`。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -830,6 +845,7 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
 | 不存在错误 | 存储空间不存在或已卸载，无需卸载报错 |
+| 挂载者不匹配错误 | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 

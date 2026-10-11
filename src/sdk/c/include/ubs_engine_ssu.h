@@ -345,6 +345,9 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  *
  * 将指定的存储空间挂载到系统, 使其可被主机访问。
  *
+ * 对应NORMAL分配策略, 支持多节点共享挂载: 多个节点可同时挂载同一空间的裸命名空间设备,
+ * 其他节点已挂载不影响本节点挂载; 仅本节点重复挂载报UBS_ENGINE_ERR_ALREADY_ATTACHED。
+ *
  * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
  * @param ns_dev_paths [OUT] 命名空间设备路径列表, 由SDK内部动态分配, 调用方需通过ubs_ssu_ns_dev_paths_free接口释放
  * @param ns_dev_path_cnt [OUT] 命名空间设备路径数量
@@ -354,7 +357,7 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
+ * UBS_ENGINE_ERR_ALREADY_ATTACHED:本节点已挂载, 重复挂载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
@@ -366,6 +369,9 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
  *
  * 将指定的存储空间从系统卸载, 释放设备占用。
  *
+ * 对应NORMAL分配策略: 多节点共享挂载, 本节点卸载不影响其他节点的挂载,
+ * 仅当最后一个节点卸载后空间才回退为未挂载状态。
+ *
  * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -373,7 +379,7 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
+ * UBS_ENGINE_ERR_NO_NEED_DETACH:本节点未挂载, 无需卸载报错;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -386,6 +392,9 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
  *
  * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
  *
+ * 对应LINEAR分配策略, 独占挂载: 同一时间仅允许一个节点挂载。仅attacher节点重复挂载返回
+ * UBS_ENGINE_ERR_ALREADY_ATTACHED; 空间被其他节点挂载时报UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH。
+ *
  * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @param ns_dev_paths [OUT] 命名空间设备路径列表, 由SDK内部动态分配, 调用方需通过ubs_ssu_ns_dev_paths_free接口释放
  * @param ns_dev_path_cnt [OUT] 命名空间设备路径数量
@@ -396,7 +405,8 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
+ * UBS_ENGINE_ERR_ALREADY_ATTACHED:本节点已挂载, 重复挂载报错;
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH:空间已被其他节点挂载, 独占策略下无权挂载;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -411,6 +421,9 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
  *
  * 将线性聚合的块设备卸载并释放。
  *
+ * 对应LINEAR分配策略, 独占挂载: 仅attacher节点可卸载, 其他节点发起卸载报
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH。
+ *
  * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -418,7 +431,8 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
+ * UBS_ENGINE_ERR_NO_NEED_DETACH:本节点未挂载, 无需卸载报错;
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH:空间由其他节点挂载, 仅attacher节点可卸载;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
@@ -428,6 +442,9 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
  * @brief 挂载条带化编址的存储空间
  *
  * 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
+ *
+ * 对应STRIPED分配策略, 独占挂载: 同一时间仅允许一个节点挂载。仅attacher节点重复挂载返回
+ * UBS_ENGINE_ERR_ALREADY_ATTACHED; 空间被其他节点挂载时报UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH。
  *
  * @param req [IN] 条带化挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID、
  *                 聚合后的块设备名称、RAID级别和chunk大小
@@ -441,7 +458,8 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_ALREADY_ATTACHED:空间已挂载, 重复挂载报错;
+ * UBS_ENGINE_ERR_ALREADY_ATTACHED:本节点已挂载, 重复挂载报错;
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH:空间已被其他节点挂载, 独占策略下无权挂载;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  *
@@ -456,6 +474,9 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
  *
  * 将条带化聚合的块设备卸载并释放。
  *
+ * 对应STRIPED分配策略, 独占挂载: 仅attacher节点可卸载, 其他节点发起卸载报
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH。
+ *
  * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -463,7 +484,8 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_NO_NEED_DETACH:空间已卸载或未挂载, 无需卸载报错;
+ * UBS_ENGINE_ERR_NO_NEED_DETACH:本节点未挂载, 无需卸载报错;
+ * UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH:空间由其他节点挂载, 仅attacher节点可卸载;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */

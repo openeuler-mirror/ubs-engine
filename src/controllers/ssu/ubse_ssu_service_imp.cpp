@@ -768,7 +768,8 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
 }
 
 // agent端发送SSU状态更新RPC请求到master节点
-static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state, const std::string &devName)
+static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state, const std::string &devName,
+                                 const std::string &nodeId)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -784,7 +785,7 @@ static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState 
         return UBSE_SSU_ERROR_RPC_SEND_FAILED;
     }
 
-    UbseSsuStatusReqMsg reqMsg(requestName, state, devName);
+    UbseSsuStatusReqMsg reqMsg(requestName, state, devName, nodeId);
     UbseSsuSyncRespMsg rspMsg; // 占位，后续通过异步线程返回真正结果
     res = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, rspMsg);
     if (res != UBSE_OK) {
@@ -811,22 +812,78 @@ static std::string ResolveNqn(const std::string &nqn, const char *defaultNqn)
     return std::string(defaultNqn, strnlen(defaultNqn, UBSE_SSU_MAX_NQN_LENGTH));
 }
 
-// 更改进程状态：master端更新本地账本状态，agent端仅发送状态通知给master
-// devName：聚合块设备名称（Linear/Striped场景），attach成功时携带，master端写入账本；通用场景为空
+// NORMAL策略多节点共挂：按本机nodeId维护attachNodes，空间级state保持聚合语义（任一节点挂载=ATTACHED，全部卸载=CREATED）
+static void ApplyNormalNodeAttachState(UbseSsuLedgerEntry &entry, UbseSsuNsState state, const std::string &selfNodeId,
+                                       const std::string &name)
+{
+    switch (state) {
+        case UbseSsuNsState::ATTACHING:
+            // 不置空间级ATTACHING，避免阻塞其他节点并发attach；master本地attach的并发互斥由per-name resourceLock保证
+            UBSE_LOG_INFO << "UpdateStateOrNotify: skip attaching mark for normal multi-node, name=" << name;
+            return;
+        case UbseSsuNsState::ATTACHED:
+            entry.state = state;
+            entry.attachNodes.insert(selfNodeId);
+            return;
+        case UbseSsuNsState::CREATED:
+            entry.attachNodes.erase(selfNodeId);
+            if (!entry.attachNodes.empty()) {
+                // 其他节点仍挂载，空间级state保持ATTACHED
+                UBSE_LOG_INFO << "UpdateStateOrNotify: other nodes still attached, keep ATTACHED, name=" << name
+                              << ", attachedNodes=" << entry.attachNodes.size();
+                return;
+            }
+            entry.state = state;
+            return;
+        default:
+            entry.state = state;
+            return;
+    }
+}
+
+// LINEAR/STRIPED独占挂载：保持原有空间级状态机语义，并按attacher维度维护attachNodes（至多1个元素），
+// 供verify强校验当前节点是否为attacher（非attacher的attach/detach一律拒绝）
+static void ApplyAggDevLedgerState(UbseSsuLedgerEntry &entry, UbseSsuNsState state, const std::string &selfNodeId,
+                                   const std::string &devName)
+{
+    entry.state = state;
+    if (state == UbseSsuNsState::ATTACHED) {
+        entry.attachNodes.insert(selfNodeId);
+    } else if (state == UbseSsuNsState::CREATED) {
+        entry.attachNodes.erase(selfNodeId);
+    }
+    // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已停止运行态（StopBlockDevice），
+    // 元数据保留在硬件上可供 re-attach 时 Assemble 复用，故 devName 不再清空。
+    // 仅当 attach 失败回退且 devName 为空（首次 attach 未创建成功）时保持为空。
+    // attach 成功（state==ATTACHED）时 devName 非空才覆盖，保留权威值供重复挂载回填 devPath。
+    if (state == UbseSsuNsState::ATTACHED && !devName.empty()) {
+        entry.devName = devName;
+    }
+}
+
+// 更改空间状态：master端更新本地账本状态，agent端仅发送状态通知给master
+// devName：聚合块设备名称（Linear/Striped场景），attach成功时携带，master端写入账本；Normal场景为空
+// NORMAL策略多节点共挂：master端按本机nodeId维护attachNodes，agent端自动携带本机nodeId上报，
+// master侧HandleStatusReceiver按节点对账；空间级state保持聚合语义（任一节点挂载=ATTACHED）
 static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState state, bool isMaster,
                                     const std::string &devName = "")
 {
     if (isMaster) {
-        UbseSsuNsState oldState;
-        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState, &devName](UbseSsuLedgerEntry &e) {
-                oldState = e.state;
-                e.state = state;
-                // 进入CREATED（detach成功或attach失败回退）说明聚合块设备已停止运行态（StopBlockDevice），
-                // 元数据保留在硬件上可供 re-attach 时 Assemble 复用，故 devName 不再清空。
-                // 仅当 attach 失败回退且 devName 为空（首次 attach 未创建成功）时保持为空。
-                // attach 成功（state==ATTACHED）时 devName 非空才覆盖，保留权威值供重复挂载回填 devPath。
-                if (state == UbseSsuNsState::ATTACHED && !devName.empty()) {
-                    e.devName = devName;
+        // NORMAL多节点场景需本机nodeId维护attachNodes，获取失败直接透传
+        std::string selfNodeId;
+        auto nodeIdRet = UbseGetCurrentNodeId(selfNodeId);
+        if (nodeIdRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "UpdateStateOrNotify: get current node id failed, " << FormatRetCode(nodeIdRet)
+                           << ", name=" << name;
+            return nodeIdRet;
+        }
+        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &devName, &selfNodeId,
+                                                            &name](UbseSsuLedgerEntry& e) {
+                // NORMAL多节点共挂：按本机nodeId维护attachNodes，空间级state保持聚合语义（任一节点挂载=ATTACHED）
+                if (e.allocReq.strategy == UbseSsuAllocStrategy::NORMAL) {
+                    ApplyNormalNodeAttachState(e, state, selfNodeId, name);
+                } else {
+                    ApplyAggDevLedgerState(e, state, selfNodeId, devName);
                 }
             })) {
             UBSE_LOG_ERROR << "UpdateStateOrNotify: ledger entry not found, name=" << name
@@ -836,14 +893,15 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
         return UBSE_OK;
     }
 
-    // agent侧：仅发送状态更新，不维护本地账本
-    auto ret = SendStatusUpdate(name, state, devName);
+    // agent侧：携带本机nodeId上报（NORMAL多节点对账主键，LINEAR/STRIPED仅用于日志）
+    std::string nodeId;
+    auto ret = UbseGetCurrentNodeId(nodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "UpdateStateOrNotify: SendStatusUpdate failed, name=" << name
-                      << ", state=" << static_cast<int>(state) << ", ret=" << ret;
+        UBSE_LOG_ERROR << "UpdateStateOrNotify: get current node id failed, " << FormatRetCode(ret) << ", name=" << name;
         return ret;
     }
-    return UBSE_OK;
+    // agent侧：仅发送状态更新，不维护本地账本
+    return SendStatusUpdate(name, state, devName, nodeId);
 }
 
 // agent端attach/detach单个命名空间：使用master验证后返回的字段构造UbseSsuDevNameSpace并调用相应adapter接口
@@ -1257,8 +1315,10 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
 }
 
 // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回构造AttachDevNameSpace所需字段。
+// requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断幂等
 uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& name,
                                                            const UbseSsuAllocIdentityInfo& identity,
+                                                           const std::string& requestNodeId,
                                                            const UbseSsuAttachDetachVerifyOption& option,
                                                            UbseSsuAttachDetachVerifyResp& verifyResp)
 {
@@ -1266,7 +1326,12 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
         UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: name is empty";
         return UBSE_ERR_INVALID_ARG;
     }
-    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: name=" << name;
+    if (requestNodeId.empty()) {
+        // NORMAL多节点共挂按节点判断幂等，nodeId缺失无法校验（agent端必传，属防御）
+        UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: requestNodeId is empty, name=" << name;
+        return UBSE_ERR_INVALID_ARG;
+    }
+    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: name=" << name << ", requestNodeId=" << requestNodeId;
 
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
@@ -1281,27 +1346,72 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
 
     // attach：ATTACHED为重复挂载（verifyResp.alreadyAttached标志由agent侧处理），CREATED为正常挂载状态，其他状态拒绝
     // detach：ATTACHED为正常卸载状态，CREATED为重复卸载（verifyResp.alreadyDetached标志由agent侧处理），其他状态拒绝
+    // NORMAL策略多节点共挂：幂等判断下沉到节点维度（attachNodes），不依赖空间级state
+    const bool isNormal = entryPtr->allocReq.strategy == UbseSsuAllocStrategy::NORMAL;
     if (option.isAttach) {
-        if (entryPtr->state == UbseSsuNsState::ATTACHED) {
-            verifyResp.alreadyAttached = true;
-            UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already attached, name=" << name;
-            return UBSE_OK;
-        }
-        if (entryPtr->state != UbseSsuNsState::CREATED) {
-            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for attach, name=" << name
-                           << ", state=" << static_cast<int>(entryPtr->state);
-            return UBSE_SSU_ERROR_STATE_INVALID;
+        if (isNormal) {
+            // 白名单式校验：仅CREATED/ATTACHED可attach（本节点未挂时），
+            // CREATING/IDLE/ATTACHING及未来新增状态一律拒绝
+            if (entryPtr->state != UbseSsuNsState::CREATED && entryPtr->state != UbseSsuNsState::ATTACHED) {
+                UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for attach, name=" << name
+                               << ", state=" << static_cast<int>(entryPtr->state);
+                return UBSE_SSU_ERROR_STATE_INVALID;
+            }
+            // 本节点已挂载 → 置alreadyAttached，agent端回填devPath后返回UBSE_ERR_ALREADY_ATTACHED；
+            // 其他节点挂载不影响本节点attach（多节点共挂）
+            if (entryPtr->attachNodes.count(requestNodeId) > 0) {
+                verifyResp.alreadyAttached = true;
+                UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already attached on node, name=" << name
+                              << ", nodeId=" << requestNodeId;
+                return UBSE_OK;
+            }
+        } else {
+            if (entryPtr->state == UbseSsuNsState::ATTACHED) {
+                // 独占策略：仅attacher重复attach为幂等；被其他节点占用时报错（不返回alreadyAttached避免误用devPath）
+                if (entryPtr->attachNodes.count(requestNodeId) == 0) {
+                    UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: attacher mismatch for attach, name=" << name
+                                   << ", requestNodeId=" << requestNodeId
+                                   << ", attacher=" << (entryPtr->attachNodes.empty() ? "" : *entryPtr->attachNodes.begin());
+                    return UBSE_SSU_ERROR_ATTACHER_MISMATCH;
+                }
+                verifyResp.alreadyAttached = true;
+                UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already attached, name=" << name;
+                return UBSE_OK;
+            }
+            if (entryPtr->state != UbseSsuNsState::CREATED) {
+                UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for attach, name=" << name
+                               << ", state=" << static_cast<int>(entryPtr->state);
+                return UBSE_SSU_ERROR_STATE_INVALID;
+            }
         }
     } else {
-        if (entryPtr->state == UbseSsuNsState::CREATED) {
-            verifyResp.alreadyDetached = true;
-            UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already detached, name=" << name;
-            return UBSE_OK;
-        }
-        if (entryPtr->state != UbseSsuNsState::ATTACHED) {
-            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for detach, name=" << name
-                           << ", state=" << static_cast<int>(entryPtr->state);
-            return UBSE_SSU_ERROR_STATE_INVALID;
+        if (isNormal) {
+            // 本节点未挂载（含Rebuild后attachNodes为空）→ 置alreadyDetached，agent端不动设备并返回UBSE_ERR_NO_NEED_DETACH；
+            // 其他节点挂载不影响本节点detach
+            if (entryPtr->attachNodes.count(requestNodeId) == 0) {
+                verifyResp.alreadyDetached = true;
+                UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already detached on node, name=" << name
+                              << ", nodeId=" << requestNodeId;
+                return UBSE_OK;
+            }
+        } else {
+            if (entryPtr->state == UbseSsuNsState::CREATED) {
+                verifyResp.alreadyDetached = true;
+                UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already detached, name=" << name;
+                return UBSE_OK;
+            }
+            if (entryPtr->state != UbseSsuNsState::ATTACHED) {
+                UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for detach, name=" << name
+                               << ", state=" << static_cast<int>(entryPtr->state);
+                return UBSE_SSU_ERROR_STATE_INVALID;
+            }
+            // 独占策略：仅attacher节点可卸载，防止其他节点误detach改变账本状态形成僵尸挂载
+            if (entryPtr->attachNodes.count(requestNodeId) == 0) {
+                UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: attacher mismatch for detach, name=" << name
+                               << ", requestNodeId=" << requestNodeId
+                               << ", attacher=" << (entryPtr->attachNodes.empty() ? "" : *entryPtr->attachNodes.begin());
+                return UBSE_SSU_ERROR_ATTACHER_MISMATCH;
+            }
         }
     }
 
@@ -1801,28 +1911,31 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         return strategyRet;
     }
 
-    // 重复挂载：已经attached，再次attach需要返回已挂载的nsDevPath列表
-    if (entryPtr->state == UbseSsuNsState::ATTACHED) {
-        UBSE_LOG_INFO << "AttachSpace: already attached, name=" << req.name;
+    // NORMAL多节点共挂：幂等与状态校验按节点维度判断（上方策略校验已保证strategy必为NORMAL）
+    std::string selfNodeId;
+    auto nodeIdRet = UbseGetCurrentNodeId(selfNodeId);
+    if (nodeIdRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "AttachSpace: get current node id failed, ret=" << nodeIdRet;
+        return nodeIdRet;
+    }
+    // 本节点已挂载，再次attach返回已挂载的nsDevPath列表；其他节点挂载不影响本节点attach
+    if (entryPtr->attachNodes.count(selfNodeId) > 0) {
+        UBSE_LOG_INFO << "AttachSpace: already attached on node, name=" << req.name << ", nodeId=" << selfNodeId;
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
         }
         return UBSE_ERR_ALREADY_ATTACHED;
     }
-
-    // 只能在created状态下attach
-    if (entryPtr->state != UbseSsuNsState::CREATED) {
+    // 白名单式校验：仅CREATED/ATTACHED（本节点未挂时）可attach，与verify侧校验保持一致
+    if (entryPtr->state != UbseSsuNsState::CREATED && entryPtr->state != UbseSsuNsState::ATTACHED) {
         UBSE_LOG_ERROR << "AttachSpace: invalid state, name=" << req.name
                        << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_SSU_ERROR_STATE_INVALID;
     }
 
-    // 标记为attaching中
-    if (UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHING, true) != UBSE_OK) {
-        UBSE_LOG_ERROR << "AttachSpace: failed to update ledger state and notify, name=" << req.name
-                       << ", state=" << static_cast<int>(UbseSsuNsState::ATTACHING);
-        return UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED;
-    }
+    // 本函数仅处理NORMAL空间，无需置空间级ATTACHING：
+    // NORMAL多节点共挂下该标记会阻塞其他节点并发attach，
+    // master本地并发互斥已由入口处per-name resourceLock保证（见UpdateStateOrNotify的策略分支注释）
 
     auto devMap = collector_.GetCachedDevMap();
     nsDevPaths.clear();
@@ -1894,25 +2007,33 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
-    // 重复卸载：已经detach的NS，再次detach一律报错
-    if (entryPtr->state == UbseSsuNsState::CREATED) {
-        UBSE_LOG_ERROR << "DetachSpace: no need to detach, name=" << req.name;
-        return UBSE_ERR_NO_NEED_DETACH;
-    }
-
-    // 只能在attached状态下detach
-    if (entryPtr->state != UbseSsuNsState::ATTACHED) {
-        UBSE_LOG_ERROR << "DetachSpace: invalid state, name=" << req.name
-                       << ", state=" << static_cast<int>(entryPtr->state);
-        return UBSE_SSU_ERROR_STATE_INVALID;
-    }
-
     // 分配策略校验：NORMAL策略只能通过DetachSpace卸载（不删除聚合块设备），
-    // LINEAR/STRIPED策略必须使用配套的DetachLinearSpace/DetachStripedSpace
+    // LINEAR/STRIPED策略必须使用配套的DetachLinearSpace/DetachStripedSpace。
+    // 先于幂等/状态校验执行：策略不匹配直接拒绝，避免对聚合设备空间做NORMAL语义的节点级判断
     auto strategyRet =
         ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::NORMAL);
     if (strategyRet != UBSE_OK) {
         return strategyRet;
+    }
+
+    // NORMAL多节点共挂：幂等判断按节点维度（本节点未挂载即为重复卸载）；
+    // 上方策略校验已保证strategy必为NORMAL
+    std::string selfNodeId;
+    auto nodeIdRet = UbseGetCurrentNodeId(selfNodeId);
+    if (nodeIdRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "DetachSpace: get current node id failed, ret=" << nodeIdRet;
+        return nodeIdRet;
+    }
+    // 本节点未挂载，再次detach一律报错（含Rebuild后attachNodes为空的场景）；其他节点挂载不影响本节点detach
+    if (entryPtr->attachNodes.count(selfNodeId) == 0) {
+        UBSE_LOG_ERROR << "DetachSpace: no need to detach on node, name=" << req.name << ", nodeId=" << selfNodeId;
+        return UBSE_ERR_NO_NEED_DETACH;
+    }
+    // 白名单式校验：节点在挂载记录中时state必为ATTACHED/CREATED（rebuild兜底），其余状态拒绝
+    if (entryPtr->state != UbseSsuNsState::ATTACHED && entryPtr->state != UbseSsuNsState::CREATED) {
+        UBSE_LOG_ERROR << "DetachSpace: invalid state, name=" << req.name
+                       << ", state=" << static_cast<int>(entryPtr->state);
+        return UBSE_SSU_ERROR_STATE_INVALID;
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1943,6 +2064,26 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 
     UBSE_LOG_INFO << "DetachSpace success: name=" << req.name
                   << ", nsCount=" << entryPtr->allocResult.nameSpaceList.size();
+    return UBSE_OK;
+}
+
+// master本地attach/detach路径：校验本机节点为attacher（LINEAR/STRIPED独占策略仅attacher节点可操作）
+static uint32_t ValidateMasterNodeIsAttacher(const UbseSsuLedgerEntry &entry, const std::string &name)
+{
+    std::string selfNodeId;
+    auto nodeIdRet = UbseGetCurrentNodeId(selfNodeId);
+    if (nodeIdRet != UBSE_OK) {
+        // 透传错误码保证可诊断性
+        UBSE_LOG_ERROR << "ValidateMasterNodeIsAttacher: get current node id failed, " << FormatRetCode(nodeIdRet)
+                       << ", name=" << name;
+        return nodeIdRet;
+    }
+    if (entry.attachNodes.count(selfNodeId) == 0) {
+        UBSE_LOG_ERROR << "ValidateMasterNodeIsAttacher: attacher mismatch, name=" << name
+                       << ", selfNodeId=" << selfNodeId
+                       << ", attacher=" << (entry.attachNodes.empty() ? "" : *entry.attachNodes.begin());
+        return UBSE_SSU_ERROR_ATTACHER_MISMATCH;
+    }
     return UBSE_OK;
 }
 
@@ -2051,6 +2192,11 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     // 重复挂载：已经attached，再次attach需要返回已挂载的nsDevPath列表
     if (entryPtr->state == UbseSsuNsState::ATTACHED) {
+        // 独占策略：仅attacher节点重复attach为幂等；被其他节点占用时报错，避免误用devPath
+        auto attacherRet = ValidateMasterNodeIsAttacher(*entryPtr, req.name);
+        if (attacherRet != UBSE_OK) {
+            return attacherRet;
+        }
         UBSE_LOG_INFO << "AttachLinearSpace: already attached, name=" << req.name;
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
@@ -2159,6 +2305,11 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     // 重复挂载：已经attached，再次attach返回已挂载的nsDevPath列表
     if (entryPtr->state == UbseSsuNsState::ATTACHED) {
+        // 独占策略：仅attacher重复attach为幂等；被其他节点占用时报错，避免误用devPath
+        auto attacherRet = ValidateMasterNodeIsAttacher(*entryPtr, req.name);
+        if (attacherRet != UBSE_OK) {
+            return attacherRet;
+        }
         UBSE_LOG_INFO << "AttachStripedSpace: already attached, name=" << req.name;
         for (const auto& nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
@@ -2331,6 +2482,12 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         return UBSE_SSU_ERROR_STATE_INVALID;
     }
 
+    // 独占策略：仅attacher可卸载
+    auto detacherRet = ValidateMasterNodeIsAttacher(*entryPtr, req.name);
+    if (detacherRet != UBSE_OK) {
+        return detacherRet;
+    }
+
     auto devMap = collector_.GetCachedDevMap();
     auto ret = DetachNsAndStopBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
                                            entryPtr->devName);
@@ -2404,6 +2561,12 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
         UBSE_LOG_ERROR << "DetachStripedSpace: invalid state, name=" << req.name
                        << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_SSU_ERROR_STATE_INVALID;
+    }
+
+    // 独占策略：仅attacher可卸载
+    auto detacherRet = ValidateMasterNodeIsAttacher(*entryPtr, req.name);
+    if (detacherRet != UBSE_OK) {
+        return detacherRet;
     }
 
     auto devMap = collector_.GetCachedDevMap();

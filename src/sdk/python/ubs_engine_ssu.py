@@ -31,7 +31,9 @@ from ubse.ffi.ubs_engine_binding_ssu import (
     validate_linear_space_req, validate_striped_space_req, validate_detach_striped_space_req,
     validate_fe_device_alloc_params, validate_fe_device_free_params
 )
-from ubse.ffi.ubs_engine_exceptions import UbsEngineInternalError, UbsEngineAlreadyAttachedError
+from ubse.ffi.ubs_engine_exceptions import (
+    UbsEngineInternalError, UbsEngineAlreadyAttachedError, UbsEngineAttacherMismatchError,
+)
 from ubse.ffi.ubs_error_registry import raise_for_status
 from ubse.ipc.ubs_engine_ipc import invoke_call
 from ubse.ipc.ubs_engine_ipc_codes import (
@@ -188,6 +190,9 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
 
     将指定的存储空间挂载到系统, 使其可被主机访问。
 
+    对应NORMAL分配策略, 支持多节点共享挂载: 多个节点可同时挂载同一空间的裸命名空间设备,
+    其他节点已挂载不影响本节点挂载; 仅本节点重复挂载抛 UbsEngineAlreadyAttachedError。
+
     Args:
         req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
@@ -198,7 +203,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
+        UbsEngineAlreadyAttachedError: 本节点已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
@@ -218,6 +223,9 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
 
     将指定的存储空间从系统卸载, 释放设备占用。
 
+    对应NORMAL分配策略: 多节点共享挂载, 本节点卸载不影响其他节点的挂载,
+    仅当最后一个节点卸载后空间才回退为未挂载状态。
+
     Args:
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
@@ -225,7 +233,7 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 空间已卸载或未挂载, 无需卸载报错
+        UbsEngineNotExistError: 本节点未挂载, 无需卸载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -244,6 +252,9 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
 
     将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
 
+    对应LINEAR分配策略, 独占挂载: 同一时间仅允许一个节点挂载。仅attacher节点重复挂载抛
+    UbsEngineAlreadyAttachedError; 空间被其他节点挂载时抛 UbsEngineAttacherMismatchError。
+
     Args:
         req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
@@ -255,7 +266,8 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
-        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
+        UbsEngineAlreadyAttachedError: 本节点已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
+        UbsEngineAttacherMismatchError: 空间已被其他节点挂载, 独占策略下无权挂载
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -279,6 +291,9 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
 
     将线性聚合的块设备卸载并释放。
 
+    对应LINEAR分配策略, 独占挂载: 仅attacher节点可卸载, 其他节点发起卸载抛
+    UbsEngineAttacherMismatchError。
+
     Args:
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
@@ -287,6 +302,7 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在或已卸载, 无需卸载报错
+        UbsEngineAttacherMismatchError: 空间由其他节点挂载, 仅attacher节点可卸载
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -304,6 +320,9 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
 
     将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
 
+    对应STRIPED分配策略, 独占挂载: 同一时间仅允许一个节点挂载。仅attacher节点重复挂载抛
+    UbsEngineAlreadyAttachedError; 空间被其他节点挂载时抛 UbsEngineAttacherMismatchError。
+
     Args:
         req: 条带化挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID、
              聚合后的块设备名称、RAID级别和chunk大小
@@ -315,7 +334,8 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineAlreadyAttachedError: 空间已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
+        UbsEngineAlreadyAttachedError: 本节点已挂载, 重复挂载报错，异常 ``data`` 属性为已挂载的设备路径列表
+        UbsEngineAttacherMismatchError: 空间已被其他节点挂载, 独占策略下无权挂载
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -339,6 +359,9 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
 
     将条带化聚合的块设备卸载并释放。
 
+    对应STRIPED分配策略, 独占挂载: 仅attacher节点可卸载, 其他节点发起卸载抛
+    UbsEngineAttacherMismatchError。
+
     Args:
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
@@ -347,6 +370,7 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在或已卸载, 无需卸载报错
+        UbsEngineAttacherMismatchError: 空间由其他节点挂载, 仅attacher节点可卸载
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 

@@ -110,6 +110,7 @@ typedef enum
     UBS_ENGINE_ERR_SSU_SPACE_NOT_FOUND = 1200,            // 空间不存在
     UBS_ENGINE_ERR_SSU_NEED_DETACH_BEFORE_FREE = 1201,    // 命名空间已挂载, 释放前需先卸载
     UBS_ENGINE_ERR_SSU_STRATEGY_MISMATCH = 1202,          // 分配策略与挂载/卸载策略不匹配
+    UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH = 1203,          // 独占策略空间已被其他节点挂载, 当前节点无权操作
 
     /* ====================== 重复操作错误码 (2000-2099) ====================== */
     UBS_ENGINE_ERR_ALREADY_ALLOCATED = 2000, // 空间已分配, 重复分配报错

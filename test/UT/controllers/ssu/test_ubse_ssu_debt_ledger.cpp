@@ -68,7 +68,6 @@ UbseSsuDevNameSpace TestUbseSsuDebtLedger::MakeNs(const std::string& name, const
 }
 
 UbseSsuDevInfo TestUbseSsuDebtLedger::MakeDev(const std::string& eid, const std::vector<UbseSsuDevNameSpace>& nsList,
-                                              const std::vector<UbseSsuDevNameSpaceAttachInfo>& attachList,
                                               uint64_t totalBytes, uint64_t usedBytes)
 {
     UbseSsuDevInfo dev;
@@ -78,7 +77,6 @@ UbseSsuDevInfo TestUbseSsuDebtLedger::MakeDev(const std::string& eid, const std:
     dev.usedBytes = usedBytes;
     dev.state = UbseSsuState::ONLINE;
     dev.nameSpaces = nsList;
-    dev.attachInfoList = attachList;
     return dev;
 }
 

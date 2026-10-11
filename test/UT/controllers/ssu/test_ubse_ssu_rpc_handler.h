@@ -16,6 +16,9 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include <string>
+#include <unordered_set>
+
 #include "debt/ubse_ssu_debt_ledger.h"
 #include "ubse_ssu_def.h"
 
@@ -32,8 +35,12 @@ public:
     void TearDown() override;
 
 protected:
-    // 辅助方法：在账本中放入一个entry
+    // 辅助方法：在账本中放入一个entry（strategy缺省为STRIPED，走原空间级状态机）
     static void PutLedgerEntry(const std::string &name, UbseSsuNsState state);
+
+    // 辅助方法：在账本中放入一个entry，可指定分配策略与已挂载节点集合（NORMAL多节点对账用）
+    static void PutLedgerEntry(const std::string &name, UbseSsuNsState state, UbseSsuAllocStrategy strategy,
+                               const std::unordered_set<std::string> &attachNodes = {});
 
     // 辅助方法：清空账本
     static void CleanupLedger();

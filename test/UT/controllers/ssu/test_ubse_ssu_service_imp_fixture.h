@@ -20,6 +20,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "debt/ubse_ssu_debt_ledger.h"
@@ -63,6 +64,8 @@ protected:
     static uint32_t MockGetRole_Agent(std::string &role);
     static uint32_t MockGetRole_Standby(std::string &role);
     static uint32_t MockGetRole_Unsupported(std::string &role);
+    // UbseGetCurrentNodeInfo的invoke型mock：returnValue无法填充出参，此处固定返回本节点ID
+    static uint32_t MockGetCurrentNodeInfo_Master(UbseRoleInfo &info);
 
     // -----------------------------------------------------------------------
     // Config mock helper (UbseGetStr)
@@ -95,7 +98,8 @@ protected:
     // -----------------------------------------------------------------------
     // Ledger helpers
     // -----------------------------------------------------------------------
-    static void PutLedgerEntry(const std::string &name, UbseSsuNsState state, const UbseSsuAllocResult &result = {});
+    static void PutLedgerEntry(const std::string &name, UbseSsuNsState state, const UbseSsuAllocResult &result = {},
+                               const std::unordered_set<std::string> &attachNodes = {});
     static bool LedgerEntryExists(const std::string &name);
 
     // ========================================================================
