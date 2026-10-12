@@ -153,6 +153,8 @@ const char* ReturnSceneToString(ReturnScene scene)
             return "exited";
         case ReturnScene::PASSIVE:
             return "passive";
+        case ReturnScene::REMOVED:
+            return "removed";
     }
     return "unknown";
 }
@@ -1922,6 +1924,28 @@ uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, co
 {
     if (slots.empty()) {
         return UBSE_OK;
+    }
+
+    // 取消纳管(进程仍存活): 归还前先全量迁回本地 —— 空目标声明默认清零该 pid 所有远端 numa
+    // 的迁出目标, 页面全部回迁; 未收敛整批失败, 由上层退避重试(重发幂等); 进程已退出则无页面可迁
+    if (scene == ReturnScene::REMOVED && ProcessMemPidConfigManager::GetExactStartTime(pid) != 0) {
+        int migrateRet = UBSE_ERROR;
+        {
+            std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+            migrateRet = RmrsMigrateToNumas(pid, "", {});
+        }
+        if (migrateRet != 0) {
+            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid
+                          << " migrate back dispatch failed ret=" << migrateRet;
+            failedSlots = slots;
+            return UBSE_ERROR;
+        }
+        def::ReturnRequestItem removeItem{"remove", 0};
+        if (!WaitMigrateBackConverged(pid, removeItem, {})) {
+            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid << " migrate back not converged, retry later";
+            failedSlots = slots;
+            return UBSE_ERROR;
+        }
     }
 
     // remove/exited 归还: 账本缓存已先行删除, 不操作缓存, 全量 RPC 锁外执行(各债务相互独立)

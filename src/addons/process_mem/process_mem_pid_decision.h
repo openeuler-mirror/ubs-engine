@@ -38,7 +38,9 @@ enum class ReturnScene : uint8_t
     PASSIVE,
     ACTIVE,
     TIMEOUT,
-    EXITED
+    EXITED,
+    // 取消纳管(进程仍存活): 归还前先全量迁回本地, 不再受管理的进程页面不得滞留远端
+    REMOVED
 };
 
 struct CreatedDebtInfo {

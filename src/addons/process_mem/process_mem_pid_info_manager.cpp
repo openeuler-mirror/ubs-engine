@@ -365,7 +365,7 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
         if (it != returnLedgers.end()) {
             slots = it->second;
         }
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED,
+        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::REMOVED,
                                                                               std::move(slots));
     }
     return UBSE_OK;
