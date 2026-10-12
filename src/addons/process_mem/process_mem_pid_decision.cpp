@@ -873,6 +873,24 @@ uint64_t ProcessMemPidDecision::GetUbseBlockSizeBytes()
 // 候选排序: 最近 kCandidateStaleIntervalSec 秒内未成功迁移的进程优先(迁移负载摊开)
 constexpr int64_t kCandidateStaleIntervalSec = 60;
 
+// 显式绑定(bind/interleave, 分配集受限)的 numa 位图; 未绑定/软偏好(可落到集合外)返回 0,
+// 64 以上 numa 编号不参与(位图放不下, 保守视为未绑定)
+uint64_t MakeBoundNumaMask(const std::optional<def::NumaBindingInfo>& binding)
+{
+    constexpr uint32_t kMaskBits = 64;
+    if (!binding.has_value() ||
+        (binding->kind != def::NumaBindingKind::BIND && binding->kind != def::NumaBindingKind::INTERLEAVE)) {
+        return 0;
+    }
+    uint64_t mask = 0;
+    for (uint32_t numaId : binding->policyNodes) {
+        if (numaId < kMaskBits) {
+            mask |= (1ULL << numaId);
+        }
+    }
+    return mask;
+}
+
 CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
                                     std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes)
 {
@@ -916,6 +934,7 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
     candidate.remoteRatio = entry.remoteRatio;
     candidate.currentRemote = entry.borrow.currentRemote;
     candidate.canMigrate = canMigrate;
+    candidate.boundNumaMask = MakeBoundNumaMask(entry.numaBinding);
     candidates.push_back(candidate);
     return CandidateSkip::NONE;
 }
@@ -993,11 +1012,53 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         UBSE_LOG_WARN << "[process_mem] borrow round=" << ctx.roundNum << " abort: borrow executor not ready";
         return 0;
     }
+    // 按缺口 numa 重排候选: 在该 numa 驻留量大者先(单次迁移填更多缺口); 其次显式绑定该 numa 的进程
+    // 优先(分配集受限, 空出的余量仍会被其持续占用); 再取久未迁移的(stale, 公平防饿死); 其余沿用全局序
+    struct OrderedCandidate {
+        size_t index;
+        uint64_t resident;
+        bool bound;
+        bool stale;
+    };
+    auto now = std::chrono::steady_clock::now();
+    std::vector<OrderedCandidate> ordered;
+    ordered.reserve(ctx.candidates.size());
+    for (size_t i = 0; i < ctx.candidates.size(); ++i) {
+        const auto& candidate = ctx.candidates[i];
+        // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/驻留未知(UINT64_MAX)不设上限
+        uint64_t resident =
+            EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
+        if (resident == 0) {
+            continue;
+        }
+        bool bound = shortage.srcNumaId >= 0 && shortage.srcNumaId < 64 &&
+                     (candidate.boundNumaMask & (1ULL << shortage.srcNumaId)) != 0;
+        bool stale = (candidate.lastMigrateTime.time_since_epoch().count() == 0) ||
+                     (now - candidate.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
+        ordered.push_back({i, resident, bound, stale});
+    }
+    std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedCandidate& a, const OrderedCandidate& b) {
+        // 驻留未知(UINT64_MAX)无从归因, 排序垫底但仍可参与填充(不设上限)
+        uint64_t aRank = (a.resident == UINT64_MAX) ? 0 : a.resident;
+        uint64_t bRank = (b.resident == UINT64_MAX) ? 0 : b.resident;
+        if (aRank != bRank) {
+            return aRank > bRank;
+        }
+        if (a.bound != b.bound) {
+            return a.bound;
+        }
+        if (a.stale != b.stale) {
+            return a.stale;
+        }
+        return false;
+    });
+
     uint64_t filled = 0;
-    for (const auto& candidate : ctx.candidates) {
+    for (const auto& entry : ordered) {
         if (shortage.bytes == 0) {
             break;
         }
+        const auto& candidate = ctx.candidates[entry.index];
         uint64_t canMigrateLeft = candidate.canMigrate;
         auto roundIt = ctx.borrowedThisRound.find(candidate.pid);
         if (roundIt != ctx.borrowedThisRound.end()) {
@@ -1006,13 +1067,8 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         if (canMigrateLeft == 0) {
             continue;
         }
-        // 候选需在该缺口 numa 有驻留, 借用额按驻留量封顶(块对齐后最多超出不足一个 blockSize);
-        // 无 numa 限定(src<0)不设驻留上限
-        uint64_t resident =
-            EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
-        if (resident == 0) {
-            continue;
-        }
+        // 驻留量已在候选重排时按同一 numa/同一轮缓存算过, 此处直接复用
+        uint64_t resident = entry.resident;
         uint64_t cap = std::min(canMigrateLeft, shortage.bytes);
         cap = std::min(cap, resident);
         uint64_t amount = CeilAlignBlock(cap, ctx.blockSizeBytes);
@@ -3573,24 +3629,36 @@ void ProcessMemPidDecision::OomActiveReturnPerNuma(uint64_t roundNum)
         pid_t pid;
         def::ReturnRequestItem item;
         int srcNumaId;
+        std::chrono::steady_clock::time_point borrowTime;
+        bool boundToSrc;
     };
     std::vector<ActiveDebt> debts;
     uint64_t totalRemote = 0;
     for (const auto& [pid, entry] : snapshot) {
+        uint64_t boundMask = MakeBoundNumaMask(entry.numaBinding);
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status != def::BorrowSlotStatus::COMPLETED) {
                 continue;
             }
+            bool boundToSrc = slot.srcNumaId >= 0 && slot.srcNumaId < 64 && (boundMask & (1ULL << slot.srcNumaId)) != 0;
             // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
             // 用容量找缺口会错误跳过这类零成本债务
-            debts.push_back(ActiveDebt{pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes}, slot.srcNumaId});
+            debts.push_back(ActiveDebt{pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes}, slot.srcNumaId,
+                                       slot.borrowTime, boundToSrc});
             totalRemote += slot.migratedBytes;
         }
     }
-    // 归属 numa 内大额优先, 归属未知(src<0)排最后
+    // 归属未知(src<0)排最后(无预算可匹配); 其余滞留久者先还(防饥饿, borrowTime 早先), 绑定归属 numa 的
+    // 次优先(其分配集受限, 归位即缓解该 numa 压力), 再按大额优先(预算内单笔可容纳更大债务)
     std::sort(debts.begin(), debts.end(), [](const ActiveDebt& a, const ActiveDebt& b) {
-        if (a.srcNumaId != b.srcNumaId) {
-            return a.srcNumaId > b.srcNumaId;
+        if ((a.srcNumaId < 0) != (b.srcNumaId < 0)) {
+            return b.srcNumaId < 0;
+        }
+        if (a.borrowTime != b.borrowTime) {
+            return a.borrowTime < b.borrowTime;
+        }
+        if (a.boundToSrc != b.boundToSrc) {
+            return a.boundToSrc;
         }
         return a.item.size > b.item.size;
     });

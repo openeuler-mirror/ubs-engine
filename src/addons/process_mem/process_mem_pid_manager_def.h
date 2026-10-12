@@ -149,6 +149,9 @@ struct BorrowCandidate {
     double remoteRatio{0.0};
     uint64_t currentRemote{0};
     uint64_t canMigrate{0};
+    // 显式绑定(bind/interleave)的 numa 位图: 分配集受限, 其缺口的余量空出后仍会被持续占用,
+    // 迁出时优先于未绑定进程(未绑定进程缺时可由内核分配到其它 numa 自然外溢)
+    uint64_t boundNumaMask{0};
 };
 
 enum class ProcessStatus
