@@ -15,6 +15,7 @@
 #include <httplib.h>
 #include <securec.h>
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include <vector>
 #include "ubse_conf_module.h"
@@ -329,6 +330,8 @@ TEST_F(TestUbseHttpTcpServer, HandleRequestConcurrentWithRegisterRoute)
     for (int i = 0; i < 50; ++i) {
         UbseHttpServer::GetInstance().RegisterRoute("/dyn_" + std::to_string(i), "GET", TestHandlerForTcpReg);
     }
+    // 等待worker线程有足够时间处理请求，避免stop过早设置导致okCount为0
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     stop.store(true);
     for (auto& worker : workers) {
         worker.join();

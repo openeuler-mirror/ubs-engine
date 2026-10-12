@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstring>
 #include <future>
 #include <mutex>
 #include <set>
@@ -29,6 +30,7 @@
 #include "ubse_logger.h"
 #include "ubse_mmi_interface.h"
 
+#include "ubse_com_def.h" // for UbseReplyResult, UbseReplyResultToString
 #include "ubse_com_op_code.h"
 #include "ubse_event.h"
 #include "ubse_ipc_common_def.h"
@@ -636,6 +638,19 @@ uint32_t UbseMemFaultManager::BmcFaultTimerHandler()
     return UBSE_OK;
 }
 
+// 填充 OK 响应到 resp，避免 handler 未填充 resp 时下游 SetInputRawData 收到空指针
+static void FillOkReply(UbseByteBuffer& resp)
+{
+    auto reply = UbseReplyResultToString(UbseReplyResult::OK);
+    auto* buf = new (std::nothrow) uint8_t[reply.size()];
+    if (buf != nullptr) {
+        std::memcpy(buf, reply.data(), reply.size());
+        resp = {buf, reply.size(), [](uint8_t* p) noexcept {
+                    delete[] p;
+                }};
+    }
+}
+
 void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received BMC fault notify from master.";
@@ -646,6 +661,7 @@ void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseB
     input >> faultNodeId >> faultTypeValue;
     if (!input.Check()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deserialize BMC fault notify message.";
+        FillOkReply(resp);
         return;
     }
 
@@ -654,6 +670,9 @@ void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseB
                   << ", faultType=" << faultTypeValue;
 
     MemReportWhenExportNodeOnFault(faultType, faultNodeId);
+
+    // 填充 OK 响应，避免下游 SetInputRawData 收到空指针
+    FillOkReply(resp);
 }
 
 UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string& faultId)
