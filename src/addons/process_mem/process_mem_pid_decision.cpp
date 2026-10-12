@@ -244,7 +244,7 @@ uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes
         auto queryRet =
             collect::ProcessMemPidCollect::GetInstance().CollectProcessNumaMemDistributionBySample(pid, dist);
         if (queryRet != UBSE_OK) {
-            UBSE_LOG_DEBUG << "[process_mem] borrow sample numa_maps failed pid=" << pid;
+            UBSE_LOG_DEBUG << "[process_mem] borrow sample numa distribution failed pid=" << pid << " ret=" << queryRet;
         }
         cacheIt = residenceCache.emplace(pid, std::move(dist)).first;
     }
@@ -1151,6 +1151,7 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
     // rmrs 并发冲突(同 numa 其他操作在飞)时本次账本未变更, 放锁等待后重跑整个原子段
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
     def::AtomicMigrateResult result = def::AtomicMigrateResult::kFail;
+    int declSrcNumaOut = -1;
     for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
         bool conflict = false;
         {
@@ -1179,7 +1180,8 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                     if (declSlotIt != newBorrow.slots.end() && declSlotIt->status == def::BorrowSlotStatus::BORROWING) {
                         declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, declSlotIt->srcNumaId);
                     }
-                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma);
+                    declSrcNumaOut = declSrcNuma;
+                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma, false);
                     if (migrateRet != 0) {
                         if (IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
                             // 并发冲突: 同 numa 迁移/归还操作在飞, 账本未变更, 放锁等待后重试
@@ -1209,6 +1211,10 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                     result = def::AtomicMigrateResult::kOk;
                 },
                 "borrow_commit");
+            // 台账镜像回填挪出缓存锁(仍持 pid 锁): 台账无进程内读方, 缓存提交后补记语义不变
+            if (result == def::AtomicMigrateResult::kOk) {
+                UpdateMigrateLedgerMirror(pid, declSrcNumaOut, numaTargets);
+            }
         }
         if (!conflict) {
             return result;
@@ -1562,23 +1568,32 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
 }
 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId)
+                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId,
+                                              bool updateLedger)
 {
     int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, srcNumaId,
                                                                   debtId.empty() ? "" : "debt_id=" + debtId);
     if (ret != 0) {
         return ret;
     }
-    // migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
-    // 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
-    // 空声明(清残留配置)清空该 pid
+    if (updateLedger) {
+        UpdateMigrateLedgerMirror(pid, srcNumaId, numaTargets);
+    }
+    return ret;
+}
+
+// migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
+// 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
+// 空声明(清残留配置)清空该 pid
+void ProcessMemPidDecision::UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId,
+                                                      const std::vector<std::pair<int, uint64_t>>& numaTargets)
+{
     auto& migrateLedger = process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance();
     if (numaTargets.empty()) {
         migrateLedger.ClearPid(pid);
     } else {
         migrateLedger.ReplacePidRows(pid, srcNumaId >= 0 ? srcNumaId : 0, numaTargets);
     }
-    return ret;
 }
 
 void ProcessMemPidDecision::CheckTimeouts(uint64_t roundNum)
@@ -3121,7 +3136,9 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
             def::BorrowSlot newSlot{};
             newSlot.debtId = out.debtId;
             newSlot.remoteNumaId = out.remoteNuma;
-            newSlot.srcNumaId = ledgerSrcNuma;
+            // 槽保留原始归属(未知源维持 -1, 与新债 usrInfo 同源): -1 使归还落点判定回退整机口径、
+            // OOM 主动归还跳过等 lender 被动; ledgerSrcNuma 兜底 0 仅为台账行键占位, 不可复用到槽
+            newSlot.srcNumaId = ctx.srcNuma;
             newSlot.capacity = item.size;
             newSlot.migratedBytes = migrateBytes;
             newSlot.status = def::BorrowSlotStatus::COMPLETED;

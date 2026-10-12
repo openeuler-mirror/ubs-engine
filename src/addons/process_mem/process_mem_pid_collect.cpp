@@ -807,7 +807,8 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistribution(
     return UBSE_OK;
 }
 
-// 解析内核节点列表格式 "0-1,3" (%*pbl 输出): 区间合法性 + 总量上限保护, 防脏行放大
+// 解析内核节点列表格式 "0-1,3" (%*pbl 输出): 数字整段消费 + uint32 上界 + 区间合法性/总量上限保护,
+// 防脏行放大
 bool ParseNumaListString(const std::string& text, std::vector<uint32_t>& nodes)
 {
     constexpr uint32_t kMaxParsedNumaNum = 1024;
@@ -817,15 +818,22 @@ bool ParseNumaListString(const std::string& text, std::vector<uint32_t>& nodes)
         size_t comma = text.find(',', pos);
         std::string item = text.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
         size_t dash = item.find('-');
+        std::string beginText = item.substr(0, dash);
+        std::string endText = (dash == std::string::npos) ? beginText : item.substr(dash + 1);
         uint64_t begin = 0;
         uint64_t end = 0;
+        size_t beginLen = 0;
+        size_t endLen = 0;
         try {
-            begin = std::stoull(item.substr(0, dash));
-            end = (dash == std::string::npos) ? begin : std::stoull(item.substr(dash + 1));
+            begin = std::stoull(beginText, &beginLen);
+            end = (dash == std::string::npos) ? begin : std::stoull(endText, &endLen);
         } catch (const std::exception&) {
             return false;
         }
-        if (end < begin || end - begin + 1 > kMaxParsedNumaNum ||
+        // 数字须整段消费(stoull 遇尾随字符静默截断, 拒 "0-1-2" 类残留); end 收敛 uint32 上界:
+        // 防记录回绕, 亦防 end==UINT64_MAX 时 end-begin+1 回绕绕过总量保护
+        if (beginLen != beginText.size() || (dash != std::string::npos && endLen != endText.size()) || end < begin ||
+            end > UINT32_MAX || end - begin + 1 > kMaxParsedNumaNum ||
             parsed.size() + (end - begin + 1) > kMaxParsedNumaNum) {
             return false;
         }

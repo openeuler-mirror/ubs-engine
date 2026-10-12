@@ -120,7 +120,7 @@ public:
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
     // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
-    // UT/明细不可用时未注册, 决策退化为整机口径单缺口(与旧行为一致)
+    // 未注册/返回 nullopt 时决策跳过本轮(不退化整机口径)
     inline static std::function<std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>>()>
         localNumaMemMapReader;
     inline static std::function<uint32_t(pid_t, std::unordered_map<uint32_t, size_t>&)> numaMapsReader;
@@ -277,8 +277,12 @@ private:
     // createRet: 创建失败时的 ubse 返回码(供调用方区分容量不足类错误触发拆分 fallback)
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
                         CreatedDebtInfo& out, uint32_t& createRet);
+    // updateLedger=false: 调用方(借用提交段)持缓存锁, 台账镜像须由其在锁外补记, 见 UpdateMigrateLedgerMirror
     int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                           const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId = -1);
+                           const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId = -1,
+                           bool updateLedger = true);
+    // migrate_out 成功后的台账镜像回填: 整 pid 覆盖声明/空声明清空(缓存锁外调用时与锁内同一语义)
+    void UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId, const std::vector<std::pair<int, uint64_t>>& numaTargets);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
