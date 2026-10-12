@@ -392,6 +392,9 @@ UbseResult SchedulerNodeManager::UpdateAllNumaMemInfo(const std::unordered_map<N
 
 UbseResult SchedulerNodeManager::UpdateAllLinkInfo(const std::unordered_map<NodeId, UbseNodeInfo>& nodeMap)
 {
+    auto staticNodeIds = nodeController::UbseNodeController::GetInstance().UbseGetAllDeployedNode();
+    UpdateStaticNodeInfo(staticNodeIds);
+
     for (const auto& [nodeId, nodeInfo] : nodeMap) {
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
             continue;
