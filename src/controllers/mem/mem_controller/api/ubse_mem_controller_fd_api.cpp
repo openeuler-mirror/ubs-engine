@@ -1122,15 +1122,9 @@ uint32_t UbseMemFdBorrowImportObjForPermissionCallback(const UbseMemFdBorrowImpo
     auto name = importObj.req.name;
     UBSE_LOG_INFO << "Fd import for permission agent callback. name=" << name << ", state=" << importObj.status.state
                   << ", requestId=" << importObj.req.requestId;
-    UbseRoleInfo masterInfo{};
-    uint32_t ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    std::string masterNodeId = masterInfo.nodeId;
     auto requestNodeId = importObj.req.requestNodeId;
     auto copy = importObj;
-    ret = UbseMmiInterface::GetInstance().FdImportPermissionExecutor(copy);
+    auto ret = UbseMmiInterface::GetInstance().FdImportPermissionExecutor(copy);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to permission, name=" << name << ", requestId=" << importObj.req.requestId;
         return ret;
