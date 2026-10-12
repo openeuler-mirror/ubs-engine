@@ -20,6 +20,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_${MODULE_NAME}_ut PRIVATE
         ubse_timer
         ssu_plugin
         ubse_ssu
+        ubse_config
+        ubse_vsock_server
         GTest::gmock_main
         mockcpp
         -Wl,--whole-archive ubse_plugin ubse_vip syssentry -Wl,--no-whole-archive
