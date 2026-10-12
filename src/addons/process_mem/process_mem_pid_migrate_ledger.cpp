@@ -222,16 +222,18 @@ void ProcessMemPidMigrateLedger::UnInit()
     PersistLocked();
 }
 
-void ProcessMemPidMigrateLedger::ReplacePidRows(pid_t pid, int32_t srcNumaId,
-                                                const std::vector<std::pair<int32_t, uint64_t>>& destRows)
+void ProcessMemPidMigrateLedger::ReplacePidRows(pid_t pid, const def::MigrateOutGroups& groups)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     rows_.erase(pid);
-    for (const auto& [destNumaId, bytes] : destRows) {
-        if (bytes == 0) {
-            continue;
+    for (const auto& group : groups) {
+        int32_t rowSrc = group.srcNumaId >= 0 ? group.srcNumaId : 0;
+        for (const auto& [destNumaId, bytes] : group.targets) {
+            if (bytes == 0) {
+                continue;
+            }
+            rows_[pid][EncodePairKey(rowSrc, destNumaId)] += bytes;
         }
-        rows_[pid][EncodePairKey(srcNumaId, destNumaId)] = bytes;
     }
     PersistLocked();
 }
@@ -269,14 +271,6 @@ void ProcessMemPidMigrateLedger::MoveRowBytes(pid_t pid, int32_t srcNumaId, int3
     }
     rows_[pid][EncodePairKey(rowSrc, newDestNumaId)] += bytes;
     PersistLocked();
-}
-
-void ProcessMemPidMigrateLedger::ClearPid(pid_t pid)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (rows_.erase(pid) != 0) {
-        PersistLocked();
-    }
 }
 
 size_t ProcessMemPidMigrateLedger::CountRowsLocked() const

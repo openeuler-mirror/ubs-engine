@@ -186,26 +186,39 @@ uint64_t SplitThresholdToNuma(uint64_t globalBytes, uint64_t numaTotalKb, uint64
     return (splitBytes > UINT64_MAX) ? UINT64_MAX : static_cast<uint64_t>(splitBytes);
 }
 
-// 全量迁出声明可携带真实源的归因判定: 参与声明的存量槽(COMPLETED 且迁出量>0, 归还中槽不在投影)
-// 与在途借用源 inFlightSrc 须全部同源且已指定(-1 未知/旧账); 单 payload 为一 (pid, src) 组,
-// 混源/未知源无法单组表达, 回退 -1 不指定由 rmrs/smap 自行选择拉页源
-int UnifiedDeclarationSrc(const std::vector<def::BorrowSlot>& slots, int inFlightSrc)
+// 分组声明展开为 dest 聚合视图(同一 dest 多源组求和): 供 numa_maps 迁回收敛观测比对使用
+std::vector<std::pair<int, uint64_t>> FlattenGroupsToDestTotals(const def::MigrateOutGroups& groups)
 {
-    int unified = inFlightSrc;
-    for (const auto& s : slots) {
-        if (s.status != def::BorrowSlotStatus::COMPLETED || s.migratedBytes == 0) {
-            continue;
-        }
-        if (s.srcNumaId < 0) {
-            return -1;
-        }
-        if (unified == -1) {
-            unified = s.srcNumaId;
-        } else if (unified != s.srcNumaId) {
-            return -1;
+    std::map<int, uint64_t> destTotals;
+    for (const auto& group : groups) {
+        for (const auto& [dest, bytes] : group.targets) {
+            destTotals[dest] += bytes;
         }
     }
-    return unified;
+    return {destTotals.begin(), destTotals.end()};
+}
+
+// 全量迁回声明构建: 迁出即迁回, 迁回 = 与已下发分组一一对应(同 srcNumaId 分组、同 dest 列表)的
+// 迁出声明, 各 dest 目标迁出量置 0, 组内页面迁回该组源 numa, 组结构保留保证落点不串
+def::MigrateOutGroups BuildZeroMigrateTargets(const std::vector<def::BorrowSlot>& slots)
+{
+    std::map<int, std::set<int>> destsBySrc;
+    for (const auto& slot : slots) {
+        if (slot.capacity == 0 || slot.remoteNumaId < 0 || slot.migratedBytes == 0) {
+            continue;
+        }
+        destsBySrc[slot.srcNumaId].insert(slot.remoteNumaId);
+    }
+    def::MigrateOutGroups groups;
+    for (const auto& [srcNumaId, dests] : destsBySrc) {
+        def::MigrateOutGroup group;
+        group.srcNumaId = srcNumaId;
+        for (int dest : dests) {
+            group.targets.emplace_back(dest, 0);
+        }
+        groups.push_back(std::move(group));
+    }
+    return groups;
 }
 
 // 借出债务是否占用缺口本地 numa: 借出记账 lentNumaIdList 为债务实际划出的本节点本地 numa;
@@ -1245,15 +1258,15 @@ std::string ProcessMemPidDecision::RecordPendingBorrow(pid_t pid, uint64_t amoun
     return slot.debtId;
 }
 
-def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
-    pid_t pid, const std::string& debtId, const CreatedDebtInfo& created, const std::map<int, uint64_t>& increments,
-    std::vector<std::pair<int, uint64_t>>& numaTargets)
+def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(pid_t pid, const std::string& debtId,
+                                                                       const CreatedDebtInfo& created,
+                                                                       const std::map<int, uint64_t>& increments,
+                                                                       def::MigrateOutGroups& groups)
 {
     // 与同 pid 的被动归还/再平衡/对账迁出串行, 防止全量 migrateOut payload 互相覆盖;
     // rmrs 并发冲突(同 numa 其他操作在飞)时本次账本未变更, 放锁等待后重跑整个原子段
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
     def::AtomicMigrateResult result = def::AtomicMigrateResult::kFail;
-    int declSrcNumaOut = -1;
     for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
         bool conflict = false;
         {
@@ -1261,29 +1274,23 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
             infoMgr.UpdateManagedPidBorrowStateAtomic(
                 pid,
                 [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
-                    if (created.capacity > 0) {
-                        auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
-                                                   [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
-                        if (slotIt == newBorrow.slots.end() || slotIt->status != def::BorrowSlotStatus::BORROWING) {
-                            result = def::AtomicMigrateResult::kVanish;
-                            return;
-                        }
+                    auto slotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
+                                               [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
+                    bool ownSlotInFlight =
+                        (slotIt != newBorrow.slots.end() && slotIt->status == def::BorrowSlotStatus::BORROWING);
+                    if (created.capacity > 0 && !ownSlotInFlight) {
+                        result = def::AtomicMigrateResult::kVanish;
+                        return;
                     }
-                    BuildMigrateTargets(newBorrow, increments, numaTargets, pid, debtId);
-                    if (numaTargets.empty()) {
+                    // 本轮增量归入在途槽源组(借出前 RecordPendingBorrow 已按缺口 numa 记录槽源);
+                    // 槽缺失(created.capacity==0 防御)时增量不指定源
+                    int inFlightSrc = ownSlotInFlight ? slotIt->srcNumaId : -1;
+                    BuildMigrateTargets(newBorrow, increments, inFlightSrc, groups, pid, debtId);
+                    if (groups.empty()) {
                         result = def::AtomicMigrateResult::kFail;
                         return;
                     }
-                    // 声明源归因: 本轮在途借用槽与存量 COMPLETED 槽同源才携带真实 srcNid(拉页源),
-                    // 混源/旧账(-1)回退不指定; 借出前 RecordPendingBorrow 已按缺口 numa 记录槽源
-                    int declSrcNuma = -1;
-                    auto declSlotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
-                                                   [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
-                    if (declSlotIt != newBorrow.slots.end() && declSlotIt->status == def::BorrowSlotStatus::BORROWING) {
-                        declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, declSlotIt->srcNumaId);
-                    }
-                    declSrcNumaOut = declSrcNuma;
-                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma, false);
+                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, groups, false);
                     if (migrateRet != 0) {
                         if (IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
                             // 并发冲突: 同 numa 迁移/归还操作在飞, 账本未变更, 放锁等待后重试
@@ -1293,9 +1300,6 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                         if (IsFaultHandling(static_cast<uint32_t>(migrateRet))) {
                             // 故障处理锁占用: 迁出未发生, 槽 migratedBytes 保持 0,
                             // 债务保留并标记 COMPLETED, 后续由主动归还回收
-                            auto slotIt =
-                                std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
-                                             [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
                             if (slotIt != newBorrow.slots.end()) {
                                 slotIt->status = def::BorrowSlotStatus::COMPLETED;
                                 slotIt->migratedBytes = 0;
@@ -1307,15 +1311,15 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                         result = def::AtomicMigrateResult::kFail;
                         return;
                     }
-                    newBorrow.currentRemote +=
-                        FlushBorrowIncrements(newBorrow, numaTargets, increments, debtId, created);
+                    newBorrow.currentRemote += FlushBorrowIncrements(newBorrow, FlattenGroupsToDestTotals(groups),
+                                                                     increments, debtId, created);
                     newStatus = ComputeSlotStatus(newBorrow.slots);
                     result = def::AtomicMigrateResult::kOk;
                 },
                 "borrow_commit");
             // 台账镜像回填挪出缓存锁(仍持 pid 锁): 台账无进程内读方, 缓存提交后补记语义不变
             if (result == def::AtomicMigrateResult::kOk) {
-                UpdateMigrateLedgerMirror(pid, declSrcNumaOut, numaTargets);
+                UpdateMigrateLedgerMirror(pid, groups);
             }
         }
         if (!conflict) {
@@ -1444,29 +1448,39 @@ bool ProcessMemPidDecision::CreateNumaDebt(pid_t pid, uint64_t need, int srcNuma
 }
 
 void ProcessMemPidDecision::BuildMigrateTargets(const def::BorrowState& borrow,
-                                                const std::map<int, uint64_t>& increments,
-                                                std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid,
-                                                const std::string& debtId)
+                                                const std::map<int, uint64_t>& increments, int inFlightSrc,
+                                                def::MigrateOutGroups& groups, pid_t pid, const std::string& debtId)
 {
-    numaTargets.clear();
+    groups.clear();
     constexpr uint64_t pageSizeBytes = 4 * 1024;
-    std::map<int, uint64_t> targets;
-    for (const auto& [numaId, migrated] : borrow.remoteNumaMigrated) {
-        targets[numaId] += migrated;
-    }
-    for (const auto& [numaId, inc] : increments) {
-        targets[numaId] += inc;
-    }
-    for (const auto& [numaId, target] : targets) {
-        uint64_t alignedBytes = target / pageSizeBytes * pageSizeBytes;
-        if (alignedBytes == 0) {
+    std::map<int, std::map<int, uint64_t>> targetsBySrc;
+    for (const auto& slot : borrow.slots) {
+        if (slot.capacity == 0 || slot.status != def::BorrowSlotStatus::COMPLETED || slot.remoteNumaId < 0) {
             continue;
         }
-        numaTargets.emplace_back(numaId, alignedBytes);
-        auto incIt = increments.find(numaId);
-        UBSE_LOG_INFO << "[process_mem] numa_target_migrate pid=" << pid << " debt_id=" << debtId << " numa=" << numaId
-                      << " target_gb=" << BytesToGbDouble(target)
-                      << " increment_gb=" << BytesToGbDouble(incIt != increments.end() ? incIt->second : 0);
+        targetsBySrc[slot.srcNumaId][slot.remoteNumaId] += slot.migratedBytes;
+    }
+    for (const auto& [numaId, inc] : increments) {
+        targetsBySrc[inFlightSrc][numaId] += inc;
+    }
+    for (const auto& [srcNumaId, targets] : targetsBySrc) {
+        def::MigrateOutGroup group;
+        group.srcNumaId = srcNumaId;
+        for (const auto& [numaId, target] : targets) {
+            uint64_t alignedBytes = target / pageSizeBytes * pageSizeBytes;
+            if (alignedBytes == 0) {
+                continue;
+            }
+            group.targets.emplace_back(numaId, alignedBytes);
+            auto incIt = increments.find(numaId);
+            uint64_t incBytes = (srcNumaId == inFlightSrc && incIt != increments.end()) ? incIt->second : 0;
+            UBSE_LOG_INFO << "[process_mem] numa_target_migrate pid=" << pid << " debt_id=" << debtId
+                          << " src_numa=" << srcNumaId << " numa=" << numaId << " target_gb=" << BytesToGbDouble(target)
+                          << " increment_gb=" << BytesToGbDouble(incBytes);
+        }
+        if (!group.targets.empty()) {
+            groups.push_back(std::move(group));
+        }
     }
 }
 
@@ -1504,7 +1518,9 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
             hasInFlight = true;
             break;
         }
-        if (s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0 && s.capacity > s.migratedBytes) {
+        if (s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0 && s.srcNumaId == srcNumaId &&
+            s.capacity > s.migratedBytes) {
+            // 仅同源槽可复用: 填充量按该源组记账, 跨源/未知源槽填入无法按源拆分, 回落新建债务
             reusable += s.capacity - s.migratedBytes;
         }
     }
@@ -1516,13 +1532,13 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
 
     uint64_t applied = 0;
     uint64_t rest = need;
-    int declSrcNuma = -1;
-    std::map<int, uint64_t> reuseTargets;
+    def::MigrateOutGroups groups;
     infoMgr.UpdateManagedPidBorrowStateAtomic(
         pid,
         [&](def::BorrowState& newBorrow, def::ProcessStatus& newStatus) {
             for (auto& s : newBorrow.slots) {
-                if (s.status != def::BorrowSlotStatus::COMPLETED || s.remoteNumaId < 0 || rest == 0) {
+                if (s.status != def::BorrowSlotStatus::COMPLETED || s.remoteNumaId < 0 || s.srcNumaId != srcNumaId ||
+                    rest == 0) {
                     continue;
                 }
                 uint64_t idle = s.capacity - s.migratedBytes;
@@ -1537,14 +1553,8 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
             if (applied > 0) {
                 newBorrow.currentRemote += applied;
             }
-            // BORROWING 在途已排除, 复用后 COMPLETED 槽投影即全量目标
-            for (const auto& s : newBorrow.slots) {
-                if (s.status == def::BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0 && s.migratedBytes > 0) {
-                    reuseTargets[s.remoteNumaId] += s.migratedBytes;
-                }
-            }
-            // 复用填充的槽与存量槽须全部同源且等于本轮缺口源, 才在声明中携带真实 srcNid
-            declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, srcNumaId);
+            // BORROWING 在途已排除, 复用填充只进同源槽, 填充后 COMPLETED 槽投影即各源全量目标
+            BuildMigrateTargets(newBorrow, {}, -1, groups, pid, "");
         },
         "borrow_reuse");
     if (applied != need) {
@@ -1554,11 +1564,7 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
     }
 
     need = 0;
-    std::vector<std::pair<int, uint64_t>> numaTargets;
-    for (const auto& [numaId, bytes] : reuseTargets) {
-        numaTargets.emplace_back(numaId, bytes);
-    }
-    int ret = RmrsMigrateToNumas(pid, "", numaTargets, declSrcNuma);
+    int ret = RmrsMigrateToNumas(pid, "", groups);
     if (ret != 0) {
         // 下发失败: 账本已 bump, smap 未生效, 由 CorrectSmapConfig 全量对齐自愈
         UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
@@ -1598,8 +1604,8 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
                   << " export_slot=" << created.exportSlotId << " remote_numa=" << created.remoteNumaId
                   << " src_numa=" << srcNumaId << " capacity_gb=" << BytesToGbDouble(created.capacity);
 
-    std::vector<std::pair<int, uint64_t>> numaTargets;
-    def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, debtId, created, increments, numaTargets);
+    def::MigrateOutGroups groups;
+    def::AtomicMigrateResult migrateResult = CommitBorrowAndMigrate(pid, debtId, created, increments, groups);
     if (migrateResult == def::AtomicMigrateResult::kVanish) {
         pid::bridge::ProcessMemPidBridge::MemoryReturn(debtId);
         UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " pid=" << pid
@@ -1669,33 +1675,26 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
     }
 }
 
-int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId,
+int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId, const def::MigrateOutGroups& groups,
                                               bool updateLedger)
 {
-    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, srcNumaId,
-                                                                  debtId.empty() ? "" : "debt_id=" + debtId);
+    int ret =
+        pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, groups, debtId.empty() ? "" : "debt_id=" + debtId);
     if (ret != 0) {
         return ret;
     }
     if (updateLedger) {
-        UpdateMigrateLedgerMirror(pid, srcNumaId, numaTargets);
+        UpdateMigrateLedgerMirror(pid, groups);
     }
     return ret;
 }
 
 // migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
-// 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
-// 空声明(清残留配置)清空该 pid
-void ProcessMemPidDecision::UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId,
-                                                      const std::vector<std::pair<int, uint64_t>>& numaTargets)
+// 镜像, 不依赖 smap 查询; 每组声明按组 srcNumaId 记账, 未知源(-1)组沿用占位 src=0;
+// 迁回的 0 值目标行跳过, 全零声明等价清空该 pid 行
+void ProcessMemPidDecision::UpdateMigrateLedgerMirror(pid_t pid, const def::MigrateOutGroups& groups)
 {
-    auto& migrateLedger = process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance();
-    if (numaTargets.empty()) {
-        migrateLedger.ClearPid(pid);
-    } else {
-        migrateLedger.ReplacePidRows(pid, srcNumaId >= 0 ? srcNumaId : 0, numaTargets);
-    }
+    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().ReplacePidRows(pid, groups);
 }
 
 void ProcessMemPidDecision::CheckTimeouts(uint64_t roundNum)
@@ -2107,25 +2106,30 @@ uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, co
         return UBSE_OK;
     }
 
-    // 取消纳管(进程仍存活): 归还前先全量迁回本地 —— 空目标声明默认清零该 pid 所有远端 numa
-    // 的迁出目标, 页面全部回迁; 未收敛整批失败, 由上层退避重试(重发幂等); 进程已退出则无页面可迁
+    // 取消纳管(进程仍存活): 归还前先全量迁回本地 —— 迁回 = 与已下发分组一一对应的迁出声明、
+    // 各 dest 目标量置 0(迁出即迁回), 页面按组回迁各组源 numa; 无已下发数据则跳过;
+    // 未收敛整批失败, 由上层退避重试(重发幂等); 进程已退出则无页面可迁
     if (scene == ReturnScene::REMOVED && ProcessMemPidConfigManager::GetExactStartTime(pid) != 0) {
-        int migrateRet = UBSE_ERROR;
-        {
-            std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-            migrateRet = RmrsMigrateToNumas(pid, "", {});
-        }
-        if (migrateRet != 0) {
-            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid
-                          << " migrate back dispatch failed ret=" << migrateRet;
-            failedSlots = slots;
-            return UBSE_ERROR;
-        }
-        def::ReturnRequestItem removeItem{"remove", 0};
-        if (!WaitMigrateBackConverged(pid, removeItem, {})) {
-            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid << " migrate back not converged, retry later";
-            failedSlots = slots;
-            return UBSE_ERROR;
+        auto zeroGroups = BuildZeroMigrateTargets(slots);
+        if (!zeroGroups.empty()) {
+            int migrateRet = UBSE_ERROR;
+            {
+                std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+                migrateRet = RmrsMigrateToNumas(pid, "", zeroGroups);
+            }
+            if (migrateRet != 0) {
+                UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid
+                              << " migrate back dispatch failed ret=" << migrateRet;
+                failedSlots = slots;
+                return UBSE_ERROR;
+            }
+            def::ReturnRequestItem removeItem{"remove", 0};
+            if (!WaitMigrateBackConverged(pid, removeItem, {})) {
+                UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid
+                              << " migrate back not converged, retry later";
+                failedSlots = slots;
+                return UBSE_ERROR;
+            }
         }
     }
 
@@ -2378,8 +2382,8 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
         }
     }
 
-    // 账本无槽但 smap 残留配置(债被强行归还连账本一起删/进程退出): 下发空目标清掉,
-    // 否则内核侧残留目标使后续查询/迁移基于过期配置
+    // 账本无槽但 smap 残留配置(债被强行归还连账本一起删/进程退出): 迁回 = 与残留 dest 对应的
+    // 迁出量置 0 声明(smap 查询无源节点维度, 源不指定), 页面回迁; 否则内核侧残留目标使后续查询/迁移基于过期配置
     for (const auto& [pid, numaMap] : smapMemKb) {
         if (numaMap.empty() || IsPidReturnInFlight(pid)) {
             continue;
@@ -2389,7 +2393,13 @@ uint32_t ProcessMemPidDecision::RecoverSmapProcessConfig()
             continue; // 有槽的已在上方处理
         }
         std::lock_guard<std::mutex> pidLock(process_mem::pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
-        int ret = RmrsMigrateToNumas(pid, "", {});
+        def::MigrateOutGroup residualGroup;
+        residualGroup.srcNumaId = -1;
+        for (const auto& numaEntry : numaMap) {
+            residualGroup.targets.emplace_back(numaEntry.first, 0);
+        }
+        def::MigrateOutGroups residualGroups{std::move(residualGroup)};
+        int ret = RmrsMigrateToNumas(pid, "", residualGroups);
         if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
             // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
             UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
@@ -2427,17 +2437,19 @@ bool ProcessMemPidDecision::CorrectSmapConfig(
     }
     const auto& borrow = it->second.borrow;
     bool hasInFlight = false;
-    std::map<int, uint64_t> expectedBytes;
     for (const auto& s : borrow.slots) {
         if (s.status != def::BorrowSlotStatus::COMPLETED) {
             hasInFlight = true;
             break;
         }
-        if (s.capacity > 0 && s.remoteNumaId >= 0 && s.migratedBytes > 0) {
-            expectedBytes[s.remoteNumaId] += s.migratedBytes;
-        }
     }
-    if (hasInFlight || expectedBytes.empty()) {
+    def::MigrateOutGroups groups;
+    if (!hasInFlight) {
+        BuildMigrateTargets(borrow, {}, -1, groups, pid, "");
+    }
+    // smap 查询无源节点维度, 比对仍用 dest 聚合口径(同 dest 多源组求和)
+    auto expected = FlattenGroupsToDestTotals(groups);
+    if (hasInFlight || expected.empty()) {
         // 借出在途/归还迁回中: 配置由对应流程覆盖下发, 在此重发会清掉在途目标; 无期望目标无需修正
         return false;
     }
@@ -2445,9 +2457,9 @@ bool ProcessMemPidDecision::CorrectSmapConfig(
     static const std::unordered_map<int, uint64_t> kEmptyNumaMap;
     const auto& numaMap = (numaIt != smapMemKb.end()) ? numaIt->second : kEmptyNumaMap;
     // smap 值为下发时的 KB 截断值, 期望以 KB 口径比对, 避免亚 KB 尾数导致每轮误重发
-    bool mismatch = numaMap.size() != expectedBytes.size();
+    bool mismatch = numaMap.size() != expected.size();
     if (!mismatch) {
-        for (const auto& [nid, bytes] : expectedBytes) {
+        for (const auto& [nid, bytes] : expected) {
             auto entryIt = numaMap.find(nid);
             if (entryIt == numaMap.end() || entryIt->second != bytes / 1024) {
                 mismatch = true;
@@ -2459,13 +2471,8 @@ bool ProcessMemPidDecision::CorrectSmapConfig(
         // 配置与账本一致, 幂等收敛
         return false;
     }
-    std::vector<std::pair<int, uint64_t>> expected;
-    expected.reserve(expectedBytes.size());
-    for (const auto& [nid, bytes] : expectedBytes) {
-        expected.emplace_back(nid, bytes);
-    }
-    // 差异(缺失/多余/值不同): 全量重发账本期望目标, 内核按新目标补齐缺失并削去多余
-    int ret = RmrsMigrateToNumas(pid, "", expected);
+    // 差异(缺失/多余/值不同): 全量重发账本期望目标(分组按源), 内核按新目标补齐缺失并削去多余
+    int ret = RmrsMigrateToNumas(pid, "", groups);
     if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
         // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新检测
         UBSE_LOG_WARN << "[process_mem] recover config: pid=" << pid
@@ -2759,24 +2766,34 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
             continue;
         }
         RecoverPidMigratedBytes(pid, *failedNumas);
-        std::vector<std::pair<int, uint64_t>> numaTargets;
-        BuildMigrateTargets(it->second.borrow, {}, numaTargets, pid, "");
+        def::MigrateOutGroups groups;
+        BuildMigrateTargets(it->second.borrow, {}, -1, groups, pid, "");
+        // 查询失败 numa 的 dest 视为账本不可信: 从所在组剔除(组内其余 dest 仍全量声明),
+        // 全组剔空则整组不下发, 其 smap 配置保持不动
         size_t skippedTargets = 0;
-        std::vector<std::pair<int, uint64_t>> migrateTargets;
-        migrateTargets.reserve(numaTargets.size());
-        for (const auto& target : numaTargets) {
-            if (failedNumas->count(target.first) > 0) {
-                ++skippedTargets;
-                continue;
+        size_t sentTargets = 0;
+        def::MigrateOutGroups migrateGroups;
+        for (const auto& group : groups) {
+            def::MigrateOutGroup filtered;
+            filtered.srcNumaId = group.srcNumaId;
+            for (const auto& target : group.targets) {
+                if (failedNumas->count(target.first) > 0) {
+                    ++skippedTargets;
+                    continue;
+                }
+                filtered.targets.push_back(target);
+                ++sentTargets;
             }
-            migrateTargets.push_back(target);
+            if (!filtered.targets.empty()) {
+                migrateGroups.push_back(std::move(filtered));
+            }
         }
-        if (migrateTargets.empty()) {
+        if (migrateGroups.empty()) {
             UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid
                           << " all targets on query-failed numas, skip migrate reissue";
             continue;
         }
-        int ret = RmrsMigrateToNumas(pid, "", migrateTargets);
+        int ret = RmrsMigrateToNumas(pid, "", migrateGroups);
         if (IsConcurrencyConflict(static_cast<uint32_t>(ret))) {
             // 并发冲突: 同 numa 操作在飞, 本周期不重试, 下个对账周期重新判定重发
             UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid
@@ -2787,8 +2804,8 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
             UBSE_LOG_WARN << "[process_mem] reconcile: pid=" << pid << " skipped=" << skippedTargets
                           << " targets on query-failed numas";
         }
-        UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued targets=" << migrateTargets.size()
-                      << " ret=" << ret;
+        UBSE_LOG_INFO << "[process_mem] reconcile: pid=" << pid << " migrate_reissued groups=" << migrateGroups.size()
+                      << " targets=" << sentTargets << " ret=" << ret;
     }
     UBSE_LOG_INFO << "[process_mem] reconcile: applied affected=" << affectedPids.size() << " query_fail=" << queryFail;
 }
@@ -2993,27 +3010,19 @@ uint32_t ProcessMemPidDecision::ReturnDebtUnified(pid_t pid, const def::ReturnRe
 uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRequestItem& item, uint64_t& nodeFree,
                                                   ReturnScene scene)
 {
-    // 迁回: 按整理后的账本生成各远端 numa 的预期迁出量并下发改小后的 migrateOut,
-    // 被削减部分(含归还槽数据)由 smap 迁回本地, 完成后再归还内存
+    // 迁回: 按整理后的账本(含各槽迁移源)生成各远端 numa 的预期迁出量(按源分组全量声明),
+    // 下发改小后的 migrateOut, 被削减部分(含归还槽数据)由 smap 迁回本地, 完成后再归还内存
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
-    std::vector<std::pair<int, uint64_t>> numaTargets;
+    def::MigrateOutGroups groups;
     auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
     auto pidIt = snapshot.find(pid);
     if (pidIt != snapshot.end()) {
-        std::map<int, uint64_t> targets;
-        for (const auto& [numaId, migrated] : pidIt->second.borrow.remoteNumaMigrated) {
-            targets[numaId] += migrated;
-        }
-        constexpr uint64_t pageSizeBytes = 4 * 1024;
-        for (const auto& [numaId, target] : targets) {
-            // 迁出量为 0 的 numa 已全迁回(插件记录): 不下发目标, 避免为未纳管 numa 新建迁出配置
-            uint64_t aligned = target / pageSizeBytes * pageSizeBytes;
-            if (aligned > 0) {
-                numaTargets.emplace_back(numaId, aligned);
-            }
-        }
+        // 迁出量为 0 的 numa 已全迁回(插件记录): BuildMigrateTargets 不下发该目标,
+        // 避免为未纳管 numa 新建迁出配置
+        BuildMigrateTargets(pidIt->second.borrow, {}, -1, groups, pid, item.name);
     }
-    if (!numaTargets.empty()) {
+    auto convergeTargets = FlattenGroupsToDestTotals(groups);
+    if (!groups.empty()) {
         // 调用迁回接口时 currentRemote 与下发目标同步(全量重算, 失败重试幂等);
         // rmrs 并发冲突时放锁等待后重试, 迁回目标是锁外快照构建, 冲突方完成前目标不变
         std::unique_lock<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
@@ -3025,7 +3034,7 @@ uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRe
                     borrow.currentRemote = ProcessMemPidInfoManager::RecomputeCurrentRemote(borrow);
                 },
                 "return_migrate_sync");
-            migrateRet = RmrsMigrateToNumas(pid, item.name, numaTargets);
+            migrateRet = RmrsMigrateToNumas(pid, item.name, groups);
             if (!IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
                 break;
             }
@@ -3042,9 +3051,10 @@ uint32_t ProcessMemPidDecision::ReturnDebtToLocal(pid_t pid, const def::ReturnRe
             return UBSE_ERROR;
         }
         UBSE_LOG_INFO << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                      << " debt_id=" << item.name << " migrate_back_issued targets=" << numaTargets.size();
+                      << " debt_id=" << item.name << " migrate_back_issued groups=" << groups.size()
+                      << " targets=" << convergeTargets.size();
         // 迁回异步完成: 观测 /proc/pid/numa_maps, 各 numa 实际值符合预期迁出量(差值<10MB)后才归还内存
-        if (!WaitMigrateBackConverged(pid, item, numaTargets)) {
+        if (!WaitMigrateBackConverged(pid, item, convergeTargets)) {
             UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
                           << " debt_id=" << item.name << " migrate back not converged, retry later";
             return UBSE_ERROR;
@@ -3116,31 +3126,18 @@ uint32_t ProcessMemPidDecision::ReturnDebtRemoteToRemote(const def::ReturnReques
     return UBSE_OK;
 }
 
-std::vector<std::pair<int, uint64_t>> ProcessMemPidDecision::BuildRestoreTargets(pid_t pid)
+def::MigrateOutGroups ProcessMemPidDecision::BuildRestoreTargets(pid_t pid)
 {
-    std::vector<std::pair<int, uint64_t>> restoreTargets;
+    def::MigrateOutGroups restoreGroups;
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     auto pidIt = snapshot.find(pid);
     if (pidIt == snapshot.end()) {
-        return restoreTargets;
+        return restoreGroups;
     }
-    std::map<int, uint64_t> targets;
-    for (const auto& slot : pidIt->second.borrow.slots) {
-        if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.remoteNumaId < 0) {
-            continue;
-        }
-        targets[slot.remoteNumaId] += slot.migratedBytes;
-    }
-    constexpr uint64_t pageSizeBytes = 4 * 1024;
-    for (const auto& [numaId, target] : targets) {
-        // 清零槽(ZeroMigratedBytesWithoutSmap)会产生 0 值目标, 与 ReturnDebtToLocal/
-        // CorrectSmapConfig 的 0 值不下发约定一致, 避免为未纳管 numa 下发 0 值迁出声明
-        uint64_t aligned = target / pageSizeBytes * pageSizeBytes;
-        if (aligned > 0) {
-            restoreTargets.emplace_back(numaId, aligned);
-        }
-    }
-    return restoreTargets;
+    // 与 ReturnDebtToLocal/CorrectSmapConfig 同声明口径: 清零槽(ZeroMigratedBytesWithoutSmap)
+    // 产生的 0 值目标不下发, 避免为未纳管 numa 下发 0 值迁出声明
+    BuildMigrateTargets(pidIt->second.borrow, {}, -1, restoreGroups, pid, "");
+    return restoreGroups;
 }
 
 uint32_t ProcessMemPidDecision::RollbackReplacementDebt(pid_t pid, const ReplacementDebtCtx& ctx,
@@ -3165,12 +3162,12 @@ uint32_t ProcessMemPidDecision::RollbackReplacementDebt(pid_t pid, const Replace
     if (!IsReturnDone(delRet)) {
         return UBSE_ERROR;
     }
-    auto restoreTargets = BuildRestoreTargets(pid);
-    if (!restoreTargets.empty()) {
-        int restoreRet = RmrsMigrateToNumas(pid, "", restoreTargets);
+    auto restoreGroups = BuildRestoreTargets(pid);
+    if (!restoreGroups.empty()) {
+        int restoreRet = RmrsMigrateToNumas(pid, "", restoreGroups);
         UBSE_LOG_WARN << "[process_mem] return passive pid=" << pid
                       << " remote_to_remote rollback: re-place old numa=" << ctx.oldRemoteNuma
-                      << " migrate_bytes=" << migrateBytes << " targets=" << restoreTargets.size()
+                      << " migrate_bytes=" << migrateBytes << " groups=" << restoreGroups.size()
                       << " ret=" << restoreRet;
     }
     return UBSE_ERROR;

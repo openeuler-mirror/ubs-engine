@@ -21,6 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "process_mem_pid_manager_def.h"
+
 namespace process_mem::ledger {
 
 // 迁移台账默认落点(tmpfs): ubse 进程/服务重启文件存活, 整机重启挂载点重建自动清空,
@@ -28,7 +30,7 @@ namespace process_mem::ledger {
 inline constexpr char DEFAULT_MIGRATE_LEDGER_FILE[] = "/var/run/ubse/process_mem_migrate_ledger";
 
 // 台账行: (pid, srcNumaId, destNumaId) -> bytes. 命令镜像语义: 每次成功的数据位移事件
-// (migrate_out/R2R 同步迁移) 按事件上下文全量声明覆盖, 不依赖 smap 查询(其无源节点维度)
+// (migrate_out 分组全量声明/R2R 同步迁移) 按事件上下文全量覆盖, 不依赖 smap 查询(其无源节点维度)
 struct PidMigrateRow {
     pid_t pid{0};
     int32_t srcNumaId{-1};
@@ -49,18 +51,16 @@ public:
 
     void UnInit();
 
-    // 全量覆盖 pid: 清除该 pid 全部旧行后按 destRows 重建 (每项 destNumaId->bytes,
-    // bytes 为 0 的项忽略), 一次持锁完成并单次原子落盘; 供 migrate_out 全量声明成功后的
-    // 命令镜像覆盖 (当前声明不带源, srcNumaId 由调用方给定, 暂无源信息时传 0)
-    void ReplacePidRows(pid_t pid, int32_t srcNumaId, const std::vector<std::pair<int32_t, uint64_t>>& destRows);
+    // 全量覆盖 pid: 清除该 pid 全部旧行后按分组声明重建 (每组 srcNumaId 下的
+    // destNumaId->bytes, bytes 为 0 的项忽略), 一次持锁完成并单次原子落盘; 供 migrate_out
+    // 分组全量声明成功后的命令镜像覆盖; 未知源组(src<0)沿用 0 占位键(与 r2r 行键兜底一致),
+    // 占位键与真实 numa0 组撞键时累加, 避免覆盖丢量
+    void ReplacePidRows(pid_t pid, const def::MigrateOutGroups& groups);
 
     // r2r 同步迁移完成记账: 旧 dest 行减 bytes, 不足或减至 0 时删行; 新 dest 行加 bytes;
     // 一次持锁 + 单次原子落盘, 不落中间态; old==new 或 bytes==0 时不动;
-    // 混源 pid 声明源退化为 0 时行键与 srcNumaId 不同, 按 (0, oldDest) 兜底, 仍找不到告警并新建
+    // 未知源(旧账)行键占位 0 与债务 srcNuma 不同时, 按 (0, oldDest) 兜底, 仍找不到告警并新建
     void MoveRowBytes(pid_t pid, int32_t srcNumaId, int32_t oldDestNumaId, int32_t newDestNumaId, uint64_t bytes);
-
-    // 删除该 pid 全部行 (归还完成/进程退出/取消纳管时调用)
-    void ClearPid(pid_t pid);
 
 private:
     uint32_t PersistLocked();

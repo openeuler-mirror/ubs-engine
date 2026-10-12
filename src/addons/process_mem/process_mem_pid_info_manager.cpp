@@ -1022,10 +1022,10 @@ uint64_t RebalanceSlotTargetBytes(const def::BorrowSlot& slot, uint64_t overage)
     return newSize / pageSizeBytes * pageSizeBytes;
 }
 
-uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t overage,
-                                   std::map<int, uint64_t>& numaTargets)
+uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t overage, def::MigrateOutGroups& groups)
 {
-    numaTargets.clear();
+    groups.clear();
+    std::map<int, std::map<int, uint64_t>> targetsBySrc;
     uint64_t settled = 0;
     uint64_t rest = overage;
     for (const auto& slot : borrow.slots) {
@@ -1040,12 +1040,22 @@ uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t over
         settled += reduce;
         rest -= reduce;
         if (targetBytes > 0) {
-            numaTargets[slot.remoteNumaId] += targetBytes;
+            targetsBySrc[slot.srcNumaId][slot.remoteNumaId] += targetBytes;
         }
     }
     for (const auto& slot : borrow.slots) {
         if (slot.status == def::BorrowSlotStatus::BORROWING && slot.capacity > 0 && slot.remoteNumaId >= 0) {
-            numaTargets[slot.remoteNumaId] += slot.capacity;
+            targetsBySrc[slot.srcNumaId][slot.remoteNumaId] += slot.capacity;
+        }
+    }
+    for (const auto& [srcNumaId, targets] : targetsBySrc) {
+        def::MigrateOutGroup group;
+        group.srcNumaId = srcNumaId;
+        for (const auto& [numaId, target] : targets) {
+            group.targets.emplace_back(numaId, target);
+        }
+        if (!group.targets.empty()) {
+            groups.push_back(std::move(group));
         }
     }
     return settled;
@@ -1102,14 +1112,13 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
         return false;
     }
 
-    std::map<int, uint64_t> numaTargets;
-    uint64_t settled = RebalanceAggregateTargets(borrow, overage, numaTargets);
-    if (numaTargets.empty() || settled == 0) {
+    def::MigrateOutGroups groups;
+    uint64_t settled = RebalanceAggregateTargets(borrow, overage, groups);
+    if (groups.empty() || settled == 0) {
         return false;
     }
 
-    std::vector<std::pair<int, uint64_t>> targets(numaTargets.begin(), numaTargets.end());
-    int ret = process_mem::pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, targets);
+    int ret = process_mem::pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, groups);
     if (ret != 0) {
         UBSE_LOG_ERROR << "[process_mem] rebalance pid=" << pid << " failed ret=" << ret
                        << " expected_remote=" << expectedRemote;

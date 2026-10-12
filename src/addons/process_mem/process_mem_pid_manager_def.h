@@ -123,11 +123,20 @@ struct BorrowSlot {
     uint64_t migratedBytes{0};
     int32_t exportSlotId{-1};
     std::string debtId{};
+    // 槽全部迁移量的拉页源本地 numa(同源不变量: 复用/填充仅限同源槽); -1 = 历史未知源旧槽
     int srcNumaId{-1};
     int remoteNumaId{-1};
     std::chrono::steady_clock::time_point borrowTime{};
     BorrowSlotStatus status{BorrowSlotStatus::BORROWING};
 };
+
+// migrate_out 的分组声明视图: 同源槽的全量目标聚合(dest -> bytes), 组内为完整量(存量+增量),
+// 不做增量下发; src<0 表示源未知. 每组描述决策与台账维度, 下发时跨组按 dest 汇总为单 payload
+struct MigrateOutGroup {
+    int srcNumaId{-1};
+    std::vector<std::pair<int, uint64_t>> targets{};
+};
+using MigrateOutGroups = std::vector<MigrateOutGroup>; // 按 srcNumaId 升序, 下发顺序稳定
 
 struct BorrowState {
     uint64_t currentRemote{0};

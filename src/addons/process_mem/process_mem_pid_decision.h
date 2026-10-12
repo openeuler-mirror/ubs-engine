@@ -165,13 +165,15 @@ private:
 
     bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum, int srcNumaId);
 
-    void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
-                             std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
+    // 分组声明构建: 槽按各自 srcNumaId 分组(未知源 -1 单独成组), increments 归入 inFlightSrc 组;
+    // 每组为该源全部 COMPLETED 槽的全量目标聚合(dest -> 页对齐字节, 0 值滤除), 组按 src 升序
+    void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments, int inFlightSrc,
+                             def::MigrateOutGroups& groups, pid_t pid, const std::string& debtId);
 
     def::AtomicMigrateResult CommitBorrowAndMigrate(pid_t pid, const std::string& debtId,
                                                     const CreatedDebtInfo& created,
                                                     const std::map<int, uint64_t>& increments,
-                                                    std::vector<std::pair<int, uint64_t>>& numaTargets);
+                                                    def::MigrateOutGroups& groups);
 
     void FailBorrowAbort(pid_t pid, const std::string& debtId, uint64_t need, uint64_t roundNum);
 
@@ -291,11 +293,10 @@ private:
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
                         CreatedDebtInfo& out, uint32_t& createRet);
     // updateLedger=false: 调用方(借用提交段)持缓存锁, 台账镜像须由其在锁外补记, 见 UpdateMigrateLedgerMirror
-    int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                           const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId = -1,
+    int RmrsMigrateToNumas(pid_t pid, const std::string& debtId, const def::MigrateOutGroups& groups,
                            bool updateLedger = true);
-    // migrate_out 成功后的台账镜像回填: 整 pid 覆盖声明/空声明清空(缓存锁外调用时与锁内同一语义)
-    void UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId, const std::vector<std::pair<int, uint64_t>>& numaTargets);
+    // migrate_out 成功后的台账镜像回填: 整 pid 覆盖分组声明, 迁回(全零目标)声明等价清空该 pid 行
+    void UpdateMigrateLedgerMirror(pid_t pid, const def::MigrateOutGroups& groups);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
@@ -318,7 +319,7 @@ private:
                                       ReplacementDebt& out, uint64_t migrateBytes);
     uint32_t RollbackReplacementDebt(pid_t pid, const ReplacementDebtCtx& ctx, const std::string& newDebtId,
                                      int migrateRet, uint64_t migrateBytes);
-    std::vector<std::pair<int, uint64_t>> BuildRestoreTargets(pid_t pid);
+    def::MigrateOutGroups BuildRestoreTargets(pid_t pid);
     // 读归还槽迁出量并回填其借出归属本地 numa(srcNumaId, 无归属为 -1)
     uint64_t ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item, int& srcNumaId);
     bool ReadNumaMapsDiffs(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets, uint64_t& totalDiff,

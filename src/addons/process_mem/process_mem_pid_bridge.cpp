@@ -57,37 +57,56 @@ uint32_t ProcessMemPidBridge::MemoryReturn(const std::string& name)
     return UBSE_OK;
 }
 
-int ProcessMemPidBridge::MigrateOutToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargetsBytes,
-                                           int srcNumaId, const std::string& logCtx)
+int ProcessMemPidBridge::MigrateOutToNumas(pid_t pid, const def::MigrateOutGroups& groups, const std::string& logCtx)
 {
-    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
-    mempooling::smap::MigrateOutPayload payload{};
+    // smap migrate_out 是 pid 粒度的全量迁出声明: 同一 pid 只允许一个 payload, 多目标放 inner[];
+    // 同 pid 多 payload 会互相覆盖。多源组跨组按 dest 汇总为单条声明; 源 numa 无法逐组表达:
+    // 全部组同源才指定 srcNid, 否则置 -1(不指定, 由 smap 选页), 源维度仅用于决策与台账
     constexpr size_t kMaxInner = static_cast<size_t>(mempooling::smap::REMOTE_NUMA_NUM);
-    size_t innerCount = std::min(numaTargetsBytes.size(), kMaxInner);
-    if (numaTargetsBytes.size() > kMaxInner) {
-        UBSE_LOG_WARN << "[process_mem] migrate_out pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
-                      << " numa_targets=" << numaTargetsBytes.size() << " exceed inner capacity " << kMaxInner
-                      << ", truncated";
+    std::map<int, uint64_t> destBytes{}; // dest -> 迁移字节数, 有序保证下发顺序稳定
+    int srcNid = groups.empty() ? -1 : groups.front().srcNumaId;
+    for (const auto& group : groups) {
+        if (group.srcNumaId != srcNid) {
+            srcNid = -1;
+        }
+        for (const auto& [dest, bytes] : group.targets) {
+            destBytes[dest] += bytes;
+        }
     }
-    for (size_t i = 0; i < innerCount; ++i) {
-        mempooling::smap::MigrateOutPayloadInner inner{};
+    if (destBytes.empty()) {
+        // 空声明无迁回语义(迁回 = 与已下发分组对应的迁出量置 0): 拒绝下发, 防止误清配置
+        UBSE_LOG_ERROR << "[process_mem] migrate_out pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
+                       << " empty groups refused";
+        return -1;
+    }
+    if (destBytes.size() > kMaxInner) {
+        // 全量声明语义下省略 dest 等价清零, 截断会破坏声明; 超单 payload 容量拒发, 由对账周期重试
+        UBSE_LOG_ERROR << "[process_mem] migrate_out pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
+                       << " numa_targets=" << destBytes.size() << " exceed inner capacity " << kMaxInner
+                       << ", refuse dispatch";
+        return -1;
+    }
+    mempooling::smap::MigrateOutPayload payload{};
+    size_t innerCount = 0;
+    for (const auto& [dest, bytes] : destBytes) {
+        auto& inner = payload.inner[innerCount];
         inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
-        inner.memSize = numaTargetsBytes[i].second / 1024; // smap 期望 KB, 输入为字节
-        inner.destNid = numaTargetsBytes[i].first;
-        payload.inner[i] = inner;
+        inner.memSize = bytes / 1024; // smap 期望 KB, 输入为字节; 迁回声明为 0
+        inner.destNid = dest;
         UBSE_LOG_INFO << "[process_mem] migrate_out_dispatch pid=" << pid << (logCtx.empty() ? "" : " " + logCtx)
-                      << " src_numa=" << srcNumaId << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
-                      << " src_bytes=" << numaTargetsBytes[i].second;
+                      << " src_numa=" << srcNid << " dest_numa=" << inner.destNid << " mem_size_kb=" << inner.memSize
+                      << " src_bytes=" << bytes;
+        ++innerCount;
     }
     payload.count = static_cast<int>(innerCount);
     payload.pid = pid;
     // 显式置源: 0 初始化会使 srcNid=0 被当作"指定本地 numa 0"; 未指定须置 -1(与 rmrs 内部约定一致)
-    payload.srcNid = srcNumaId;
-    payloads.push_back(payload);
+    payload.srcNid = srcNid;
     if (!rmrsMigrateOut) {
         UBSE_LOG_ERROR << "[process_mem] migrate_out pid=" << pid << " rmrsMigrateOut not loaded, skip migrate";
         return -1;
     }
+    std::vector<mempooling::smap::MigrateOutPayload> payloads{payload};
     return rmrsMigrateOut(payloads, 0);
 }
 

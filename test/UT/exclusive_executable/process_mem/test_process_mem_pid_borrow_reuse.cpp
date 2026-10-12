@@ -115,6 +115,7 @@ TEST_F(TestProcessMemPidBorrowReuse, FullReuseCoversNeedNoNewDebt)
     slot.capacity = 4 * BYTES_PER_GB;
     slot.migratedBytes = 0;
     slot.debtId = "d1";
+    slot.srcNumaId = 0;
     slot.remoteNumaId = 3;
     slot.status = def::BorrowSlotStatus::COMPLETED;
     def::BorrowState borrow;
