@@ -119,6 +119,9 @@ public:
 
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
+    // 远端各 numa MemUsed 明细读取钩子: 生产 Init 注册真实采集快照, 在途量按 dest 建池拆分;
+    // 未注册/返回 nullopt(UT)时退回节点级总量口径(remoteNumaUsedKbReader)
+    inline static std::function<std::optional<std::unordered_map<uint32_t, uint64_t>>()> remoteNumaUsedMapKbReader;
     // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
     // 未注册/返回 nullopt 时决策跳过本轮(不退化整机口径)
     inline static std::function<std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>>()>
@@ -139,8 +142,15 @@ private:
 
     void CheckTimeouts(uint64_t roundNum);
 
-    // 在途迁移总量(账本预期 − 实际远端占用): 生产侧已无调用点, 保留供 UT 观测借用在途量
+    // 在途迁移总量(账本预期 − 实际远端占用): 判缺/日志节点级口径, 明细
+    // (remoteNumaUsedMapKbReader) 不可用时兼作在途分摊的回退来源
     uint64_t GetPendingMigrateTotal() const;
+
+    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按远端 numa
+    // 声明量超出实测占用的部分逐 dest 建池, 池内再按各源在该 dest 的声明占比整除分摊;
+    // 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊); 判缺/紧急轮扣减
+    // 防在途数据被下轮重复下发借用
+    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc() const;
 
     uint64_t GetUbseBlockSizeBytes();
 
@@ -172,6 +182,9 @@ private:
     std::optional<uint64_t> ReadLocalNumaFreeKb();
 
     std::optional<uint64_t> ReadRemoteNumaUsedKb() const;
+
+    // 远端各 numa MemUsed 明细读取: 未注册 reader(UT)时返回 nullopt(与本地明细同一模式切换点)
+    std::optional<std::unordered_map<uint32_t, uint64_t>> ReadRemoteNumaUsedMap() const;
 
     // 本地各 numa (MemFree, MemTotal) 明细读取: 未注册 reader 时返回 nullopt(与借用判缺同一模式切换点)
     std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ReadLocalNumaMemMap();

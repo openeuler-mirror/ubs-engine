@@ -572,6 +572,10 @@ uint32_t ProcessMemPidDecision::Init()
     localNumaMemMapReader = []() {
         return collect::ProcessMemPidCollect::GetInstance().GetLocalNumaMemMap();
     };
+    // 远端明细 reader 生产默认注册: 在途量按 dest 建池; 未注册(UT)时明细不可用, 退回节点级总量口径
+    remoteNumaUsedMapKbReader = []() {
+        return collect::ProcessMemPidCollect::GetInstance().GetRemoteNumaUsedMapKb();
+    };
 
     if (!StartExecutors()) {
         return UBSE_ERROR;
@@ -705,6 +709,7 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     }
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=summary"
                   << " shortage_gb=" << BytesToGbDouble(initialTotal)
+                  << " pending_migrate_gb=" << BytesToGbDouble(GetPendingMigrateTotal())
                   << " borrowed_gb=" << BytesToGbDouble(initialTotal - remainTotal)
                   << " remaining_shortage_gb=" << BytesToGbDouble(remainTotal) << " dur_ms=" << durMs;
 }
@@ -800,17 +805,10 @@ bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<
         return false;
     }
 
-    // 每 numa 在途借用(该 numa 源 BORROWING 槽): 迁移尚未落地本地空闲未回升, 先行扣减防下轮重复借用;
-    // COMPLETED 槽页面已物理迁走, 本地空闲已回升, 不计入
-    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
-    std::unordered_map<int, uint64_t> inFlightBytes;
-    for (const auto& [pid, entry] : snapshot) {
-        for (const auto& slot : entry.borrow.slots) {
-            if (slot.status == def::BorrowSlotStatus::BORROWING && slot.srcNumaId >= 0) {
-                inFlightBytes[slot.srcNumaId] += slot.migratedBytes;
-            }
-        }
-    }
+    // 每 numa 在途借用未落地部分先行扣减防下轮重复借用: BORROWING 槽迁移未落地按源全额记在途;
+    // COMPLETED 槽处于异步迁移窗口(migrate_out 返回≠迁移结束), 未落地部分按远端 numa 实测占用
+    // 逐 dest 建池分摊到各源, 见 BuildPendingUnlandedPerSrc
+    auto pendingPerSrc = BuildPendingUnlandedPerSrc();
 
     for (const auto& [numaId, mem] : *memMap) {
         uint64_t threshold = SplitThresholdToNuma(freeMemoryThresholdBytes_, mem.totalKb, localTotalKb);
@@ -819,9 +817,9 @@ bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<
             continue;
         }
         uint64_t shortage = threshold - freeBytes;
-        auto inFlightIt = inFlightBytes.find(static_cast<int>(numaId));
-        if (inFlightIt != inFlightBytes.end()) {
-            shortage = (shortage > inFlightIt->second) ? (shortage - inFlightIt->second) : 0;
+        auto pendingIt = pendingPerSrc.find(static_cast<int>(numaId));
+        if (pendingIt != pendingPerSrc.end()) {
+            shortage = (shortage > pendingIt->second) ? (shortage - pendingIt->second) : 0;
         }
         if (shortage == 0) {
             continue;
@@ -861,6 +859,101 @@ uint64_t ProcessMemPidDecision::GetPendingMigrateTotal() const
     }
     uint64_t actual = *usedKb * 1024;
     return (expected > actual) ? (expected - actual) : 0;
+}
+
+namespace {
+using DestSrcDeclaredMap = std::unordered_map<int, std::unordered_map<int, uint64_t>>;
+
+// COMPLETED 槽按 dest 建池: 该 dest 声明量超出远端实测占用的部分为未落地(池),
+// 池内再按各源在该 dest 的声明占比整除分摊到源
+void DistributePerDestUnlanded(const DestSrcDeclaredMap& completedByDestSrc,
+                               const std::unordered_map<uint32_t, uint64_t>& usedMapKb,
+                               std::unordered_map<int, uint64_t>& unlanded)
+{
+    for (const auto& [destNumaId, srcDeclared] : completedByDestSrc) {
+        uint64_t declared = 0;
+        for (const auto& entry : srcDeclared) {
+            declared += entry.second;
+        }
+        uint64_t usedBytes = 0;
+        auto usedIt = usedMapKb.find(static_cast<uint32_t>(destNumaId));
+        if (usedIt != usedMapKb.end()) {
+            usedBytes = usedIt->second * 1024;
+        }
+        if (declared == 0 || usedBytes >= declared) {
+            continue;
+        }
+        uint64_t pool = declared - usedBytes;
+        for (const auto& [srcNumaId, bytes] : srcDeclared) {
+            uint64_t share = static_cast<uint64_t>((static_cast<__uint128_t>(pool) * bytes) / declared);
+            if (share > 0) {
+                unlanded[srcNumaId] += share;
+            }
+        }
+    }
+}
+
+// 远端明细不可用的回退: 节点在途总量超出 BORROWING 声明的部分(COMPLETED 异步窗口)按源声明占比整除分摊
+void DistributeNodeLevelUnlanded(uint64_t pendingTotal, uint64_t borrowingDeclared,
+                                 const std::unordered_map<int, uint64_t>& completedDeclared,
+                                 std::unordered_map<int, uint64_t>& unlanded)
+{
+    if (pendingTotal <= borrowingDeclared) {
+        return;
+    }
+    uint64_t asyncUnlanded = pendingTotal - borrowingDeclared;
+    uint64_t completedTotal = 0;
+    for (const auto& entry : completedDeclared) {
+        completedTotal += entry.second;
+    }
+    if (completedTotal == 0) {
+        return;
+    }
+    for (const auto& [srcNumaId, bytes] : completedDeclared) {
+        uint64_t share = static_cast<uint64_t>((static_cast<__uint128_t>(asyncUnlanded) * bytes) / completedTotal);
+        if (share > 0) {
+            unlanded[srcNumaId] += share;
+        }
+    }
+}
+} // namespace
+
+// per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
+// COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 按远端 numa 实测占用逐 dest 建池
+// 分摊到源; 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊);
+// 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
+std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc() const
+{
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    std::unordered_map<int, uint64_t> unlanded;
+    std::unordered_map<int, uint64_t> completedDeclared;
+    DestSrcDeclaredMap completedByDestSrc;
+    uint64_t borrowingDeclared = 0;
+    for (const auto& [pid, entry] : snapshot) {
+        for (const auto& slot : entry.borrow.slots) {
+            if (slot.status == def::BorrowSlotStatus::BORROWING) {
+                borrowingDeclared += slot.migratedBytes;
+                if (slot.srcNumaId >= 0) {
+                    unlanded[slot.srcNumaId] += slot.migratedBytes;
+                }
+                continue;
+            }
+            if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.srcNumaId < 0) {
+                continue;
+            }
+            completedDeclared[slot.srcNumaId] += slot.migratedBytes;
+            if (slot.remoteNumaId >= 0) {
+                completedByDestSrc[slot.remoteNumaId][slot.srcNumaId] += slot.migratedBytes;
+            }
+        }
+    }
+    auto usedMapKb = ReadRemoteNumaUsedMap();
+    if (usedMapKb.has_value()) {
+        DistributePerDestUnlanded(completedByDestSrc, *usedMapKb, unlanded);
+        return unlanded;
+    }
+    DistributeNodeLevelUnlanded(GetPendingMigrateTotal(), borrowingDeclared, completedDeclared, unlanded);
+    return unlanded;
 }
 
 uint64_t ProcessMemPidDecision::GetUbseBlockSizeBytes()
@@ -1696,6 +1789,14 @@ std::optional<uint64_t> ProcessMemPidDecision::ReadRemoteNumaUsedKb() const
         return remoteNumaUsedKbReader();
     }
     return collect::ProcessMemPidCollect::GetInstance().GetRemoteNumaUsedKb();
+}
+
+std::optional<std::unordered_map<uint32_t, uint64_t>> ProcessMemPidDecision::ReadRemoteNumaUsedMap() const
+{
+    if (!remoteNumaUsedMapKbReader) {
+        return std::nullopt;
+    }
+    return remoteNumaUsedMapKbReader();
 }
 
 std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ProcessMemPidDecision::ReadLocalNumaMemMap()
@@ -3452,6 +3553,20 @@ void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeF
     }
     auto candidates = BuildCandidates(roundNum);
     if (candidates.empty()) {
+        return;
+    }
+    // 在途未落地部分先扣减(与定时判缺同一防线), 缺口已被在途量覆盖则不重复下发
+    auto pendingPerSrc = BuildPendingUnlandedPerSrc();
+    for (auto& shortage : shortages) {
+        auto pendingIt = pendingPerSrc.find(shortage.srcNumaId);
+        if (pendingIt != pendingPerSrc.end()) {
+            shortage.bytes = (shortage.bytes > pendingIt->second) ? (shortage.bytes - pendingIt->second) : 0;
+        }
+    }
+    shortages.erase(std::remove_if(shortages.begin(), shortages.end(),
+                                   [](const NumaShortage& shortage) { return shortage.bytes == 0; }),
+                    shortages.end());
+    if (shortages.empty()) {
         return;
     }
     ExecuteEmergencyBorrowRound(roundNum, candidates, shortages);

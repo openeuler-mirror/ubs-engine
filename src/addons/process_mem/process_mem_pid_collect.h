@@ -80,7 +80,12 @@ public:
 
     std::optional<uint64_t> GetLocalNumaFreeKb();
 
+    // 远端各 numa MemUsed 总量(kB), 为明细快照求和
     std::optional<uint64_t> GetRemoteNumaUsedKb();
+
+    // 远端各 numa 的 MemUsed 明细快照(kB): 决策层据此按 dest 拆分在途迁移量
+    // (声明量 − 实际占用逐 numa 判池), 与整机口径同轮同锁写入
+    std::optional<std::unordered_map<uint32_t, uint64_t>> GetRemoteNumaUsedMapKb();
 
     // 本地各 numa 的 (MemFree, MemTotal) 明细快照, 与整机合计同轮同锁写入;
     // 任一节点读取失败时与整机口径一致整体置空, 决策层跳过本轮
@@ -123,7 +128,7 @@ private:
     std::shared_mutex vmRssHandlersMutex_{};
 
     std::optional<uint64_t> localNumaFreeKbSnapshot_{};
-    std::optional<uint64_t> remoteNumaUsedKbSnapshot_{};
+    std::optional<std::unordered_map<uint32_t, uint64_t>> remoteNumaUsedMapKbSnapshot_{};
     std::optional<std::unordered_map<uint32_t, NumaMemKbInfo>> localNumaMemMapSnapshot_{};
     std::mutex numaSnapshotMutex_{};
 
