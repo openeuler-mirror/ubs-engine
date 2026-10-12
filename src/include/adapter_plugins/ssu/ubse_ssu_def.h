@@ -106,11 +106,6 @@ struct UbseSsuDevCtrl {
     uint16_t cntlid = 0; // 控制器ID（硬件固定，软件动态），NVMe 规范标识（子系统内唯一）
 };
 
-struct UbseSsuDevNameSpaceAttachInfo {
-    std::string attachNode;
-    uint32_t namespaceId;
-};
-
 struct UbseSsuDevInfo {
     UbseSsuDevSubSystem subSystem;                             // 子系统信息
     std::string serialNumber;                                  // 序列号（物理设备唯一标识）
@@ -119,7 +114,6 @@ struct UbseSsuDevInfo {
     uint64_t totalBytes = 0;                                   // ssu物理设备总容量（字节）
     uint64_t usedBytes = 0;                                    // ssu物理设备已用容量（字节）
     std::vector<UbseSsuDevNameSpace> nameSpaces;               // ssu物理设备命名空间信息
-    std::vector<UbseSsuDevNameSpaceAttachInfo> attachInfoList; // namespace挂载节点信息
     UbseSsuState state;                                        // ssu物理设备状态
 };
 

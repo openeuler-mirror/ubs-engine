@@ -33,7 +33,7 @@ void TestUbseSsuStatusUpdateMsg::TearDown()
  */
 TEST_F(TestUbseSsuStatusUpdateMsg, ReqRoundTrip)
 {
-    UbseSsuStatusReqMsg original("test_status", UbseSsuNsState::CREATED);
+    UbseSsuStatusReqMsg original("test_status", UbseSsuNsState::CREATED, "dev_ssd0", "node_001");
 
     std::unique_ptr<uint8_t[]> buffer;
     uint32_t bufferSize = 0;
@@ -47,6 +47,8 @@ TEST_F(TestUbseSsuStatusUpdateMsg, ReqRoundTrip)
     const auto &req = deserialized.GetStatusUpdateReq();
     EXPECT_EQ("test_status", req.requestName);
     EXPECT_EQ(UbseSsuNsState::CREATED, req.state);
+    EXPECT_EQ("dev_ssd0", req.devName);
+    EXPECT_EQ("node_001", req.nodeId);
 }
 
 /*

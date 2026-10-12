@@ -138,7 +138,13 @@ struct UbseSsuStripedSpaceReq : UbseSsuLinearSpaceReq {
  * @brief SSU存储池分配控制器
  *
  * 提供SSU设备的命名空间分配、释放、挂载和卸载等核心功能，
- * 支持线性编址和条带化编址两种聚合方式，以及独占和共享两种使用模式。
+ * 支持三种分配策略：
+ * NORMAL（非聚合，可多节点共享挂载）
+ * LINEAR（线性聚合，独占挂载）
+ * STRIPED（条带化聚合，独占挂载）
+ *
+ * 本控制器仅管理空间生命周期，不介入数据面：挂载后空间内的读写安全
+ * （如多节点并发访问的一致性）由消费端自行保证。
  *
  * @note 本控制器负责管理NVMe SSU的命名空间生命周期，
  *       与底层适配器交互完成实际的硬件操作。
@@ -300,6 +306,9 @@ public:
      *
      * 将指定的存储空间挂载到系统，使其可被主机访问。
      *
+     * 对应NORMAL分配策略，支持多节点共享挂载：多个节点可同时挂载同一空间的裸命名空间设备，
+     * 幂等判断按节点维度进行（本节点已挂载返回UBSE_ERR_ALREADY_ATTACHED，其他节点挂载不影响本节点挂载）。
+     *
      * @param req 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID、使用方进程的身份信息
      * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
      * @return uint32_t 错误码
@@ -315,6 +324,9 @@ public:
      *
      * 将指定的存储空间从系统卸载，释放设备占用。
      *
+     * 对应NORMAL分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，
+     * 仅当最后一个节点卸载后空间级状态才回退为CREATED。
+     *
      * @param req 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID、使用方进程的身份信息
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -329,6 +341,9 @@ public:
      * @brief 挂载线性编址的存储空间
      *
      * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
+     *
+     * 对应LINEAR分配策略，独占挂载：同一时间仅允许一个节点挂载。仅attacher节点可重复挂载与卸载，
+     * 空间被其他节点挂载时挂载或卸载均报UBSE_SSU_ERROR_ATTACHER_MISMATCH。
      *
      * @param req 挂载请求参数，包含name、nqn、srcEid、identity以及devName
      * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
@@ -348,6 +363,9 @@ public:
      *
      * 将线性聚合的块设备卸载并释放。
      *
+     * 对应LINEAR分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载报
+     * UBSE_SSU_ERROR_ATTACHER_MISMATCH。
+     *
      * @param req 卸载线性编址请求参数，包含name、nqn、srcEid、identity以及devName
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -362,6 +380,10 @@ public:
      *
      * 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，
      * 支持 RAID0 和 RAID5 两种级别。
+     *
+     * 对应STRIPED分配策略，独占挂载：同一时间仅允许一个节点挂载。仅attacher节点可重复挂载与卸载，
+     * 空间被其他节点挂载时挂载或卸载均报UBSE_SSU_ERROR_ATTACHER_MISMATCH。
+     *
      * @param req       条带化挂载请求参数，包含存储空间标识、主机的 NVMe合格名称、聚合后的块设备名称以及使用进程的身份信息。
      * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
      * @param devPath    [输出] 挂载后的聚合设备路径
@@ -380,6 +402,9 @@ public:
      * @brief 卸载条带化编址的存储空间
      *
      * 将条带化聚合的块设备卸载并释放。
+     *
+     * 对应STRIPED分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载报
+     * UBSE_SSU_ERROR_ATTACHER_MISMATCH。
      *
     * @param req  卸载条带化编址的存储空间请求参数，包含存储空间标识、主机的 NVMe合格名称、聚合后的块设备名称以及使用进程的身份信息。
      * @return uint32_t 错误码

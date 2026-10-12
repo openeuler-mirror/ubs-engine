@@ -81,7 +81,12 @@ void TestUbseSsuServiceImpLinear::SetupLedgerForAttach(const std::string &name, 
     for (const auto &ns : nsList) {
         result.nameSpaceList.push_back(MakeNsInfo(ns));
     }
-    PutLedgerEntry(name, state, result);
+    // ATTACHED条目需记录attacher（与夹具MockGetCurrentNodeInfo_Master返回的nodeId一致），
+    // 独占策略attach/detach会强校验本机节点为attacher
+    const std::unordered_set<std::string> attachNodes =
+        state == UbseSsuNsState::ATTACHED ? std::unordered_set<std::string>{"master_node_1"} :
+                                            std::unordered_set<std::string>{};
+    PutLedgerEntry(name, state, result, attachNodes);
 }
 
 // --------------------------------------------------------------------------
@@ -351,6 +356,7 @@ TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_DevNameMismatch)
     entry->devName = "md_ledger"; // attach时写入账本的权威值
     entry->state = UbseSsuNsState::ATTACHED;
     entry->allocResult = result;
+    entry->attachNodes = {"master_node_1"}; // 独占策略attach/detach强校验attacher
     UbseSsuDebtLedger::GetInstance().Put(entry->name, entry);
 
     auto identity = MakeIdentity();

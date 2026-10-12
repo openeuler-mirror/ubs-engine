@@ -11,7 +11,6 @@
  */
 #include "ubse_ssu_debt_ledger.h"
 
-#include <set>
 #include <shared_mutex>
 #include <unordered_map>
 #include "ubse_logger.h"
@@ -93,8 +92,7 @@ std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> UbseSsuDebtLedger::GetAll
 }
 
 static void RebuildEntry(const std::string &name, const std::vector<const UbseSsuDevNameSpace *> &nsList,
-                         const std::set<std::pair<std::string, uint32_t>> &attachedNsSet, UbseSsuDebtLedger &ledger,
-                         const std::string &tenant)
+                         UbseSsuDebtLedger &ledger, const std::string &tenant)
 {
     if (nsList.empty()) {
         UBSE_LOG_ERROR << "Rebuild entry: nsList is empty: name=" << name;
@@ -152,14 +150,6 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
         allocResult.nameSpaceList.push_back(info);
     }
 
-    bool isAttached = false;
-    for (const auto *ns : nsList) {
-        if (attachedNsSet.count({ns->subSystem.eid, ns->namespaceId}) > 0) {
-            isAttached = true;
-            break;
-        }
-    }
-
     UbseSsuLedgerEntry entry;
     entry.name = name;
     entry.allocReq = req;
@@ -167,9 +157,8 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
         UBSE_LOG_ERROR << "Rebuild entry: invalid namespaceId(0) for name=" << name;
         return;
     }
-    // 如果有attach的ns，状态为ATTACHED，否则为CREATED
-    // namespaceId == 0 已在前面校验拦截
-    entry.state = isAttached ? UbseSsuNsState::ATTACHED : UbseSsuNsState::CREATED;
+    // 挂载状态由后续将由本地持久化文件记录，不依赖此Rebuild结果，后续添加实现
+    entry.state = UbseSsuNsState::CREATED;
     entry.allocResult = allocResult;
 
     if (!ledger.Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
@@ -181,7 +170,6 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
 {
     auto &ledger = *this;
     std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>> groups;
-    std::set<std::pair<std::string, uint32_t>> attachedNsSet;
 
     for (const auto &dev : devices) {
         for (const auto &ns : dev.nameSpaces) {
@@ -194,9 +182,6 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
             }
             groups[nsName].push_back(&ns);
         }
-        for (const auto &attachInfo : dev.attachInfoList) {
-            attachedNsSet.emplace(dev.subSystem.eid, attachInfo.namespaceId);
-        }
     }
 
     for (const auto &[name, nsList] : groups) {
@@ -207,7 +192,7 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
         // 同一个请求name，来自同一个租户，每个namespace的tenant都应相同
         std::string tenant(nsList[0]->customData.tenant,
                            strnlen(nsList[0]->customData.tenant, sizeof(nsList[0]->customData.tenant)));
-        RebuildEntry(name, nsList, attachedNsSet, ledger, tenant);
+        RebuildEntry(name, nsList, ledger, tenant);
     }
 
     UBSE_LOG_INFO << "Ledger rebuild complete: " << groups.size() << " entries restored";

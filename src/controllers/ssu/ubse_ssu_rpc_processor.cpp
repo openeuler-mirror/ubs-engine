@@ -186,6 +186,46 @@ static bool IsStatusTransitionValid(UbseSsuNsState from, UbseSsuNsState to)
     return from == UbseSsuNsState::ATTACHED && to == UbseSsuNsState::CREATED;
 }
 
+// NORMAL策略多节点共挂：对账式处理节点级上报。
+// 返回true表示已消化该上报（账本被修改）；false表示拒收（nodeId缺失/状态非法/不支持的上报类型）
+static bool ApplyPerNodeReconcile(UbseSsuLedgerEntry &e, const UbseSsuStatusUpdateReq &statusReq)
+{
+    if (statusReq.nodeId.empty()) {
+        // nodeId是per-node对账的主键，缺失时拒收（agent端必传，属防御）
+        UBSE_LOG_ERROR << "StatusUpdate: empty nodeId, name=" << statusReq.requestName;
+        return false;
+    }
+    // 白名单式校验：仅ATTACHED/CREATED可接受节点级上报。
+    // NORMAL空间不存在ATTACHING（无置位路径），CREATING/IDLE及未来新增状态一律拒绝
+    if (e.state != UbseSsuNsState::ATTACHED && e.state != UbseSsuNsState::CREATED) {
+        UBSE_LOG_WARN << "StatusUpdate: invalid state, name=" << statusReq.requestName
+                      << ", state=" << static_cast<int>(e.state);
+        return false;
+    }
+    if (statusReq.state == UbseSsuNsState::ATTACHED) {
+        if (e.attachNodes.insert(statusReq.nodeId).second) {
+            UBSE_LOG_INFO << "StatusUpdate: node attached, name=" << statusReq.requestName
+                          << ", nodeId=" << statusReq.nodeId << ", attachedNodes=" << e.attachNodes.size();
+        }
+        e.state = UbseSsuNsState::ATTACHED;
+    } else if (statusReq.state == UbseSsuNsState::CREATED) {
+        if (e.attachNodes.erase(statusReq.nodeId) == 0) {
+            // Rebuild后map为空或重复上报，仍需消化：本节点卸载属实，不能拒绝
+            UBSE_LOG_WARN << "StatusUpdate: node not in attachNodes, name=" << statusReq.requestName
+                          << ", nodeId=" << statusReq.nodeId;
+        }
+        // 仅最后一个节点卸载后才回退空间级state，其余节点仍挂载时保持ATTACHED
+        if (e.attachNodes.empty()) {
+            e.state = UbseSsuNsState::CREATED;
+        }
+    } else {
+        UBSE_LOG_WARN << "StatusUpdate: unsupported state for per-node reconcile, name="
+                      << statusReq.requestName << ", state=" << static_cast<int>(statusReq.state);
+        return false;
+    }
+    return true;
+}
+
 // handler: master端处理来自agent端的SSU状态更新请求，更新账本
 static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
 {
@@ -199,16 +239,28 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
     bool modified = false;
     UbseSsuNsState fromState;
     UBSE_LOG_INFO << "Received ssu status update, requestId=" << statusReq.requestName
-                  << ", state=" << static_cast<int>(statusReq.state);
+                  << ", state=" << static_cast<int>(statusReq.state) << ", nodeId=" << statusReq.nodeId;
     if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq, &modified,
                                                                          &fromState](UbseSsuLedgerEntry &e) {
             fromState = e.state;
+            // NORMAL多节点共挂 ：对账式处理节点级上报。
+            if (e.allocReq.strategy == UbseSsuAllocStrategy::NORMAL) {
+                modified = ApplyPerNodeReconcile(e, statusReq);
+                return;
+            }
+            // LINEAR/STRIPED独占挂载：保持原有空间级状态机，并按上报nodeId维护attachNodes（attacher记录，至多1个元素），
+            // 供verify强校验当前节点是否为attacher
             if (!IsStatusTransitionValid(e.state, statusReq.state)) {
                 UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
                               << ", from=" << static_cast<int>(e.state) << ", to=" << static_cast<int>(statusReq.state);
                 return;
             }
             e.state = statusReq.state;
+            if (statusReq.state == UbseSsuNsState::ATTACHED) {
+                e.attachNodes.insert(statusReq.nodeId);
+            } else if (statusReq.state == UbseSsuNsState::CREATED) {
+                e.attachNodes.erase(statusReq.nodeId);
+            }
             // 同步上报的聚合块设备名（attach成功时由agent携带，非空才覆盖）。
             // 上报值会拼接为/dev/ssu/{devName}路径，需过白名单校验防路径穿越（agent为可信节点，属纵深防御）。
             // detach（state==CREATED）后聚合块设备仅 Stop 保留元数据，devName 不再清空，
@@ -341,6 +393,7 @@ static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t
     UbseSsuAttachDetachVerifyResp respData;
     respData.requestId = verifyReq.requestId;
     auto ret = UbseSsuServiceImp::GetInstance().VerifyAttachDetachPrecondition(verifyReq.name, verifyReq.identityInfo,
+                                                                               verifyReq.requestNodeId,
                                                                                verifyReq.option, respData);
     respData.errorCode = ret;
     if (ret == UBSE_OK) {

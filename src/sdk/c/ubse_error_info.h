@@ -65,6 +65,8 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
         &(ubs_error_info_t){"UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE", "Namespace already attached, detach before free"},
     [UBS_ENGINE_ERR_SSU_STRATEGY_MISMATCH - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBSE_SSU_ERROR_STRATEGY_MISMATCH", "Allocation strategy does not match attach/detach strategy"},
+    [UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_ATTACHER_MISMATCH", "Space is attached by another node, current node is not allowed to operate"},
 };
 
 #ifdef __cplusplus

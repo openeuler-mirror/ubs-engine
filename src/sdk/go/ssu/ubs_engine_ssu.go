@@ -290,6 +290,9 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error {
 //
 // 将指定的存储空间挂载到系统，使其可被主机访问。
 //
+// 对应NORMAL分配策略，支持多节点共享挂载：多个节点可同时挂载同一空间的裸命名空间设备，
+// 其他节点已挂载不影响本节点挂载；仅本节点重复挂载返回errcode.ErrAlreadyAttached。
+//
 // 参数：
 //   - req: 挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name和源EID
 //
@@ -321,6 +324,9 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
 //
 // 将指定的存储空间从系统卸载，释放设备占用。
 //
+// 对应NORMAL分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，
+// 仅当最后一个节点卸载后空间才回退为未挂载状态。
+//
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name和源EID
 //
@@ -338,6 +344,9 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
 // UbsSsuAttachLinearSpace 挂载线性编址的存储空间
 //
 // 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
+//
+// 对应LINEAR分配策略，独占挂载：同一时间仅允许一个节点挂载。仅attacher节点重复挂载返回
+// errcode.ErrAlreadyAttached；空间被其他节点挂载时返回errcode.ErrSsuAttacherMismatch。
 //
 // 参数：
 //   - req: 挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
@@ -371,6 +380,9 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 //
 // 将线性聚合的块设备卸载并释放。
 //
+// 对应LINEAR分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载返回
+// errcode.ErrSsuAttacherMismatch。
+//
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
@@ -388,6 +400,9 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
 // UbsSsuAttachStripedSpace 挂载条带化编址的存储空间
 //
 // 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，支持RAID0和RAID5两种级别。
+//
+// 对应STRIPED分配策略，独占挂载：同一时间仅允许一个节点挂载。仅attacher节点重复挂载返回
+// errcode.ErrAlreadyAttached；空间被其他节点挂载时返回errcode.ErrSsuAttacherMismatch。
 //
 // 参数：
 //   - req: 条带化挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID、
@@ -421,6 +436,9 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 // UbsSsuDetachStripedSpace 卸载条带化编址的存储空间
 //
 // 将条带化聚合的块设备卸载并释放。
+//
+// 对应STRIPED分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载返回
+// errcode.ErrSsuAttacherMismatch。
 //
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称

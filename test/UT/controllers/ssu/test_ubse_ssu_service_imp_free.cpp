@@ -158,11 +158,18 @@ void TestUbseSsuServiceImpFree::SetUp()
     ResetFreeMockState();
     SetupFreeAdapterFuncs();
 
-    // Mock UbseGetStr to return a fake admin NQN (needed by adapter's GetAdminNqn)
+    // Mock UbseGetStr to return a fake admin NQN (needed by adapter's GetAdminNqn).
+    // 使用 returnValue + outBound 替代 invoke(MockUbseGetStr)：
+    // mockcpp 的 invoke() stub (ProcStub) 内部有共享 Any 成员，并发调用会触发
+    // result = func(...) 的并发 new/delete，导致堆破坏
+    // (malloc(): unaligned tcache chunk detected)。
+    // ReturnStub 返回构造时固化的稳定 Any，OutBound 通过 changeValue 写调用方
+    // 的每线程出参，二者均无共享可变状态，可安全用于并发测试用例。
     MOCKER_CPP(&ubse::config::UbseGetStr)
         .stubs()
-        .with(mockcpp::any(), mockcpp::any(), mockcpp::any())
-        .will(invoke(MockUbseGetStr));
+        .with(mockcpp::any(), mockcpp::any(),
+              mockcpp::outBound(std::string("nqn.2024-01.org.nvmexpress:uuid:mck-admin-nqn")))
+        .will(returnValue(static_cast<uint32_t>(UBSE_OK)));
 }
 
 void TestUbseSsuServiceImpFree::TearDown()

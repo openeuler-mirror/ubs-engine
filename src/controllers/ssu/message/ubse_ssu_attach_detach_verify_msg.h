@@ -55,8 +55,8 @@ struct UbseSsuAttachDetachVerifyReq {
 struct UbseSsuAttachDetachVerifyResp {
     std::string requestId;
     uint32_t errorCode{0};
-    bool alreadyAttached{false}; // attach幂等：master校验state==ATTACHED时置true，agent端无需实际attach
-    bool alreadyDetached{false}; // detach幂等：master校验state==CREATED时置true，agent端无需实际detach
+    bool alreadyAttached{false}; // attach重复：master校验本节点已挂载时置true，回填devPath后返回UBSE_ERR_ALREADY_ATTACHED
+    bool alreadyDetached{false}; // detach重复：master校验本节点未挂载时置true，返回UBSE_ERR_NO_NEED_DETACH
     std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
     // agent无本地账本，attach/detach时需从这里获取namespace列表
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList;

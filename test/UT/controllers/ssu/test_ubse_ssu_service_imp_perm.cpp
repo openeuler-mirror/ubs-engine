@@ -482,7 +482,8 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_Success)
     ubse::ssu::message::UbseSsuAttachDetachVerifyOption option;
     option.expectedStrategy = UbseSsuAllocStrategy::LINEAR;
     ubse::ssu::message::UbseSsuAttachDetachVerifyResp verifyResp;
-    auto ret = service_.VerifyAttachDetachPrecondition("test_verify_success", MakeIdentity(), option, verifyResp);
+    auto ret = service_.VerifyAttachDetachPrecondition("test_verify_success", MakeIdentity(), "agent_node_1",
+                                                       option, verifyResp);
 
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(verifyResp.nsVerifyList.size(), 2u);
@@ -502,7 +503,8 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NotFound)
 {
     ubse::ssu::message::UbseSsuAttachDetachVerifyOption option;
     ubse::ssu::message::UbseSsuAttachDetachVerifyResp verifyResp;
-    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_not_found", MakeIdentity(), option, verifyResp),
+    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_not_found", MakeIdentity(), "agent_node_1", option,
+                                                      verifyResp),
               UBSE_SSU_ERROR_SPACE_NOT_FOUND);
 }
 
@@ -519,7 +521,8 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NsNotInCache)
     ubse::ssu::message::UbseSsuAttachDetachVerifyOption option;
     option.expectedStrategy = UbseSsuAllocStrategy::LINEAR;
     ubse::ssu::message::UbseSsuAttachDetachVerifyResp verifyResp;
-    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_verify_ns_missing", MakeIdentity(), option, verifyResp),
+    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_verify_ns_missing", MakeIdentity(), "agent_node_1", option,
+                                                      verifyResp),
               UBSE_SSU_ERROR_NS_NOT_FOUND);
 }
 
@@ -537,7 +540,8 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NotMatch)
     ubse::ssu::message::UbseSsuAttachDetachVerifyOption option;
     option.expectedStrategy = UbseSsuAllocStrategy::LINEAR;
     ubse::ssu::message::UbseSsuAttachDetachVerifyResp verifyResp;
-    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_verify_not_match", differentIdentity, option, verifyResp),
+    EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_verify_not_match", differentIdentity, "agent_node_1",
+                                                      option, verifyResp),
               UBSE_ERR_ACCESS_DENIED);
 }
 

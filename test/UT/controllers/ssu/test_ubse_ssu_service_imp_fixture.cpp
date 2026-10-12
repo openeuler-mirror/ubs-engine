@@ -305,7 +305,7 @@ void UbseSsuServiceImpTestBase::SetUp()
     // Default: UbseGetRole returns Master, other election APIs succeed
     MOCKER_CPP(&UbseGetRole).stubs().will(invoke(MockGetRole_Master));
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(invoke(MockGetCurrentNodeInfo_Master));
 }
 
 void UbseSsuServiceImpTestBase::TearDown()
@@ -322,6 +322,12 @@ void UbseSsuServiceImpTestBase::TearDown()
 uint32_t UbseSsuServiceImpTestBase::MockGetRole_Master(std::string &role)
 {
     role = ELECTION_ROLE_MASTER;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuServiceImpTestBase::MockGetCurrentNodeInfo_Master(UbseRoleInfo &info)
+{
+    info.nodeId = "master_node_1";
     return UBSE_OK;
 }
 
@@ -430,12 +436,14 @@ void UbseSsuServiceImpTestBase::PopulateCollectorCache(const std::vector<UbseSsu
 // -----------------------------------------------------------------------
 
 void UbseSsuServiceImpTestBase::PutLedgerEntry(const std::string &name, UbseSsuNsState state,
-                                               const UbseSsuAllocResult &result)
+                                               const UbseSsuAllocResult &result,
+                                               const std::unordered_set<std::string> &attachNodes)
 {
     auto entry = std::make_shared<UbseSsuLedgerEntry>();
     entry->name = name;
     entry->state = state;
     entry->allocResult = result;
+    entry->attachNodes = attachNodes;
     UbseSsuDebtLedger::GetInstance().Put(name, entry);
 }
 
@@ -614,7 +622,7 @@ void SetupAgentRoleAndRpcSuccess(
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseGetCurrentNodeInfo).reset();
-    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(invoke(UbseSsuServiceImpTestBase::MockGetCurrentNodeInfo_Master));
     MOCKER(&UbseRpcEndpointFactory::GetRpcEndpoint).reset();
     MOCKER(&UbseRpcEndpointFactory::GetRpcEndpoint).stubs().will(returnValue(std::make_shared<UbseRpcEndpoint>()));
     MOCKER_CPP(&UbseRpcEndpoint::UbseRpcSend).reset();
@@ -628,7 +636,7 @@ void SetupAgentRoleAndRpcFail()
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseGetCurrentNodeInfo).reset();
-    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(invoke(UbseSsuServiceImpTestBase::MockGetCurrentNodeInfo_Master));
     MOCKER(&UbseRpcEndpointFactory::GetRpcEndpoint).reset();
     MOCKER(&UbseRpcEndpointFactory::GetRpcEndpoint).stubs().will(returnValue(std::make_shared<UbseRpcEndpoint>()));
     MOCKER_CPP(&UbseRpcEndpoint::UbseRpcSend).reset();

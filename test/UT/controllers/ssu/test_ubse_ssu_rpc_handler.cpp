@@ -63,6 +63,17 @@ void TestUbseSsuRpcHandler::PutLedgerEntry(const std::string &name, UbseSsuNsSta
     UbseSsuDebtLedger::GetInstance().Put(name, entry);
 }
 
+void TestUbseSsuRpcHandler::PutLedgerEntry(const std::string &name, UbseSsuNsState state, UbseSsuAllocStrategy strategy,
+                                           const std::unordered_set<std::string> &attachNodes)
+{
+    UbseSsuLedgerEntry entry{};
+    entry.name = name;
+    entry.allocReq.strategy = strategy;
+    entry.state = state;
+    entry.attachNodes = attachNodes;
+    UbseSsuDebtLedger::GetInstance().Put(name, std::make_shared<const UbseSsuLedgerEntry>(entry));
+}
+
 void TestUbseSsuRpcHandler::CleanupLedger()
 {
     auto allEntries = UbseSsuDebtLedger::GetInstance().GetAll();
@@ -266,6 +277,140 @@ TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_InvalidTransitionCreatedToCre
     auto entry = UbseSsuDebtLedger::GetInstance().Get("test_ns");
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(entry->state, UbseSsuNsState::CREATED);
+}
+
+// ========================================================================
+// 2.1 HandleStatusReceiver — NORMAL策略多节点对账
+// ========================================================================
+
+// NORMAL：节点A attach成功上报 → attachNodes记录A，空间state=ATTACHED
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalAttachNodeA)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::CREATED, UbseSsuAllocStrategy::NORMAL);
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::ATTACHED, "", "node_a");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_OK);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
+    EXPECT_NE(entry->attachNodes.find("node_a"), entry->attachNodes.end());
+}
+
+// NORMAL：节点B在节点A挂载时也attach → 两节点共存，空间保持ATTACHED
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalMultiNodeAttach)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::ATTACHED, UbseSsuAllocStrategy::NORMAL, {"node_a"});
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::ATTACHED, "", "node_b");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_OK);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
+    EXPECT_EQ(entry->attachNodes.size(), 2u);
+    EXPECT_NE(entry->attachNodes.find("node_a"), entry->attachNodes.end());
+    EXPECT_NE(entry->attachNodes.find("node_b"), entry->attachNodes.end());
+}
+
+// NORMAL：节点A detach但节点B仍挂载 → 移除A，空间保持ATTACHED
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalDetachOneOfTwo)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::ATTACHED, UbseSsuAllocStrategy::NORMAL, {"node_a", "node_b"});
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::CREATED, "", "node_a");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_OK);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED); // B仍挂载，空间保持ATTACHED
+    EXPECT_EQ(entry->attachNodes.size(), 1u);
+    EXPECT_EQ(entry->attachNodes.count("node_a"), 0u);
+    EXPECT_NE(entry->attachNodes.find("node_b"), entry->attachNodes.end());
+}
+
+// NORMAL：最后一个节点detach → 空间回退CREATED
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalDetachLastNode)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::ATTACHED, UbseSsuAllocStrategy::NORMAL, {"node_b"});
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::CREATED, "", "node_b");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_OK);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::CREATED);
+    EXPECT_TRUE(entry->attachNodes.empty());
+}
+
+// NORMAL：节点不在attachNodes中（Rebuild后map为空）的CREATED上报仍消化，不拒绝
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalDetachNodeNotInMap)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::ATTACHED, UbseSsuAllocStrategy::NORMAL, {});
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::CREATED, "", "node_unknown");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_OK);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::CREATED);
+    EXPECT_TRUE(entry->attachNodes.empty());
+}
+
+// NORMAL：nodeId缺失 → 拒收（对账主键不可为空）
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalEmptyNodeIdRejected)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::CREATED, UbseSsuAllocStrategy::NORMAL);
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::ATTACHED);
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_SSU_ERROR_STATE_INVALID);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::CREATED);
+    EXPECT_TRUE(entry->attachNodes.empty());
+}
+
+// NORMAL：CREATING状态拒收attach上报（分配仍在途）
+TEST_F(TestUbseSsuRpcHandler, HandleStatusReceiver_NormalCreatingRejected)
+{
+    PutLedgerEntry("test_normal", UbseSsuNsState::CREATING, UbseSsuAllocStrategy::NORMAL);
+    UbseSsuStatusReqMsg reqMsg("test_normal", UbseSsuNsState::ATTACHED, "", "node_a");
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleStatusReceiver(sd.data.get(), sd.size, resp);
+    ASSERT_NE(resp, nullptr);
+    auto syncResp = dynamic_cast<UbseSsuSyncRespMsg *>(resp.get());
+    ASSERT_NE(syncResp, nullptr);
+    EXPECT_EQ(syncResp->GetErrorCode(), UBSE_SSU_ERROR_STATE_INVALID);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_normal");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::CREATING);
+    EXPECT_TRUE(entry->attachNodes.empty());
 }
 
 // ========================================================================

@@ -18,6 +18,7 @@
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "ubse_ssu_def.h"
 #include "ubse_ssu_service.h"
@@ -30,8 +31,10 @@ struct UbseSsuLedgerEntry {
     std::string name;
     std::string devName; // 聚合块设备名称，attach成功时写入；重启暂时无法恢复，待后续可靠性设计补充本地attach持久化功能
     UbseSsuAllocSpaceReq allocReq;
-    UbseSsuNsState state{UbseSsuNsState::IDLE}; // 后续可能改为每个namespace对应状态，先不改
+    UbseSsuNsState state{UbseSsuNsState::IDLE}; // 空间级聚合状态：任一节点挂载为ATTACHED，全部卸载为CREATED
     UbseSsuAllocResult allocResult;
+    // NORMAL策略：多节点共挂记录（key为节点nodeId）；LINEAR/STRIPED独占策略：attacher记录（至多1个元素），供verify强校验
+    std::unordered_set<std::string> attachNodes;
 };
 
 class UbseSsuDebtLedger {

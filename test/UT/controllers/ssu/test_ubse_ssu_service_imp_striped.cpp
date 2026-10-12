@@ -363,6 +363,7 @@ TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_DevNameMismatch)
     entry->devName = "md_ledger"; // attach时写入账本的权威值
     entry->state = UbseSsuNsState::ATTACHED;
     entry->allocResult = result;
+    entry->attachNodes = {"master_node_1"}; // 独占策略attach/detach强校验attacher
     UbseSsuDebtLedger::GetInstance().Put(entry->name, entry);
 
     auto identity = MakeIdentity();

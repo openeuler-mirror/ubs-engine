@@ -65,7 +65,7 @@ from ubse.ffi.ubs_engine_exceptions import (
     UbsEngineConnectionError,
     UbsEngineTimeoutError, UbsEngineInternalError, UbsErrInvalidArg,
     UbsEngineNotExistError, UbsEngineAllocateError,
-    UbsEngineAlreadyAttachedError,
+    UbsEngineAlreadyAttachedError, UbsEngineAttacherMismatchError,
 )
 from ubse.ipc.ubs_engine_ipc import UBSE_IPC_SOCKET_PATH
 from ubse.models.ubs_engine_model_ssu import (
@@ -80,8 +80,9 @@ from ubse import ubs_engine_ssu
 def print_alloc_result(result: UbsSsuAllocResult):
     logger.info(f"  name={result.name}, strategy={result.strategy.value}, namespace_cnt={len(result.namespaces)}")
     for ns in result.namespaces:
-        logger.info(f"    ns_id={ns.namespace_id}, path={ns.ns_dev_path}, "
-                     f"size={ns.ns_size}, lba={ns.lba_format.value}, uuid={ns.ns_uuid}")
+        logger.info(f"    tgt_eid={ns.tgt_eid}, tgt_nqn={ns.tgt_nqn}, uuid={ns.ns_uuid}, "
+                     f"ns_id={ns.namespace_id}, path={ns.ns_dev_path}, size={ns.ns_size}, "
+                     f"lba={ns.lba_format.value}, allow_host_nqn_list={ns.allow_host_nqn_list}")
  
  
 def print_connect_info(info: UbsSsuConnectInfo):
@@ -165,6 +166,9 @@ class UbseSsuTestPython(cmd.Cmd):
             # 重复挂载场景，服务端依然返回已挂载的设备路径，输出异常携带的data
             logger.warning(f"Already attached: {ex}")
             logger.info(f"Attached device data: {ex.data}")
+        elif isinstance(ex, UbsEngineAttacherMismatchError):
+            # 独占策略空间被其他节点挂载，当前节点无权挂载/卸载
+            logger.error(f"Attacher mismatch: {ex}")
         elif isinstance(ex, UbsEngineTimeoutError):
             logger.error(f"Timeout: {ex}")
         elif isinstance(ex, UbsEngineInternalError):
