@@ -143,6 +143,10 @@ int32_t GetProcUid(pid_t pid);
 
 std::optional<bool> ReadNumaRemoteAttr(uint32_t numaId);
 
+// 读取进程 NUMA 绑定快照: numa_maps 各 VMA 策略 token(bind/interleave/prefer)
+// + /proc/<pid>/status 的 cpuset Mems_allowed_list; 进程不存在/读取失败返回 nullopt
+std::optional<def::NumaBindingInfo> ReadProcessNumaBinding(pid_t pid);
+
 } // namespace process_mem::collect
 
 #endif

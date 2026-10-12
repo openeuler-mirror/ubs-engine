@@ -459,13 +459,30 @@ void ProcessMemPidInfoManager::RebuildManagedPidCache()
     RebuildMergePidConfigs(configSnapshot);
     std::vector<std::pair<pid_t, const def::ProcessMemNewConfigInfo*>> toFossilize;
     RebuildMergeNameConfigs(configSnapshot, toFossilize);
-
     lock.unlock();
+
     for (const auto& [pid, cfg] : toFossilize) {
         (void)FossilizePidConfig(pid, cfg->identifier, cfg->maxMemory, cfg->remoteRatio, false);
     }
 
     RebuildMergeFossils();
+
+    // 新纳入管理的 pid(fossil 合入前已做存活清理, 保留的均为活进程); 收集后放锁外做
+    // NUMA 绑定检测(/proc 文件读取)
+    std::vector<pid_t> newlyManaged;
+    {
+        std::shared_lock<std::shared_mutex> collectLock(managedPidCacheMutex_);
+        for (const auto& [pid, entry] : managedPidCache_) {
+            if (oldCache.find(pid) == oldCache.end()) {
+                newlyManaged.push_back(pid);
+            }
+        }
+    }
+    std::map<pid_t, std::optional<def::NumaBindingInfo>> newBindings;
+    for (pid_t pid : newlyManaged) {
+        newBindings[pid] = collect::ReadProcessNumaBinding(pid);
+    }
+
     std::unique_lock<std::shared_mutex> finalLock(managedPidCacheMutex_);
     for (auto& [pid, entry] : managedPidCache_) {
         auto it = oldCache.find(pid);
@@ -476,6 +493,12 @@ void ProcessMemPidInfoManager::RebuildManagedPidCache()
             entry.lastMigrateTime = it->second.lastMigrateTime;
             entry.isChild = it->second.isChild;
             entry.parentPid = it->second.parentPid;
+            entry.numaBinding = std::move(it->second.numaBinding);
+            continue;
+        }
+        auto bindingIt = newBindings.find(pid);
+        if (bindingIt != newBindings.end() && !entry.numaBinding.has_value()) {
+            entry.numaBinding = std::move(bindingIt->second);
         }
     }
     UBSE_LOG_INFO << "RebuildManagedPidCache: built " << managedPidCache_.size() << " entries";
@@ -571,7 +594,10 @@ void ProcessMemPidInfoManager::AddNameSourceToManagedPid(pid_t pid, const std::s
         std::shared_lock<std::shared_mutex> lock(managedPidCacheMutex_);
         isNew = (managedPidCache_.find(pid) == managedPidCache_.end());
     }
+    std::optional<def::NumaBindingInfo> binding;
     if (isNew) {
+        // NUMA 绑定检测与 fossil 落盘均为 I/O, 放锁外; 并发下条目已被插入则本次读取自然丢弃
+        binding = collect::ReadProcessNumaBinding(pid);
         (void)FossilizePidConfig(pid, name, maxMemory, remoteRatio, false);
     }
 
@@ -584,6 +610,7 @@ void ProcessMemPidInfoManager::AddNameSourceToManagedPid(pid_t pid, const std::s
         entry.nameConfigName = name;
         entry.maxMemory = maxMemory;
         entry.remoteRatio = remoteRatio;
+        entry.numaBinding = std::move(binding);
         managedPidCache_[pid] = entry;
     } else {
         it->second.sources |= static_cast<uint8_t>(def::ConfigSource::NAME_CONFIG);
@@ -605,6 +632,8 @@ void ProcessMemPidInfoManager::AddChildSourceToManagedPid(pid_t childPid, pid_t 
     auto it = managedPidCache_.find(childPid);
     if (it == managedPidCache_.end()) {
         lock.unlock();
+        // NUMA 绑定检测与 fossil 落盘均为 I/O, 放锁外; 并发下条目已被插入则本次读取自然丢弃
+        auto binding = collect::ReadProcessNumaBinding(childPid);
         uint32_t fosRet = FossilizePidConfig(childPid, "", maxMemory, remoteRatio, true);
         lock.lock();
         if (managedPidCache_.find(childPid) != managedPidCache_.end()) {
@@ -614,6 +643,7 @@ void ProcessMemPidInfoManager::AddChildSourceToManagedPid(pid_t childPid, pid_t 
         entry.pid = childPid;
         entry.parentPid = parentPid;
         entry.isChild = true;
+        entry.numaBinding = std::move(binding);
         if (fosRet == UBSE_OK) {
             entry.sources = static_cast<uint8_t>(def::ConfigSource::PID_CONFIG);
             entry.maxMemory = maxMemory;
@@ -704,11 +734,13 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
             }
             reusedPids.push_back(pid);
             UBSE_LOG_WARN << "[process_mem] pid=" << pid << " reused (startTime " << it->second.startTime << " -> "
-                          << curStart << "), reset stale borrow ledger for new process";
+                          << curStart << "), reset stale borrow ledger and re-detect numa binding for new process";
             reusedLedgers[pid] = it->second.borrow.slots;
             it->second.borrow = def::BorrowState{};
             it->second.processStatus = def::ProcessStatus::IDLE;
             it->second.lastMigrateTime = {};
+            // 新进程可能改用不同绑定: 复用分支冷路径, 同 GetExactStartTime 一样在锁内读 /proc
+            it->second.numaBinding = collect::ReadProcessNumaBinding(pid);
             it->second.startTime = curStart;
         }
     }

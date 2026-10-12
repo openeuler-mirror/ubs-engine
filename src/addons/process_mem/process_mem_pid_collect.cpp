@@ -807,6 +807,206 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistribution(
     return UBSE_OK;
 }
 
+// 解析内核节点列表格式 "0-1,3" (%*pbl 输出): 区间合法性 + 总量上限保护, 防脏行放大
+bool ParseNumaListString(const std::string& text, std::vector<uint32_t>& nodes)
+{
+    constexpr uint32_t kMaxParsedNumaNum = 1024;
+    std::vector<uint32_t> parsed;
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t comma = text.find(',', pos);
+        std::string item = text.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        size_t dash = item.find('-');
+        uint64_t begin = 0;
+        uint64_t end = 0;
+        try {
+            begin = std::stoull(item.substr(0, dash));
+            end = (dash == std::string::npos) ? begin : std::stoull(item.substr(dash + 1));
+        } catch (const std::exception&) {
+            return false;
+        }
+        if (end < begin || end - begin + 1 > kMaxParsedNumaNum ||
+            parsed.size() + (end - begin + 1) > kMaxParsedNumaNum) {
+            return false;
+        }
+        for (uint64_t n = begin; n <= end; ++n) {
+            parsed.push_back(static_cast<uint32_t>(n));
+        }
+        if (comma == std::string::npos) {
+            break;
+        }
+        pos = comma + 1;
+    }
+    if (parsed.empty()) {
+        return false;
+    }
+    nodes = std::move(parsed);
+    return true;
+}
+
+// 扫描 numa_maps 单行的策略 token: bind[:=flags]:list / interleave[:=flags]:list / prefer:N;
+// v5.15+ MPOL_PREFERRED_MANY 渲染为 "prefer (many):list" 两 token, 此处归一处理;
+// 行内多策略不一致或列表解析失败 → MIXED(节点保留首见), 无策略 token → nullopt
+std::optional<def::NumaBindingKind> ScanNumaMapsPolicyLine(const std::vector<std::string>& tokens,
+                                                           std::vector<uint32_t>& nodes)
+{
+    std::optional<def::NumaBindingKind> kind;
+    bool mixed = false;
+    nodes.clear();
+    auto apply = [&kind, &mixed, &nodes](def::NumaBindingKind curKind, const std::vector<uint32_t>& curNodes) {
+        if (mixed) {
+            return;
+        }
+        if (!kind.has_value()) {
+            kind = curKind;
+            nodes = curNodes;
+        } else if (*kind != curKind || nodes != curNodes) {
+            mixed = true;
+        }
+    };
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        std::string token = tokens[i];
+        if (token == "prefer" && i + 1 < tokens.size() && tokens[i + 1].compare(0, 7, "(many):") == 0) {
+            token = "prefer:" + tokens[i + 1].substr(7);
+            ++i;
+        }
+        size_t colon = token.find(':');
+        if (colon == std::string::npos) {
+            continue; // default/local/huge/地址/N<id>=/anon= 等中性 token
+        }
+        std::string mode = token.substr(0, colon);
+        size_t eq = mode.find('=');
+        if (eq != std::string::npos) {
+            mode = mode.substr(0, eq); // bind=relative:0-1 的 flags 后缀
+        }
+        def::NumaBindingKind curKind;
+        if (mode == "bind") {
+            curKind = def::NumaBindingKind::BIND;
+        } else if (mode == "interleave") {
+            curKind = def::NumaBindingKind::INTERLEAVE;
+        } else if (mode == "prefer" || mode == "prefer-many") {
+            curKind = def::NumaBindingKind::PREFER;
+        } else {
+            continue; // file=/N0=/mapped= 等非策略 token
+        }
+        std::vector<uint32_t> curNodes;
+        // 防御: 旧内核 prefer:many 表示未指定节点的软偏好, 节点集留空
+        if (curKind != def::NumaBindingKind::PREFER || token.substr(colon + 1) != "many") {
+            if (!ParseNumaListString(token.substr(colon + 1), curNodes)) {
+                mixed = true; // 策略存在但列表不可解析: 保守记未知
+                continue;
+            }
+        }
+        apply(curKind, curNodes);
+    }
+    if (mixed) {
+        return def::NumaBindingKind::MIXED;
+    }
+    return kind;
+}
+
+const char* NumaBindingKindName(def::NumaBindingKind kind)
+{
+    switch (kind) {
+        case def::NumaBindingKind::NONE:
+            return "none";
+        case def::NumaBindingKind::BIND:
+            return "bind";
+        case def::NumaBindingKind::INTERLEAVE:
+            return "interleave";
+        case def::NumaBindingKind::PREFER:
+            return "prefer";
+        case def::NumaBindingKind::MIXED:
+            return "mixed";
+        default:
+            return "unknown";
+    }
+}
+
+std::string NumaListToString(const std::vector<uint32_t>& nodes)
+{
+    std::string out;
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        if (i != 0) {
+            out += ",";
+        }
+        out += std::to_string(nodes[i]);
+    }
+    return out.empty() ? "-" : out;
+}
+
+// 读取进程 NUMA 绑定快照: numa_maps 各 VMA 策略 token + cpuset Mems_allowed_list;
+// 进程不存在/numa_maps 不可读返回 nullopt(纳管流程对读取失败不敏感)
+std::optional<def::NumaBindingInfo> ReadProcessNumaBinding(pid_t pid)
+{
+    std::string numaMapsPath = "/proc/" + std::to_string(pid) + "/numa_maps";
+    std::ifstream file(numaMapsPath);
+    if (!file.is_open()) {
+        UBSE_LOG_DEBUG << "[process_mem] pid=" << pid << " read numa binding failed: cannot open " << numaMapsPath;
+        return std::nullopt;
+    }
+
+    def::NumaBindingInfo info{};
+    std::optional<def::NumaBindingKind> accKind;
+    std::string line;
+    while (std::getline(file, line)) {
+        std::vector<std::string> tokens;
+        std::istringstream iss(line);
+        std::string token;
+        while (iss >> token) {
+            tokens.push_back(token);
+        }
+        std::vector<uint32_t> lineNodes;
+        auto lineKind = ScanNumaMapsPolicyLine(tokens, lineNodes);
+        if (!lineKind.has_value()) {
+            continue;
+        }
+        if (!accKind.has_value()) {
+            accKind = lineKind;
+            info.policyNodes = std::move(lineNodes);
+            continue;
+        }
+        if (*accKind == def::NumaBindingKind::MIXED || *lineKind == def::NumaBindingKind::MIXED ||
+            *accKind != *lineKind || info.policyNodes != lineNodes) {
+            accKind = def::NumaBindingKind::MIXED; // 保留首见节点集
+        }
+    }
+    file.close();
+    info.kind = accKind.value_or(def::NumaBindingKind::NONE);
+
+    constexpr size_t kMemsAllowedListPrefixLen = 18;
+    std::ifstream statusFile("/proc/" + std::to_string(pid) + "/status");
+    if (statusFile.is_open()) {
+        std::string statusLine;
+        while (std::getline(statusFile, statusLine)) {
+            if (statusLine.compare(0, kMemsAllowedListPrefixLen, "Mems_allowed_list:") != 0) {
+                continue;
+            }
+            std::string value = statusLine.substr(kMemsAllowedListPrefixLen);
+            size_t valueBegin = value.find_first_not_of(" \t");
+            value = (valueBegin == std::string::npos) ? "" : value.substr(valueBegin);
+            if (value.empty()) {
+                info.memsAllowedKnown = true; // 空列表: 允许集为空(理论不出现)
+            } else if (ParseNumaListString(value, info.memsAllowed)) {
+                info.memsAllowedKnown = true;
+            }
+            break;
+        }
+        statusFile.close();
+    }
+
+    if (info.kind != def::NumaBindingKind::NONE) {
+        UBSE_LOG_INFO << "[process_mem] pid=" << pid
+                      << " numa binding captured: kind=" << NumaBindingKindName(info.kind)
+                      << " policy_nodes=" << NumaListToString(info.policyNodes)
+                      << " mems_allowed=" << (info.memsAllowedKnown ? NumaListToString(info.memsAllowed) : "unknown");
+    } else {
+        UBSE_LOG_DEBUG << "[process_mem] pid=" << pid << " numa binding captured: unbound mems_allowed="
+                       << (info.memsAllowedKnown ? NumaListToString(info.memsAllowed) : "unknown");
+    }
+    return info;
+}
+
 namespace {
 struct ProcVmaRange {
     uint64_t start{0};
