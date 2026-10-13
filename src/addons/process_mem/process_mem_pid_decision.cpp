@@ -273,11 +273,28 @@ uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes
     if (totalBytes == 0) {
         return UINT64_MAX;
     }
-    if (srcBytes == 0) {
-        return 0;
+    uint64_t residentBytes = 0;
+    if (srcBytes != 0) {
+        // 分布值为字节数, 字节×字节中间积≈VmRSS², 须用 128 位中间量防 uint64 回绕
+        residentBytes = static_cast<uint64_t>(static_cast<__uint128_t>(vmRssBytes) * srcBytes / totalBytes);
     }
-    // 分布值为字节数, 字节×字节中间积≈VmRSS², 须用 128 位中间量防 uint64 回绕
-    return static_cast<uint64_t>(static_cast<__uint128_t>(vmRssBytes) * srcBytes / totalBytes);
+    std::vector<std::pair<uint32_t, size_t>> distSorted(dist.begin(), dist.end());
+    std::sort(distSorted.begin(), distSorted.end());
+    std::ostringstream distText;
+    bool firstEntry = true;
+    for (const auto& [numaId, bytes] : distSorted) {
+        if (!firstEntry) {
+            distText << ' ';
+        }
+        firstEntry = false;
+        // 千分比整数拼接一位小数(直接除 10.0 会触发整数除法进浮点上下文的检查告警)
+        uint64_t permille = bytes * 1000 / totalBytes;
+        distText << numaId << ':' << permille / 10 << '.' << permille % 10 << '%';
+    }
+    UBSE_LOG_DEBUG << "[process_mem] borrow sample pid=" << pid << " src_numa=" << srcNumaId
+                   << " estimate_gb=" << BytesToGbDouble(residentBytes) << " valid=" << totalBytes
+                   << " dist=" << distText.str();
+    return residentBytes;
 }
 
 std::string GenerateBorrowName(pid_t pid)
@@ -1118,17 +1135,21 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         UBSE_LOG_WARN << "[process_mem] borrow round=" << ctx.roundNum << " abort: borrow executor not ready";
         return 0;
     }
-    // 按缺口 numa 重排候选: 在该 numa 驻留量大者先(单次迁移填更多缺口); 其次显式绑定该 numa 的进程
-    // 优先(分配集受限, 空出的余量仍会被其持续占用); 再取久未迁移的(stale, 公平防饿死); 其余沿用全局序
+    // 按缺口 numa 构建可用源视图并重排: 在该 numa 驻留量大者先(单次迁移填更多缺口); 其次显式绑定
+    // 该 numa 的进程优先(分配集受限, 空出的余量仍会被其持续占用); 再取久未迁移的(stale, 公平防饿死);
+    // 其余沿用全局序
     struct OrderedCandidate {
         size_t index;
-        uint64_t resident;
+        uint64_t capBytes;
         bool bound;
         bool stale;
     };
     auto now = std::chrono::steady_clock::now();
+    int srcNumaId = shortage.srcNumaId;
+    bool numaCheckable = (srcNumaId >= 0 && srcNumaId < 64);
     std::vector<OrderedCandidate> ordered;
     ordered.reserve(ctx.candidates.size());
+    size_t excludedBound = 0;
     for (size_t i = 0; i < ctx.candidates.size(); ++i) {
         const auto& candidate = ctx.candidates[i];
         // 本轮配额已被先前缺口耗尽: 填充阶段必跳过, 采样前即排除, 避免无效 numa_maps 采样
@@ -1140,22 +1161,35 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         if (canMigrateLeft == 0) {
             continue;
         }
-        // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/驻留未知(UINT64_MAX)不设上限
-        uint64_t resident =
-            EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
-        if (resident == 0) {
+        bool bound = numaCheckable && (candidate.boundNumaMask & (1ULL << srcNumaId)) != 0;
+        // 显式绑定(bind/interleave)进程的页受分配集限制: 绑定集外的 numa 硬准入排除——页不在此,
+        // 迁不动只会占债务容量、在途防线还会少判缺口; 不再依赖采样估计兜底(采样不可用时原会无上限纳入)
+        if (candidate.boundNumaMask != 0 && numaCheckable && !bound) {
+            ++excludedBound;
             continue;
         }
-        bool bound = shortage.srcNumaId >= 0 && shortage.srcNumaId < 64 &&
-                     (candidate.boundNumaMask & (1ULL << shortage.srcNumaId)) != 0;
+        // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/未绑定驻留未知(UINT64_MAX)不设上限
+        uint64_t residency = EstimateNumaResidentBytes(candidate.pid, srcNumaId, candidate.actual, ctx.residenceCache);
+        if (residency == 0) {
+            continue;
+        }
+        uint64_t capBytes = residency;
+        if (bound && residency == UINT64_MAX) {
+            // 绑定集内但采样不可用: 以 vmRss 为回退上限(单 numa 驻留量的真上界), 取代无界语义
+            capBytes = candidate.actual;
+        }
         bool stale = (candidate.lastMigrateTime.time_since_epoch().count() == 0) ||
                      (now - candidate.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
-        ordered.push_back({i, resident, bound, stale});
+        ordered.push_back({i, capBytes, bound, stale});
+    }
+    if (excludedBound > 0) {
+        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << ctx.roundNum << " step=fill src_numa=" << srcNumaId
+                       << " excluded_bound=" << excludedBound;
     }
     std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedCandidate& a, const OrderedCandidate& b) {
         // 驻留未知(UINT64_MAX)无从归因, 排序垫底但仍可参与填充(不设上限)
-        uint64_t aRank = (a.resident == UINT64_MAX) ? 0 : a.resident;
-        uint64_t bRank = (b.resident == UINT64_MAX) ? 0 : b.resident;
+        uint64_t aRank = (a.capBytes == UINT64_MAX) ? 0 : a.capBytes;
+        uint64_t bRank = (b.capBytes == UINT64_MAX) ? 0 : b.capBytes;
         if (aRank != bRank) {
             return aRank > bRank;
         }
@@ -1182,10 +1216,8 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         if (canMigrateLeft == 0) {
             continue;
         }
-        // 驻留量已在候选重排时按同一 numa/同一轮缓存算过, 此处直接复用
-        uint64_t resident = entry.resident;
         uint64_t cap = std::min(canMigrateLeft, shortage.bytes);
-        cap = std::min(cap, resident);
+        cap = std::min(cap, entry.capBytes);
         uint64_t amount = CeilAlignBlock(cap, ctx.blockSizeBytes);
         if (amount == 0) {
             break;

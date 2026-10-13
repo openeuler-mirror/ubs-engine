@@ -29,9 +29,10 @@
 
 namespace process_mem::collect {
 
-// move_pages 采样默认每进程样本数: 精度 ±5% 级 (p=0.3 时 s.e.≈1.5%), 每样本成本
-// 冷页表 ~0.4us / 热页表 ~0.06us, 256 页对大进程一轮 <0.2ms
-inline constexpr size_t kDefaultSamplePages = 256;
+// move_pages 采样默认每进程样本数: 取较大值压低大 VA 进程驻留量的采样假 0 概率
+// (驻留/VA 比低时命中期望小; 命中期望随样本数线性增长); p=0.3 时 s.e.≈1.4%; 每样本成本
+// 冷页表 ~0.4us / 热页表 ~0.06us, 1024 页对大进程一轮 <0.5ms
+inline constexpr size_t kDefaultSamplePages = 1024;
 
 // 本地 numa 内存快照行: 决策层按各本地 numa 自身 MemFree 判缺, 并按其 MemTotal
 // 占本地总内存比例对全局阈值做等比例切分(借用/归还/OOM 逐 numa 判定)
