@@ -243,14 +243,10 @@ uint64_t CeilAlignBlock(uint64_t bytes, uint64_t blockBytes)
     return ((bytes + blockBytes - 1) / blockBytes) * blockBytes;
 }
 
-// 估算 pid 在缺口 numa 上的驻留字节数: move_pages 采样占比 × VmRSS; 采样不可用返回 UINT64_MAX
-// (不设限, 与旧借用一致), 分布无该 numa 驻留返回 0(借了也不缓解该缺口); 同一 pid 一轮至多采样一次
-uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes,
-                                   std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>& residenceCache)
+// 惰性获取 pid 的 numa 驻留分布(值已为 VmRSS 折算字节): 每轮一份缓存, 同一 pid 至多真实采样
+// 一次; 采样失败返回空 map(失败同样入缓存, 本轮不重试, 实现"一轮至多采样一次"节流)
+const std::unordered_map<uint32_t, size_t>& GetPidNumaDistCached(pid_t pid, ResidenceCache& residenceCache)
 {
-    if (srcNumaId < 0) {
-        return UINT64_MAX;
-    }
     auto cacheIt = residenceCache.find(pid);
     if (cacheIt == residenceCache.end()) {
         std::unordered_map<uint32_t, size_t> dist;
@@ -261,7 +257,17 @@ uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes
         }
         cacheIt = residenceCache.emplace(pid, std::move(dist)).first;
     }
-    const auto& dist = cacheIt->second;
+    return cacheIt->second;
+}
+
+// 估算 pid 在缺口 numa 上的驻留字节数: move_pages 采样占比 × VmRSS; 采样不可用返回 UINT64_MAX
+// (不设限, 与旧借用一致), 分布无该 numa 驻留返回 0(借了也不缓解该缺口); 同一 pid 一轮至多采样一次
+uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes, ResidenceCache& residenceCache)
+{
+    if (srcNumaId < 0) {
+        return UINT64_MAX;
+    }
+    const auto& dist = GetPidNumaDistCached(pid, residenceCache);
     uint64_t totalBytes = 0;
     uint64_t srcBytes = 0;
     for (const auto& [numaId, bytes] : dist) {
@@ -691,8 +697,10 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     CheckTimeouts(roundNum);
     RedriveStrandedReturns(roundNum);
 
+    // 采样缓存整轮共用: 判缺准入估计与在途落地观测每 pid 一轮至多采样一次
+    ResidenceCache residenceCache;
     std::vector<NumaShortage> shortages;
-    if (!CollectNumaShortages(roundNum, shortages)) {
+    if (!CollectNumaShortages(roundNum, shortages, residenceCache)) {
         return;
     }
     uint64_t initialTotal = 0;
@@ -729,7 +737,6 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     }
 
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
-    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> residenceCache;
     std::unordered_map<pid_t, uint64_t> borrowedThisRound;
     BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, false};
     ExecuteBorrowRound(ctx, shortages);
@@ -817,7 +824,8 @@ uint32_t ProcessMemPidDecision::OnDecisionTimer()
     return UBSE_OK;
 }
 
-bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages)
+bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages,
+                                                 ResidenceCache& residenceCache)
 {
     shortages.clear();
 
@@ -839,9 +847,9 @@ bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<
     }
 
     // 每 numa 在途借用未落地部分先行扣减防下轮重复借用: BORROWING 槽迁移未落地按源全额记在途;
-    // COMPLETED 槽处于异步迁移窗口(migrate_out 返回≠迁移结束), 未落地部分按远端 numa 实测占用
-    // 逐 dest 建池分摊到各源, 见 BuildPendingUnlandedPerSrc
-    auto pendingPerSrc = BuildPendingUnlandedPerSrc();
+    // COMPLETED 槽处于异步迁移窗口(migrate_out 返回≠迁移结束), 未落地部分按进程视角采样观测
+    // (声明量 − pid@dest 实测)逐 (pid,dest) 建池分摊到各源, 见 BuildPendingUnlandedPerSrc
+    auto pendingPerSrc = BuildPendingUnlandedPerSrc(residenceCache);
 
     for (const auto& [numaId, mem] : *memMap) {
         uint64_t threshold = SplitThresholdToNuma(freeMemoryThresholdBytes_, mem.totalKb, localTotalKb);
@@ -850,10 +858,17 @@ bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<
             continue;
         }
         uint64_t shortage = threshold - freeBytes;
+        uint64_t pendingBytes = 0;
         auto pendingIt = pendingPerSrc.find(static_cast<int>(numaId));
         if (pendingIt != pendingPerSrc.end()) {
-            shortage = (shortage > pendingIt->second) ? (shortage - pendingIt->second) : 0;
+            pendingBytes = pendingIt->second;
+            shortage = (shortage > pendingBytes) ? (shortage - pendingBytes) : 0;
         }
+        // 判缺观测点: 在途扣减后缺口可能为 0(全额抵掉), 仍落日志便于核对扣减
+        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " step=node_check src_numa=" << numaId
+                       << " threshold_gb=" << BytesToGbDouble(threshold) << " free_gb=" << BytesToGbDouble(freeBytes)
+                       << " pending_gb=" << BytesToGbDouble(pendingBytes)
+                       << " shortage_gb=" << BytesToGbDouble(shortage);
         if (shortage == 0) {
             continue;
         }
@@ -865,10 +880,6 @@ bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<
     // 缺口大的 numa 优先处理
     std::sort(shortages.begin(), shortages.end(),
               [](const NumaShortage& a, const NumaShortage& b) { return a.bytes > b.bytes; });
-    for (const auto& shortage : shortages) {
-        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " step=node_check"
-                       << " src_numa=" << shortage.srcNumaId << " shortage_gb=" << BytesToGbDouble(shortage.bytes);
-    }
     return true;
 }
 
@@ -949,18 +960,213 @@ void DistributeNodeLevelUnlanded(uint64_t pendingTotal, uint64_t borrowingDeclar
         }
     }
 }
+
+// 落地观测节流: 同一 pid 至多每 500ms 观测一次, 中间轮沿用上次有效观测
+constexpr uint64_t kObserveIntervalMs = 500;
+// 观测宽限倍数: 超过 3× 该声明量按 128MB 块折算的迁移超时仍无有效观测即锁定释放
+constexpr uint64_t kObserveGraceFactor = 3;
+// 迁移门控收敛容差分母: 声明 − pid@dest 实测在 max(128MB, 声明/分母) 内视为"迁出量符合账本
+// 大概值"。比例项覆盖采样噪声(σ≈VmRSS·√(q(1−q)/S), 最坏 q=0.5 时 σ≈VmRSS/64), 128MB
+// 地板吸收借用块粒度
+constexpr uint64_t kGateConvergeRatioDen = 8;
+
+// 声明量按 128MB 块向上取整(与 CheckPidTimeoutSlots 的超时块数口径一致)
+uint64_t Blocks128Mb(uint64_t bytes)
+{
+    return (bytes / BYTES_PER_MB + MB_128 - 1) / MB_128;
+}
+
+// (pid,dest) 池迁出是否已收敛: 锁定对实测已置为声明量, 天然收敛
+bool IsGateConverged(uint64_t declared, uint64_t observedBytes)
+{
+    if (observedBytes >= declared) {
+        return true;
+    }
+    uint64_t tol = std::max<uint64_t>(MB_128 * BYTES_PER_MB, declared / kGateConvergeRatioDen);
+    return (declared - observedBytes) <= tol;
+}
+
+// 进程视角观测未落地: 逐 (pid,dest) 池 = 声明 − pid@dest 实测(锁定态观测已置为声明量),
+// 池内按该 pid 在该 dest 的各源声明占比整除分摊(同 dest 多 pid 的源归属互不错记)
+void DistributePerDestObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
+                                       const PidDestObservedMap& observedByPidDest,
+                                       std::unordered_map<int, uint64_t>& unlanded)
+{
+    for (const auto& [pid, destDeclared] : declaredByPidDest) {
+        auto observedPidIt = observedByPidDest.find(pid);
+        for (const auto& [destNumaId, srcDeclared] : destDeclared) {
+            uint64_t declared = 0;
+            for (const auto& entry : srcDeclared) {
+                declared += entry.second;
+            }
+            uint64_t observedBytes = 0;
+            if (observedPidIt != observedByPidDest.end()) {
+                auto observedDestIt = observedPidIt->second.find(destNumaId);
+                if (observedDestIt != observedPidIt->second.end()) {
+                    observedBytes = observedDestIt->second;
+                }
+            }
+            if (declared == 0 || observedBytes >= declared) {
+                continue;
+            }
+            uint64_t pool = declared - observedBytes;
+            for (const auto& [srcNumaId, bytes] : srcDeclared) {
+                uint64_t share = static_cast<uint64_t>((static_cast<__uint128_t>(pool) * bytes) / declared);
+                if (share > 0) {
+                    unlanded[srcNumaId] += share;
+                }
+            }
+        }
+    }
+}
+
+// 状态表 pair 级清理: 归还/r2r 换 dest 后旧对随当前声明消失, 防陈旧观测误配新声明
+void PruneCompletedLandedObserve(const PidDestSrcDeclaredMap& declaredByPidDest, CompletedLandedObserveMap& observeMap)
+{
+    for (auto observeIt = observeMap.begin(); observeIt != observeMap.end();) {
+        auto declaredPidIt = declaredByPidDest.find(observeIt->first);
+        if (declaredPidIt == declaredByPidDest.end()) {
+            observeIt = observeMap.erase(observeIt);
+            continue;
+        }
+        auto& observeByDest = observeIt->second;
+        for (auto destIt = observeByDest.begin(); destIt != observeByDest.end();) {
+            if (declaredPidIt->second.find(destIt->first) == declaredPidIt->second.end()) {
+                destIt = observeByDest.erase(destIt);
+            } else {
+                ++destIt;
+            }
+        }
+        if (observeByDest.empty()) {
+            observeIt = observeMap.erase(observeIt);
+        } else {
+            ++observeIt;
+        }
+    }
+}
+
+// 逐 (pid,dest) 观测状态推进: 锁定对按已释放处理(声明增长解锁自愈); 超宽限无有效观测锁定释放
+// (迁移卡住/采样持续失败防永久少借); 未到宽限且距上次尝试≥节流间隔的对把其 pid 记入待采样
+void AdvanceObserveStates(const PidDestSrcDeclaredMap& declaredByPidDest, CompletedLandedObserveMap& observeMap,
+                          uint32_t timeoutPer128MbMs, std::set<pid_t>& pidsToSample)
+{
+    auto now = std::chrono::steady_clock::now();
+    for (const auto& [pid, destDeclared] : declaredByPidDest) {
+        for (const auto& [destNumaId, srcDeclared] : destDeclared) {
+            uint64_t declared = 0;
+            for (const auto& entry : srcDeclared) {
+                declared += entry.second;
+            }
+            auto& state = observeMap[pid][destNumaId];
+            if (state.locked) {
+                if (declared <= state.observedBytes) {
+                    continue; // 宽限锁定态: 按已释放处理, 不再读取
+                }
+                // 声明增长(同 dest 追加迁出): 解锁重开观测自愈
+                state.locked = false;
+                state.epochStart = now;
+            }
+            if (state.epochStart == std::chrono::steady_clock::time_point{}) {
+                state.epochStart = now;
+            }
+            uint64_t graceMs = kObserveGraceFactor * Blocks128Mb(declared) * timeoutPer128MbMs;
+            if (now - state.epochStart > std::chrono::milliseconds(graceMs)) {
+                state.locked = true;
+                state.observedBytes = declared;
+                state.observedValid = true;
+                UBSE_LOG_INFO << "[process_mem] completed landed observe locked pid=" << pid
+                              << " dest_numa=" << destNumaId << " declared_gb=" << BytesToGbDouble(declared)
+                              << " reason=no valid observation within grace, release pending";
+                continue;
+            }
+            if (now - state.lastAttempt >= std::chrono::milliseconds(kObserveIntervalMs)) {
+                pidsToSample.insert(pid);
+            }
+        }
+    }
+}
+
+// 对标记 pid 各采样一次(轮内缓存保证至多一次)刷新其全部当前对: 成功按分布重记实测(dest 缺失
+// 记 0, 即该 dest 无驻留页), 分布为空=采样失败, 仅刷新节流时间, 沿用此前有效观测
+void RefreshObservedBySample(CompletedLandedObserveMap& observeMap, const std::set<pid_t>& pidsToSample,
+                             ResidenceCache& residenceCache, std::chrono::steady_clock::time_point now)
+{
+    for (pid_t pid : pidsToSample) {
+        const auto& dist = GetPidNumaDistCached(pid, residenceCache);
+        auto observeIt = observeMap.find(pid);
+        if (observeIt == observeMap.end()) {
+            continue;
+        }
+        for (auto& [destNumaId, state] : observeIt->second) {
+            if (state.locked) {
+                continue; // 锁定对不重读(解锁仅由声明增长触发, 防采样过冲把锁定态提前解开)
+            }
+            state.lastAttempt = now;
+            if (dist.empty()) {
+                continue;
+            }
+            auto distIt = dist.find(destNumaId);
+            state.observedBytes = (distIt == dist.end()) ? 0 : distIt->second;
+            state.observedValid = true;
+        }
+    }
+}
 } // namespace
 
-// per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
-// COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 按远端 numa 实测占用逐 dest 建池
-// 分摊到源; 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊);
-// 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
-std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc() const
+bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
+                                                    ResidenceCache& residenceCache,
+                                                    std::unordered_map<int, uint64_t>& unlanded)
 {
+    std::set<pid_t> pidsToSample;
+    AdvanceObserveStates(declaredByPidDest, completedLandedObserve_, timeoutPer128MbMs_, pidsToSample);
+    RefreshObservedBySample(completedLandedObserve_, pidsToSample, residenceCache, std::chrono::steady_clock::now());
+
+    // 原子回退: 任一当前对仍无有效观测 → 整轮回退旧口径(pid 视角与 dest 全局口径不可混用);
+    // 门控源集与观测扫描同轮构建, 回退路径保持空(调用方已清)
+    PidDestObservedMap effectiveObserved;
+    std::unordered_map<pid_t, std::set<int>> migratingLocal;
+    for (const auto& [pid, destDeclared] : declaredByPidDest) {
+        for (const auto& [destNumaId, srcDeclared] : destDeclared) {
+            const auto& state = completedLandedObserve_[pid][destNumaId];
+            if (!state.observedValid) {
+                UBSE_LOG_DEBUG << "[process_mem] completed landed observe unavailable pid=" << pid
+                               << " dest_numa=" << destNumaId << ", fallback to remote-used/node-level";
+                return false;
+            }
+            effectiveObserved[pid][destNumaId] = state.observedBytes;
+            // 迁移门控: 该 (pid,dest) 池未收敛 → 其全部声明源 numa 记为迁移中, 供
+            // FillNumaShortage 拦截同 pid 其他本地 numa 的新起迁出(同 numa 不阻拦)
+            uint64_t declared = 0;
+            for (const auto& entry : srcDeclared) {
+                declared += entry.second;
+            }
+            if (!IsGateConverged(declared, state.observedBytes)) {
+                auto& moving = migratingLocal[pid];
+                for (const auto& entry : srcDeclared) {
+                    moving.insert(entry.first);
+                }
+            }
+        }
+    }
+    migratingSrcNumasByPid_ = std::move(migratingLocal);
+    DistributePerDestObservedUnlanded(declaredByPidDest, effectiveObserved, unlanded);
+    return true;
+}
+
+// per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
+// COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 优先按进程视角采样观测(该 pid 在该
+// dest 的声明量 − 实测占用)逐 (pid,dest) 建池分摊到源; 暂无可信观测退回远端明细/节点级口径;
+// 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
+std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache)
+{
+    // 门控源集每轮重建: 空声明/观测回退/采样失败时为空 = 不门控(与在途口径同源同原子性),
+    // 防陈旧集合跨轮阻塞
+    migratingSrcNumasByPid_.clear();
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     std::unordered_map<int, uint64_t> unlanded;
     std::unordered_map<int, uint64_t> completedDeclared;
     DestSrcDeclaredMap completedByDestSrc;
+    PidDestSrcDeclaredMap completedByPidDestSrc;
     uint64_t borrowingDeclared = 0;
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
@@ -977,8 +1183,14 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
             completedDeclared[slot.srcNumaId] += slot.migratedBytes;
             if (slot.remoteNumaId >= 0) {
                 completedByDestSrc[slot.remoteNumaId][slot.srcNumaId] += slot.migratedBytes;
+                completedByPidDestSrc[pid][static_cast<uint32_t>(slot.remoteNumaId)][slot.srcNumaId] +=
+                    slot.migratedBytes;
             }
         }
+    }
+    PruneCompletedLandedObserve(completedByPidDestSrc, completedLandedObserve_);
+    if (!completedByPidDestSrc.empty() && CollectObservedUnlanded(completedByPidDestSrc, residenceCache, unlanded)) {
+        return unlanded;
     }
     auto usedMapKb = ReadRemoteNumaUsedMap();
     if (usedMapKb.has_value()) {
@@ -1153,6 +1365,7 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
     std::vector<OrderedCandidate> ordered;
     ordered.reserve(ctx.candidates.size());
     size_t excludedBound = 0;
+    size_t excludedGated = 0;
     for (size_t i = 0; i < ctx.candidates.size(); ++i) {
         const auto& candidate = ctx.candidates[i];
         // 本轮配额已被先前缺口耗尽: 填充阶段必跳过, 采样前即排除, 避免无效 numa_maps 采样
@@ -1171,6 +1384,15 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
             ++excludedBound;
             continue;
         }
+        // 迁移门控: 该 pid 有本地 numa 处于迁出未收敛态时, 仅放行迁移中的 numa(同 numa 不阻拦),
+        // 其他本地 numa 暂缓新起迁出——防同 pid 多源同时迁入同 dest 污染 (pid,dest) 观测归属
+        if (numaCheckable) {
+            auto moveIt = migratingSrcNumasByPid_.find(candidate.pid);
+            if (moveIt != migratingSrcNumasByPid_.end() && moveIt->second.find(srcNumaId) == moveIt->second.end()) {
+                ++excludedGated;
+                continue;
+            }
+        }
         // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/未绑定驻留未知(UINT64_MAX)不设上限
         uint64_t residency = EstimateNumaResidentBytes(candidate.pid, srcNumaId, candidate.actual, ctx.residenceCache);
         if (residency == 0) {
@@ -1188,6 +1410,10 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
     if (excludedBound > 0) {
         UBSE_LOG_DEBUG << "[process_mem] borrow round=" << ctx.roundNum << " step=fill src_numa=" << srcNumaId
                        << " excluded_bound=" << excludedBound;
+    }
+    if (excludedGated > 0) {
+        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << ctx.roundNum << " step=fill src_numa=" << srcNumaId
+                       << " excluded_gated=" << excludedGated << " (pid migrating on other local numa)";
     }
     std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedCandidate& a, const OrderedCandidate& b) {
         // 驻留未知(UINT64_MAX)无从归因, 排序垫底但仍可参与填充(不设上限)
@@ -3587,8 +3813,10 @@ void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeF
     if (candidates.empty()) {
         return;
     }
-    // 在途未落地部分先扣减(与定时判缺同一防线), 缺口已被在途量覆盖则不重复下发
-    auto pendingPerSrc = BuildPendingUnlandedPerSrc();
+    // 在途未落地部分先扣减(与定时判缺同一防线), 缺口已被在途量覆盖则不重复下发;
+    // 采样缓存与后续借出共用(每 pid 一轮至多采样一次)
+    ResidenceCache residenceCache;
+    auto pendingPerSrc = BuildPendingUnlandedPerSrc(residenceCache);
     for (auto& shortage : shortages) {
         auto pendingIt = pendingPerSrc.find(shortage.srcNumaId);
         if (pendingIt != pendingPerSrc.end()) {
@@ -3601,15 +3829,15 @@ void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeF
     if (shortages.empty()) {
         return;
     }
-    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages);
+    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages, residenceCache);
 }
 
 void ProcessMemPidDecision::ExecuteEmergencyBorrowRound(uint64_t roundNum,
                                                         const std::vector<def::BorrowCandidate>& candidates,
-                                                        std::vector<NumaShortage>& shortages)
+                                                        std::vector<NumaShortage>& shortages,
+                                                        ResidenceCache& residenceCache)
 {
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
-    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> residenceCache;
     std::unordered_map<pid_t, uint64_t> borrowedThisRound;
     BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, true};
     ExecuteBorrowRound(ctx, shortages);
@@ -3754,7 +3982,9 @@ void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uin
     }
     UBSE_LOG_INFO << "[process_mem] oom alarm borrow round=" << roundNum
                   << " step=execute shortage_numas=" << shortages.size() << " candidates=" << candidates.size();
-    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages);
+    // 事件轮无在途扣减(仅补紧急份额), 缓存仅供本轮借出准入估计使用
+    ResidenceCache residenceCache;
+    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages, residenceCache);
 }
 
 void ProcessMemPidDecision::OomActiveReturnPerNuma(uint64_t roundNum)

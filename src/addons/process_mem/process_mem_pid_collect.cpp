@@ -1057,10 +1057,10 @@ void DrawSampleAddresses(const std::vector<ProcVmaRange>& vmas, const std::vecto
     std::mt19937_64 rng(std::random_device{}());
     for (size_t i = 0; i < samplePages; ++i) {
         uint64_t target = rng() % totalPages;
-        size_t idx = 0;
-        while (idx + 1 < vmas.size() && cumPages[idx + 1] <= target) {
-            ++idx;
-        }
+        // 二分定位目标页所属 VMA: upper_bound 减一即"最后一个 cumPages <= target"的下标,
+        // 与线性扫描等价; 每样本 O(n) → O(log n), VMA 千级进程的抽址成本降一个数量级
+        size_t idx =
+            static_cast<size_t>(std::upper_bound(cumPages.begin(), cumPages.end(), target) - cumPages.begin()) - 1;
         pages[i] = reinterpret_cast<void*>(vmas[idx].start + (target - cumPages[idx]) * pageSize);
     }
 }

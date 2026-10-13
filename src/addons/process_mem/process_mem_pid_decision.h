@@ -55,10 +55,35 @@ struct NumaShortage {
     uint64_t bytes{0};
 };
 
+// 每 pid 驻留采样缓存(pid → numa → 采样折算字节): 一轮内每 pid 至多采样一次,
+// 判缺准入估计与在途落地观测共用同一份分布
+using ResidenceCache = std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>;
+
+// COMPLETED 槽声明聚合(pid → dest → src → 声明字节): 在途未落地改用进程视角观测
+// (声明 − pid@dest 实测)计算, dest 全局已用量口径会被同 dest 其它占用污染
+using PidDestSrcDeclaredMap =
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, std::unordered_map<int, uint64_t>>>;
+
+// 进程视角实测占用(pid → dest → 字节)
+using PidDestObservedMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, uint64_t>>;
+
+// COMPLETED 槽 pid@dest 落地观测状态(仅 borrowRoundMutex_ 保护下读写);
+// locked = 超宽限仍无有效观测(迁移卡住/采样持续失败)后按声明足额释放, 声明增长自动解锁重开观测
+struct CompletedLandedObserve {
+    uint64_t observedBytes{0};
+    bool observedValid{false};
+    bool locked{false};
+    std::chrono::steady_clock::time_point lastAttempt{}; // 上次采样尝试(成败均刷新, 节流用)
+    std::chrono::steady_clock::time_point epochStart{};  // 观测起点(默认时间点=尚未开始计时)
+};
+
+// pid → dest → 观测状态(对集随当前声明 pair 级清理)
+using CompletedLandedObserveMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, CompletedLandedObserve>>;
+
 // 借用轮执行上下文: 候选列表引用 + 每 pid 驻留采样缓存(一轮内每 pid 至多采样一次)
 struct BorrowRoundCtx {
     const std::vector<def::BorrowCandidate>& candidates;
-    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>& residenceCache;
+    ResidenceCache& residenceCache;
     std::unordered_map<pid_t, uint64_t>& borrowedThisRound;
     uint64_t blockSizeBytes{0};
     uint64_t roundNum{0};
@@ -132,7 +157,7 @@ public:
 private:
     uint32_t OnDecisionTimer();
 
-    bool CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages);
+    bool CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache);
 
     std::vector<def::BorrowCandidate> BuildCandidates(uint64_t roundNum);
 
@@ -146,11 +171,16 @@ private:
     // (remoteNumaUsedMapKbReader) 不可用时兼作在途分摊的回退来源
     uint64_t GetPendingMigrateTotal() const;
 
-    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按远端 numa
-    // 声明量超出实测占用的部分逐 dest 建池, 池内再按各源在该 dest 的声明占比整除分摊;
-    // 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊); 判缺/紧急轮扣减
-    // 防在途数据被下轮重复下发借用
-    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc() const;
+    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按 pid@dest 采样
+    // 观测(该 pid 在该远端 numa 声明量 − 实测占用)逐 (pid,dest) 建池, 再在该 pid 内按各源
+    // 声明占比整除分摊; 暂无可信观测时退回远端明细/节点级口径; 判缺/紧急轮扣减防在途数据被
+    // 下轮重复下发借用
+    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache);
+
+    // COMPLETED 槽进程视角落地观测: 对每个 (pid,dest) 维护观测状态(500ms 节流采样/宽限锁定自愈),
+    // 有效观测的对按 声明−实测 计入未落地; 返回 false = 仍有对无有效观测(调用方整轮回退旧口径)
+    bool CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest, ResidenceCache& residenceCache,
+                                 std::unordered_map<int, uint64_t>& unlanded);
 
     uint64_t GetUbseBlockSizeBytes();
 
@@ -232,9 +262,10 @@ private:
     // 过滤); 明细不可用本轮跳过(不退化整机口径), 由采集恢复后的下轮轮询接续
     void OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree);
 
-    // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize/驻留采样缓存 + emergency ctx → ExecuteBorrowRound
+    // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize + 驻留采样缓存(与在途观测
+    // 共用) + emergency ctx → ExecuteBorrowRound
     void ExecuteEmergencyBorrowRound(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates,
-                                     std::vector<NumaShortage>& shortages);
+                                     std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache);
 
     // OOM 事件订阅处理(reason 0/1 = 4K 小页, 2 = 大页跳过): ras 故障线程上校验/投递后即返回
     uint32_t HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo);
@@ -360,6 +391,14 @@ private:
 
     // 搁浅 RETURNING 槽兜底扫描的上次执行时刻(默认 time_point 表示尚未开始计时)
     std::chrono::steady_clock::time_point lastStrandedSweep_{};
+
+    // COMPLETED 槽 pid@dest 落地观测状态(仅 borrowRoundMutex_ 保护下读写): 观测有效前整轮回退
+    // 旧口径, 超宽限无观测按声明释放防迁移卡住/采样失败永久少借; 对集随当前声明 pair 级清理
+    CompletedLandedObserveMap completedLandedObserve_{};
+
+    // 迁移门控源集(仅 borrowRoundMutex_ 保护下读写): 该 pid 未收敛迁出(声明 − pid@dest 实测
+    // 超容差)的源 numa; 随观测每轮重扫, 观测回退/空声明时为空 = 不门控
+    std::unordered_map<pid_t, std::set<int>> migratingSrcNumasByPid_{};
 
     std::atomic<uint64_t> roundNumber_{0};
     std::atomic<bool> cycleRunning_{false};
