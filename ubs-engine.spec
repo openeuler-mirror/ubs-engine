@@ -132,6 +132,7 @@ Requires: %{name} = %{version}-%{release}
 %description ssu
 Package for ssu
 %post ssu
+set -e
 # SSU 特权通道由本包携带的两个 drop-in 构成，均由 RPM 自动管理（卸载即回收）：
 # 1. ubse.service.d/10-ssu-capabilities.conf — sudo root 子进程的 CapabilityBoundingSet
 #    上限（systemd 多次赋值取并集；主包重装/升级覆盖 ubse.service 不影响合并结果）；
@@ -258,6 +259,7 @@ Package for npu plugin
 %define lcne_cert_dir /var/lib/ubse/lcne_cert
 %define vip_server_cert_dir /var/lib/ubse/vip_server_cert
 %define socket_dir /var/run/ubse
+%define ssu_data_dir /var/lib/ubse/ssu
 
 %define system_user ubse
 %define system_group ubse
@@ -432,6 +434,8 @@ mkdir -p %{buildroot}/etc/sudoers.d
 cp %{_builddir}/%{project_dir}/scripts/rpm/ubse-ssu.sudoers %{buildroot}/etc/sudoers.d/ubse-ssu
 chmod 0440 %{buildroot}/etc/sudoers.d/ubse-ssu
 /usr/sbin/visudo -cf %{buildroot}/etc/sudoers.d/ubse-ssu
+# SSU挂载记录目录（%files ssu 声明 %dir，必须在此创建）
+mkdir -p %{buildroot}%{ssu_data_dir}
 
 #install python-ssu (通过清单驱动,扩展 ubse namespace)
 python3 build_subpackage.py ssu install --root=%{buildroot} --prefix=/usr --no-compile
@@ -713,6 +717,8 @@ fi
 %dir /usr/lib/systemd/system/ubse.service.d
 /usr/lib/systemd/system/ubse.service.d/10-ssu-capabilities.conf
 %attr(0440,root,root) /etc/sudoers.d/ubse-ssu
+%defattr(755,%{system_user},%{system_group},755)
+%dir %{ssu_data_dir}
 
 %files ssu-client-libs
 %defattr(755,root,root,-)
