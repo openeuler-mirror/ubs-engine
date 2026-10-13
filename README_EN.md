@@ -121,7 +121,7 @@ bash build.sh -T RelWithDebInfo
 bash build.sh -T MinSizeRel
 ```
 
-For details, see [Build Guide](./docs/build_install/构建指导.md).
+For details, see [Build Guide](./docs/build_install/en/build_guide.md).
 
 ### 6.3. Project Packaging
 

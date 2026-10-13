@@ -1,4 +1,4 @@
-# UBSE Python API Best Practice
+# UBSE Python API Best Practices
 
 <p> English | <a href="README.md">简体中文</a> </p>
 

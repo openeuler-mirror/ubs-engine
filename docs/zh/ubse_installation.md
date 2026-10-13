@@ -2,9 +2,9 @@
 
 当前 UBSE 提供两种环境部署方式：RPM 包安装、容器镜像部署。环境部署流程包含以下主要步骤：
 
-1. 环境准备与安装
-2. 构建项目与单元测试
-3. 运行示例与验证
+1. 环境准备与安装。
+2. 构建项目与单元测试。
+3. 运行示例与验证。
 
 ## 环境要求
 
@@ -105,68 +105,68 @@
 
 容器环境部署有两种方式：
 
-- 基于镜像构建容器环境
-- 基于 openEuler 基础环境从零安装
+- 基于镜像构建容器环境。
+- 基于 openEuler 基础环境从零安装。
 
 #### 方式一：基于镜像构建容器环境
 
 基于镜像构建容器环境，首先需要获取镜像。获取镜像有两种方式：
 
-- 直接从镜像仓库拉取预构建镜像
-- 从 Dockerfile 构建镜像
+- 直接从镜像仓库拉取预构建镜像。
+- 从 Dockerfile 构建镜像。
 
-**步骤 1：获取镜像**
+**步骤1：获取镜像**
 
-选项一：直接拉取预构建镜像
+* 选项一：直接拉取预构建镜像
 
-```bash
-docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
-```
+    ```bash
+    docker pull swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
+    ```
 
-选项二：从 Dockerfile 构建镜像
+* 选项二：从 Dockerfile 构建镜像
 
-Dockerfile 位于仓库 `docker/ubs-engine.Dockerfile`，内容如下：
+    Dockerfile 位于仓库 `docker/ubs-engine.Dockerfile`，内容如下：
 
-```dockerfile
-ARG BASE_IMAGE=hub.oepkgs.net/openeuler/openeuler:24.03-lts-sp3
-FROM ${BASE_IMAGE}
+    ```dockerfile
+    ARG BASE_IMAGE=hub.oepkgs.net/openeuler/openeuler:24.03-lts-sp3
+    FROM ${BASE_IMAGE}
 
-ARG BUILD_TYPE=Release
-ARG ENABLE_UT=OFF
-ARG JOBS=8
-ARG REPO_DIR=/workspace
+    ARG BUILD_TYPE=Release
+    ARG ENABLE_UT=OFF
+    ARG JOBS=8
+    ARG REPO_DIR=/workspace
 
-COPY ubs-engine.spec /tmp/ubs-engine.spec
-RUN dnf install -y "dnf-command(builddep)" \
-        gcc gcc-c++ make cmake git python3 python3-pip \
-    && dnf builddep -y /tmp/ubs-engine.spec \
-    && dnf install -y numactl-devel gtest gtest-devel gmock gmock-devel \
-        python3-setuptools util-linux-user patch bc bash coreutils sudo tar \
-    && dnf clean all
+    COPY ubs-engine.spec /tmp/ubs-engine.spec
+    RUN dnf install -y "dnf-command(builddep)" \
+            gcc gcc-c++ make cmake git python3 python3-pip \
+        && dnf builddep -y /tmp/ubs-engine.spec \
+        && dnf install -y numactl-devel gtest gtest-devel gmock gmock-devel \
+            python3-setuptools util-linux-user patch bc bash coreutils sudo tar \
+        && dnf clean all
 
-WORKDIR ${REPO_DIR}
-COPY . ${REPO_DIR}
+    WORKDIR ${REPO_DIR}
+    COPY . ${REPO_DIR}
 
-RUN bash build.sh -T ${BUILD_TYPE} -j ${JOBS} \
-    && if [ "${ENABLE_UT}" = "ON" ]; then \
-           bash build.sh ut -j ${JOBS} \
-               || echo "WARNING: unit tests FAILED, image built without UT verification"; \
-       fi \
-    && BUILD_DIR="cmake-build-$(echo "${BUILD_TYPE}" | tr 'A-Z' 'a-z')" \
-    && cmake --install "${BUILD_DIR}" --component ubse_sdk --prefix /usr
+    RUN bash build.sh -T ${BUILD_TYPE} -j ${JOBS} \
+        && if [ "${ENABLE_UT}" = "ON" ]; then \
+            bash build.sh ut -j ${JOBS} \
+                || echo "WARNING: unit tests FAILED, image built without UT verification"; \
+        fi \
+        && BUILD_DIR="cmake-build-$(echo "${BUILD_TYPE}" | tr 'A-Z' 'a-z')" \
+        && cmake --install "${BUILD_DIR}" --component ubse_sdk --prefix /usr
 
-WORKDIR ${REPO_DIR}
-CMD ["/bin/bash"]
-```
+    WORKDIR ${REPO_DIR}
+    CMD ["/bin/bash"]
+    ```
 
-构建镜像：
+    构建镜像：
 
-```bash
-cd ubs-engine
-docker build -f docker/Dockerfile.openeuler -t ubs-engine:24.03-sp3-1.0.1 .
-```
+    ```bash
+    cd ubs-engine
+    docker build -f docker/ubs-engine.Dockerfile -t ubs-engine:24.03-sp3-1.0.1 .
+    ```
 
-**步骤 2：创建容器**
+**步骤2：创建容器**
 
 以 x86_64 服务器为例，创建容器：
 
@@ -179,7 +179,7 @@ docker run -d --privileged --name ubs-engine-ttfhw \
 
 构建/UT 场景无需挂载 NPU 设备；镜像默认工作目录为 `/workspace`，不建议挂载整个 `/home` 目录。
 
-**步骤 3：进入容器**
+**步骤3：进入容器**
 
 ```bash
 docker exec -it ubs-engine-ttfhw bash
@@ -198,7 +198,7 @@ bash docker/build_env.sh
 
 ### 容器卸载与清理
 
-步骤 1. 停止并删除容器
+**步骤1：停止并删除容器**
 
 ```bash
 docker ps -a
@@ -206,7 +206,7 @@ docker stop <container_id>
 docker rm <container_id>
 ```
 
-步骤 2. 删除镜像
+**步骤2：删除镜像**
 
 ```bash
 docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
