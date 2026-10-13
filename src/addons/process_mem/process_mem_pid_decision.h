@@ -67,6 +67,10 @@ using PidDestSrcDeclaredMap =
 // 进程视角实测占用(pid → dest → 字节)
 using PidDestObservedMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, uint64_t>>;
 
+// 池内当前声明源(pid → dest → src): 该池 borrowTime 最新的声明源; 迁移门控串行下新声明开始时
+// 老源必已收敛(零欠量), 池未落地量全额归它, 门控标记共用此判据
+using PidDestLatestSrcMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, int>>;
+
 // COMPLETED 槽 pid@dest 落地观测状态(仅 borrowRoundMutex_ 保护下读写);
 // locked = 超宽限仍无有效观测(迁移卡住/采样持续失败)后按声明足额释放, 声明增长自动解锁重开观测
 struct CompletedLandedObserve {
@@ -172,14 +176,15 @@ private:
     uint64_t GetPendingMigrateTotal() const;
 
     // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按 pid@dest 采样
-    // 观测(该 pid 在该远端 numa 声明量 − 实测占用)逐 (pid,dest) 建池, 再在该 pid 内按各源
-    // 声明占比整除分摊; 暂无可信观测时退回远端明细/节点级口径; 判缺/紧急轮扣减防在途数据被
-    // 下轮重复下发借用
+    // 观测(该 pid 在该远端 numa 声明量 − 实测占用)逐 (pid,dest) 建池, 池未落地量全额归该池
+    // 当前声明源(borrowTime 最新, 门控串行下老源必已收敛); 暂无可信观测时退回远端明细/节点级
+    // 口径; 判缺/紧急轮扣减防在途数据被下轮重复下发借用
     std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache);
 
     // COMPLETED 槽进程视角落地观测: 对每个 (pid,dest) 维护观测状态(500ms 节流采样/宽限锁定自愈),
     // 有效观测的对按 声明−实测 计入未落地; 返回 false = 仍有对无有效观测(调用方整轮回退旧口径)
-    bool CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest, ResidenceCache& residenceCache,
+    bool CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
+                                 const PidDestLatestSrcMap& latestSrcByPidDest, ResidenceCache& residenceCache,
                                  std::unordered_map<int, uint64_t>& unlanded);
 
     uint64_t GetUbseBlockSizeBytes();
@@ -396,8 +401,8 @@ private:
     // 旧口径, 超宽限无观测按声明释放防迁移卡住/采样失败永久少借; 对集随当前声明 pair 级清理
     CompletedLandedObserveMap completedLandedObserve_{};
 
-    // 迁移门控源集(仅 borrowRoundMutex_ 保护下读写): 该 pid 未收敛迁出(声明 − pid@dest 实测
-    // 超容差)的源 numa; 随观测每轮重扫, 观测回退/空声明时为空 = 不门控
+    // 迁移门控源集(仅 borrowRoundMutex_ 保护下读写): 该 pid 未收敛迁出池(声明 − pid@dest 实测
+    // 超容差)的当前声明源(borrowTime 最新); 随观测每轮重扫, 观测回退/空声明时为空 = 不门控
     std::unordered_map<pid_t, std::set<int>> migratingSrcNumasByPid_{};
 
     std::atomic<uint64_t> roundNumber_{0};

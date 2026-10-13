@@ -987,13 +987,17 @@ bool IsGateConverged(uint64_t declared, uint64_t observedBytes)
 }
 
 // 进程视角观测未落地: 逐 (pid,dest) 池 = 声明 − pid@dest 实测(锁定态观测已置为声明量),
-// 池内按该 pid 在该 dest 的各源声明占比整除分摊(同 dest 多 pid 的源归属互不错记)
+// 池未落地量全额归该池当前声明源(borrowTime 最新者): 迁移门控串行下新声明开始时老源必已
+// 收敛(已落地零欠量), 按声明占比分摊会把在途量匀给已落地源致在途源欠扣重复下发;
+// 无最新源信息(理论不可达)退回占比分摊
 void DistributePerDestObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
                                        const PidDestObservedMap& observedByPidDest,
+                                       const PidDestLatestSrcMap& latestSrcByPidDest,
                                        std::unordered_map<int, uint64_t>& unlanded)
 {
     for (const auto& [pid, destDeclared] : declaredByPidDest) {
         auto observedPidIt = observedByPidDest.find(pid);
+        auto latestPidIt = latestSrcByPidDest.find(pid);
         for (const auto& [destNumaId, srcDeclared] : destDeclared) {
             uint64_t declared = 0;
             for (const auto& entry : srcDeclared) {
@@ -1010,6 +1014,17 @@ void DistributePerDestObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPi
                 continue;
             }
             uint64_t pool = declared - observedBytes;
+            int latestSrc = -1;
+            if (latestPidIt != latestSrcByPidDest.end()) {
+                auto latestDestIt = latestPidIt->second.find(destNumaId);
+                if (latestDestIt != latestPidIt->second.end()) {
+                    latestSrc = latestDestIt->second;
+                }
+            }
+            if (latestSrc >= 0) {
+                unlanded[latestSrc] += pool;
+                continue;
+            }
             for (const auto& [srcNumaId, bytes] : srcDeclared) {
                 uint64_t share = static_cast<uint64_t>((static_cast<__uint128_t>(pool) * bytes) / declared);
                 if (share > 0) {
@@ -1114,6 +1129,7 @@ void RefreshObservedBySample(CompletedLandedObserveMap& observeMap, const std::s
 } // namespace
 
 bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
+                                                    const PidDestLatestSrcMap& latestSrcByPidDest,
                                                     ResidenceCache& residenceCache,
                                                     std::unordered_map<int, uint64_t>& unlanded)
 {
@@ -1134,29 +1150,44 @@ bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap&
                 return false;
             }
             effectiveObserved[pid][destNumaId] = state.observedBytes;
-            // 迁移门控: 该 (pid,dest) 池未收敛 → 其全部声明源 numa 记为迁移中, 供
-            // FillNumaShortage 拦截同 pid 其他本地 numa 的新起迁出(同 numa 不阻拦)
+            // 迁移门控: 该 (pid,dest) 池未收敛 → 该池当前声明源(borrowTime 最新)记为迁移中,
+            // 供 FillNumaShortage 拦截同 pid 其他本地 numa 的新起迁出(同 numa 不阻拦);
+            // 已落地老源非当前源, 保持被拦截
             uint64_t declared = 0;
             for (const auto& entry : srcDeclared) {
                 declared += entry.second;
             }
             if (!IsGateConverged(declared, state.observedBytes)) {
+                int latestSrc = -1;
+                auto latestPidIt = latestSrcByPidDest.find(pid);
+                if (latestPidIt != latestSrcByPidDest.end()) {
+                    auto latestDestIt = latestPidIt->second.find(destNumaId);
+                    if (latestDestIt != latestPidIt->second.end()) {
+                        latestSrc = latestDestIt->second;
+                    }
+                }
                 auto& moving = migratingLocal[pid];
-                for (const auto& entry : srcDeclared) {
-                    moving.insert(entry.first);
+                if (latestSrc < 0) {
+                    // 无最新源信息(理论不可达): 保守标记全部声明源
+                    for (const auto& entry : srcDeclared) {
+                        moving.insert(entry.first);
+                    }
+                } else {
+                    moving.insert(latestSrc);
                 }
             }
         }
     }
     migratingSrcNumasByPid_ = std::move(migratingLocal);
-    DistributePerDestObservedUnlanded(declaredByPidDest, effectiveObserved, unlanded);
+    DistributePerDestObservedUnlanded(declaredByPidDest, effectiveObserved, latestSrcByPidDest, unlanded);
     return true;
 }
 
 // per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
 // COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 优先按进程视角采样观测(该 pid 在该
-// dest 的声明量 − 实测占用)逐 (pid,dest) 建池分摊到源; 暂无可信观测退回远端明细/节点级口径;
-// 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
+// dest 的声明量 − 实测占用)逐 (pid,dest) 建池, 未落地量全额归该池当前声明源(borrowTime 最新,
+// 门控串行下老源必已收敛); 暂无可信观测退回远端明细/节点级口径; 供判缺/紧急轮扣减, 防在途数据
+// 被下轮重复下发借用
 std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache)
 {
     // 门控源集每轮重建: 空声明/观测回退/采样失败时为空 = 不门控(与在途口径同源同原子性),
@@ -1167,6 +1198,9 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
     std::unordered_map<int, uint64_t> completedDeclared;
     DestSrcDeclaredMap completedByDestSrc;
     PidDestSrcDeclaredMap completedByPidDestSrc;
+    PidDestLatestSrcMap latestSrcByPidDest;
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>>
+        latestDeclareTimeByPidDest;
     uint64_t borrowingDeclared = 0;
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
@@ -1182,14 +1216,22 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
             }
             completedDeclared[slot.srcNumaId] += slot.migratedBytes;
             if (slot.remoteNumaId >= 0) {
+                auto destNumaId = static_cast<uint32_t>(slot.remoteNumaId);
                 completedByDestSrc[slot.remoteNumaId][slot.srcNumaId] += slot.migratedBytes;
-                completedByPidDestSrc[pid][static_cast<uint32_t>(slot.remoteNumaId)][slot.srcNumaId] +=
-                    slot.migratedBytes;
+                completedByPidDestSrc[pid][destNumaId][slot.srcNumaId] += slot.migratedBytes;
+                // 池内当前声明源 = borrowTime 最新者; >= 使 r2r 替换槽(未设 borrowTime, 零值)
+                // 也能选出源
+                auto& latestTime = latestDeclareTimeByPidDest[pid][destNumaId];
+                if (slot.borrowTime >= latestTime) {
+                    latestTime = slot.borrowTime;
+                    latestSrcByPidDest[pid][destNumaId] = slot.srcNumaId;
+                }
             }
         }
     }
     PruneCompletedLandedObserve(completedByPidDestSrc, completedLandedObserve_);
-    if (!completedByPidDestSrc.empty() && CollectObservedUnlanded(completedByPidDestSrc, residenceCache, unlanded)) {
+    if (!completedByPidDestSrc.empty() &&
+        CollectObservedUnlanded(completedByPidDestSrc, latestSrcByPidDest, residenceCache, unlanded)) {
         return unlanded;
     }
     auto usedMapKb = ReadRemoteNumaUsedMap();
