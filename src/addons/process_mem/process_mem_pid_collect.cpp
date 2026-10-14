@@ -1015,6 +1015,8 @@ struct ProcVmaRange {
 
 constexpr size_t kMinSamplePages = 16;
 constexpr size_t kMaxSamplePages = 4096;
+// 稀疏补抽: 有效(驻留)样本低于标称 1/4 视为虚拟地址稀释(虚拟 ≫ 驻留), 放大重抽一轮
+constexpr size_t kSparseValidRatioDen = 4;
 
 bool ParseSampleableProcMaps(pid_t pid, std::vector<ProcVmaRange>& vmas)
 {
@@ -1093,27 +1095,51 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistributionBySample(
     }
     samplePages = std::min(std::max(samplePages, kMinSamplePages), kMaxSamplePages);
 
-    std::vector<void*> pages;
-    DrawSampleAddresses(vmas, cumPages, totalPages, samplePages, pageSize, pages);
-
-    // 查询模式 (nodes=NULL): 只返回每页所在节点, 不迁移任何页面, 可安全周期性调用
-    std::vector<int> status(samplePages, 0);
-    auto ret = syscall(SYS_move_pages, pid, samplePages, pages.data(), nullptr, status.data(), 0);
-    if (ret != 0) {
-        UBSE_LOG_WARN << "pid=" << pid << " sample: move_pages failed errno=" << errno;
-        return UBSE_ERROR;
-    }
-
+    // 抽样按虚拟地址长度均匀: 对"虚拟 ≫ 驻留"进程(未 touch anon/大文件映射), 驻留样本被稀释,
+    // σ 按有效样本数放大; 有效样本不足标称 1/4 时按第一轮驻留率外推放大重抽一轮(上限
+    // kMaxSamplePages), 仍为均匀抽样故无偏
     std::unordered_map<uint32_t, size_t> nodeCounts;
     uint64_t validTotal = 0;
-    for (auto node : status) {
-        if (node >= 0) {
-            ++nodeCounts[static_cast<uint32_t>(node)];
-            ++validTotal;
+    size_t issuedSamples = samplePages;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        std::vector<void*> pages;
+        DrawSampleAddresses(vmas, cumPages, totalPages, issuedSamples, pageSize, pages);
+
+        // 查询模式 (nodes=NULL): 只返回每页所在节点, 不迁移任何页面, 可安全周期性调用
+        std::vector<int> status(issuedSamples, 0);
+        auto ret = syscall(SYS_move_pages, pid, issuedSamples, pages.data(), nullptr, status.data(), 0);
+        if (ret != 0) {
+            UBSE_LOG_WARN << "pid=" << pid << " sample: move_pages failed errno=" << errno;
+            if (attempt == 0) {
+                return UBSE_ERROR;
+            }
+            break; // 补抽失败沿用第一轮结果
         }
+
+        nodeCounts.clear();
+        validTotal = 0;
+        for (auto node : status) {
+            if (node >= 0) {
+                ++nodeCounts[static_cast<uint32_t>(node)];
+                ++validTotal;
+            }
+        }
+
+        if (attempt > 0 || validTotal >= issuedSamples / kSparseValidRatioDen) {
+            break;
+        }
+        // 目标: 有效样本补回标称值(第一轮驻留率外推), 受上限截断
+        size_t boosted = samplePages * samplePages / std::max<size_t>(validTotal, 1);
+        boosted = std::min(boosted, kMaxSamplePages);
+        if (boosted <= issuedSamples) {
+            break;
+        }
+        UBSE_LOG_DEBUG << "pid=" << pid << " sample sparse: valid=" << validTotal << "/" << issuedSamples
+                       << " boost to " << boosted;
+        issuedSamples = boosted;
     }
     if (validTotal == 0) {
-        UBSE_LOG_DEBUG << "pid=" << pid << " sample: no resident page among " << samplePages << " samples";
+        UBSE_LOG_DEBUG << "pid=" << pid << " sample: no resident page among " << issuedSamples << " samples";
         return UBSE_ERROR;
     }
 
@@ -1132,7 +1158,7 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistributionBySample(
         }
     }
 
-    UBSE_LOG_DEBUG << "pid=" << pid << " sample: issued=" << samplePages << " valid=" << validTotal
+    UBSE_LOG_DEBUG << "pid=" << pid << " sample: issued=" << issuedSamples << " valid=" << validTotal
                    << " vmas=" << vmas.size() << " rss_kb=" << vmRssKb;
     return UBSE_OK;
 }

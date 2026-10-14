@@ -73,8 +73,9 @@ public:
     uint32_t CollectProcessNumaMemDistribution(pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution);
 
     // move_pages 采样版分布采集: 均匀抽样查询每页所在节点, 以"驻留样本占比 × VmRSS"估计各节点
-    // 字节数(近似值); 开销与进程内存大小弱相关(冷/热两档), 适合大进程/周期采集; 精确场景
-    // (如迁回收敛判定)仍用 CollectProcessNumaMemDistribution
+    // 字节数(近似值); 开销与进程内存大小弱相关(冷/热两档), 适合大进程/周期采集; "虚拟 ≫ 驻留"
+    // 进程驻留样本被稀释时自动放大重抽一轮(至多两次采样); 精确场景(如迁回收敛判定)仍用
+    // CollectProcessNumaMemDistribution
     uint32_t CollectProcessNumaMemDistributionBySample(pid_t pid,
                                                        std::unordered_map<uint32_t, size_t>& numaMemDistribution,
                                                        size_t samplePages = kDefaultSamplePages);
