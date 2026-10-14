@@ -5467,6 +5467,7 @@ int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过                  |
 | UBS\_ENGINE\_ERR\_EXISTED              | 存储空间已存在                        |
 | UBS\_ENGINE\_ERR\_ALREADY\_ALLOCATED   | 存储空间已分配，重复分配报错           |
+| UBS\_ENGINE\_ERR\_SSU\_INSUFFICIENT\_SPACE | 设备可用空间不足（含租户设备配额用尽，见 `tenant.perTenantMaxDevicePercent` 配置） |
 | UBS\_ENGINE\_ERR\_ALLOCATE             | 算法分配失败                          |
 | UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时                    |
 | UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误                    |

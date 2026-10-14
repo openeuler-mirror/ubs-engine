@@ -155,6 +155,11 @@ class UbsEngineMountSuspectedError(UbsError):
     """疑似本地残留挂载，需人工核对（free或清理本地设备后自动解除）"""
     pass
 
+
+class UbsEngineInsufficientSpaceError(UbsError):
+    """设备可用空间不足（含租户设备配额用尽）"""
+    pass
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

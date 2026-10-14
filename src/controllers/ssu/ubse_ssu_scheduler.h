@@ -79,6 +79,26 @@ public:
     bool Handle(UbseSsuAllocationContext &ctx) override;
 };
 
+// 租户设备配额过滤：限制单租户可圈占的在线设备数占比，防止单租户通过负载均衡
+// 逐个开垦新设备最终圈占全部设备。超限时采用软限制语义——仅剔除未归属设备，
+// 租户仍可在自己已归属的设备上继续分配；若租户之间占用完全部设备，非租户请求
+// 自然返回空间不足。默认配额100（等价关闭，向后兼容）。
+class UbseSsuTenantQuotaFilter : public UbseFilter<UbseSsuAllocationContext> {
+public:
+    // 默认从 ubse.conf [ubse.ssu] 读取配额（tenant.perTenantMaxDevicePercent），
+    // 读取失败或值非法时回退为100（关闭配额）
+    UbseSsuTenantQuotaFilter();
+
+    // 注入配额（百分比，有效范围[1,100]），供UT测试注入（UT环境未加载配置模块，
+    // 无法通过配置项控制配额）
+    explicit UbseSsuTenantQuotaFilter(uint32_t perTenantPct);
+
+    bool Handle(UbseSsuAllocationContext &ctx) override;
+
+private:
+    uint32_t perTenantPct_;
+};
+
 // 默认实现：考虑分配均衡，将优先使用容量大的设备为第一优先级，namespace数量少的设备为第二优先级。
 class UbseSsuAllocateAlgorithmHandler : public UbseFilter<UbseSsuAllocationContext> {
 public:

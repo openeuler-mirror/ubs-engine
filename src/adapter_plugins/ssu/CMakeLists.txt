@@ -12,6 +12,7 @@ target_link_libraries(ubse_ssu
         ubse_log
         ubse_utils
         ubse_config
+        ubse_security
         ${GLIB_LIBRARIES}
 )
 target_include_directories(ubse_ssu PRIVATE ${GLIB_INCLUDE_DIRS})
