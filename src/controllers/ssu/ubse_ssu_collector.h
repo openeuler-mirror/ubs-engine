@@ -47,6 +47,12 @@ public:
     std::unordered_map<std::string, UbseSsuDevInfoPtr> GetCachedDevMap();
     // 设置首次采集失败后的恢复回调：首次采集失败时置位，待定时器采集成功（恢复）后触发一次，用于补建账本
     void SetOnFirstCollectFailRecovery(const std::function<void()> &onFirstCollectFailRecovery);
+    // 首次采集是否失败且尚未恢复（true=缓存从未被成功采集填充，空缓存不代表真实空账本）。
+    // 供账本重建区分"采集未完成"与"采集成功但确实无设备"两种空列表语义
+    bool IsFirstCollectPending() const;
+    // 设置周期采集成功回调：每个采集成功周期（缓存实际更新后）触发一次，携带本周期设备列表，
+    // 供上层做周期增量对账（如设备故障FAULTED状态迁移）
+    void SetOnCollectSuccess(const std::function<void(const std::vector<UbseSsuDevInfo> &)> &onCollectSuccess);
     // 读取设备列表并叠加预留调整量，避免读取cachedDevMap_和reservationMgr_之间的并发不一致
     std::vector<UbseSsuDevInfo> GetDevListWithReservations();
 
@@ -81,6 +87,8 @@ private:
     std::atomic<bool> rebuildPending_{false};
     // 首次采集失败后的恢复回调，用于补建账本
     std::function<void()> onFirstCollectFailRecovery_;
+    // 周期采集成功回调，用于上层增量对账
+    std::function<void(const std::vector<UbseSsuDevInfo> &)> onCollectSuccess_;
 };
 
 } // namespace ubse::ssu::service

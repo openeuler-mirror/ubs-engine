@@ -41,10 +41,6 @@ constexpr const char *DEFAULT_RECORD_FILE = "/var/lib/ubse/ssu/attach_records.js
 // 记录文件格式版本
 constexpr uint32_t RECORD_FILE_VERSION = 1;
 
-// 记录总数上限：单节点挂载数受空间数约束（≤数百），取 4096 覆盖余量；
-// 超限视为文件被篡改，拒载防内存耗尽
-constexpr uint32_t MAX_ATTACH_RECORDS = 4096;
-
 // 记录文件权限：属主读写，防越权访问
 constexpr mode_t RECORD_FILE_MODE = S_IRUSR | S_IWUSR;
 

@@ -80,6 +80,7 @@ enum class UbseSsuNsState : uint8_t {
     CREATED = 2,   // NS创建完成，等待Agent Attach
     ATTACHING = 3, // Agent正在Attach
     ATTACHED = 4,  // 全部完成
+    FAULTED = 5,   // 设备故障：空间NS连续多个采集周期从硬件消失
 };
 
 // 虚拟功能单元(VFE)信息

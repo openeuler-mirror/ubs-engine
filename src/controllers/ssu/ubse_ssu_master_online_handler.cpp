@@ -49,8 +49,8 @@ uint32_t UbseSsuMasterOnlineHandler::MasterOnlineHandler(UbseElectionEventType& 
             // 不返回错误：采集器瞬时失败不应阻塞节点就绪，后续周期性采集会重试
             return UBSE_OK;
         }
-        // 立即重建账本；首次采集失败时缓存为空，Rebuild为空操作（增量Put，不会覆盖已有账本），
-        // 由定时器采集成功后的回调（SetOnCollectFirstSuccess）触发重建
+        // 立即重建账本；首次采集失败时缓存为空且采集未完成（跳过重建，保持未就绪），
+        // 由定时器采集成功后的恢复回调（SetOnFirstCollectFailRecovery）触发重建
         instance.RebuildLedgerFromDevList();
         UBSE_LOG_INFO << "MasterOnlineHandler: collector started and ledger rebuilt on master role";
     } else {
