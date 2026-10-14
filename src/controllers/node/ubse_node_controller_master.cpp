@@ -70,6 +70,7 @@ using namespace ubse::com;
 
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+const std::string UBSE_NODE_RAS_FAULT_NOTIFY = "ras fault notify";
 
 static bool IsNodeInGroup(const ubse::election::GroupTopology &group, const std::string &nodeId)
 {
@@ -869,10 +870,44 @@ UbseResult UbseNodeControllerMaster::UbseGlobalReportHandler(const std::vector<U
     return UBSE_OK;
 }
 
-UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeInfo &info)
+UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeInfo& info)
 {
     if (info.nodeId.empty()) {
         return UBSE_ERROR_INVAL;
+    }
+
+    // 故障通知直接交给本机柜主处理，不将通知报文写入节点缓存。
+    if (info.eventMessage == UBSE_NODE_RAS_FAULT_NOTIFY) {
+        if (!IsHierarchicalElection()) {
+            UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] reject fault notification in non-hierarchical election, nodeId="
+                          << info.nodeId;
+            return UBSE_ERROR_INVAL;
+        }
+
+        auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+        if (module == nullptr) {
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+        if (!module->IsLeader()) {
+            UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] current node is not local master";
+            return UBSE_ERROR;
+        }
+
+        auto faultNode = nodeMgr::GetUbseNodeById(info.nodeId);
+        auto currentNode = nodeMgr::GetCurrentNode();
+        if (faultNode.nodeId.empty() || currentNode.nodeId.empty()) {
+            UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] static node info not found, nodeId=" << info.nodeId;
+            return UBSE_ERROR_NULLPTR;
+        }
+        if (info.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT ||
+            faultNode.groupId != currentNode.groupId || info.groupId != currentNode.groupId) {
+            UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] invalid fault notification, nodeId=" << info.nodeId;
+            return UBSE_ERROR_INVAL;
+        }
+
+        UBSE_LOG_INFO << "[RAS_FAULT_NOTIFY] receive fault notification, nodeId=" << info.nodeId
+                      << ", currentNodeId=" << currentNode.nodeId;
+        return UbseNodeRasFaultHandler(info.nodeId);
     }
 
     auto role = GetClosRole();
@@ -1121,8 +1156,15 @@ void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string &nodeId)
     // 预下电，故障，断连等异常场景不进行对账；
     // smoothing 表示节点已经在对账流程中，不对账；
     // init为初始静态数据 或者 节点首次上报，等待节点上线事件触发后启动对账
-    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        UBSE_LOG_WARN << "nodeId=" << nodeId << " node up, state=smoothing, skip ledger";
+    // 已进入故障上报计数流程的节点，等待150次上报，避免上线事件提前触发对账。
+    bool waitingFaultReports = false;
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        std::lock_guard<std::mutex> lock(faultCountersMutex_);
+        waitingFaultReports = faultReportCounters_.find(nodeId) != faultReportCounters_.end();
+    }
+
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING || waitingFaultReports) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, smoothing or waiting fault reports, skip ledger";
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
@@ -1311,16 +1353,84 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
 
 UbseResult UbseNodeControllerMaster::UbseNodeRasFaultHandler(const std::string &nodeId)
 {
+    if (nodeId.empty()) {
+        return UBSE_ERROR_INVAL;
+    }
+
+    // 全局主收到其他机柜节点的故障事件时，通知对应机柜主。
+    if (IsHierarchicalElection() && GetClosRole() == UbseClosNodeRole::GLOBAL_MASTER) {
+        auto faultNode = nodeMgr::GetUbseNodeById(nodeId);
+        auto currentNode = nodeMgr::GetCurrentNode();
+        if (faultNode.nodeId.empty() || currentNode.nodeId.empty()) {
+            UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] static node info not found, nodeId=" << nodeId;
+            return UBSE_ERROR_NULLPTR;
+        }
+
+        if (faultNode.groupId != currentNode.groupId) {
+            HaTopologyInfo topology{};
+            auto topologyRet = GetClosHaTopology(topology);
+            if (topologyRet != UBSE_OK) {
+                UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] get topology failed, nodeId=" << nodeId
+                              << ", " << FormatRetCode(topologyRet);
+                return topologyRet;
+            }
+
+            // 静态节点的groupId是整数，选主拓扑的groupId是字符串。
+            // 按机柜号查找，节点故障后即使已从选主成员列表移除，也可以定位机柜主。
+            const std::string groupId = std::to_string(faultNode.groupId);
+            const GroupTopology *targetGroup = nullptr;
+            if (topology.currentGroup.groupId == groupId) {
+                targetGroup = &topology.currentGroup;
+            } else {
+                for (const auto &group : topology.groups) {
+                    if (group.groupId == groupId) {
+                        targetGroup = &group;
+                        break;
+                    }
+                }
+            }
+
+            if (targetGroup == nullptr || targetGroup->groupMasterId.empty()) {
+                UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] cabinet master not found, nodeId=" << nodeId
+                              << ", groupId=" << groupId;
+                return UBSE_ERROR;
+            }
+            if (targetGroup->groupMasterId == currentNode.nodeId) {
+                UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] unexpected cabinet master, nodeId=" << nodeId
+                              << ", groupId=" << groupId;
+                return UBSE_ERROR;
+            }
+
+            UbseNodeInfo faultInfo{};
+            faultInfo.nodeId = nodeId;
+            faultInfo.groupId = faultNode.groupId;
+            faultInfo.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+            faultInfo.eventMessage = UBSE_NODE_RAS_FAULT_NOTIFY;
+
+            UBSE_LOG_INFO << "[RAS_FAULT_NOTIFY] send fault notification, nodeId=" << nodeId
+                          << ", cabinetMasterId=" << targetGroup->groupMasterId
+                          << ", groupId=" << groupId;
+
+            auto notifyRet = UbseCabinetReportSingleNode(targetGroup->groupMasterId, faultInfo);
+            if (notifyRet != UBSE_OK) {
+                UBSE_LOG_WARN << "[RAS_FAULT_NOTIFY] send fault notification failed, nodeId=" << nodeId
+                              << ", " << FormatRetCode(notifyRet);
+            }
+            return notifyRet;
+        }
+    }
+
     UBSE_LOG_INFO << "nodeId=" << nodeId << ", start fault";
 
     // 清除旧的故障计数器
     ClearFaultCounter(nodeId);
 
-    // 初始化故障计数器
+    // 初始化故障计数器，由本机柜主累计该节点后续的150次周期上报。
     {
         std::lock_guard<std::mutex> lock(faultCountersMutex_);
         faultReportCounters_[nodeId] = 0;
-        UBSE_LOG_DEBUG << "Initialize fault counter to 0 for node: " << nodeId;
+        UBSE_LOG_INFO << "[RAS_FAULT_NOTIFY] initialize fault counter, nodeId=" << nodeId
+                      << ", currentNodeId=" << UbseNodeController::GetInstance().GetCurrentNodeId();
     }
 
     auto ret =
