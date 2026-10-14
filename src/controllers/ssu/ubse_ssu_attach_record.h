@@ -30,6 +30,11 @@ using ubse::plugin::service::ssu::UbseSsuAllocStrategy;
 using ubse::plugin::service::ssu::UbseSsuNameSpaceInfo;
 using ubse::ssu::message::UbseSsuNsVerifyInfo;
 
+// 单节点挂载记录总数上限：单节点挂载数受空间数约束（≤数百），取 4096 覆盖余量。
+// JSON持久化（record count cap）与RPC反序列化（summary/reconcile条目cap）共用，
+// 超限视为载荷被篡改，拒收防内存耗尽
+inline constexpr uint32_t MAX_ATTACH_RECORDS = 4096;
+
 // 记录状态：attach 入口先写 PENDING，本地挂载成功后转 ATTACHED；
 // 崩溃窗口内残留的 PENDING 由恢复期探测收敛（已挂则补 ATTACHED，未挂则删记录）；
 // 重挂连续失败达阈值转 SUSPECT 并告警（不停止重挂，对账定时器持续重试直到挂上），
@@ -63,6 +68,10 @@ void SerializeRecord(const UbseSsuAttachRecord &record, rapidjson::Value &value,
 // 从 JSON 对象反序列化并做字段级校验
 // 单条非法返回 false，由调用方仅丢弃该条；整体外壳（version/nodeId/count cap）由 store 校验
 bool DeserializeRecord(const rapidjson::Value &value, UbseSsuAttachRecord &record);
+
+// 记录字段级校验（name长度/devName白名单/nqn/nsDevPath前缀白名单/枚举范围/NS条目完整性等）。
+// JSON持久化与RPC反序列化两条路径共用，单条非法返回 false
+bool IsRecordFieldsValid(const UbseSsuAttachRecord &record);
 
 } // namespace ubse::ssu::persist
 

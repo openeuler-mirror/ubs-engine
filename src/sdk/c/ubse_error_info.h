@@ -67,6 +67,10 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
         &(ubs_error_info_t){"UBSE_SSU_ERROR_STRATEGY_MISMATCH", "Allocation strategy does not match attach/detach strategy"},
     [UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBSE_SSU_ERROR_ATTACHER_MISMATCH", "Space is attached by another node, current node is not allowed to operate"},
+    [UBS_ENGINE_ERR_SSU_SPACE_FAULTED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_SPACE_FAULTED", "Space is on a faulted device, attach/detach is blocked, free is allowed for mitigation"},
+    [UBS_ENGINE_ERR_SSU_MASTER_NOT_READY - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_MASTER_NOT_READY", "Master ledger is not ready (first collection or rebuild in progress), please retry"},
 };
 
 #ifdef __cplusplus

@@ -141,6 +141,15 @@ class UbsEngineAttacherMismatchError(UbsError):
     pass
 
 
+class UbsEngineSpaceFaultedError(UbsError):
+    """空间所在设备故障（FAULTED），attach/detach被拦截，可free止损"""
+    pass
+
+
+class UbsEngineMasterNotReadyError(UbsError):
+    """master账本未就绪（首次采集/重建未完成），纯重试语义"""
+    pass
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

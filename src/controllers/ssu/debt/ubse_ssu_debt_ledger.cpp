@@ -160,6 +160,8 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
     // 挂载状态由后续将由本地持久化文件记录，不依赖此Rebuild结果，后续添加实现
     entry.state = UbseSsuNsState::CREATED;
     entry.allocResult = allocResult;
+    // 硬件恢复标记：恢复收敛窗口守卫据此区分重启前已存在的空间与窗口内新分配的空间
+    entry.restoredFromHardware = true;
 
     if (!ledger.Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
         UBSE_LOG_WARN << "Rebuild entry: ledger entry already exists, skip: name=" << name;
@@ -195,7 +197,47 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
         RebuildEntry(name, nsList, ledger, tenant);
     }
 
+    // Rebuild完成即视为账本就绪（空账本也是真实状态：硬件上确实无已分配空间）
+    SetReady(true);
+    // 记录Rebuild完成时间，启动恢复收敛窗口（跨线程可见，与ready_同经同步原语保护）
+    {
+        std::unique_lock<std::shared_mutex> lock(mtx_);
+        rebuildTime_ = std::chrono::steady_clock::now();
+    }
+
     UBSE_LOG_INFO << "Ledger rebuild complete: " << groups.size() << " entries restored";
+}
+
+bool UbseSsuDebtLedger::IsInReconcileWindow() const
+{
+    std::chrono::steady_clock::time_point rebuildTime;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        rebuildTime = rebuildTime_;
+    }
+    // 从未Rebuild（首启采集成功前）不构成收敛窗口（该阶段由IsReady门禁兜底）
+    if (rebuildTime.time_since_epoch().count() == 0) {
+        return false;
+    }
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - rebuildTime).count();
+    return elapsed < SSU_RECONCILE_WINDOW_SECONDS;
+}
+
+void UbseSsuDebtLedger::ResetRebuildTime()
+{
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    rebuildTime_ = {};
+}
+
+bool UbseSsuDebtLedger::IsReady() const
+{
+    return ready_.load(std::memory_order_acquire);
+}
+
+void UbseSsuDebtLedger::SetReady(bool ready)
+{
+    ready_.store(ready, std::memory_order_release);
 }
 
 } // namespace ubse::ssu::debt

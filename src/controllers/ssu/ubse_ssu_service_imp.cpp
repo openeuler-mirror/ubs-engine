@@ -126,11 +126,14 @@ void UbseSsuServiceImp::RebuildLedgerFromDevList()
         return;
     }
     auto devList = collector_.GetCachedDevList();
-    if (devList.empty()) {
-        // 设备列表为空时无从重建账本（Rebuild为空操作，跳过以避免误导性日志）
-        UBSE_LOG_WARN << "RebuildLedgerFromDevList: dev list is empty, skip ledger rebuild";
+    if (devList.empty() && collector_.IsFirstCollectPending()) {
+        // 首次采集失败且尚未恢复（缓存从未被填充）：空列表不代表真实账本状态，保持未就绪，
+        // 由定时器采集成功后的恢复回调（SetOnFirstCollectFailRecovery）重新触发重建
+        UBSE_LOG_WARN << "RebuildLedgerFromDevList: first collect not finished, skip ledger rebuild";
         return;
     }
+    // 采集成功但列表为空同样是真实账本状态（硬件确实无已分配空间）：
+    // Rebuild对空输入安全（置位就绪+空账本），避免agent重报永久收到MASTER_NOT_READY
     UbseSsuDebtLedger::GetInstance().Rebuild(devList);
 }
 

@@ -298,6 +298,8 @@ enum class UbseSsuOpCode
     UBSE_SSU_ADD_ACCESS_PERMISSION_RESP = 0x0015,    // 添加访问权限响应
     UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP = 0x0016, // 移除访问权限响应
     UBSE_SSU_ATTACH_DETACH_VERIFY_REQ = 0x0017,      // attach/detach前identity验证请求
+    UBSE_SSU_MOUNT_SUMMARY_REQ = 0x0018,             // master运营对账：拉取节点挂载记录摘要
+    UBSE_SSU_RECONCILE_REQ = 0x0019,                 // master运营对账：下发平账指令REMOUNT/CLEANUP/REPORT
 };
 } // namespace ubse::com
 #endif // UBSE_COM_OP_CODE_H

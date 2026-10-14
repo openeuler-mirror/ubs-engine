@@ -95,62 +95,6 @@ bool IsBlockDeviceOptionsValid(const UbseSsuAttachRecord &record)
     return GetValidChunkSizes().count(opts.chunkSize) > 0;
 }
 
-bool IsRecordFieldsValid(const UbseSsuAttachRecord &record)
-{
-    if (record.name.empty() || record.name.size() >= UBSE_SSU_MAX_NAME_LENGTH) {
-        return false;
-    }
-    if (static_cast<uint32_t>(record.strategy) > static_cast<uint32_t>(UbseSsuAllocStrategy::NORMAL)) {
-        return false;
-    }
-    if (static_cast<uint32_t>(record.recordState) >
-        static_cast<uint32_t>(UbseSsuAttachRecordState::SUSPECT)) { // 上界与状态机定义对齐，允许 SUSPECT 落盘记录重载
-        return false;
-    }
-    if (!record.devName.empty() && !IsValidDevName(record.devName)) { // 白名单，防路径穿越
-        return false;
-    }
-    if (!IsOptionalNqnValid(record.nqn)) { // 空串表示 defaultNqn，非空须为合法 HostNqn
-        return false;
-    }
-    if (record.identity.userName.empty() ||
-        record.identity.userName.size() >= UBSE_SSU_MAX_USER_NAME_LENGTH) {
-        return false;
-    }
-    if (!IsBlockDeviceOptionsValid(record)) {
-        return false;
-    }
-    if (record.nsList.empty() || record.nsList.size() != record.nsVerifyList.size()) {
-        return false; // nsList 与 nsVerifyList 必须一一对应
-    }
-    if (record.nsList.size() > MAX_NS_PER_RECORD) {
-        return false;
-    }
-    if (record.attachedAt < 0) {
-        return false;
-    }
-    for (const auto &ns : record.nsList) {
-        if (!IsNsDevPathAllowed(ns.nsDevPath)) {
-            return false;
-        }
-        if (ns.namespaceId == 0 || ns.nsSize == 0) {
-            return false;
-        }
-        if (!IsLbaFormatValid(static_cast<uint32_t>(ns.lbaFormat))) {
-            return false;
-        }
-        if (ns.allowHostNqnList.size() > MAX_HOST_NQN_PER_NS) {
-            return false;
-        }
-    }
-    for (const auto &verify : record.nsVerifyList) {
-        if (verify.guid.empty() || verify.defaultNqn.empty()) { // AgentAttachNs 回放必需
-            return false;
-        }
-    }
-    return true;
-}
-
 rapidjson::Value SerializeIdentity(const UbseSsuAllocIdentityInfo &identity,
                                    rapidjson::Document::AllocatorType &allocator)
 {
@@ -282,6 +226,63 @@ bool DeserializeNsVerify(const rapidjson::Value &value, UbseSsuNsVerifyInfo &ver
 }
 
 } // namespace
+
+// 导出给RPC反序列化路径复用，与JSON持久化路径的防御深度对齐
+bool IsRecordFieldsValid(const UbseSsuAttachRecord &record)
+{
+    if (record.name.empty() || record.name.size() >= UBSE_SSU_MAX_NAME_LENGTH) {
+        return false;
+    }
+    if (static_cast<uint32_t>(record.strategy) > static_cast<uint32_t>(UbseSsuAllocStrategy::NORMAL)) {
+        return false;
+    }
+    if (static_cast<uint32_t>(record.recordState) >
+        static_cast<uint32_t>(UbseSsuAttachRecordState::SUSPECT)) { // 上界与状态机定义对齐，允许 SUSPECT 落盘记录重载
+        return false;
+    }
+    if (!record.devName.empty() && !IsValidDevName(record.devName)) { // 白名单，防路径穿越
+        return false;
+    }
+    if (!IsOptionalNqnValid(record.nqn)) { // 空串表示 defaultNqn，非空须为合法 HostNqn
+        return false;
+    }
+    if (record.identity.userName.empty() ||
+        record.identity.userName.size() >= UBSE_SSU_MAX_USER_NAME_LENGTH) {
+        return false;
+    }
+    if (!IsBlockDeviceOptionsValid(record)) {
+        return false;
+    }
+    if (record.nsList.empty() || record.nsList.size() != record.nsVerifyList.size()) {
+        return false; // nsList 与 nsVerifyList 必须一一对应
+    }
+    if (record.nsList.size() > MAX_NS_PER_RECORD) {
+        return false;
+    }
+    if (record.attachedAt < 0) {
+        return false;
+    }
+    for (const auto &ns : record.nsList) {
+        if (!IsNsDevPathAllowed(ns.nsDevPath)) {
+            return false;
+        }
+        if (ns.namespaceId == 0 || ns.nsSize == 0) {
+            return false;
+        }
+        if (!IsLbaFormatValid(static_cast<uint32_t>(ns.lbaFormat))) {
+            return false;
+        }
+        if (ns.allowHostNqnList.size() > MAX_HOST_NQN_PER_NS) {
+            return false;
+        }
+    }
+    for (const auto &verify : record.nsVerifyList) {
+        if (verify.guid.empty() || verify.defaultNqn.empty()) { // AgentAttachNs 回放必需
+            return false;
+        }
+    }
+    return true;
+}
 
 void SerializeRecord(const UbseSsuAttachRecord &record, rapidjson::Value &value,
                      rapidjson::Document::AllocatorType &allocator)

@@ -106,7 +106,8 @@ uint32_t UbseSsuCollector::CollectDeviceList()
     newMap.reserve(devList.size());
     for (auto &dev : devList) {
         std::string eid = dev.subSystem.eid;
-        newMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(dev));
+        // 拷贝而非move：devList随后还要传给onCollectSuccess_回调（周期增量对账消费）
+        newMap[eid] = std::make_shared<const UbseSsuDevInfo>(dev);
     }
     
     {
@@ -124,6 +125,11 @@ uint32_t UbseSsuCollector::CollectDeviceList()
             reservationMgr_.Clear();
         }
         UBSE_LOG_INFO << "SsuDeviceCollector: device list updated, count=" << cachedDevMap_.size();
+    }
+    // 周期采集成功回调：缓存实际更新后触发，供上层做增量对账
+    // 回调在锁外执行，避免与GetCachedDevMap等读路径互斥放大
+    if (onCollectSuccess_) {
+        onCollectSuccess_(devList);
     }
     return UBSE_OK;
 }
@@ -204,6 +210,17 @@ std::unordered_map<std::string, UbseSsuDevInfoPtr> UbseSsuCollector::GetCachedDe
 void UbseSsuCollector::SetOnFirstCollectFailRecovery(const std::function<void()> &onFirstCollectFailRecovery)
 {
     onFirstCollectFailRecovery_ = onFirstCollectFailRecovery;
+}
+
+bool UbseSsuCollector::IsFirstCollectPending() const
+{
+    return rebuildPending_.load();
+}
+
+// 设置周期采集成功回调，用于上层周期增量对账
+void UbseSsuCollector::SetOnCollectSuccess(const std::function<void(const std::vector<UbseSsuDevInfo> &)> &onCollectSuccess)
+{
+    onCollectSuccess_ = onCollectSuccess;
 }
 
 } // namespace ubse::ssu::service

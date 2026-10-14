@@ -1653,14 +1653,15 @@ uint32_t UbseSsuAdapterImpl::AssembleMdBlockDevice(const std::string& deviceName
     //    带重试：StopMdHoldersOnMembers 执行后 udev 可能在空窗期自动 assemble 幽灵阵列占用成员盘，
     //    或 NVMe attach 后 kernel 内部引用尚未完全释放，导致 O_EXCL open 失败报 "is busy"。
     //    每次重试前重新清理 holders，让 udev/kernel 有时间收敛。
-    constexpr int maxAssembleRetries = 3;
-    constexpr int assembleRetryDelayMs = 500;
+    constexpr int maxAssembleRetries = 5;
+    int assembleRetryDelayMs = 500;
     std::string output;
     bool assembled = false;
     for (int attempt = 0; attempt < maxAssembleRetries; ++attempt) {
         if (attempt > 0) {
             StopMdHoldersOnMembers(devicePathList);
             std::this_thread::sleep_for(std::chrono::milliseconds(assembleRetryDelayMs));
+            assembleRetryDelayMs *= 2; // 指数退避
         }
         std::string cmd = "mdadm --assemble " + mdDevicePath;
         for (const auto& devPath : devicePathList) {

@@ -119,6 +119,8 @@ var (
 	ErrSsuNeedDetachBeforeFree = &StatusCodeError{StatusCode: 1201, ErrName: "UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE"}
 	ErrSsuStrategyMismatch     = &StatusCodeError{StatusCode: 1202, ErrName: "UBSE_SSU_ERROR_STRATEGY_MISMATCH"}
 	ErrSsuAttacherMismatch     = &StatusCodeError{StatusCode: 1203, ErrName: "UBSE_SSU_ERROR_ATTACHER_MISMATCH"}
+	ErrSsuSpaceFaulted   = &StatusCodeError{StatusCode: 1204, ErrName: "UBSE_SSU_ERROR_SPACE_FAULTED"}
+	ErrSsuMasterNotReady = &StatusCodeError{StatusCode: 1205, ErrName: "UBSE_SSU_ERROR_MASTER_NOT_READY"}
 
 	// 重复操作错误 (2000-2099)
 	ErrAlreadyAllocated = &StatusCodeError{StatusCode: 2000, ErrName: "UBSE_ERR_ALREADY_ALLOCATED"}
@@ -190,6 +192,8 @@ var errMap = map[uint32]*StatusCodeError{
 	1201: ErrSsuNeedDetachBeforeFree,
 	1202: ErrSsuStrategyMismatch,
 	1203: ErrSsuAttacherMismatch,
+	1204: ErrSsuSpaceFaulted,
+	1205: ErrSsuMasterNotReady,
 	2000: ErrAlreadyAllocated,
 	2001: ErrAlreadyAttached,
 	2002: ErrNoNeedFree,
