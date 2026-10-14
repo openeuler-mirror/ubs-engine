@@ -13,6 +13,8 @@
 
 #include <algorithm>
 #include <unordered_set>
+#include "config/ubse_conf.h"
+#include "ubse_error.h"
 #include "ubse_logger.h"
 
 namespace ubse::ssu::scheduler {
@@ -25,6 +27,13 @@ constexpr uint64_t LBA0_SECTOR_SIZE = 512;
 constexpr uint64_t LBA1_SECTOR_SIZE = 4096;
 constexpr uint64_t MAX_NS_PER_DEV = 128;
 
+// ubse.conf [ubse.ssu] 租户设备配额配置项（进程启动时读取一次快照）。
+// 配置键定义在本文件而非 ubse_ssu_controller_module.h：消费者是本文件的配额filter，
+// 避免算法层反向依赖上层模块头文件。
+constexpr const char *SSU_CONF_SECTION = "ubse.ssu";
+constexpr const char *SSU_CONF_PER_TENANT_MAX_DEVICE_PCT_KEY = "tenant.perTenantMaxDevicePercent";
+constexpr uint32_t DEFAULT_TENANT_DEVICE_QUOTA_PCT = 100; // 100等价关闭配额
+
 // 生成分配失败结果
 UbseSsuAllocationResult MakeError(UbseSsuAllocRetCode code, const std::string &msg)
 {
@@ -32,6 +41,26 @@ UbseSsuAllocationResult MakeError(UbseSsuAllocRetCode code, const std::string &m
     res.ret = code;
     res.msg = msg;
     return res;
+}
+
+// 配额百分比归一化：仅接受[1,100]，非法值回退100（关闭配额）
+uint32_t NormalizeQuotaPct(uint32_t pct)
+{
+    return (pct >= 1 && pct <= 100) ? pct : DEFAULT_TENANT_DEVICE_QUOTA_PCT;
+}
+
+// 读取租户配额百分比配置，读取失败或值非法时回退默认值
+uint32_t ReadTenantQuotaPercent(const char *key)
+{
+    uint32_t val = DEFAULT_TENANT_DEVICE_QUOTA_PCT;
+    if (ubse::config::UbseGetUInt(SSU_CONF_SECTION, key, val) != UBSE_OK) {
+        return DEFAULT_TENANT_DEVICE_QUOTA_PCT;
+    }
+    if (val != NormalizeQuotaPct(val)) {
+        UBSE_LOG_WARN << "invalid tenant quota config " << key << "=" << val << ", reset to "
+                      << DEFAULT_TENANT_DEVICE_QUOTA_PCT;
+    }
+    return NormalizeQuotaPct(val);
 }
 
 // 条带化分配默认实现
@@ -404,6 +433,75 @@ bool UbseSsuTenantIsolationFilter::Handle(UbseSsuAllocationContext &ctx)
     return true;
 }
 
+UbseSsuTenantQuotaFilter::UbseSsuTenantQuotaFilter()
+    : perTenantPct_(ReadTenantQuotaPercent(SSU_CONF_PER_TENANT_MAX_DEVICE_PCT_KEY))
+{
+}
+
+UbseSsuTenantQuotaFilter::UbseSsuTenantQuotaFilter(uint32_t perTenantPct)
+    : perTenantPct_(NormalizeQuotaPct(perTenantPct))
+{
+}
+
+bool UbseSsuTenantQuotaFilter::Handle(UbseSsuAllocationContext &ctx)
+{
+    const auto &requestTenant = ctx.request.tenant;
+    // 非租户请求不受配额限制：只能使用未归属设备（TenantIsolationFilter已过滤掉全部已归属设备），
+    // 租户间占用完全部设备时自然返回空间不足
+    if (requestTenant.empty()) {
+        return true;
+    }
+
+    // 基于原始设备列表统计：未经PreprocessDevices预过滤，含已达MAX_NS_PER_DEV的已归属设备
+    // （它们实际已被租户占用，应计入配额分子）；离线设备不可用，不计入分母与分子
+    uint32_t onlineTotal = 0;
+    uint32_t ownedByRequestTenant = 0;
+    for (const auto &dev : ctx.devices) {
+        if (dev.state != UbseSsuState::ONLINE) {
+            continue;
+        }
+        ++onlineTotal;
+        if (dev.nameSpaces.empty()) {
+            continue;
+        }
+        std::string tenant(dev.nameSpaces[0].customData.tenant,
+                           strnlen(dev.nameSpaces[0].customData.tenant,
+                                   sizeof(dev.nameSpaces[0].customData.tenant)));
+        if (tenant == requestTenant) {
+            ++ownedByRequestTenant;
+        }
+    }
+
+    // 向上取整：正配额至少允许1台设备，避免小占比在小集群下被floor成0导致租户完全锁死
+    // （如3台设备配额30%：ceil(0.9)=1，floor则为0）
+    // 配额100等价关闭：ownedByRequestTenant最多等于onlineTotal，
+    // 此时已无未归属设备可剔除，软限制动作天然为no-op
+    uint32_t perTenantLimit = (onlineTotal * perTenantPct_ + 99) / 100;
+    if (ownedByRequestTenant < perTenantLimit) {
+        return true;
+    }
+
+    UBSE_LOG_INFO << "Tenant quota reached: tenant=" << requestTenant
+                  << ", owned=" << ownedByRequestTenant << ", limit=" << perTenantLimit
+                  << ", online=" << onlineTotal << "; confine allocation to owned devices";
+
+    // 软限制：剔除未归属设备，租户仍可在自己已归属的设备上继续分配
+    auto it = std::remove_if(ctx.selectedDevs.begin(), ctx.selectedDevs.end(),
+                             [](const UbseSsuFilterDev &dev) { return dev.tenant.empty(); });
+    ctx.selectedDevs.erase(it, ctx.selectedDevs.end());
+
+    // 剔除后可用设备不足（数量校验口径与TenantIsolationFilter一致，NORMAL策略允许同设备多NS）
+    if (ctx.selectedDevs.empty() ||
+        (ctx.request.strategy != UbseSsuAllocStrategy::NORMAL && ctx.selectedDevs.size() < ctx.request.nsNum)) {
+        UBSE_LOG_ERROR << "Tenant quota: only " << ctx.selectedDevs.size() << " owned devices available for tenant="
+                       << requestTenant << ", but " << ctx.request.nsNum << " required";
+        ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
+                               "Tenant quota reached: insufficient owned devices for tenant=" + requestTenant);
+        return false;
+    }
+    return true;
+}
+
 bool UbseSsuAllocateAlgorithmHandler::Handle(UbseSsuAllocationContext &ctx)
 {
     // ALLOCATE - 根据分配策略选择算法
@@ -438,6 +536,8 @@ UbseSsuScheduler::UbseSsuScheduler()
                      std::make_shared<PreCheckHandler>());
     chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::PRE_CHECK),
                      std::make_shared<UbseSsuTenantIsolationFilter>());
+    chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::PRE_CHECK),
+                     std::make_shared<UbseSsuTenantQuotaFilter>());
     chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::ALGORITHM),
                      std::make_shared<UbseSsuAllocateAlgorithmHandler>());
 }

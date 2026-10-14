@@ -24,15 +24,21 @@
 #include <dirent.h>
 #include <glib.h>
 #include <climits>
+#include <grp.h>
+#include <pwd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include "ubse_conf.h"
+#include "ubse_security_module.h"
 #include "src/framework/misc/ubse_env_util.h"
 #include "src/framework/misc/ubse_os_util.h"
 
 namespace ubse::adapter_plugins::ssu::def {
 UBSE_DEFINE_THIS_MODULE("ubse");
+
+using ubse::security::UbseSecurityModule;
 
 namespace {
 struct GStrFreevDeleter {
@@ -147,7 +153,30 @@ BlockDevicePresence GetBlockDevicePresence(const std::string &deviceName)
     return p;
 }
 
-// 在 /dev/ssu/{deviceName} 创建指向 targetPath 的符号链接，linkPath 输出最终的链接路径
+// root 用户/组的 id（Linux 恒为 0）
+constexpr uid_t SSU_LINK_ROOT_UID = 0;
+constexpr gid_t SSU_LINK_ROOT_GID = 0;
+// ubse 用户/组的名称，删除符号链接前需将属主改回 ubse
+constexpr const char *SSU_LINK_UBSE_USER = "ubse";
+
+// 查询用户名对应的 uid 与主组 gid（getpwnam_r 线程安全），失败返回 false
+bool GetUserIdsByName(const char *userName, uid_t &uid, gid_t &gid)
+{
+    struct passwd pwd{};
+    struct passwd *result = nullptr;
+    std::array<char, 1024> buf{};
+    if (getpwnam_r(userName, &pwd, buf.data(), buf.size(), &result) != 0 || result == nullptr) {
+        return false;
+    }
+    uid = pwd.pw_uid;
+    gid = pwd.pw_gid;
+    return true;
+}
+
+// 在 /dev/ssu/{deviceName} 创建指向 targetPath 的符号链接，linkPath 输出最终的链接路径。
+// 创建成功后将符号链接属主/属组改为 root（lchown 不跟随链接，避免改动目标设备属主）；
+// 改属主所需的 CAP_CHOWN 由 ModifyEffectiveCapabilities 临时添加，用完立即删除（手动成对调用，
+// 与 mmi/syssentry 等模块保持一致，要求 permitted 集合中已包含该能力）。
 uint32_t CreateSsuDevSymlink(const std::string &deviceName, const std::string &targetPath,
                              std::string &linkPath)
 {
@@ -164,13 +193,50 @@ uint32_t CreateSsuDevSymlink(const std::string &deviceName, const std::string &t
                        << ", errno=" << err;
         return UBSE_ERROR_IO;
     }
+    std::vector<__u32> chownCaps = {CAP_CHOWN};
+    uint32_t capRet = UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, true);
+    if (capRet != UBSE_OK) {
+        // 透传安全模块错误码（UBSE_ERROR/UBSE_ERROR_INVAL），区分"能力不在 permitted 集合"等
+        // 部署配置问题与真正的文件系统 I/O 错误
+        UBSE_LOG_ERROR << "Failed to add CAP_CHOWN for changing owner of symlink " << linkPath
+                       << ", ret=" << capRet;
+        unlink(linkPath.c_str());
+        return capRet;
+    }
+    if (lchown(linkPath.c_str(), SSU_LINK_ROOT_UID, SSU_LINK_ROOT_GID) != 0) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to change owner of symlink " << linkPath << " to root, errno=" << err;
+        UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
+        unlink(linkPath.c_str());
+        return UBSE_ERROR_IO;
+    }
+    UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
     return UBSE_OK;
 }
 
-// 移除 /dev/ssu/{deviceName} 符号链接（幂等，不存在时视为成功）
+// 移除 /dev/ssu/{deviceName} 符号链接（幂等，不存在时视为成功）。
+// 删除前先将属主/属组改回 ubse（临时添加 CAP_CHOWN，用完删除；改属主失败仅告警，不阻塞删除）。
 void RemoveSsuDevSymlink(const std::string &deviceName)
 {
     std::string linkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    uid_t ubseUid;
+    gid_t ubseGid;
+    if (!GetUserIdsByName(SSU_LINK_UBSE_USER, ubseUid, ubseGid)) {
+        UBSE_LOG_WARN << "Failed to lookup user " << SSU_LINK_UBSE_USER
+                      << ", skip changing owner of symlink " << linkPath << " before remove";
+    } else {
+        std::vector<__u32> chownCaps = {CAP_CHOWN};
+        if (UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, true) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to add CAP_CHOWN for changing owner of symlink " << linkPath;
+        } else {
+            if (lchown(linkPath.c_str(), ubseUid, ubseGid) != 0 && errno != ENOENT) {
+                int err = errno;
+                UBSE_LOG_WARN << "Failed to change owner of symlink " << linkPath << " to "
+                              << SSU_LINK_UBSE_USER << ", errno=" << err;
+            }
+            UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
+        }
+    }
     if (unlink(linkPath.c_str()) != 0 && errno != ENOENT) {
         int err = errno;
         UBSE_LOG_WARN << "Failed to remove symlink " << linkPath << ", errno=" << err;

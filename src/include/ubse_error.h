@@ -117,6 +117,7 @@
 #define UBSE_SSU_ERROR_SPACE_FAULTED UBSE_ERROR_DEF(1204)          /* 空间所在设备故障（FAULTED），attach/detach被拦截，可free止损 */
 #define UBSE_SSU_ERROR_MASTER_NOT_READY UBSE_ERROR_DEF(1205)      /* master账本未就绪（首次采集/重建未完成），纯重试语义 */
 #define UBSE_SSU_ERROR_MOUNT_SUSPECTED UBSE_ERROR_DEF(1206)       /* 疑似本地残留挂载，需人工核对（free或清理本地设备后自动解除） */
+#define UBSE_SSU_ERROR_INSUFFICIENT_SPACE UBSE_ERROR_DEF(1207)   /* 设备可用空间不足（含租户配额用尽） */
 
 /* ****************************************************** */
 /* 重复操作错误码定义，全局唯一，范围2000~2099，语义为失败（重复操作一律报错） */
@@ -281,7 +282,6 @@
 
 /* ====================== 调度与分配错误 (11310~11319) ====================== */
 #define UBSE_SSU_ERROR_NO_DEVICE UBSE_INTERNAL_ERROR_DEF(1310)          /* 无可用设备 */
-#define UBSE_SSU_ERROR_INSUFFICIENT_SPACE UBSE_INTERNAL_ERROR_DEF(1311) /* 设备可用空间不足 */
 #define UBSE_SSU_ERROR_SCHEDULER_FAILED UBSE_INTERNAL_ERROR_DEF(1312)   /* 调度分配失败 */
 #define UBSE_SSU_ERROR_NS_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1313)   /* 命名空间创建失败 */
 #define UBSE_SSU_ERROR_NS_DELETE_FAILED UBSE_INTERNAL_ERROR_DEF(1314)   /* 命名空间删除失败 */
