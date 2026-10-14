@@ -176,7 +176,8 @@ void TestProcessMemPidDecision::SetUp()
         decision.returnExecutor_ = ubse::task_executor::UbseTaskExecutor::Create("ProcMemReturnTest", 2, 64);
         decision.returnExecutor_->Start();
     }
-    // UT 无远端 numa sysfs: mock 实际占用量 = 已完成 slot 之和, 使 pending 语义等价于旧的在途借用口径
+    // UT 无远端 numa sysfs: mock 节点级实际占有 = 已完成 slot 之和(COMPLETED 视为已落地),
+    // 节点级总量口径仅剩轮次日志消费, 供 GetPendingMigrateTotal 断言
     ProcessMemPidDecision::remoteNumaUsedKbReader = []() -> std::optional<uint64_t> {
         uint64_t actualBytes = 0;
         auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
@@ -188,6 +189,24 @@ void TestProcessMemPidDecision::SetUp()
             }
         }
         return actualBytes / 1024;
+    };
+    // 远端明细口径(生产 Init 恒注册, 采样不可用时的在途回退): mock 各 dest 实际占用 = 该 dest
+    // 已完成 slot 之和 → 池差 0, 与节点级 mock 口径一致
+    ProcessMemPidDecision::remoteNumaUsedMapKbReader = []() -> std::optional<std::unordered_map<uint32_t, uint64_t>> {
+        std::unordered_map<uint32_t, uint64_t> usedBytesByDest;
+        auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+        for (const auto& [pid, entry] : snapshot) {
+            for (const auto& s : entry.borrow.slots) {
+                if (s.status == BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0) {
+                    usedBytesByDest[static_cast<uint32_t>(s.remoteNumaId)] += s.migratedBytes;
+                }
+            }
+        }
+        std::unordered_map<uint32_t, uint64_t> usedKbByDest;
+        for (const auto& [destNumaId, bytes] : usedBytesByDest) {
+            usedKbByDest[destNumaId] = bytes / 1024;
+        }
+        return usedKbByDest;
     };
     // 单本地 numa(0) 明细默认 mock: 判定/阈值按 MemTotal 占比切分, 单 numa 占比 100% → per-numa 等价整机
     // 语义; free 实时联动 localNumaFreeKbReader 当前值; 未注册整机 free 时明细同样不可用(跳过轮)
@@ -219,6 +238,7 @@ void TestProcessMemPidDecision::TearDown()
     ProcessMemPidBridge::rmrsProcessConfigQuery = {};
     ProcessMemPidDecision::localNumaFreeKbReader = nullptr;
     ProcessMemPidDecision::remoteNumaUsedKbReader = nullptr;
+    ProcessMemPidDecision::remoteNumaUsedMapKbReader = nullptr;
     ProcessMemPidDecision::localNumaMemMapReader = nullptr;
     ProcessMemPidCollect::GetInstance().SetCollectVmRssOverride(nullptr);
 

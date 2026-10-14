@@ -149,7 +149,7 @@ public:
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
     // 远端各 numa MemUsed 明细读取钩子: 生产 Init 注册真实采集快照, 在途量按 dest 建池拆分;
-    // 未注册/返回 nullopt(UT)时退回节点级总量口径(remoteNumaUsedKbReader)
+    // 未注册/返回 nullopt 时 COMPLETED 异步窗口本轮弃权(不扣在途)
     inline static std::function<std::optional<std::unordered_map<uint32_t, uint64_t>>()> remoteNumaUsedMapKbReader;
     // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
     // 未注册/返回 nullopt 时决策跳过本轮(不退化整机口径)
@@ -171,14 +171,13 @@ private:
 
     void CheckTimeouts(uint64_t roundNum);
 
-    // 在途迁移总量(账本预期 − 实际远端占用): 判缺/日志节点级口径, 明细
-    // (remoteNumaUsedMapKbReader) 不可用时兼作在途分摊的回退来源
+    // 在途迁移总量(账本预期 − 实际远端占用): 节点级口径, 供轮次日志
     uint64_t GetPendingMigrateTotal() const;
 
     // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按 pid@dest 采样
     // 观测(该 pid 在该远端 numa 声明量 − 实测占用)逐 (pid,dest) 建池, 池未落地量全额归该池
-    // 当前声明源(borrowTime 最新, 门控串行下老源必已收敛); 暂无可信观测时退回远端明细/节点级
-    // 口径; 判缺/紧急轮扣减防在途数据被下轮重复下发借用
+    // 当前声明源(borrowTime 最新, 门控串行下老源必已收敛); 暂无可信观测时退回远端明细口径,
+    // 明细亦不可用则本轮弃权; 判缺/紧急轮扣减防在途数据被下轮重复下发借用
     std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache);
 
     // COMPLETED 槽进程视角落地观测: 对每个 (pid,dest) 维护观测状态(500ms 节流采样/宽限锁定自愈),

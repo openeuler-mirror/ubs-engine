@@ -611,7 +611,7 @@ uint32_t ProcessMemPidDecision::Init()
     localNumaMemMapReader = []() {
         return collect::ProcessMemPidCollect::GetInstance().GetLocalNumaMemMap();
     };
-    // 远端明细 reader 生产默认注册: 在途量按 dest 建池; 未注册(UT)时明细不可用, 退回节点级总量口径
+    // 远端明细 reader 生产默认注册: 在途量按 dest 建池; 未注册时明细不可用, COMPLETED 异步窗口本轮弃权
     remoteNumaUsedMapKbReader = []() {
         return collect::ProcessMemPidCollect::GetInstance().GetRemoteNumaUsedMapKb();
     };
@@ -937,30 +937,6 @@ void DistributePerDestUnlanded(const DestSrcDeclaredMap& completedByDestSrc,
     }
 }
 
-// 远端明细不可用的回退: 节点在途总量超出 BORROWING 声明的部分(COMPLETED 异步窗口)按源声明占比整除分摊
-void DistributeNodeLevelUnlanded(uint64_t pendingTotal, uint64_t borrowingDeclared,
-                                 const std::unordered_map<int, uint64_t>& completedDeclared,
-                                 std::unordered_map<int, uint64_t>& unlanded)
-{
-    if (pendingTotal <= borrowingDeclared) {
-        return;
-    }
-    uint64_t asyncUnlanded = pendingTotal - borrowingDeclared;
-    uint64_t completedTotal = 0;
-    for (const auto& entry : completedDeclared) {
-        completedTotal += entry.second;
-    }
-    if (completedTotal == 0) {
-        return;
-    }
-    for (const auto& [srcNumaId, bytes] : completedDeclared) {
-        uint64_t share = static_cast<uint64_t>((static_cast<__uint128_t>(asyncUnlanded) * bytes) / completedTotal);
-        if (share > 0) {
-            unlanded[srcNumaId] += share;
-        }
-    }
-}
-
 // 落地观测节流: 同一 pid 至多每 500ms 观测一次, 中间轮沿用上次有效观测
 constexpr uint64_t kObserveIntervalMs = 500;
 // 观测宽限倍数: 超过 3× 该声明量按 128MB 块折算的迁移超时仍无有效观测即锁定释放
@@ -1146,7 +1122,7 @@ bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap&
             const auto& state = completedLandedObserve_[pid][destNumaId];
             if (!state.observedValid) {
                 UBSE_LOG_DEBUG << "[process_mem] completed landed observe unavailable pid=" << pid
-                               << " dest_numa=" << destNumaId << ", fallback to remote-used/node-level";
+                               << " dest_numa=" << destNumaId << ", fallback to remote-used";
                 return false;
             }
             effectiveObserved[pid][destNumaId] = state.observedBytes;
@@ -1186,8 +1162,8 @@ bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap&
 // per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
 // COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 优先按进程视角采样观测(该 pid 在该
 // dest 的声明量 − 实测占用)逐 (pid,dest) 建池, 未落地量全额归该池当前声明源(borrowTime 最新,
-// 门控串行下老源必已收敛); 暂无可信观测退回远端明细/节点级口径; 供判缺/紧急轮扣减, 防在途数据
-// 被下轮重复下发借用
+// 门控串行下老源必已收敛); 暂无可信观测退回远端明细口径, 明细亦不可用则本轮弃权(原节点级兜底
+// 口径生产不可达, 已删除); 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
 std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache)
 {
     // 门控源集每轮重建: 空声明/观测回退/采样失败时为空 = 不门控(与在途口径同源同原子性),
@@ -1195,17 +1171,14 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
     migratingSrcNumasByPid_.clear();
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     std::unordered_map<int, uint64_t> unlanded;
-    std::unordered_map<int, uint64_t> completedDeclared;
     DestSrcDeclaredMap completedByDestSrc;
     PidDestSrcDeclaredMap completedByPidDestSrc;
     PidDestLatestSrcMap latestSrcByPidDest;
     std::unordered_map<pid_t, std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>>
         latestDeclareTimeByPidDest;
-    uint64_t borrowingDeclared = 0;
     for (const auto& [pid, entry] : snapshot) {
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status == def::BorrowSlotStatus::BORROWING) {
-                borrowingDeclared += slot.migratedBytes;
                 if (slot.srcNumaId >= 0) {
                     unlanded[slot.srcNumaId] += slot.migratedBytes;
                 }
@@ -1214,7 +1187,6 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
             if (slot.status != def::BorrowSlotStatus::COMPLETED || slot.srcNumaId < 0) {
                 continue;
             }
-            completedDeclared[slot.srcNumaId] += slot.migratedBytes;
             if (slot.remoteNumaId >= 0) {
                 auto destNumaId = static_cast<uint32_t>(slot.remoteNumaId);
                 completedByDestSrc[slot.remoteNumaId][slot.srcNumaId] += slot.migratedBytes;
@@ -1234,12 +1206,11 @@ std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPer
         CollectObservedUnlanded(completedByPidDestSrc, latestSrcByPidDest, residenceCache, unlanded)) {
         return unlanded;
     }
+    // 远端明细亦不可用: COMPLETED 异步窗口本轮弃权(不扣在途)
     auto usedMapKb = ReadRemoteNumaUsedMap();
     if (usedMapKb.has_value()) {
         DistributePerDestUnlanded(completedByDestSrc, *usedMapKb, unlanded);
-        return unlanded;
     }
-    DistributeNodeLevelUnlanded(GetPendingMigrateTotal(), borrowingDeclared, completedDeclared, unlanded);
     return unlanded;
 }
 
