@@ -2214,6 +2214,24 @@ bool ProcessMemPidDecision::IsPidReturnInFlight(pid_t pid)
     return inFlightPidReturns_.count(pid) > 0;
 }
 
+void ProcessMemPidDecision::MarkPidReturnPending(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    pidReturnPending_.insert(pid);
+}
+
+void ProcessMemPidDecision::ClearPidReturnPending(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    pidReturnPending_.erase(pid);
+}
+
+bool ProcessMemPidDecision::IsPidReturnPending(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(inFlightReturnsMutex_);
+    return pidReturnPending_.count(pid) > 0;
+}
+
 bool ProcessMemPidDecision::EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene)
 {
     if (!ReturnExecutorReady()) {
@@ -2373,6 +2391,19 @@ bool ProcessMemPidDecision::EnqueuePidReturn(pid_t pid, ReturnScene scene, const
     return returnExecutor_->Execute([this, pid, scene, slots]() { RunPidReturn(pid, scene, slots); });
 }
 
+bool ProcessMemPidDecision::EnqueuePidReturnGuaranteed(pid_t pid, ReturnScene scene,
+                                                       const std::vector<def::BorrowSlot>& slots)
+{
+    if (EnqueuePidReturn(pid, scene, slots)) {
+        return true;
+    }
+    UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
+                  << " enqueue failed, retry later";
+    RetryReturnEnqueue(NextReturnRetryCount("pid:" + std::to_string(pid)),
+                       [this, pid, scene, slots]() { return EnqueuePidReturn(pid, scene, slots); });
+    return false;
+}
+
 uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots,
                                                 std::vector<def::BorrowSlot>& failedSlots)
 {
@@ -2501,6 +2532,7 @@ void ProcessMemPidDecision::RunPidReturn(pid_t pid, ReturnScene scene, const std
         uint32_t ret = DoPidReturnOnce(pid, scene, slots, failedSlots);
         if (IsReturnDone(ret) || failedSlots.empty()) {
             ResetReturnRetryCount("pid:" + std::to_string(pid));
+            ClearPidReturnPending(pid);
             return;
         }
         scheduleRetry = true;
@@ -2926,7 +2958,9 @@ uint32_t ProcessMemPidDecision::ReconcileLedgerWithCache()
             RecoverBindDebt(pid, debt);
             ++added;
             affectedSet.insert(pid);
-        } else {
+        } else if (!IsPidReturnPending(pid) && !IsPidReturnInFlight(pid)) {
+            // REMOVED 归还流程(迁回等待/失败重试退避)已接管该 pid 的账本债务:
+            // 孤儿强还不等迁回, 在此窗口执行即丢页面
             EnqueueOrphanReturn(debt.name);
         }
     }

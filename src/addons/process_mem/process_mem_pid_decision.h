@@ -140,6 +140,13 @@ public:
 
     bool EnqueuePidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
+    // 配置删除(REMOVED)流程: 删缓存前标记, 标记期间对账不对该 pid 的账本债务做孤儿强还
+    // (迁回未收敛前强还即丢页), 归还统一由本流程负责; 归还成功终结时自动清除
+    void MarkPidReturnPending(pid_t pid);
+
+    // REMOVED 专用入队: 入队失败不能吞(标记已置、对账已让路), 需退避重试入队
+    bool EnqueuePidReturnGuaranteed(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
+
     uint32_t HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots);
 
     uint32_t OomPollOnce();
@@ -233,6 +240,10 @@ private:
     bool AcquirePidReturnInFlight(pid_t pid);
     void ReleasePidReturnInFlight(pid_t pid);
     bool IsPidReturnInFlight(pid_t pid);
+
+    // REMOVED 归还接管标记: 只在归还成功终结时清除; 重试耗尽保留(债务按滞留告警, 不丢页)
+    void ClearPidReturnPending(pid_t pid);
+    bool IsPidReturnPending(pid_t pid);
 
     void RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene);
 
@@ -388,6 +399,9 @@ private:
 
     std::set<std::string> inFlightDebtReturns_{};
     std::set<pid_t> inFlightPidReturns_{};
+    // REMOVED 流程已接管归还的 pid: 对账对这类 pid 跳过孤儿强还; 生命周期长于 inFlight
+    // (覆盖"已入队未执行/失败重试退避"间隙), 需归还成功终结才清除
+    std::set<pid_t> pidReturnPending_{};
     std::mutex inFlightReturnsMutex_{};
 
     // 借用轮整轮串行: 定时轮与 OOM 紧急轮并发会重复消费同一 pid 的 canMigrate(瞬态双倍超借)

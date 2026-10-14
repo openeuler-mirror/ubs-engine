@@ -356,6 +356,12 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
         }
     }
 
+    // 删除缓存前先标记: 对账不再对这些 pid 的账本债务做孤儿强还(pid 出缓存后 IsBorrowBindable
+    // 恒 false, 迁回窗口内强还即丢页), 归还统一由下方入队的 REMOVED 流程负责
+    for (pid_t pid : returnPids) {
+        decision::ProcessMemPidDecision::GetInstance().MarkPidReturnPending(pid);
+    }
+
     EraseConfigFromCache(isPid, identifier);
 
     RebuildManagedPidCache();
@@ -372,8 +378,9 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
         if (it != returnLedgers.end()) {
             slots = it->second;
         }
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::REMOVED,
-                                                                              std::move(slots));
+        // 入队失败不能吞: 标记已置、对账已让路, 必须退避重试入队
+        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturnGuaranteed(
+            pid, decision::ReturnScene::REMOVED, std::move(slots));
     }
     return UBSE_OK;
 }
