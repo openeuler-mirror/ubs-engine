@@ -134,5 +134,24 @@ private:
     std::atomic<bool> started_{false}; // 定时器是否已注册
     std::atomic<bool> running_{false}; // 单轮执行防重入
 };
+
+// 平账批量执行单飞守卫：对账批量项移交executor异步执行后，300s运营对账定时器
+// 下一轮可能在上一批未执行完时重复下发，对同一空间重复REMOUNT/CLEANUP。
+// handler受理前CAS抢占，整批执行完毕（含异常路径）释放
+class UbseSsuReconcileBatchGuard {
+public:
+    UbseSsuReconcileBatchGuard() = default;
+    ~UbseSsuReconcileBatchGuard() = default;
+    UbseSsuReconcileBatchGuard(const UbseSsuReconcileBatchGuard &) = delete;
+    UbseSsuReconcileBatchGuard &operator=(const UbseSsuReconcileBatchGuard &) = delete;
+
+    // CAS进入批量执行：返回true表示获得执行权，false表示上批仍在执行（应拒绝受理）
+    bool TryEnter();
+    // 整批执行完毕释放
+    void Exit();
+
+private:
+    std::atomic<bool> running_{false}; // 批量执行单飞标志
+};
 } // namespace ubse::ssu::service
 #endif // UBSE_SSU_RECONCILE_STATE_H

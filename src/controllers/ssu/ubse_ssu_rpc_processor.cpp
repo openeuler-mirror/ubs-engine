@@ -32,6 +32,7 @@
 #include "ubse_logger.h"
 #include "ubse_ssu_attach_record_store.h"
 #include "ubse_ssu_mount_ops.h"
+#include "ubse_ssu_reconcile_state.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_ssu_utils.h"
 
@@ -688,8 +689,8 @@ static void HandleGetConnectInfoReqReceiver(const uint8_t *reqData, uint32_t req
 // ===== 运营期持续对账平账 =====
 
 // 平账单项执行：per-name resourceLock下复用既有原语（不新增执行路径）。
-// REMOUNT：探测就绪→幂等收敛；未就绪→RemountLocal重挂；本地记录缺失回NEED_FULL_INFO
-//         （master以账本补齐完整记录后重发，hasRecord=true时直接使用master记录）
+// REMOUNT：探测就绪→幂等收敛；未就绪→RemountLocal重挂；本地记录缺失时使用master
+//         首发携带的完整记录（hasRecord=true，master下发前已经BuildRecordFromLedger补齐）
 // CLEANUP：复用SPACE_NOT_FOUND清理语义（CleanupLocalMount+删记录，幂等）
 // REPORT：经SendStatusUpdate补报，master按幂等语义收敛；SPACE_NOT_FOUND→残留自愈清理
 static uint32_t ExecuteReconcileItem(UbseSsuReconcileItem &item)
@@ -713,8 +714,10 @@ static uint32_t ExecuteReconcileItem(UbseSsuReconcileItem &item)
     switch (item.action) {
         case UbseSsuReconcileAction::REMOUNT: {
             if (!localRecord.has_value() && !item.hasRecord) {
-                // 记录字段缺失：master以账本补齐完整记录后重发
-                return UBSE_SSU_ERROR_NEED_FULL_INFO;
+                // 防御性守卫：master下发前已经BuildRecordFromLedger补齐（hasRecord=true），
+                // 正常不可达；缺记录时跳过等下轮，避免用空壳记录执行重挂
+                UBSE_LOG_WARN << "ReconcileItem: remount without record, skip, name=" << item.name;
+                return UBSE_ERR_INVALID_ARG;
             }
             UbseSsuAttachRecord record = localRecord.has_value() ? *localRecord : item.record;
             if (!ProbeLocalMountReady(record)) {
@@ -753,8 +756,9 @@ static uint32_t ExecuteReconcileItem(UbseSsuReconcileItem &item)
         }
         case UbseSsuReconcileAction::REPORT: {
             if (!localRecord.has_value()) {
-                // 记录已丢失：转由master按REMOUNT补齐裁决
-                return UBSE_SSU_ERROR_NEED_FULL_INFO;
+                // 记录已丢失：无法上报，跳过等下轮（master侧diff持续存在会再裁决）
+                UBSE_LOG_WARN << "ReconcileItem: report without local record, skip, name=" << item.name;
+                return UBSE_OK;
             }
             if (localRecord->recordState != UbseSsuAttachRecordState::ATTACHED) {
                 UBSE_LOG_WARN << "ReconcileItem: report skip, recordState=" << static_cast<uint32_t>(
@@ -807,7 +811,31 @@ static void HandleMountSummaryReqReceiver(const uint8_t *reqData, uint32_t reqSi
     UBSE_LOG_INFO << "Received mount summary req, recordCount=" << respData.items.size();
 }
 
-// agent端：运营对账平账请求。逐项执行，结果经sync resp逐项返回
+// 平账批量执行单飞守卫（进程级）：防止对账定时器下一轮在上一批异步执行未完成时
+// 重复下发导致同一空间被重复REMOUNT/CLEANUP
+static UbseSsuReconcileBatchGuard g_reconcileBatchGuard;
+
+// 平账批量执行：整批作为单个任务在ubseSsuController executor线程串行执行。
+// 必须整批单任务提交（勿逐项提交）：18线程池逐项并发会对同一空间的devName操作、
+// mdadm/LVM组装互踩，也会与用户面attach并发竞争。逐项结果仅记日志，
+// 最终状态经SendStatusUpdate异步回报由master收敛
+static void ExecuteReconcileBatch(std::vector<UbseSsuReconcileItem> items)
+{
+    for (auto &item : items) {
+        auto ret = ExecuteReconcileItem(item);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "ReconcileBatch: execute item failed, name=" << item.name
+                          << ", action=" << static_cast<uint32_t>(item.action)
+                          << ", ret=" << FormatRetCode(ret); // 下轮定时器兜底重试
+        }
+    }
+    UBSE_LOG_INFO << "ReconcileBatch: batch finished, itemCount=" << items.size();
+}
+
+// agent端：运营对账平账请求。受理即回，批量项移交executor线程异步执行：
+// 单条重挂含nvme connect与mdadm/LVM组装（秒级），若在RPC引擎分发线程内串行执行，
+// 会长时间占用与attach/detach用户面请求共用的引擎线程。逐项result=UBSE_OK表示已受理，
+// 实际执行结果经SendStatusUpdate异步回报由master收敛
 static void HandleReconcileReqReceiver(const uint8_t *reqData, uint32_t reqSize,
                                        std::unique_ptr<UbseRpcMessage> &resp)
 {
@@ -821,12 +849,37 @@ static void HandleReconcileReqReceiver(const uint8_t *reqData, uint32_t reqSize,
     }
     auto req = request.GetReconcileReq();
     UBSE_LOG_INFO << "Received reconcile req, itemCount=" << req.items.size();
+    auto executor = utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        UbseSsuReconcileResp errResp;
+        errResp.errorCode = UBSE_SSU_ERROR_EXECUTOR_NULL;
+        resp = std::make_unique<UbseSsuReconcileRespMsg>(errResp);
+        return;
+    }
+    // 单飞守卫：上批仍在executor内执行时拒绝受理，master下轮重试
+    if (!g_reconcileBatchGuard.TryEnter()) {
+        UBSE_LOG_WARN << "ReconcileBatch: previous batch still running, reject, itemCount=" << req.items.size();
+        UbseSsuReconcileResp errResp;
+        errResp.errorCode = UBSE_ERR_RESOURCE_BUSY;
+        resp = std::make_unique<UbseSsuReconcileRespMsg>(errResp);
+        return;
+    }
+    // 受理即回：逐项result=UBSE_OK，批量项整批单任务提交executor串行执行
     UbseSsuReconcileResp respData;
     respData.items = req.items;
     for (auto &item : respData.items) {
-        item.result = ExecuteReconcileItem(item);
+        item.result = UBSE_OK; // 已受理，执行结果经SendStatusUpdate异步回报
     }
     resp = std::make_unique<UbseSsuReconcileRespMsg>(respData);
+    if (!executor->Execute([items = std::move(req.items)]() mutable {
+            ExecuteReconcileBatch(std::move(items));
+            g_reconcileBatchGuard.Exit();
+        })) {
+        // 提交失败（队列满）：必须释放单飞守卫，否则对账被永久拒绝；master下轮重试
+        UBSE_LOG_ERROR << "ReconcileBatch: submit to executor failed";
+        g_reconcileBatchGuard.Exit();
+    }
 }
 
 // 注册SSU状态更新请求处理器

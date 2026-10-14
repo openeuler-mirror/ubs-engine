@@ -133,4 +133,15 @@ void UbseSsuReconcileTimerFlags::ExitRound()
 {
     running_.store(false, std::memory_order_release);
 }
+
+bool UbseSsuReconcileBatchGuard::TryEnter()
+{
+    bool expected = false;
+    return running_.compare_exchange_strong(expected, true);
+}
+
+void UbseSsuReconcileBatchGuard::Exit()
+{
+    running_.store(false, std::memory_order_release);
+}
 } // namespace ubse::ssu::service

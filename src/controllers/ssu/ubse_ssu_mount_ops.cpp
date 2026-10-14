@@ -180,6 +180,10 @@ bool ProbeLocalMountReady(const UbseSsuAttachRecord &record)
 // 已存在的NS/聚合设备跳过；聚合设备经Probe决策Create/Assemble（委托SetupBlockDeviceWithProbe）
 uint32_t RemountLocal(const UbseSsuAttachRecord &record)
 {
+    if (record.nsList.size() != record.nsVerifyList.size()) {
+        UBSE_LOG_ERROR << "RemountLocal: nsList/nsVerifyList size mismatch, name=" << record.name;
+        return UBSE_ERR_INVALID_ARG;
+    }
     std::vector<std::string> nsDevPaths;
     nsDevPaths.reserve(record.nsList.size());
     for (size_t i = 0; i < record.nsList.size(); ++i) {
@@ -222,6 +226,10 @@ uint32_t RemountLocal(const UbseSsuAttachRecord &record)
 // 单步失败仅记录日志不中断（DetachDevNameSpace/StopBlockDevice幂等，下次事件重试收敛）
 void CleanupLocalMount(const UbseSsuAttachRecord &record)
 {
+    if (record.nsList.size() != record.nsVerifyList.size()) {
+        UBSE_LOG_ERROR << "CleanupLocalMount: nsList/nsVerifyList size mismatch, name=" << record.name;
+        return;
+    }
     if (record.blockDeviceOptions.has_value() && !record.devName.empty()) {
         auto stopRet = UbseSsuAdapterInterface::GetInstance().StopBlockDevice(record.devName);
         if (stopRet != UBSE_OK) {
@@ -353,10 +361,21 @@ void DiffNodeMountSummary(const std::string &nodeId, const UbseSsuMountSummaryRe
             if (agentItem.recordState != UbseSsuAttachRecordState::ATTACHED) {
                 continue; // PENDING在途/SUSPECT人工介入
             }
-            // 状态矛盾/上报丢失：REPORT
             UbseSsuReconcileItem item;
             item.name = entry->name;
-            item.action = UbseSsuReconcileAction::REPORT;
+            if (entry->allocReq.strategy != UbseSsuAllocStrategy::NORMAL && !entry->attachNodes.empty()) {
+                // 独占空间归属明确为他节点：账本已权威裁决attacher，本节点ATTACHED记录必为
+                // stale残留（或已发生的双挂异常），REPORT会被attacher校验拒收形成死循环、
+                // 残留永不收敛——直接发CLEANUP让agent自愈清理（复用SPACE_NOT_FOUND清理语义）
+                UBSE_LOG_WARN << "MountReconcile: exclusive space owned by other node, cleanup stale mount, name="
+                              << entry->name << ", nodeId=" << nodeId
+                              << ", attacher=" << *entry->attachNodes.begin();
+                item.action = UbseSsuReconcileAction::CLEANUP;
+            } else {
+                // NORMAL多节点 或 独占但attachNodes为空（归属未知，存在attach完成到上报
+                // 到达窗口的误清风险）：非破坏性补报，master按幂等语义收敛
+                item.action = UbseSsuReconcileAction::REPORT;
+            }
             items.push_back(std::move(item));
         }
     }

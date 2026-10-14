@@ -74,8 +74,8 @@ void CleanupLocalMount(const persist::UbseSsuAttachRecord &record);
 uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state,
                           const std::string &devName, const std::string &nodeId);
 
-// master以账本allocResult+collector缓存补齐完整挂载记录（NEED_FULL_INFO重发路径，
-// RunMountReconcile本机直平反向补记录/远端补齐重发共用）。
+// master以账本allocResult+collector缓存补齐完整挂载记录
+// （RunMountReconcile本机直平反向补记录/远端REMOUNT项首发补齐共用）。
 // nqn留空：RemountLocal回放AgentAttachNs时经ResolveNqn取verify.defaultNqn，与首次挂载行为一致；
 // identity不参与回放（AgentAttachDetachNs仅用nsInfo+verifyInfo+nqn），留空可接受；
 // STRIPED的raidLevel/chunkSize账本不存储（属首次attach请求参数），仅Probe降级Create路径使用，
@@ -85,8 +85,8 @@ bool BuildRecordFromLedger(const debt::UbseSsuLedgerEntry &entry,
                            persist::UbseSsuAttachRecord &record);
 
 // 双向diff（以账本为准）生成单节点平账清单：
-// - 账本期望挂载（节点∈attachNodes且非FAULTED）而agent记录缺失 → REMOUNT（轻量首发，
-//   agent回NEED_FULL_INFO后master以账本补齐完整记录重发）
+// - 账本期望挂载（节点∈attachNodes且非FAULTED）而agent记录缺失 → REMOUNT
+//   （RunMountReconcile下发前就地以账本补齐完整记录，hasRecord=true首发）
 // - agent有ATTACHED记录而账本无该空间（已free）→ CLEANUP（复用SPACE_NOT_FOUND清理语义）
 // - 账本有空间但节点∉attachNodes而agent记录ATTACHED（上报丢失/状态矛盾）→ REPORT
 //   （非破坏性补报，master按幂等语义收敛；不直接CLEANUP，规避attach完成到上报到达窗口的误清）
