@@ -11,11 +11,13 @@
  */
 #include "ubse_ssu_collector.h"
 
+#include <algorithm>
 #include <mutex>
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_ssu_adapter_interface.h"
+#include "ubse_ssu_utils.h"
 #include "ubse_timer.h"
 
 namespace ubse::ssu::service {
@@ -184,9 +186,68 @@ std::vector<UbseSsuDevInfo> UbseSsuCollector::GetDevListWithReservations()
     return result;
 }
 
+// 分配成功后将新创建的namespace合入设备缓存：
+// 仅合入nameSpaces（租户隔离/nsCount对调度器即时可见），不修改usedBytes——
+// 容量维度由reservationMgr_预留覆盖至下次采集（采集后硬件usedBytes接管并Clear预留），
+// 此处叠加usedBytes会与预留双算导致可用容量偏小。
+// 周期采集可能已抢先拿到新NS，按namespaceId判重避免重复插入。
+void UbseSsuCollector::UpdateDevNameSpaces(const std::vector<UbseSsuDevNameSpace> &nsList)
+{
+    std::unique_lock<std::shared_mutex> lock(devListCacheMtx_);
+    for (const auto &ns : nsList) {
+        auto it = cachedDevMap_.find(ns.subSystem.eid);
+        if (it == cachedDevMap_.end() || it->second == nullptr) {
+            UBSE_LOG_WARN << "UpdateDevNameSpaces: dev not in cache, eid=" << ns.subSystem.eid;
+            continue;
+        }
+        const UbseSsuDevInfo &cached = *(it->second);
+        bool exists = std::any_of(cached.nameSpaces.begin(), cached.nameSpaces.end(),
+                                  [&ns](const UbseSsuDevNameSpace &cachedNs) {
+                                      return cachedNs.namespaceId == ns.namespaceId;
+                                  });
+        if (exists) {
+            continue;
+        }
+        UbseSsuDevInfo dev = cached;
+        dev.nameSpaces.push_back(ns);
+        cachedDevMap_[ns.subSystem.eid] = std::make_shared<const UbseSsuDevInfo>(std::move(dev));
+    }
+}
+
 void UbseSsuCollector::AddReserveSpace(const std::vector<std::pair<std::string, uint64_t>> &eidBytesList)
 {
     reservationMgr_.AddReserveSpace(eidBytesList);
+}
+
+// free成功后从设备缓存移除已删除的namespace：
+// 仅移除nameSpaces条目（租户/nsCount对调度器即时可见），不修改usedBytes——
+// 容量维度由reservationMgr_预释放覆盖至下次采集，此处扣减usedBytes会与预释放双算。
+// 入参uuid为标准格式（36字符），缓存中为16字节二进制，转换后比对（与FindNsInDevice约定一致）。
+void UbseSsuCollector::RemoveDevNameSpaces(const std::vector<std::pair<std::string, std::string>> &eidUuidList)
+{
+    std::unique_lock<std::shared_mutex> lock(devListCacheMtx_);
+    for (const auto &eidUuid : eidUuidList) {
+        const std::string &eid = eidUuid.first;
+        const std::string &uuidStr = eidUuid.second;
+        if (uuidStr.empty()) {
+            continue;
+        }
+        auto it = cachedDevMap_.find(eid);
+        if (it == cachedDevMap_.end() || it->second == nullptr) {
+            continue;
+        }
+        const UbseSsuDevInfo &cached = *(it->second);
+        auto nsIt = std::find_if(cached.nameSpaces.begin(), cached.nameSpaces.end(),
+                                 [&uuidStr](const UbseSsuDevNameSpace &cachedNs) {
+                                     return utils::StrToUuid(cachedNs.uuid) == uuidStr;
+                                 });
+        if (nsIt == cached.nameSpaces.end()) {
+            continue;
+        }
+        UbseSsuDevInfo dev = cached;
+        dev.nameSpaces.erase(dev.nameSpaces.begin() + std::distance(cached.nameSpaces.begin(), nsIt));
+        cachedDevMap_[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(dev));
+    }
 }
 
 // 释放预扣除容量，用于创建ns失败时回滚

@@ -20,6 +20,7 @@ from .ubs_engine_exceptions import (
     UbsEngineOutOfRangeError, UbsEngineExistedError, UbsEngineNotExistError,
     UbsEngineAllocateError, UbsEngineStateError, UbsEngineStrategyMismatchError,
     UbsEngineAttacherMismatchError, UbsEngineSpaceFaultedError, UbsEngineMasterNotReadyError,
+    UbsEngineMountSuspectedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,7 @@ _ERROR_MAP: Dict[int, _ErrorEntry] = {
     1203: ("UBSE_SSU_ERROR_ATTACHER_MISMATCH", UbsEngineAttacherMismatchError),
     1204: ("UBSE_SSU_ERROR_SPACE_FAULTED", UbsEngineSpaceFaultedError),
     1205: ("UBSE_SSU_ERROR_MASTER_NOT_READY", UbsEngineMasterNotReadyError),
+    1206: ("UBSE_SSU_ERROR_MOUNT_SUSPECTED", UbsEngineMountSuspectedError),
     # 重复操作错误 (2000-2099)
     2000: ("UBSE_ERR_ALREADY_ALLOCATED", UbsEngineExistedError),
     2001: ("UBSE_ERR_ALREADY_ATTACHED", UbsEngineExistedError),

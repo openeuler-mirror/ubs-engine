@@ -113,6 +113,7 @@ typedef enum
     UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH = 1203,          // 独占策略空间已被其他节点挂载, 当前节点无权操作
     UBS_ENGINE_ERR_SSU_SPACE_FAULTED = 1204,              // 空间所在设备故障(FAULTED), attach/detach被拦截, 可free止损
     UBS_ENGINE_ERR_SSU_MASTER_NOT_READY = 1205,          // master账本未就绪(首次采集/重建未完成), 纯重试语义
+    UBS_ENGINE_ERR_SSU_MOUNT_SUSPECTED = 1206,            // 疑似本地残留挂载, 需人工核对(free或清理本地设备后自动解除)
 
     /* ====================== 重复操作错误码 (2000-2099) ====================== */
     UBS_ENGINE_ERR_ALREADY_ALLOCATED = 2000, // 空间已分配, 重复分配报错
