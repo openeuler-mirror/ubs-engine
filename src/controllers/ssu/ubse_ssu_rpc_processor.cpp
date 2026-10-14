@@ -18,15 +18,21 @@
 #include "message/ubse_ssu_alloc_msg.h"
 #include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "message/ubse_ssu_free_msg.h"
+#include "message/ubse_ssu_mount_reconcile_msg.h"
 #include "message/ubse_ssu_perm_msg.h"
 #include "message/ubse_ssu_query_verify_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
+#include "framework/misc/ubse_logging_lock_guard.h"
 #include "trace_context.h"
 #include "ubse_com.h"
 #include "ubse_com_op_code.h"
+#include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_ssu_attach_record_store.h"
+#include "ubse_ssu_mount_ops.h"
+#include "ubse_ssu_reconcile_state.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_ssu_utils.h"
 
@@ -172,8 +178,13 @@ static void HandleAllocRespReceiver(const uint8_t *reqData, uint32_t reqSize, st
 // - ATTACHING -> CREATED: agent attach失败回退
 // - CREATED -> ATTACHED: 容忍ATTACHING通知丢失的兜底转换
 // - ATTACHED -> CREATED: agent detach成功
+// - 同状态转换（ATTACHED->ATTACHED/CREATED->CREATED等）：恢复期重报幂等消化
+//   （重启恢复的agent按本地记录重报ATTACHED，insert(nodeId)/erase本身幂等）
 static bool IsStatusTransitionValid(UbseSsuNsState from, UbseSsuNsState to)
 {
+    if (from == to) {
+        return true; // 同状态上报幂等消化（恢复重报场景）
+    }
     if (from == UbseSsuNsState::CREATING && to == UbseSsuNsState::CREATED) {
         return true;
     }
@@ -238,11 +249,28 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
     auto statusReq = request.GetStatusUpdateReq();
     bool modified = false;
     UbseSsuNsState fromState;
+    uint32_t rejectCode = UBSE_SSU_ERROR_STATE_INVALID; // modified=false时的回复错误码
     UBSE_LOG_INFO << "Received ssu status update, requestId=" << statusReq.requestName
                   << ", state=" << static_cast<int>(statusReq.state) << ", nodeId=" << statusReq.nodeId;
+    // 账本未就绪（master重启后首次采集/Rebuild未完成）：返回MASTER_NOT_READY与SPACE_NOT_FOUND区分，
+    // 杜绝agent误判space已被free而错误自愈清理本地挂载
+    if (!UbseSsuDebtLedger::GetInstance().IsReady()) {
+        UBSE_LOG_WARN << "StatusUpdate: master ledger not ready, name=" << statusReq.requestName;
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_MASTER_NOT_READY);
+        return;
+    }
     if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq, &modified,
-                                                                         &fromState](UbseSsuLedgerEntry &e) {
+                                                                         &fromState, &rejectCode](UbseSsuLedgerEntry &e) {
             fromState = e.state;
+            // 设备故障拦截：FAULTED空间的状态上报一律拒收，
+            // 防止故障期间的上报覆盖FAULTED状态掩盖告警；设备恢复由collector对账回正后
+            // 重报再收敛（agent侧有重试/运营对账兜底）
+            if (e.state == UbseSsuNsState::FAULTED) {
+                UBSE_LOG_WARN << "StatusUpdate: space faulted, report rejected, name=" << statusReq.requestName
+                              << ", reporter=" << statusReq.nodeId;
+                rejectCode = UBSE_SSU_ERROR_SPACE_FAULTED;
+                return;
+            }
             // NORMAL多节点共挂 ：对账式处理节点级上报。
             if (e.allocReq.strategy == UbseSsuAllocStrategy::NORMAL) {
                 modified = ApplyPerNodeReconcile(e, statusReq);
@@ -250,6 +278,16 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
             }
             // LINEAR/STRIPED独占挂载：保持原有空间级状态机，并按上报nodeId维护attachNodes（attacher记录，至多1个元素），
             // 供verify强校验当前节点是否为attacher
+            // 重报污染防护：ATTACHED上报时attachNodes已含其他节点
+            // → 拒收（恢复窗口双重挂载的最后防线），维持attacher单节点不变式
+            if (statusReq.state == UbseSsuNsState::ATTACHED && !e.attachNodes.empty()
+                && e.attachNodes.count(statusReq.nodeId) == 0) {
+                UBSE_LOG_WARN << "StatusUpdate: attacher mismatch report rejected, name=" << statusReq.requestName
+                              << ", reporter=" << statusReq.nodeId
+                              << ", attacher=" << *e.attachNodes.begin();
+                rejectCode = UBSE_SSU_ERROR_ATTACHER_MISMATCH;
+                return;
+            }
             if (!IsStatusTransitionValid(e.state, statusReq.state)) {
                 UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
                               << ", from=" << static_cast<int>(e.state) << ", to=" << static_cast<int>(statusReq.state);
@@ -279,9 +317,10 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
         return;
     }
     if (!modified) {
-        UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
-                      << ", from=" << static_cast<int>(fromState) << " to=" << static_cast<int>(statusReq.state);
-        SetReplySyncResp(resp, UBSE_SSU_ERROR_STATE_INVALID);
+        UBSE_LOG_WARN << "StatusUpdate: report rejected, name=" << statusReq.requestName
+                      << ", from=" << static_cast<int>(fromState) << " to=" << static_cast<int>(statusReq.state)
+                      << ", ret=" << FormatRetCode(rejectCode);
+        SetReplySyncResp(resp, rejectCode);
         return;
     }
     SetReplySyncResp(resp);
@@ -647,6 +686,202 @@ static void HandleGetConnectInfoReqReceiver(const uint8_t *reqData, uint32_t req
     resp = std::make_unique<UbseSsuGetConnectInfoRespMsg>(respData);
 }
 
+// ===== 运营期持续对账平账 =====
+
+// 平账单项执行：per-name resourceLock下复用既有原语（不新增执行路径）。
+// REMOUNT：探测就绪→幂等收敛；未就绪→RemountLocal重挂；本地记录缺失时使用master
+//         首发携带的完整记录（hasRecord=true，master下发前已经BuildRecordFromLedger补齐）
+// CLEANUP：复用SPACE_NOT_FOUND清理语义（CleanupLocalMount+删记录，幂等）
+// REPORT：经SendStatusUpdate补报，master按幂等语义收敛；SPACE_NOT_FOUND→残留自愈清理
+static uint32_t ExecuteReconcileItem(UbseSsuReconcileItem &item)
+{
+    std::string selfNodeId;
+    auto nodeIdRet = election::UbseGetCurrentNodeId(selfNodeId);
+    if (nodeIdRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "ReconcileItem: get current node id failed, " << FormatRetCode(nodeIdRet)
+                       << ", name=" << item.name;
+        return nodeIdRet;
+    }
+    auto resourceLock = ubse::utils::UbseLoggingLockGuard(item.name);
+    // 本地记录快照（per-name锁内读取，与SDK attach/detach主流程互斥，无TOCTOU）
+    std::optional<UbseSsuAttachRecord> localRecord;
+    for (const auto &record : ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().GetAll()) {
+        if (record.name == item.name) {
+            localRecord = record;
+            break;
+        }
+    }
+    switch (item.action) {
+        case UbseSsuReconcileAction::REMOUNT: {
+            if (!localRecord.has_value() && !item.hasRecord) {
+                // 防御性守卫：master下发前已经BuildRecordFromLedger补齐（hasRecord=true），
+                // 正常不可达；缺记录时跳过等下轮，避免用空壳记录执行重挂
+                UBSE_LOG_WARN << "ReconcileItem: remount without record, skip, name=" << item.name;
+                return UBSE_ERR_INVALID_ARG;
+            }
+            UbseSsuAttachRecord record = localRecord.has_value() ? *localRecord : item.record;
+            if (!ProbeLocalMountReady(record)) {
+                auto ret = RemountLocal(record);
+                if (ret != UBSE_OK) {
+                    UBSE_LOG_ERROR << "ReconcileItem: remount failed, name=" << item.name
+                                   << ", ret=" << FormatRetCode(ret);
+                    return ret; // 下轮定时器兜底重试
+                }
+            }
+            // 就绪/重挂成功：记录收敛为ATTACHED（master账本裁决补挂，SUSPECT亦随之解除）
+            record.recordState = UbseSsuAttachRecordState::ATTACHED;
+            ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().Upsert(record);
+            // 执行结果经SendStatusUpdate回报
+            const std::string devName = record.blockDeviceOptions.has_value() ? record.devName : "";
+            auto reportRet = SendStatusUpdate(item.name, UbseSsuNsState::ATTACHED, devName, selfNodeId);
+            if (reportRet != UBSE_OK) {
+                UBSE_LOG_WARN << "ReconcileItem: report after remount failed, name=" << item.name
+                              << ", ret=" << FormatRetCode(reportRet);
+            }
+            return UBSE_OK;
+        }
+        case UbseSsuReconcileAction::CLEANUP: {
+            if (localRecord.has_value()) {
+                CleanupLocalMount(*localRecord);
+                ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().Remove(item.name);
+            }
+            // 记录已不存在：幂等成功（可能已被主流程清理）
+            auto reportRet = SendStatusUpdate(item.name, UbseSsuNsState::CREATED, "", selfNodeId);
+            // 账本无该空间（已free）时master回SPACE_NOT_FOUND属预期，其余错误仅记录
+            if (reportRet != UBSE_OK && reportRet != UBSE_SSU_ERROR_SPACE_NOT_FOUND) {
+                UBSE_LOG_WARN << "ReconcileItem: report after cleanup failed, name=" << item.name
+                              << ", ret=" << FormatRetCode(reportRet);
+            }
+            return UBSE_OK;
+        }
+        case UbseSsuReconcileAction::REPORT: {
+            if (!localRecord.has_value()) {
+                // 记录已丢失：无法上报，跳过等下轮（master侧diff持续存在会再裁决）
+                UBSE_LOG_WARN << "ReconcileItem: report without local record, skip, name=" << item.name;
+                return UBSE_OK;
+            }
+            if (localRecord->recordState != UbseSsuAttachRecordState::ATTACHED) {
+                UBSE_LOG_WARN << "ReconcileItem: report skip, recordState=" << static_cast<uint32_t>(
+                    localRecord->recordState) << ", name=" << item.name;
+                return UBSE_OK; // PENDING在途/SUSPECT人工介入，下轮再收敛
+            }
+            const std::string devName = localRecord->blockDeviceOptions.has_value() ? localRecord->devName : "";
+            auto ret = SendStatusUpdate(item.name, UbseSsuNsState::ATTACHED, devName, selfNodeId);
+            if (ret == UBSE_SSU_ERROR_SPACE_NOT_FOUND) {
+                // master账本无该空间（diff后又被free）：残留自愈清理
+                UBSE_LOG_WARN << "ReconcileItem: space freed on master, cleanup local, name=" << item.name;
+                CleanupLocalMount(*localRecord);
+                ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().Remove(item.name);
+            } else if (ret != UBSE_OK) {
+                UBSE_LOG_WARN << "ReconcileItem: report failed, name=" << item.name
+                              << ", ret=" << FormatRetCode(ret); // 下轮兜底重试
+            }
+            return UBSE_OK;
+        }
+        default:
+            UBSE_LOG_ERROR << "ReconcileItem: unknown action=" << static_cast<uint32_t>(item.action)
+                           << ", name=" << item.name;
+            return UBSE_ERR_INVALID_ARG;
+    }
+}
+
+// agent端：运营对账挂载摘要请求。
+// agent/standby均可响应，返回本机AttachRecordStore全量摘要（{name, recordState, devName}，
+// 不含nsList明细，报文轻量），经sync resp直接返回
+static void HandleMountSummaryReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                          std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuMountSummaryReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize mount summary req, reqSize=" << reqSize;
+        UbseSsuMountSummaryResp errResp;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
+        resp = std::make_unique<UbseSsuMountSummaryRespMsg>(errResp);
+        return;
+    }
+    UbseSsuMountSummaryResp respData;
+    for (const auto &record : ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().GetAll()) {
+        UbseSsuMountSummaryItem item;
+        item.name = record.name;
+        item.recordState = record.recordState;
+        item.devName = record.devName;
+        respData.items.emplace_back(std::move(item));
+    }
+    resp = std::make_unique<UbseSsuMountSummaryRespMsg>(respData);
+    UBSE_LOG_INFO << "Received mount summary req, recordCount=" << respData.items.size();
+}
+
+// 平账批量执行单飞守卫（进程级）：防止对账定时器下一轮在上一批异步执行未完成时
+// 重复下发导致同一空间被重复REMOUNT/CLEANUP
+static UbseSsuReconcileBatchGuard g_reconcileBatchGuard;
+
+// 平账批量执行：整批作为单个任务在ubseSsuController executor线程串行执行。
+// 必须整批单任务提交（勿逐项提交）：18线程池逐项并发会对同一空间的devName操作、
+// mdadm/LVM组装互踩，也会与用户面attach并发竞争。逐项结果仅记日志，
+// 最终状态经SendStatusUpdate异步回报由master收敛
+static void ExecuteReconcileBatch(std::vector<UbseSsuReconcileItem> items)
+{
+    for (auto &item : items) {
+        auto ret = ExecuteReconcileItem(item);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "ReconcileBatch: execute item failed, name=" << item.name
+                          << ", action=" << static_cast<uint32_t>(item.action)
+                          << ", ret=" << FormatRetCode(ret); // 下轮定时器兜底重试
+        }
+    }
+    UBSE_LOG_INFO << "ReconcileBatch: batch finished, itemCount=" << items.size();
+}
+
+// agent端：运营对账平账请求。受理即回，批量项移交executor线程异步执行：
+// 单条重挂含nvme connect与mdadm/LVM组装（秒级），若在RPC引擎分发线程内串行执行，
+// 会长时间占用与attach/detach用户面请求共用的引擎线程。逐项result=UBSE_OK表示已受理，
+// 实际执行结果经SendStatusUpdate异步回报由master收敛
+static void HandleReconcileReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                       std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuReconcileReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize reconcile req, reqSize=" << reqSize;
+        UbseSsuReconcileResp errResp;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
+        resp = std::make_unique<UbseSsuReconcileRespMsg>(errResp);
+        return;
+    }
+    auto req = request.GetReconcileReq();
+    UBSE_LOG_INFO << "Received reconcile req, itemCount=" << req.items.size();
+    auto executor = utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        UbseSsuReconcileResp errResp;
+        errResp.errorCode = UBSE_SSU_ERROR_EXECUTOR_NULL;
+        resp = std::make_unique<UbseSsuReconcileRespMsg>(errResp);
+        return;
+    }
+    // 单飞守卫：上批仍在executor内执行时拒绝受理，master下轮重试
+    if (!g_reconcileBatchGuard.TryEnter()) {
+        UBSE_LOG_WARN << "ReconcileBatch: previous batch still running, reject, itemCount=" << req.items.size();
+        UbseSsuReconcileResp errResp;
+        errResp.errorCode = UBSE_ERR_RESOURCE_BUSY;
+        resp = std::make_unique<UbseSsuReconcileRespMsg>(errResp);
+        return;
+    }
+    // 受理即回：逐项result=UBSE_OK，批量项整批单任务提交executor串行执行
+    UbseSsuReconcileResp respData;
+    respData.items = req.items;
+    for (auto &item : respData.items) {
+        item.result = UBSE_OK; // 已受理，执行结果经SendStatusUpdate异步回报
+    }
+    resp = std::make_unique<UbseSsuReconcileRespMsg>(respData);
+    if (!executor->Execute([items = std::move(req.items)]() mutable {
+            ExecuteReconcileBatch(std::move(items));
+            g_reconcileBatchGuard.Exit();
+        })) {
+        // 提交失败（队列满）：必须释放单飞守卫，否则对账被永久拒绝；master下轮重试
+        UBSE_LOG_ERROR << "ReconcileBatch: submit to executor failed";
+        g_reconcileBatchGuard.Exit();
+    }
+}
+
 // 注册SSU状态更新请求处理器
 uint32_t UbseSsuRpcProcessor::RegisterStatusHandler()
 {
@@ -776,6 +1011,27 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
     return UBSE_OK;
 }
 
+// 注册运营对账请求处理器：
+// 摘要与平账响应均经sync resp直接返回，无需注册RESP端点
+uint32_t UbseSsuRpcProcessor::RegisterMountReconcileHandlers()
+{
+    auto summaryEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_MOUNT_SUMMARY_REQ), HandleMountSummaryReqReceiver);
+    if (summaryEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register mount summary req receiver";
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
+    }
+    auto reconcileEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_RECONCILE_REQ), HandleReconcileReqReceiver);
+    if (reconcileEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register reconcile req receiver";
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
+    }
+    return UBSE_OK;
+}
+
 // 注册所有SSU相关的RPC处理器
 uint32_t UbseSsuRpcProcessor::RegHandler()
 {
@@ -818,6 +1074,12 @@ uint32_t UbseSsuRpcProcessor::RegHandler()
     ret = RegisterQueryHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterQueryHandlers failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = RegisterMountReconcileHandlers();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RegisterMountReconcileHandlers failed, " << FormatRetCode(ret);
         return ret;
     }
 

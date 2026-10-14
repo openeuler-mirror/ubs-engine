@@ -49,18 +49,20 @@ enum class UbseSsuReconcileAction : uint8_t {
     REPORT = 2,
 };
 
-// 平账指令项：首发只带name/action（轻量）；agent记录缺失回NEED_FULL_INFO后，
-// master以账本allocResult+collector缓存补齐完整记录（hasRecord=true）重发
+// 平账指令项：master首发即携带完整信息（REMOUNT项hasRecord=true，下发前已经
+// BuildRecordFromLedger以账本+collector缓存补齐完整记录——agent受理后异步执行，
+// 无法同步回缺失错误触发补齐重发）
 struct UbseSsuReconcileItem {
     std::string name;
     UbseSsuReconcileAction action{UbseSsuReconcileAction::REMOUNT};
     bool hasRecord{false};        // true时record携带master补齐的完整记录
     UbseSsuAttachRecord record{}; // hasRecord=false时为空壳
-    uint32_t result{0};           // agent执行结果（响应方向有效）：UBSE_OK=已受理/执行成功
+    uint32_t result{0};           // agent受理结果（响应方向有效）：UBSE_OK=已受理，
+                                  // 实际执行结果经SendStatusUpdate异步回报由master收敛
 };
 
-// 平账请求/响应：master按节点批量下发，agent逐项执行，结果经sync resp逐项返回
-// （NEED_FULL_INFO必须同步返回，master据此补齐重发）
+// 平账请求/响应：master按节点批量下发，agent受理即回（逐项result=UBSE_OK），
+// 批量项整批移交executor线程串行异步执行，最终状态经SendStatusUpdate异步回报
 struct UbseSsuReconcileReq {
     std::vector<UbseSsuReconcileItem> items;
 };
