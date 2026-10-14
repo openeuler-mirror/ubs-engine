@@ -55,6 +55,13 @@ public:
     void SetOnCollectSuccess(const std::function<void(const std::vector<UbseSsuDevInfo> &)> &onCollectSuccess);
     // 读取设备列表并叠加预留调整量，避免读取cachedDevMap_和reservationMgr_之间的并发不一致
     std::vector<UbseSsuDevInfo> GetDevListWithReservations();
+    // 分配成功后将新创建的namespace合入设备缓存，使租户隔离即时生效（否则需等
+    // 待30s周期采集，窗口期内其他租户的分配会误占同一设备）
+    void UpdateDevNameSpaces(const std::vector<UbseSsuDevNameSpace> &nsList);
+    // free成功后从设备缓存移除已删除的namespace，使设备即时释放给其他租户/无租户请求
+    // （否则窗口期内设备仍被旧租户占用，造成误拒）；eidUuidList为(eid, 标准格式uuid)列表，
+    // 与free的NS身份识别约定一致（缓存中uuid为16字节二进制，内部转换后比对）
+    void RemoveDevNameSpaces(const std::vector<std::pair<std::string, std::string>> &eidUuidList);
 
     // 添加预扣除容量
     void AddReserveSpace(const std::vector<std::pair<std::string, uint64_t>> &eidBytesList);

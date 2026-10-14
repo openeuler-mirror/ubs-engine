@@ -18,6 +18,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_service_registry.h"
+#include "ubse_ssu_attach_record_store.h"
 #include "ubse_ssu_http_handler.h"
 #include "ubse_ssu_ipc_handler.h"
 #include "ubse_ssu_master_online_handler.h"
@@ -165,6 +166,17 @@ UbseResult UbseSsuControllerModule::Start()
 
     // host 模式:以下逻辑保持现有行为不变
 
+    // 初始化本地挂载记录存储（加载attach_records.json）：
+    // 必须先于一切业务入口（下方服务注册/RPC/HTTP/IPC注册）——attach/detach的记录hook与
+    // 幂等预检都依赖store内存视图，接口上线后任何时刻都可能到达。
+    // 失败不阻塞启动：记录是可靠性增强，主业务不受影响；
+    // 恢复流程入口经EnsureInited兜底/重试（恢复事件早到或本次加载失败时）
+    auto recordRet = ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().Init();
+    if (recordRet != UBSE_OK) {
+        UBSE_LOG_WARN << "Attach record store init failed, ret=" << FormatRetCode(recordRet)
+                      << ", recovery will retry load on next trigger";
+    }
+
     // 将SSU服务单例注册到服务注册表，使北向接口可通过GetSsuService()获取
     // 使用空删除器：单例由GetInstance管理，不应被shared_ptr析构释放
     // GetInstance()返回单例引用，地址永远非空，无需做空指针检查
@@ -199,6 +211,17 @@ UbseResult UbseSsuControllerModule::Start()
         UBSE_LOG_ERROR << "Failed to register ssu ipc handlers, ret=" << ret;
         return ret;
     }
+    // 模块就绪标志置位：恢复流程（MASTER_ONLINE事件触发，可能早于本Start）在阶段2
+    // （账本对账/agent重报）前等待该标志，确保RPC端点已注册（重加入实测窗口可达10s+）
+    UbseSsuServiceImp::MarkModuleReady();
+
+    // 本地挂载重挂对账定时器：所有节点启动
+    // agent无collector首采回调触发源，重挂重试仅靠MASTER_ONLINE事件驱动可能长期不触发，
+    // 定时器补齐收敛节奏。注册失败仅降级（本地收敛缺失，进程重启自愈），不阻断启动
+    ret = UbseSsuServiceImp::GetInstance().StartLocalMountReconcileTimer();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to start local mount reconcile timer, ret=" << FormatRetCode(ret);
+    }
     UBSE_LOG_INFO << "UbseSsuControllerModule Start success";
     return UBSE_OK;
 }
@@ -213,6 +236,8 @@ void UbseSsuControllerModule::Stop()
     }
 
     // host 模式:以下逻辑保持现有行为不变
+    UbseSsuServiceImp::ResetModuleReady(); // RPC端点即将注销，恢复流程须重新等待就绪
+    UbseSsuServiceImp::GetInstance().StopLocalMountReconcileTimer();
     UbseSsuServiceImp::GetInstance().StopClearTimer();
     UbseSsuServiceImp::GetInstance().StopCollecting();
 

@@ -150,6 +150,11 @@ class UbsEngineMasterNotReadyError(UbsError):
     """master账本未就绪（首次采集/重建未完成），纯重试语义"""
     pass
 
+
+class UbsEngineMountSuspectedError(UbsError):
+    """疑似本地残留挂载，需人工核对（free或清理本地设备后自动解除）"""
+    pass
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

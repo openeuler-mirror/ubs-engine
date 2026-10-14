@@ -29,6 +29,9 @@ public:
 
 private:
     static uint32_t MasterOnlineHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+
+    // NODE_UP/NODE_DOWN事件处理（仅master收到）：桥接到账本离场对账记录接口
+    static uint32_t NodeStateHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
 };
 
 } // namespace ubse::ssu::service
