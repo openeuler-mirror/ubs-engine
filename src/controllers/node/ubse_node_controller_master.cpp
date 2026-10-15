@@ -2562,6 +2562,13 @@ void UbseNodeControllerMaster::ConsumeMirrorOnPromote(bool globalScope)
         UBSE_LOG_INFO << "[NODE_SYNC] restore from mirror: nodeId=" << nodeId
                       << " state=" << static_cast<uint32_t>(info.clusterState);
         UbseNodeController::GetInstance().RestoreNodeInfoFromMirror(info, faultTimeMs);
+        // 柜内升主：FAULT节点重建故障上报计数器（计数器为内存态、不随镜像同步），
+        // 从0重新累计150次上报后触发平滑对账，避免倒换后FAULT节点无法进入平滑流程。
+        if (!globalScope && info.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+            std::lock_guard<std::mutex> lock(faultCountersMutex_);
+            faultReportCounters_[nodeId] = 0;
+            UBSE_LOG_INFO << "[NODE_SYNC] rebuild fault report counter after promote, nodeId=" << nodeId;
+        }
         if (needLedger && taskExecutor_ != nullptr) {
             taskExecutor_->Execute([this, nodeId]() -> void { UbseNodeLedger(nodeId); });
         }
