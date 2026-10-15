@@ -228,6 +228,47 @@ TEST_F(TestUbseSsuServiceImpAlloc, ExecuteAlloc_Normal)
 }
 
 /*
+ * 测试用例：分配后立即分配另一租户，设备缓存未刷新（30s周期采集未到）时租户隔离仍生效。
+ * 场景：单设备，tenant-a 分配成功后（NS已落硬件但缓存未经历周期采集），
+ *       tenant-b 立即分配必须被租户隔离拒绝；tenant-a 再次分配不受影响。
+ * 回归背景：修复前缓存中设备无NS租户信息，tenant-b 的 NS 会误落到 tenant-a 的设备上。
+ * 测试步骤：
+ * 1、准备 collector 缓存（1 个设备，eid 16 字节）
+ * 2、mock GenerateHostNqn
+ * 3、tenant-a 调用 AllocSpace（LINEAR, nsNum=1）→ 成功
+ * 4、tenant-b 立即调用 AllocSpace → 应返回 INSUFFICIENT_SPACE（唯一设备已被 tenant-a 隔离）
+ * 5、tenant-a 再次调用 AllocSpace（不同name）→ 成功（同租户可共设备）
+ * 预期结果：
+ * 1、tenant-a 两次分配均返回 UBSE_OK
+ * 2、tenant-b 分配返回 UBSE_SSU_ERROR_INSUFFICIENT_SPACE
+ */
+TEST_F(TestUbseSsuServiceImpAlloc, ExecuteAlloc_TenantIsolationImmediateWindow)
+{
+    PopulateCollectorCache({
+        MakeDev(std::string(16, 'A'), "nqn.test.1"),
+    });
+    SetupAllocMocks();
+    auto identity = MakeIdentity();
+
+    auto reqA = MakeAllocReq("space_tenant_a", 2 * ONE_GIB, 1,
+                             UbseSsuLBAFormat::LBA_FORMAT_512, UbseSsuAllocStrategy::LINEAR, "tenant-a");
+    UbseSsuAllocResult resultA;
+    EXPECT_EQ(service_.AllocSpace(reqA, identity, resultA), UBSE_OK);
+
+    // 模拟立即到达的 tenant-b 分配：缓存未刷新，隔离必须由 UpdateDevNameSpaces 回写保证
+    auto reqB = MakeAllocReq("space_tenant_b", 2 * ONE_GIB, 1,
+                             UbseSsuLBAFormat::LBA_FORMAT_512, UbseSsuAllocStrategy::LINEAR, "tenant-b");
+    UbseSsuAllocResult resultB;
+    EXPECT_EQ(service_.AllocSpace(reqB, identity, resultB), UBSE_SSU_ERROR_INSUFFICIENT_SPACE);
+
+    // 同租户可继续在同一设备上分配
+    auto reqA2 = MakeAllocReq("space_tenant_a2", 2 * ONE_GIB, 1,
+                              UbseSsuLBAFormat::LBA_FORMAT_512, UbseSsuAllocStrategy::LINEAR, "tenant-a");
+    UbseSsuAllocResult resultA2;
+    EXPECT_EQ(service_.AllocSpace(reqA2, identity, resultA2), UBSE_OK);
+}
+
+/*
  * 测试用例：ExecuteAlloc 条带化分配成功（nsSize 可整除 nsNum 和 lbaSize）。
  * 测试步骤：
  * 1、准备 collector 缓存（3 个设备，eid 16 字节）

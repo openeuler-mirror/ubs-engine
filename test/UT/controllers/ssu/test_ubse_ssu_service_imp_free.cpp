@@ -587,4 +587,39 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_Concurrent)
     EXPECT_FALSE(LedgerEntryExists("exec_free_concurrent_2"));
 }
 
+/*
+ * 用例描述：
+ * free 后立即分配另一租户，设备缓存未刷新（30s 周期采集未到）时设备立即可用。
+ * 场景：单设备被 tenant-a 的 NS 占用，free 成功后（硬件已删但缓存未经历周期采集），
+ *       tenant-b 立即分配必须成功（设备租户随 NS 移除而清空）。
+ * 回归背景：修复前缓存中残留已删 NS 的租户信息，tenant-b 的分配被误拒（INSUFFICIENT_SPACE）。
+ * 测试步骤：
+ * 1、预置 tenant-a 的 NS 到 collector 缓存与 mock 适配器，账本 CREATED
+ * 2、调用 FreeSpace → 成功
+ * 3、mock GenerateHostNqn
+ * 4、tenant-b 立即调用 AllocSpace（LINEAR, nsNum=1）
+ * 预期结果：
+ * 1、FreeSpace 返回 UBSE_OK，账本条目移除
+ * 2、tenant-b 分配返回 UBSE_OK
+ */
+TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_DeviceReleasedToOtherTenantImmediately)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    std::strncpy(ns1.customData.tenant, "tenant-a", sizeof(ns1.customData.tenant) - 1);
+    SetupFreeEnv({ns1}, UbseSsuNsState::CREATED, "free_tenant_release");
+
+    EXPECT_EQ(service_.FreeSpace("free_tenant_release", MakeIdentity()), UBSE_OK);
+    EXPECT_FALSE(LedgerEntryExists("free_tenant_release"));
+
+    MOCKER_CPP(&GenerateHostNqn)
+        .stubs()
+        .will(returnValue(std::string("nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab")));
+
+    constexpr uint64_t oneGib = 1024ULL * 1024ULL * 1024ULL;
+    auto reqB = MakeAllocReq("after_free_tenant_b", 2 * oneGib, 1, UbseSsuLBAFormat::LBA_FORMAT_512,
+                             UbseSsuAllocStrategy::LINEAR, "tenant-b");
+    UbseSsuAllocResult resultB;
+    EXPECT_EQ(service_.AllocSpace(reqB, MakeIdentity(), resultB), UBSE_OK);
+}
+
 } // namespace ubse::ssu::service::ut
