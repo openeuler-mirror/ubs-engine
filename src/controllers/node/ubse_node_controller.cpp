@@ -125,13 +125,37 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
 
 UbseNodeInfo UbseNodeController::GetCurNode()
 {
-    if (currentNodeId.empty() || nodeInfos.find(currentNodeId) == nodeInfos.end()) {
-        UbseNodeInfo info{};
-        GetCurNodeInfo(info);
-        currentNodeId = info.nodeId;
-        return info;
+    {
+        std::shared_lock<std::shared_mutex> lock(rwMutex);
+        if (!currentNodeId.empty()) {
+            auto iter = nodeInfos.find(currentNodeId);
+            if (iter != nodeInfos.end()) {
+                return iter->second;
+            }
+        }
     }
-    return GetNodeById(currentNodeId);
+
+    // 在锁外采集，避免持有 rwMutex 调用外部接口。
+    UbseNodeInfo info{};
+    GetCurNodeInfo(info);
+
+    {
+        std::unique_lock<std::shared_mutex> lock(rwMutex);
+        // 优先使用采集期间已更新的缓存。
+        if (!currentNodeId.empty()) {
+            auto iter = nodeInfos.find(currentNodeId);
+            if (iter != nodeInfos.end()) {
+                return iter->second;
+            }
+        }
+
+        // 避免空采集结果覆盖 ID，也避免重复写入已初始化的 ID。
+        if (currentNodeId.empty() && !info.nodeId.empty()) {
+            currentNodeId = info.nodeId;
+        }
+    }
+
+    return info;
 }
 
 UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
