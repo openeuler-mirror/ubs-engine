@@ -175,4 +175,32 @@ TEST_F(TestUbseSsuRpcRegister, RegisterQueryHandlers_Success)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
+// RegisterMountReconcileHandlers: 第1个Build成功、第2个失败 → UBSE_ERROR
+// （摘要/平账两个endpoint按顺序注册，reliable_design.md §13.1/§13.3）
+TEST_F(TestUbseSsuRpcRegister, RegisterMountReconcileHandlers_SecondFail)
+{
+    MOCKER(&UbseRpcEndpointFactory::Build)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseRpcEndpoint>()))
+        .then(returnValue(std::shared_ptr<UbseRpcEndpoint>(nullptr)));
+    auto ret = UbseSsuRpcProcessor::RegisterMountReconcileHandlers();
+    EXPECT_EQ(ret, UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED);
+}
+
+// RegisterMountReconcileHandlers: 第1个Build失败 → UBSE_ERROR
+TEST_F(TestUbseSsuRpcRegister, RegisterMountReconcileHandlers_FirstFail)
+{
+    MOCKER(&UbseRpcEndpointFactory::Build).stubs().will(returnValue(std::shared_ptr<UbseRpcEndpoint>(nullptr)));
+    auto ret = UbseSsuRpcProcessor::RegisterMountReconcileHandlers();
+    EXPECT_EQ(ret, UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED);
+}
+
+// RegisterMountReconcileHandlers: 全部成功 → UBSE_OK
+TEST_F(TestUbseSsuRpcRegister, RegisterMountReconcileHandlers_Success)
+{
+    MOCKER(&UbseRpcEndpointFactory::Build).stubs().will(returnValue(std::make_shared<UbseRpcEndpoint>()));
+    auto ret = UbseSsuRpcProcessor::RegisterMountReconcileHandlers();
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
 } // namespace ubse::ssu::controller::ut
