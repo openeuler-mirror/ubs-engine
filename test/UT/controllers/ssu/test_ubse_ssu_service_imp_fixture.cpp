@@ -11,13 +11,21 @@
  */
 
 #include "test_ubse_ssu_service_imp_fixture.h"
+#include <cstdlib>
 #include <cstring>
+#include <unistd.h>
 #include "ubse_ssu_adapter_impl.h"
+#include "ubse_ssu_attach_record_store.h"
 #include "ubse_ssu_utils.h"
 
 namespace ubse::ssu::service::ut {
 
 using namespace ubse::adapter_plugins::ssu::def;
+
+namespace {
+// base套件挂载记录临时文件序号（每个测试独立文件，避免跨测试/跨套件/跨运行串扰）
+uint32_t g_baseRecordFileSeq = 0;
+} // namespace
 
 // ============================================================================
 // Mock C function and variable definitions
@@ -301,16 +309,44 @@ void UbseSsuServiceImpTestBase::SetUp()
     ResetControllableMockState();
     ResetAcquireDevInfoMockState();
     ResetStatusUpdateMockState();
+    // 清理设备故障防抖/重挂失败计数（service单例成员，跨用例残留会导致收敛判断串扰）
+    UbseSsuServiceImp::GetInstance().faultDebouncer_.counters_.clear();
+    UbseSsuServiceImp::GetInstance().remountFailCounter_.counts_.clear();
+    // 清理节点离线记录（§12.4单例成员，残留会导致离场对账误处理本用例节点）
+    {
+        std::lock_guard<std::mutex> lock(UbseSsuServiceImp::GetInstance().nodeOfflineTracker_.mtx_);
+        UbseSsuServiceImp::GetInstance().nodeOfflineTracker_.since_.clear();
+        UbseSsuServiceImp::GetInstance().nodeOfflineTracker_.processed_.clear();
+    }
+
+    // 账本就绪门禁默认置位（reliable_design.md §14.2-1）：verify/alloc/free入口在未就绪时
+    // 返回MASTER_NOT_READY，既有测试均假设账本就绪（等价于Rebuild完成后的事件序）；
+    // 未就绪场景由各单测显式SetReady(false)覆盖
+    UbseSsuDebtLedger::GetInstance().SetReady(true);
 
     // Default: UbseGetRole returns Master, other election APIs succeed
     MOCKER_CPP(&UbseGetRole).stubs().will(invoke(MockGetRole_Master));
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().will(invoke(MockGetCurrentNodeInfo_Master));
+
+    // 挂载记录store重定向到本测试独立临时文件并清空内存记录：
+    // attach/detach成功路径的记录hook会经store单例写文件，若沿用上一套件遗留的filePath_
+    // 会"复活"已删除的临时文件，造成跨套件/跨运行串扰（下次运行的store/recover套件误加载）
+    const std::string recordFile =
+        "/tmp/ubse_ssut_base_records_" + std::to_string(++g_baseRecordFileSeq) + ".json";
+    setenv("UBSE_SSU_ATTACH_RECORD_FILE", recordFile.c_str(), 1);
+    ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance().Init();
 }
 
 void UbseSsuServiceImpTestBase::TearDown()
 {
     GlobalMockObject::verify();
+    // 清理本测试的挂载记录临时文件并复位env，杜绝后续测试经单例残留filePath_续写
+    if (const char *envPath = getenv("UBSE_SSU_ATTACH_RECORD_FILE"); envPath != nullptr) {
+        unlink(envPath);
+        unlink((std::string(envPath) + ".tmp").c_str());
+        unsetenv("UBSE_SSU_ATTACH_RECORD_FILE");
+    }
     CleanupLedger();
     ResetCollectorCache();
 }
@@ -530,6 +566,8 @@ void UbseSsuServiceImpTestBase::CleanupLedger()
     for (const auto &entry : entries) {
         ledger.Remove(entry->name);
     }
+    // 清零rebuildTime_：防止单例60s恢复收敛窗口跨用例残留（需窗口的用例自行Rebuild激活）
+    ledger.ResetRebuildTime();
 }
 
 void UbseSsuServiceImpTestBase::ResetCollectorCache()
