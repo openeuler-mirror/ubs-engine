@@ -12,9 +12,12 @@
 
 #include "test_ubse_ssu_collector.h"
 
+#include <cstring>
+
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ssu_adapter_interface.h"
+#include "ubse_ssu_utils.h"
 #include "ubse_timer.h"
 
 namespace ubse::ssu::service::ut {
@@ -576,6 +579,242 @@ TEST_F(TestUbseSsuCollector, PendingOpsPreventsClearDuringReservation)
     EXPECT_EQ(collector.reservationMgr_.GetPendingAdjustment("eid1"), 200);
 
     collector.OnReserveEnd();
+}
+
+/*
+ * 用例描述：SetOnCollectSuccess 周期采集成功回调在采集成功且缓存更新后触发（§12.2 接线）
+ * 测试步骤：
+ * 1、注册 onCollectSuccess 回调
+ * 2、mock GetDevList 返回 UBSE_OK（空列表，缓存为空时允许覆盖）
+ * 3、调用 Start() 触发首次采集
+ * 预期结果：
+ * 1、回调被触发一次
+ */
+TEST_F(TestUbseSsuCollector, CollectSuccessCallbackFired)
+{
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(adapter, &UbseSsuAdapterInterface::GetDevList)
+        .stubs().will(returnValue(static_cast<uint32_t>(UBSE_OK)));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister)
+        .stubs().will(returnValue(static_cast<uint32_t>(UBSE_OK)));
+
+    UbseSsuCollector collector;
+    int callbackCount = 0;
+    collector.SetOnCollectSuccess([&callbackCount](const std::vector<UbseSsuDevInfo> &devList) {
+        (void)devList;
+        ++callbackCount;
+    });
+    EXPECT_EQ(collector.Start(), UBSE_OK);
+    EXPECT_EQ(callbackCount, 1);
+}
+
+/*
+ * 用例描述：采集到空列表且缓存非空（保持缓存）时，onCollectSuccess 回调不触发——
+ * 视为采集异常而非设备离线，不驱动上层做故障防抖计数
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1（缓存非空）
+ * 2、注册 onCollectSuccess 回调
+ * 3、mock GetDevList 返回 UBSE_OK（空列表）
+ * 4、调用 Start() 触发 CollectDeviceList
+ * 预期结果：
+ * 1、缓存 size 仍为 1
+ * 2、回调未被触发（callbackCount == 0）
+ */
+TEST_F(TestUbseSsuCollector, CollectSuccessCallbackNotFiredWhenKeepCache)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1", 1ULL * TB, 100);
+    int callbackCount = 0;
+    collector.SetOnCollectSuccess([&callbackCount](const std::vector<UbseSsuDevInfo> &devList) {
+        (void)devList;
+        ++callbackCount;
+    });
+
+    auto &adapter = UbseSsuAdapterInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(adapter, &UbseSsuAdapterInterface::GetDevList)
+        .stubs().will(returnValue(static_cast<uint32_t>(UBSE_OK)));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister)
+        .stubs().will(returnValue(static_cast<uint32_t>(UBSE_OK)));
+
+    EXPECT_EQ(collector.Start(), UBSE_OK);
+    EXPECT_EQ(collector.GetCachedDevList().size(), 1);
+    EXPECT_EQ(callbackCount, 0);
+}
+
+/*
+ * 用例描述：UpdateDevNameSpaces 将新创建的NS合入缓存设备，租户对调度器即时可见
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1（无NS）
+ * 2、调用 UpdateDevNameSpaces 合入一条 tenant=tenant-a 的 NS
+ * 3、调用 GetDevListWithReservations
+ * 预期结果：
+ * 1、返回设备的 nameSpaces size=1
+ * 2、NS 的 tenant 为 "tenant-a"
+ * 3、usedBytes 不变（容量由预留机制覆盖，避免双算）
+ */
+TEST_F(TestUbseSsuCollector, UpdateDevNameSpaces_InsertNsIntoCache)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1", 1ULL * TB, 100);
+
+    UbseSsuDevNameSpace ns;
+    ns.namespaceId = 1;
+    ns.subSystem.eid = "eid1";
+    std::strncpy(ns.customData.tenant, "tenant-a", sizeof(ns.customData.tenant) - 1);
+
+    collector.UpdateDevNameSpaces({ns});
+
+    auto result = collector.GetDevListWithReservations();
+    ASSERT_EQ(result.size(), 1);
+    ASSERT_EQ(result[0].nameSpaces.size(), 1);
+    EXPECT_EQ(result[0].nameSpaces[0].namespaceId, 1u);
+    EXPECT_EQ(std::string(result[0].nameSpaces[0].customData.tenant,
+                          strnlen(result[0].nameSpaces[0].customData.tenant,
+                                  sizeof(result[0].nameSpaces[0].customData.tenant))),
+              "tenant-a");
+    EXPECT_EQ(result[0].usedBytes, 100);
+}
+
+/*
+ * 用例描述：UpdateDevNameSpaces 按namespaceId判重，周期采集已拿到的NS不会重复插入
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1
+ * 2、连续两次 UpdateDevNameSpaces 同一(nsId=1)的NS
+ * 预期结果：
+ * 1、设备 nameSpaces size=1（第二次被判重跳过）
+ */
+TEST_F(TestUbseSsuCollector, UpdateDevNameSpaces_DedupByNsId)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1");
+
+    UbseSsuDevNameSpace ns;
+    ns.namespaceId = 1;
+    ns.subSystem.eid = "eid1";
+    std::strncpy(ns.customData.tenant, "tenant-a", sizeof(ns.customData.tenant) - 1);
+
+    collector.UpdateDevNameSpaces({ns});
+    collector.UpdateDevNameSpaces({ns});
+
+    auto devList = collector.GetCachedDevList();
+    ASSERT_EQ(devList.size(), 1);
+    EXPECT_EQ(devList[0].nameSpaces.size(), 1u);
+}
+
+/*
+ * 用例描述：UpdateDevNameSpaces 遇到缓存中不存在的eid时跳过，不影响其余设备
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1
+ * 2、调用 UpdateDevNameSpaces 传入 eid 不存在的 NS（eid_unknown, nsId=1）
+ * 预期结果：
+ * 1、无崩溃
+ * 2、eid1 设备的 nameSpaces 保持为空
+ */
+TEST_F(TestUbseSsuCollector, UpdateDevNameSpaces_UnknownEidSkipped)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1");
+
+    UbseSsuDevNameSpace ns;
+    ns.namespaceId = 1;
+    ns.subSystem.eid = "eid_unknown";
+
+    collector.UpdateDevNameSpaces({ns});
+
+    auto devList = collector.GetCachedDevList();
+    ASSERT_EQ(devList.size(), 1);
+    EXPECT_TRUE(devList[0].nameSpaces.empty());
+}
+
+/*
+ * 用例描述：RemoveDevNameSpaces 按uuid从缓存设备移除已删除的NS，设备释放给其他租户
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1，合入一条 tenant=tenant-a 的 NS（16字节二进制uuid）
+ * 2、调用 RemoveDevNameSpaces 传入该NS的标准格式uuid
+ * 3、调用 GetDevListWithReservations
+ * 预期结果：
+ * 1、返回设备的 nameSpaces 为空
+ * 2、usedBytes 不变（容量由预释放机制覆盖，避免双算）
+ */
+TEST_F(TestUbseSsuCollector, RemoveDevNameSpaces_RemovesNsFromCache)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1", 1ULL * TB, 100);
+
+    UbseSsuDevNameSpace ns;
+    ns.namespaceId = 1;
+    ns.subSystem.eid = "eid1";
+    ns.uuid = std::string(16, '\xAB');
+    std::strncpy(ns.customData.tenant, "tenant-a", sizeof(ns.customData.tenant) - 1);
+    collector.UpdateDevNameSpaces({ns});
+
+    collector.RemoveDevNameSpaces({{"eid1", ubse::ssu::utils::StrToUuid(ns.uuid)}});
+
+    auto result = collector.GetDevListWithReservations();
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_TRUE(result[0].nameSpaces.empty());
+    EXPECT_EQ(result[0].usedBytes, 100);
+}
+
+/*
+ * 用例描述：RemoveDevNameSpaces 仅移除匹配uuid的NS，同设备其他NS保留
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1
+ * 2、合入两条NS（nsId=1 uuid=A，nsId=2 uuid=B）
+ * 3、调用 RemoveDevNameSpaces 仅移除 uuid=A
+ * 预期结果：
+ * 1、设备 nameSpaces 仅剩 nsId=2
+ */
+TEST_F(TestUbseSsuCollector, RemoveDevNameSpaces_KeepsOtherNs)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1");
+
+    UbseSsuDevNameSpace ns1;
+    ns1.namespaceId = 1;
+    ns1.subSystem.eid = "eid1";
+    ns1.uuid = std::string(16, '\xAB');
+    UbseSsuDevNameSpace ns2;
+    ns2.namespaceId = 2;
+    ns2.subSystem.eid = "eid1";
+    ns2.uuid = std::string(16, '\xCD');
+    collector.UpdateDevNameSpaces({ns1, ns2});
+
+    collector.RemoveDevNameSpaces({{"eid1", ubse::ssu::utils::StrToUuid(ns1.uuid)}});
+
+    auto devList = collector.GetCachedDevList();
+    ASSERT_EQ(devList.size(), 1);
+    ASSERT_EQ(devList[0].nameSpaces.size(), 1u);
+    EXPECT_EQ(devList[0].nameSpaces[0].namespaceId, 2u);
+}
+
+/*
+ * 用例描述：RemoveDevNameSpaces 遇到不匹配的uuid/空uuid/未知eid时为安全no-op
+ * 测试步骤：
+ * 1、PopulateCache 插入 eid1，合入一条NS
+ * 2、调用 RemoveDevNameSpaces 分别传入：未知uuid、空uuid、未知eid
+ * 预期结果：
+ * 1、无崩溃
+ * 2、缓存中NS保持不变
+ */
+TEST_F(TestUbseSsuCollector, RemoveDevNameSpaces_NoOpWhenNotMatched)
+{
+    UbseSsuCollector collector;
+    PopulateCache(collector, "eid1");
+
+    UbseSsuDevNameSpace ns;
+    ns.namespaceId = 1;
+    ns.subSystem.eid = "eid1";
+    ns.uuid = std::string(16, '\xAB');
+    collector.UpdateDevNameSpaces({ns});
+
+    collector.RemoveDevNameSpaces({{"eid1", std::string(36, '0')}});
+    collector.RemoveDevNameSpaces({{"eid1", ""}});
+    collector.RemoveDevNameSpaces({{"eid_unknown", ubse::ssu::utils::StrToUuid(ns.uuid)}});
+
+    auto devList = collector.GetCachedDevList();
+    ASSERT_EQ(devList.size(), 1);
+    EXPECT_EQ(devList[0].nameSpaces.size(), 1u);
 }
 
 } // namespace ubse::ssu::service::ut
