@@ -266,6 +266,48 @@ TEST_F(TestUbseNodeControllerMaster, ProcessFaultCounter)
     EXPECT_EQ(master.ProcessFaultCounter("node2"), 150);
 }
 
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_RebuildFaultCounterOnLocalPromote)
+{
+    UbseNodeControllerMaster master{};
+    auto &agent = UbseNodeControllerAgent::GetInstance();
+
+    // 备侧镜像中的本机柜FAULT节点（UT环境GetGroupId回落为0）
+    UbseNodeInfo faultInfo{};
+    faultInfo.nodeId = "faultNodeLocal";
+    faultInfo.groupId = 0;
+    faultInfo.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_FAULT;
+    agent.nodeInfoMirror_["faultNodeLocal"] = faultInfo;
+    agent.faultProtectMirror_["faultNodeLocal"] = 0;
+
+    // 模拟上次主任期残留的陈旧计数器，升主消费时应重置为0重新观察
+    master.faultReportCounters_["faultNodeLocal"] = 100;
+
+    master.ConsumeMirrorOnPromote(false);
+
+    std::lock_guard<std::mutex> lock(master.faultCountersMutex_);
+    auto it = master.faultReportCounters_.find("faultNodeLocal");
+    ASSERT_NE(it, master.faultReportCounters_.end());
+    EXPECT_EQ(it->second, 0);
+}
+
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_NotRebuildFaultCounterOnGlobalPromote)
+{
+    UbseNodeControllerMaster master{};
+    auto &agent = UbseNodeControllerAgent::GetInstance();
+
+    // 非本机柜FAULT节点：全局升主仅继承状态，故障计数器归机柜主管辖，不重建
+    UbseNodeInfo faultInfo{};
+    faultInfo.nodeId = "faultNodeRemote";
+    faultInfo.groupId = 1;
+    faultInfo.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_FAULT;
+    agent.nodeInfoMirror_["faultNodeRemote"] = faultInfo;
+
+    master.ConsumeMirrorOnPromote(true);
+
+    std::lock_guard<std::mutex> lock(master.faultCountersMutex_);
+    EXPECT_EQ(master.faultReportCounters_.find("faultNodeRemote"), master.faultReportCounters_.end());
+}
+
 TEST_F(TestUbseNodeControllerMaster, UbseLcneTopologyChangeHandler)
 {
     GTEST_SKIP();
