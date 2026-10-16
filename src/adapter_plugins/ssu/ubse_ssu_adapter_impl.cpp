@@ -24,8 +24,6 @@
 #include <dirent.h>
 #include <glib.h>
 #include <climits>
-#include <grp.h>
-#include <pwd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -106,20 +104,43 @@ uint32_t GetAdminNqn(std::string &adminNqn)
 }
 
 // /dev 下的 ssu 子目录，所有由 SSU 创建的块设备符号链接都集中在此目录下，
-// 避免直接散落在 /dev/{vgName}/ 或 /dev/md/ 等路径中。
+// 避免直接散落在 /dev/{vgName}/ 或 /dev/md/ 等路径中。目录属主固定为 root:root，
+// 与目录内符号链接的属主保持一致，避免 ubse 用户可篡改链接指向。
 constexpr const char *SSU_DEV_DIR = "/dev/ssu";
 
-// 确保 /dev/ssu 目录存在（幂等，已存在则直接返回成功）
+// root 用户/组的 id（Linux 恒为 0）
+constexpr uid_t SSU_LINK_ROOT_UID = 0;
+constexpr gid_t SSU_LINK_ROOT_GID = 0;
+
+// 确保 /dev/ssu 目录存在且属主为 root:root（幂等，已存在且属主正确则直接返回成功；
+// 历史版本创建的 ubse 属主目录会被纠正为 root）。
 uint32_t EnsureSsuDevDir()
 {
-    if (g_file_test(SSU_DEV_DIR, G_FILE_TEST_IS_DIR)) {
+    struct stat st{};
+    if (stat(SSU_DEV_DIR, &st) == 0 && S_ISDIR(st.st_mode) &&
+        st.st_uid == SSU_LINK_ROOT_UID && st.st_gid == SSU_LINK_ROOT_GID) {
         return UBSE_OK;
+    }
+    std::vector<__u32> caps = {CAP_DAC_OVERRIDE, CAP_CHOWN};
+    uint32_t capRet = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    if (capRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to add CAP_DAC_OVERRIDE/CAP_CHOWN for " << SSU_DEV_DIR
+                       << ", ret=" << capRet;
+        return capRet;
     }
     if (mkdir(SSU_DEV_DIR, 0755) != 0 && errno != EEXIST) {
         int err = errno;
         UBSE_LOG_ERROR << "Failed to create directory " << SSU_DEV_DIR << ", errno=" << err;
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_ERROR_IO;
     }
+    if (chown(SSU_DEV_DIR, SSU_LINK_ROOT_UID, SSU_LINK_ROOT_GID) != 0) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to change owner of " << SSU_DEV_DIR << " to root, errno=" << err;
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        return UBSE_ERROR_IO;
+    }
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 
@@ -153,30 +174,8 @@ BlockDevicePresence GetBlockDevicePresence(const std::string &deviceName)
     return p;
 }
 
-// root 用户/组的 id（Linux 恒为 0）
-constexpr uid_t SSU_LINK_ROOT_UID = 0;
-constexpr gid_t SSU_LINK_ROOT_GID = 0;
-// ubse 用户/组的名称，删除符号链接前需将属主改回 ubse
-constexpr const char *SSU_LINK_UBSE_USER = "ubse";
-
-// 查询用户名对应的 uid 与主组 gid（getpwnam_r 线程安全），失败返回 false
-bool GetUserIdsByName(const char *userName, uid_t &uid, gid_t &gid)
-{
-    struct passwd pwd{};
-    struct passwd *result = nullptr;
-    std::array<char, 1024> buf{};
-    if (getpwnam_r(userName, &pwd, buf.data(), buf.size(), &result) != 0 || result == nullptr) {
-        return false;
-    }
-    uid = pwd.pw_uid;
-    gid = pwd.pw_gid;
-    return true;
-}
-
 // 在 /dev/ssu/{deviceName} 创建指向 targetPath 的符号链接，linkPath 输出最终的链接路径。
-// 创建成功后将符号链接属主/属组改为 root（lchown 不跟随链接，避免改动目标设备属主）；
-// 改属主所需的 CAP_CHOWN 由 ModifyEffectiveCapabilities 临时添加，用完立即删除（手动成对调用，
-// 与 mmi/syssentry 等模块保持一致，要求 permitted 集合中已包含该能力）。
+// 符号链接属主/属组为 root:root
 uint32_t CreateSsuDevSymlink(const std::string &deviceName, const std::string &targetPath,
                              std::string &linkPath)
 {
@@ -185,62 +184,48 @@ uint32_t CreateSsuDevSymlink(const std::string &deviceName, const std::string &t
         return ret;
     }
     linkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    std::vector<__u32> caps = {CAP_DAC_OVERRIDE, CAP_CHOWN};
+    uint32_t capRet = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    if (capRet != UBSE_OK) {
+        // 透传安全模块错误码（UBSE_ERROR/UBSE_ERROR_INVAL），区分"能力不在 permitted 集合"等
+        // 部署配置问题与真正的文件系统 I/O 错误
+        UBSE_LOG_ERROR << "Failed to add CAP_DAC_OVERRIDE/CAP_CHOWN for symlink " << linkPath
+                       << ", ret=" << capRet;
+        return capRet;
+    }
     // 移除已存在的符号链接以保证幂等性
     unlink(linkPath.c_str());
     if (symlink(targetPath.c_str(), linkPath.c_str()) != 0) {
         int err = errno;
         UBSE_LOG_ERROR << "Failed to create symlink " << linkPath << " -> " << targetPath
                        << ", errno=" << err;
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_ERROR_IO;
-    }
-    std::vector<__u32> chownCaps = {CAP_CHOWN};
-    uint32_t capRet = UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, true);
-    if (capRet != UBSE_OK) {
-        // 透传安全模块错误码（UBSE_ERROR/UBSE_ERROR_INVAL），区分"能力不在 permitted 集合"等
-        // 部署配置问题与真正的文件系统 I/O 错误
-        UBSE_LOG_ERROR << "Failed to add CAP_CHOWN for changing owner of symlink " << linkPath
-                       << ", ret=" << capRet;
-        unlink(linkPath.c_str());
-        return capRet;
     }
     if (lchown(linkPath.c_str(), SSU_LINK_ROOT_UID, SSU_LINK_ROOT_GID) != 0) {
         int err = errno;
         UBSE_LOG_ERROR << "Failed to change owner of symlink " << linkPath << " to root, errno=" << err;
-        UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         unlink(linkPath.c_str());
         return UBSE_ERROR_IO;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 
 // 移除 /dev/ssu/{deviceName} 符号链接（幂等，不存在时视为成功）。
-// 删除前先将属主/属组改回 ubse（临时添加 CAP_CHOWN，用完删除；改属主失败仅告警，不阻塞删除）。
 void RemoveSsuDevSymlink(const std::string &deviceName)
 {
     std::string linkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
-    uid_t ubseUid;
-    gid_t ubseGid;
-    if (!GetUserIdsByName(SSU_LINK_UBSE_USER, ubseUid, ubseGid)) {
-        UBSE_LOG_WARN << "Failed to lookup user " << SSU_LINK_UBSE_USER
-                      << ", skip changing owner of symlink " << linkPath << " before remove";
-    } else {
-        std::vector<__u32> chownCaps = {CAP_CHOWN};
-        if (UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, true) != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to add CAP_CHOWN for changing owner of symlink " << linkPath;
-        } else {
-            if (lchown(linkPath.c_str(), ubseUid, ubseGid) != 0 && errno != ENOENT) {
-                int err = errno;
-                UBSE_LOG_WARN << "Failed to change owner of symlink " << linkPath << " to "
-                              << SSU_LINK_UBSE_USER << ", errno=" << err;
-            }
-            UbseSecurityModule::ModifyEffectiveCapabilities(chownCaps, false);
-        }
+    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
+    if (UbseSecurityModule::ModifyEffectiveCapabilities(caps, true) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to add CAP_DAC_OVERRIDE for removing symlink " << linkPath;
     }
     if (unlink(linkPath.c_str()) != 0 && errno != ENOENT) {
         int err = errno;
         UBSE_LOG_WARN << "Failed to remove symlink " << linkPath << ", errno=" << err;
     }
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
 }
 
 // 通过sudo执行shell命令，合并stdout和stderr到output。

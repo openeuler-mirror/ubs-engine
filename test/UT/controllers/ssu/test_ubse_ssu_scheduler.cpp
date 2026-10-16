@@ -39,11 +39,12 @@ UbseSsuDevInfo TestUbseSsuScheduler::MakeDev(const std::string &eid, uint64_t to
 UbseSsuDevInfo TestUbseSsuScheduler::MakeDevWithTenant(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes,
                                                        const std::string &tenant, uint32_t nsCount, UbseSsuState state)
 {
-    // 租户隔离的设备 nsCount至少要 >= 1
+    // 租户隔离的设备 nsCount至少要 >= 1（严格三态隔离要求全部NS的tenant一致）
     EXPECT_GE(nsCount, 1u);
     auto dev = MakeDev(eid, totalBytes, usedBytes, nsCount, state);
-    strncpy_s(dev.nameSpaces[0].customData.tenant, sizeof(dev.nameSpaces[0].customData.tenant), tenant.c_str(),
-              tenant.size());
+    for (auto &ns : dev.nameSpaces) {
+        strncpy_s(ns.customData.tenant, sizeof(ns.customData.tenant), tenant.c_str(), tenant.size());
+    }
     return dev;
 }
 
@@ -961,6 +962,101 @@ TEST_F(TestUbseSsuScheduler, TenantIsolationKeepsEmptyTenantDevices)
 
 /*
  * 用例描述：
+ * UbseSsuTenantIsolationFilter 租户请求排除非租户专用设备（有NS且全为空tenant），
+ * 确保租户与非租户的namespace不会落在同一个SSU设备上
+ * 测试步骤：
+ * 1、构造2个设备：eid-1非租户专用（已有1个非租户NS）、eid-2干净（无NS）
+ * 2、请求tenant-A，nsNum=1
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs仅保留干净的eid-2
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationTenantReqExcludesNonTenantOwnedDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 512, 1), MakeDev("eid-2", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 1;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 512, 512, 1, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 1u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-2");
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 非租户请求保留非租户专用设备（有NS且全为空tenant）
+ * 测试步骤：
+ * 1、构造2个设备：eid-1非租户专用（已有1个非租户NS）、eid-2租户专用
+ * 2、请求tenant为空，nsNum=1
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs仅保留非租户专用的eid-1
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationEmptyReqTenantKeepsNonTenantOwnedDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 512, 1), MakeDevWithTenant("eid-2", 1024, 0, "tenant-A")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 1;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 512, 512, 1, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 1, "tenant-A"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 1u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-1");
+}
+
+/*
+ * 用例描述：
+ * UbseSsuScheduler 集成严格三态隔离：非租户请求先占用的设备（有NS且全为空tenant）
+ * 对后续租户请求不可见，租户的namespace不会与非租户的namespace落在同一设备
+ * 测试步骤：
+ * 1、构造2个设备：eid-1非租户专用（已有1个非租户NS）、eid-2干净
+ * 2、请求tenant-A，nsNum=1
+ * 3、调用UbseSsuScheduler::Execute
+ * 预期结果：
+ * 1、返回OK
+ * 2、分配结果落在干净的eid-2上（旧实现会把eid-1误判为未隔离设备并混入租户NS）
+ */
+TEST_F(TestUbseSsuScheduler, SchedulerTenantStrictIsolationIntegration)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 2048, 0, 1), MakeDev("eid-2", 2048, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 1;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+
+    UbseSsuScheduler scheduler;
+    auto ret = scheduler.Execute(ctx);
+
+    EXPECT_EQ(ret, UbseSsuAllocRetCode::OK);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 1u);
+    EXPECT_EQ(ctx.result.eidNsSizeList[0].first, "eid-2");
+}
+
+/*
+ * 用例描述：
  * UbseSsuScheduler 集成tenant隔离策略，仅分配匹配tenant的设备
  * 测试步骤：
  * 1、构造4个设备：2个tenant-A、2个tenant-B
@@ -1216,10 +1312,11 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaPerTenantReachedStripsUnclaimed)
 
 /*
  * 用例描述：
- * UbseSsuTenantQuotaFilter 未达配额时不剔除未归属设备
+ * UbseSsuTenantQuotaFilter 预算充足时不裁剪未归属设备
  * 测试步骤：
  * 1、构造4个在线设备：1个tenant-A、1个tenant-B、2个未归属
- * 2、注入配额（perTenantPct=50），请求tenant-A（owned=1<limit=2）
+ * 2、注入配额（perTenantPct=75），请求tenant-A
+ *    （owned=1，limit=ceil(4*75/100)=3，预算allowedNew=2，未归属候选2<=预算不裁剪）
  * 3、调用UbseSsuTenantQuotaFilter::Handle
  * 预期结果：
  * 1、返回true
@@ -1241,7 +1338,7 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaNotReachedKeepsUnclaimed)
     ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-4", 1024, 512, 0, ""});
 
-    UbseSsuTenantQuotaFilter filter(50);
+    UbseSsuTenantQuotaFilter filter(75);
     bool ok = filter.Handle(ctx);
 
     EXPECT_TRUE(ok);
@@ -1250,11 +1347,11 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaNotReachedKeepsUnclaimed)
 
 /*
  * 用例描述：
- * UbseSsuTenantQuotaFilter 超限后本租户已归属设备数量不足时返回失败
+ * UbseSsuTenantQuotaFilter 请求nsNum超过配额上限时前置快筛直接拒绝
  * 测试步骤：
  * 1、构造4个在线设备：1个tenant-A、3个未归属
- * 2、注入配额（perTenantPct=25），请求tenant-A，nsNum=2（owned=1>=limit=1超限，
- *    剔除未归属设备后仅剩1个设备）
+ * 2、注入配额（perTenantPct=25），请求tenant-A，nsNum=2
+ *    （limit=ceil(4*25/100)=1，LINEAR一设备一NS，nsNum=2>limit=1不可能在配额内满足）
  * 3、调用UbseSsuTenantQuotaFilter::Handle
  * 预期结果：
  * 1、返回false
@@ -1388,12 +1485,14 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaCountsFullNsDevices)
  * UbseSsuTenantQuotaFilter 离线设备不计入配额分母与分子
  * 测试步骤：
  * 1、构造4个设备：tenant-A在线1个、tenant-A离线1个、2个未归属在线
- * 2、注入配额（perTenantPct=50），请求tenant-A，nsNum=1
- *    （在线分母3：limit=ceil(3*50/100)=2，在线owned=1<2未超限；若误计离线设备则分母4、limit=ceil(4*50/100)=2、owned=2>=limit=2误判超限）
+ * 2、注入配额（perTenantPct=67），请求tenant-A，nsNum=1
+ *    （在线分母3：limit=ceil(3*67/100)=3、owned=1、预算allowedNew=2，未归属候选2<=预算不裁剪；
+ *     若误计离线设备则分母4、limit=ceil(4*67/100)=3、owned=2、allowedNew=1，
+ *     裁剪后仅剩2个设备，size断言可捕获误计）
  * 3、调用UbseSsuTenantQuotaFilter::Handle
  * 预期结果：
  * 1、返回true
- * 2、selectedDevs保持3个设备（未剔除未归属设备）
+ * 2、selectedDevs保持3个设备（不裁剪未归属设备）
  */
 TEST_F(TestUbseSsuScheduler, TenantQuotaExcludesOfflineDevices)
 {
@@ -1411,7 +1510,7 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaExcludesOfflineDevices)
     ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, ""});
     ctx.selectedDevs.push_back({"eid-4", 1024, 512, 0, ""});
 
-    UbseSsuTenantQuotaFilter filter(50);
+    UbseSsuTenantQuotaFilter filter(67);
     bool ok = filter.Handle(ctx);
 
     EXPECT_TRUE(ok);
@@ -1420,15 +1519,18 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaExcludesOfflineDevices)
 
 /*
  * 用例描述：
- * UbseSsuTenantQuotaFilter 配额换算向上取整，正配额至少允许圈占1台设备
+ * UbseSsuTenantQuotaFilter 配额换算向上取整，正配额至少允许圈占1台设备；
+ * 预算不足时按剩余空间降序保留未归属候选
  * 测试步骤：
- * 1、构造3个在线设备：均未归属
+ * 1、构造3个在线设备：均未归属，剩余空间分别为100/300/200
  * 2、注入配额（perTenantPct=30），请求tenant-A，nsNum=1
- *    （limit=ceil(3*30/100)=ceil(0.9)=1，owned=0<1未超限；若按floor取整则limit=0、owned=0>=0误判超限）
+ *    （limit=ceil(3*30/100)=1，owned=0，预算allowedNew=1，未归属候选3>预算，
+ *     按剩余空间降序保留最大的eid-2；若按floor取整则limit=0、allowedNew=0，
+ *     未归属设备全被剔除后size=0直接失败）
  * 3、调用UbseSsuTenantQuotaFilter::Handle
  * 预期结果：
  * 1、返回true
- * 2、selectedDevs保持3个设备（未剔除未归属设备，租户可正常开垦第1台设备）
+ * 2、selectedDevs仅剩eid-2（租户可正常开垦第1台设备，且保留的是剩余空间最大者）
  */
 TEST_F(TestUbseSsuScheduler, TenantQuotaCeilRoundingAllowsFirstDevice)
 {
@@ -1441,15 +1543,16 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaCeilRoundingAllowsFirstDevice)
     req.strategy = UbseSsuAllocStrategy::LINEAR;
     req.tenant = "tenant-A";
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
-    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-1", 100, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 300, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 200, 512, 0, ""});
 
     UbseSsuTenantQuotaFilter filter(30);
     bool ok = filter.Handle(ctx);
 
     EXPECT_TRUE(ok);
-    EXPECT_EQ(ctx.selectedDevs.size(), 3u);
+    ASSERT_EQ(ctx.selectedDevs.size(), 1u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-2");
 }
 
 /*
@@ -1485,6 +1588,296 @@ TEST_F(TestUbseSsuScheduler, TenantQuotaInvalidPctNormalized)
 
     EXPECT_TRUE(ok);
     EXPECT_EQ(ctx.selectedDevs.size(), 4u);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 首次大请求（nsNum=设备总数）不能一次性突破配额圈占全部设备
+ * 测试步骤：
+ * 1、构造4个在线设备：均未归属
+ * 2、注入配额（perTenantPct=50），请求tenant-A，nsNum=4
+ *    （limit=ceil(4*50/100)=2，LINEAR一设备一NS，nsNum=4>limit=2，前置快筛直接拒绝）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回false
+ * 2、ctx.result.ret == INSUFFICIENT_SPACE（若无配额机制，本次请求将圈占全部4台设备）
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaFirstRequestLargeNsNumBlocked)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0), MakeDev("eid-2", 1024, 0),
+                                        MakeDev("eid-3", 1024, 0), MakeDev("eid-4", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 4096;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-4", 1024, 512, 0, ""});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INSUFFICIENT_SPACE);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 预算不足时按剩余空间降序保留未归属候选，且本租户已归属设备不受裁剪影响
+ * 测试步骤：
+ * 1、构造5个在线设备：1个tenant-A、4个未归属（剩余空间400/800/200/100）
+ * 2、注入配额（perTenantPct=60），请求tenant-A，nsNum=3
+ *    （limit=ceil(5*60/100)=3，owned=1，预算allowedNew=2，未归属候选4>预算，
+ *     按剩余空间降序保留eid-2(800)/eid-3(400)，剔除eid-4(200)/eid-5(100)）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs为eid-1(已归属)+eid-2+eid-3共3个设备，数量满足nsNum=3
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaBudgetTrimKeepsLargestFree)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDev("eid-2", 1024, 0), MakeDev("eid-3", 1024, 0),
+                                        MakeDev("eid-4", 1024, 0), MakeDev("eid-5", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 3;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 800, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 400, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-4", 200, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-5", 100, 512, 0, ""});
+
+    UbseSsuTenantQuotaFilter filter(60);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 3u);
+    std::unordered_set<std::string> eids;
+    for (const auto &dev : ctx.selectedDevs) {
+        eids.insert(dev.eid);
+    }
+    EXPECT_TRUE(eids.count("eid-1") > 0);
+    EXPECT_TRUE(eids.count("eid-2") > 0);
+    EXPECT_TRUE(eids.count("eid-3") > 0);
+    EXPECT_EQ(eids.count("eid-4"), 0u);
+    EXPECT_EQ(eids.count("eid-5"), 0u);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter NORMAL策略豁免前置快筛：nsNum超过limit不会被误杀，
+ * packing可在预算内保留的候选设备上完成（同设备多NS）
+ * 测试步骤：
+ * 1、构造4个在线未归属设备（剩余空间400/300/200/100）
+ * 2、注入配额（perTenantPct=50），请求tenant-A，NORMAL策略nsNum=4
+ *    （limit=ceil(4*50/100)=2，owned=0，预算allowedNew=2，未归属候选4>预算，
+ *     裁剪保留剩余空间最大的eid-1(400)/eid-2(300)）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回true（NORMAL允许同设备多NS，4个NS可在2台设备上packing完成）
+ * 2、selectedDevs为eid-1+eid-2共2个设备
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaNormalPackingWithinBudget)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0), MakeDev("eid-2", 1024, 0),
+                                        MakeDev("eid-3", 1024, 0), MakeDev("eid-4", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::NORMAL;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 400, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 300, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 200, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-4", 100, 512, 0, ""});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 2u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-1");
+    EXPECT_EQ(ctx.selectedDevs[1].eid, "eid-2");
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 设备下线使分母收缩、owned > limit 存量超限时，
+ * LINEAR请求nsNum落在"己方设备数+预算"内（limit < nsNum <= owned）应放行，
+ * 请求可全部落在己方已归属设备上（0新圈占），与"仅拦截新圈占"语义一致
+ * 测试步骤：
+ * 1、构造6个设备：4个tenant-A在线已归属、2个离线（在线分母4）
+ * 2、注入配额（perTenantPct=50），请求tenant-A，LINEAR nsNum=3
+ *    （limit=ceil(4*50/100)=2，owned=4>limit存量超限，allowedNew=0，
+ *     servable=owned+allowedNew=4>=nsNum=3；旧实现nsNum>limit直接误拒）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs保持4个己方设备（unclaimed=0<=allowedNew不干预）
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaPreFilterAllowsOwnedOvershootWhenDenominatorShrunk)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-4", 1024, 0, "tenant-A"),
+                                        MakeDev("eid-5", 1024, 0, 0, UbseSsuState::OFFLINE),
+                                        MakeDev("eid-6", 1024, 0, 0, UbseSsuState::OFFLINE)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 3;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-4", 1024, 512, 1, "tenant-A"});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.selectedDevs.size(), 4u);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 存量超限（owned > limit）时，LINEAR请求nsNum超过
+ * "己方设备数+预算"（即超过owned，己方设备也无法覆盖）仍应前置快筛拒绝
+ * 测试步骤：
+ * 1、构造6个设备：4个tenant-A在线已归属、2个离线（在线分母4）
+ * 2、注入配额（perTenantPct=50），请求tenant-A，LINEAR nsNum=5
+ *    （limit=2，owned=4，allowedNew=0，servable=4<nsNum=5）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回false
+ * 2、ctx.result.ret == INSUFFICIENT_SPACE
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaPreFilterRejectsNsNumBeyondOwnedOvershoot)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-4", 1024, 0, "tenant-A"),
+                                        MakeDev("eid-5", 1024, 0, 0, UbseSsuState::OFFLINE),
+                                        MakeDev("eid-6", 1024, 0, 0, UbseSsuState::OFFLINE)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 5;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-4", 1024, 512, 1, "tenant-A"});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INSUFFICIENT_SPACE);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 存量超限（owned > limit）且候选含未归属设备时，
+ * nsNum在"己方设备数+预算"内的请求放行快筛后，预算为0应裁剪掉全部未归属设备、
+ * 仅保留己方设备满足数量（旧实现nsNum>limit会在快筛处误拒本可在己方设备内满足的请求）
+ * 测试步骤：
+ * 1、构造5个设备：4个tenant-A在线已归属、1个在线未归属（在线分母5）
+ * 2、注入配额（perTenantPct=50），请求tenant-A，LINEAR nsNum=4
+ *    （limit=ceil(5*50/100)=3，owned=4>limit存量超限，allowedNew=0，
+ *     servable=4>=nsNum=4快筛放行；未归属候选1>allowedNew=0触发裁剪）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs仅剩4个己方设备（干净设备eid-5被剔除）
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaOwnedOvershootTrimsUnclaimedKeepsOwned)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-4", 1024, 0, "tenant-A"),
+                                        MakeDev("eid-5", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 4;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-4", 1024, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-5", 1024, 512, 0, ""});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 4u);
+    std::unordered_set<std::string> eids;
+    for (const auto &dev : ctx.selectedDevs) {
+        eids.insert(dev.eid);
+    }
+    EXPECT_EQ(eids.count("eid-5"), 0u);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantQuotaFilter 预算裁剪拼接（ownedDevs+unclaimedDevs）后必须整体重排，
+ * 保证selectedDevs仍满足"剩余空间降序、nsCount升序"的全局序
+ * （AllocateStriped按"前nsNum个"直接选成员并以filterDevs[nsNum-1]为组内最小值校验容量，
+ * AllocateLinear负载均衡也仅使用前nsNum个设备，均依赖降序假设）
+ * 测试步骤：
+ * 1、构造3个在线设备：eid-1 tenant-A已归属（剩余200）、eid-2未归属（剩余800）、eid-3未归属（剩余600）
+ * 2、注入配额（perTenantPct=50），请求tenant-A，LINEAR nsNum=2
+ *    （limit=ceil(3*50/100)=2，owned=1，预算allowedNew=1，未归属候选2>预算，
+ *     裁剪保留剩余空间最大的eid-2；owned eid-1(200)拼在unclaimed eid-2(800)之前，无重排时非降序）
+ * 3、调用UbseSsuTenantQuotaFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs为eid-2(800)、eid-1(200)全局降序（eid-3被裁剪剔除）
+ */
+TEST_F(TestUbseSsuScheduler, TenantQuotaBudgetTrimRestoresGlobalOrder)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 824, "tenant-A"),
+                                        MakeDev("eid-2", 1024, 224), MakeDev("eid-3", 1024, 424)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.strategy = UbseSsuAllocStrategy::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 200, 512, 1, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 800, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 600, 512, 0, ""});
+
+    UbseSsuTenantQuotaFilter filter(50);
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    ASSERT_EQ(ctx.selectedDevs.size(), 2u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-2");
+    EXPECT_EQ(ctx.selectedDevs[1].eid, "eid-1");
 }
 
 } // namespace ubse::ssu::scheduler::ut

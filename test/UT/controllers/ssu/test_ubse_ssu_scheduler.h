@@ -40,7 +40,7 @@ protected:
     static UbseSsuDevInfo MakeDev(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes, uint32_t nsCount = 0,
                                   UbseSsuState state = UbseSsuState::ONLINE);
 
-    // 构造一个在线的 SSU 设备，指定tenant
+    // 构造一个在线的 SSU 设备，指定tenant（全部NS的tenant一致）
     static UbseSsuDevInfo MakeDevWithTenant(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes,
                                             const std::string &tenant, uint32_t nsCount = 1,
                                             UbseSsuState state = UbseSsuState::ONLINE);

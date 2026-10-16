@@ -53,7 +53,7 @@ struct UbseSsuFilterDev {
     uint64_t freeBytes = 0; // 设备可用空间（字节）
     uint64_t sectorBytes = 0; // 扇区大小（字节）
     uint32_t nsCount = 0; // 设备已有的namespace数量
-    std::string tenant; // 设备租户（租户隔离标识）
+    std::string tenant; // 设备租户归属：租户专用设备；空表示干净设备（无NS）或非租户专用设备）
 };
 
 class UbseSsuAllocationContext {
@@ -80,9 +80,8 @@ public:
 };
 
 // 租户设备配额过滤：限制单租户可圈占的在线设备数占比，防止单租户通过负载均衡
-// 逐个开垦新设备最终圈占全部设备。超限时采用软限制语义——仅剔除未归属设备，
-// 租户仍可在自己已归属的设备上继续分配；若租户之间占用完全部设备，非租户请求
-// 自然返回空间不足。默认配额100（等价关闭，向后兼容）。
+// 逐个开垦新设备最终圈占全部设备。若租户之间占用完全部设备，非租户请求自然返回空间不足。
+// 默认配额100（等价关闭，向后兼容）。
 class UbseSsuTenantQuotaFilter : public UbseFilter<UbseSsuAllocationContext> {
 public:
     // 默认从 ubse.conf [ubse.ssu] 读取配额（tenant.perTenantMaxDevicePercent），
