@@ -221,17 +221,34 @@ def::MigrateOutGroups BuildZeroMigrateTargets(const std::vector<def::BorrowSlot>
     return groups;
 }
 
-// 借出债务是否占用缺口本地 numa: 借出记账 lentNumaIdList 为债务实际划出的本节点本地 numa;
-// 记账缺失(空列表/旧账)视为未占用, 逐 numa 精确回收跳过该类债务
+// 借出债务占用缺口本地 numa 的账本明细: 借出记账 lentNumaIdList 为债务实际划出的本节点本地
+// numa, 输出其与 shortageNumas 交集的 id 集合及对应 lentNumaSizeList 划出量(平行数组, 与
+// 借出记账同序, 供广播携带"账本 id 集合"); 返回是否命中任一缺口 numa, 未命中(含记账缺失的
+// 空列表/旧账)即未占用, 逐 numa 精确回收跳过该类债务; 某 id 无对应 size 时按 0 记录
+bool CollectDebtShortageLentNumas(const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt,
+                                  const std::set<uint32_t>& shortageNumas, std::vector<int16_t>& outNumaIds,
+                                  std::vector<uint64_t>& outNumaSizes)
+{
+    bool occupied = false;
+    for (size_t i = 0; i < debt.lentNumaIdList.size(); ++i) {
+        int16_t lentNuma = debt.lentNumaIdList[i];
+        if (lentNuma < 0 || shortageNumas.count(static_cast<uint32_t>(lentNuma)) == 0) {
+            continue;
+        }
+        occupied = true;
+        outNumaIds.emplace_back(lentNuma);
+        outNumaSizes.emplace_back(i < debt.lentNumaSizeList.size() ? debt.lentNumaSizeList[i] : 0);
+    }
+    return occupied;
+}
+
+// 借出债务是否占用缺口本地 numa: 仅需命中与否的场景(OOM 事件轮 lender 检查), 不取账本明细
 bool DebtOccupiesShortageNuma(const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt,
                               const std::set<uint32_t>& shortageNumas)
 {
-    for (int16_t lentNuma : debt.lentNumaIdList) {
-        if (lentNuma >= 0 && shortageNumas.count(static_cast<uint32_t>(lentNuma)) > 0) {
-            return true;
-        }
-    }
-    return false;
+    std::vector<int16_t> numaIds;
+    std::vector<uint64_t> numaSizes;
+    return CollectDebtShortageLentNumas(debt, shortageNumas, numaIds, numaSizes);
 }
 
 // 借用额按 ubse blockSize 向上取整: 缺口不足一块仍按整块迁移, 允许多减
@@ -403,10 +420,54 @@ uint32_t ResolveLocalDebt(const std::string& name, ResolvedReturnDebt& out)
         }
         out.lentNodeId = debt.lentNodeId;
         out.remoteNumaId = static_cast<int>(debt.remoteNumaId);
+        out.lentNumaIds = debt.lentNumaIdList;
         return UBSE_OK;
     }
     UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << name << " skip: debt not found locally";
     return UBSE_ERR_NOT_EXIST;
+}
+
+std::string JoinNumaIdsForLog(const std::vector<int16_t>& numaIds)
+{
+    std::string joined;
+    for (int16_t numaId : numaIds) {
+        if (!joined.empty()) {
+            joined += ",";
+        }
+        joined += std::to_string(numaId);
+    }
+    return joined;
+}
+
+// 被动归还账本核对(借入方筛选): 借出方按 (借出 id, 账本 numa 集合) 广播时, 借入方以自身
+// 账本记录核对两键都对得上才归还: 借出 id 须与本债 lentNodeId 相等, 借出 numa 须与本债
+// 借出明细(或 lender numa 落点)有交集; 账本记录不可得/任一键对不上即视为无对应, 跳过等
+// lender 下轮重播, 防两侧账本不一致时将不匹配的债误还
+bool DebtMatchesRequestedLedger(uint32_t resRet, const ResolvedReturnDebt& resolved, const def::ReturnRequestItem& item)
+{
+    if (resRet != UBSE_OK) {
+        return false;
+    }
+    if (!item.lenderNodeId.empty() && resolved.lentNodeId != item.lenderNodeId) {
+        return false;
+    }
+    if (item.ledgerNumaIds.empty()) {
+        return true;
+    }
+    for (int16_t requested : item.ledgerNumaIds) {
+        if (requested < 0) {
+            continue;
+        }
+        if (resolved.remoteNumaId == requested) {
+            return true;
+        }
+        for (int16_t own : resolved.lentNumaIds) {
+            if (own == requested) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // R2R 归还前置检查; UBSE_OK 可继续, 否则返回跳过原因的错误码
@@ -2105,12 +2166,16 @@ void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t n
             continue;
         }
         // 逐 numa 缺口只回收占用缺口本地 numa 的债务(归还释放该债占用的本节点 numa 页);
-        // 空集合不设 numa 过滤, 广播全部借出债务
-        if (!shortageNumas.empty() && !DebtOccupiesShortageNuma(debt, shortageNumas)) {
-            ++filteredDebtCount;
-            continue;
+        // 空集合不设 numa 过滤, 广播全部借出债务。命中时携带账本 id 集合(占用缺口 numa 的
+        // 账本明细), 借入方可据此精确识别该债在缺口 numa 上的划出部分
+        def::ReturnRequestItem item{debt.name, debt.size};
+        if (!shortageNumas.empty()) {
+            if (!CollectDebtShortageLentNumas(debt, shortageNumas, item.ledgerNumaIds, item.ledgerNumaSizes)) {
+                ++filteredDebtCount;
+                continue;
+            }
         }
-        groups[debt.borrowNodeId].push_back(def::ReturnRequestItem{debt.name, debt.size});
+        groups[debt.borrowNodeId].push_back(std::move(item));
     }
 
     std::vector<std::string> borrowerNodes;
@@ -2159,6 +2224,10 @@ uint32_t ProcessMemPidDecision::HandleReturnRequest(const std::vector<def::Retur
     }
 
     for (const auto& item : items) {
+        if (!item.ledgerNumaIds.empty()) {
+            UBSE_LOG_DEBUG << "[process_mem] return passive debt_id=" << item.name << " lender=" << item.lenderNodeId
+                           << " lender_ledger_numas=[" << JoinNumaIdsForLog(item.ledgerNumaIds) << "]";
+        }
         if (!EnqueueReturnDebt(0, item, ReturnScene::PASSIVE)) {
             UBSE_LOG_WARN << "[process_mem] return passive debt_id=" << item.name
                           << " enqueue failed (stopping/queue full)";
@@ -2253,6 +2322,17 @@ bool ProcessMemPidDecision::ResolveReturnDebtOrFree(const def::ReturnRequestItem
     // 归还前只解析一次债务信息(pid/R2R 字段), 不再预查拦截: 债务不存在时直接调 ubse 归还接口,
     // no_exist 按成功处理(幂等); usrInfo 无 pid 时统一归还接口收尾(rmrsFree 负责数据搬迁)
     auto resRet = ResolveLocalDebt(item.name, resolved);
+    // 借入方账本核对: 被动归还请求, 须以自身账本记录核对 (借出 id, 借出 numa) 两键都对得上
+    // 才归还; 无对应/账本不可得即跳过, 等 lender 下轮重播(不重试、不直调归还接口)
+    if (scene == ReturnScene::PASSIVE && (!item.ledgerNumaIds.empty() || !item.lenderNodeId.empty()) &&
+        !DebtMatchesRequestedLedger(resRet, resolved, item)) {
+        UBSE_LOG_INFO << "[process_mem] return passive debt_id=" << item.name
+                      << " skip: own ledger check failed (ret=" << resRet << ", own_lender=" << resolved.lentNodeId
+                      << ", own_numas=[" << JoinNumaIdsForLog(resolved.lentNumaIds)
+                      << "], remote_numa=" << resolved.remoteNumaId << ", requested_lender=" << item.lenderNodeId
+                      << ", requested_numas=[" << JoinNumaIdsForLog(item.ledgerNumaIds) << "])";
+        return false;
+    }
     if (resRet != UBSE_OK || resolved.pid <= 0) {
         uint32_t backRet = (resRet == UBSE_ERR_NOT_EXIST) ? pid::bridge::ProcessMemPidBridge::MemoryReturn(item.name) :
                                                             ReturnDebtUnified(0, item, scene);

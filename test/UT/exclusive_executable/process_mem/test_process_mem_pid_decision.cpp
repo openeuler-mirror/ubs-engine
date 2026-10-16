@@ -132,12 +132,16 @@ std::vector<ReturnRequestItem> DecodeItems(const std::string& payload)
 {
     ubse::serial::UbseDeSerialization deserializer{reinterpret_cast<const ubse::serial::base_ptr_type*>(payload.data()),
                                                    payload.size()};
+    std::string targetNodeId;
+    std::string lenderNodeId;
     ubse::serial::common_len count = 0;
+    deserializer >> targetNodeId >> lenderNodeId;
     deserializer >> ubse::serial::array_len_capture(count);
     std::vector<ReturnRequestItem> items;
     for (ubse::serial::common_len i = 0; i < count; ++i) {
         ReturnRequestItem item;
-        deserializer >> item.name >> item.size;
+        deserializer >> item.name >> item.size >> item.ledgerNumaIds >> item.ledgerNumaSizes;
+        item.lenderNodeId = lenderNodeId;
         items.push_back(item);
     }
     return items;

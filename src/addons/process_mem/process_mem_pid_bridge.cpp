@@ -124,12 +124,15 @@ ubse::com::UbseComEndpoint GetProcessMemReturnEndpoint(uint16_t opCode, const st
 uint32_t ProcessMemPidBridge::SendReturnRequestToNode(const std::string& nodeId,
                                                       const std::vector<def::ReturnRequestItem>& items)
 {
-    // 消息头携带原始目标节点(借入节点): 请求统一发往主节点, 主节点按该字段转发或直接执行
+    // 消息头携带原始目标节点(借入节点)与借出节点(本节点): 请求统一发往主节点, 主节点按目标
+    // 字段转发或直接执行; 借出节点随请求下发, 供借入方按 (借出 id, 借出 numa) 核对自身账本
+    auto lenderNodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
     ubse::serial::UbseSerialization output;
-    output << nodeId;
+    output << nodeId << lenderNodeId;
     output << ubse::serial::array_len_insert(items.size());
     for (const auto& item : items) {
-        output << item.name << item.size;
+        // 账本 id 集合(借出方缺口 numa ∩ 该债划出 numa)随被动归还请求下发给借入方
+        output << item.name << item.size << item.ledgerNumaIds << item.ledgerNumaSizes;
     }
     if (!output.Check()) {
         UBSE_LOG_ERROR << "SendReturnRequestToNode: serialization failed, nodeId=" << nodeId;
@@ -193,8 +196,10 @@ uint32_t ProcessReturnRequest(const UbseByteBuffer& req)
 {
     ubse::serial::UbseDeSerialization deserializer{req.data, req.len};
     std::string targetNodeId;
+    std::string lenderNodeId;
     ubse::serial::common_len itemCount = 0;
     deserializer >> targetNodeId;
+    deserializer >> lenderNodeId;
     deserializer >> ubse::serial::array_len_capture(itemCount);
     if (!deserializer.Check()) {
         UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: deserialize failed";
@@ -219,11 +224,13 @@ uint32_t ProcessReturnRequest(const UbseByteBuffer& req)
     items.reserve(static_cast<size_t>(itemCount));
     for (ubse::serial::common_len i = 0; i < itemCount; ++i) {
         def::ReturnRequestItem item;
-        deserializer >> item.name >> item.size;
+        deserializer >> item.name >> item.size >> item.ledgerNumaIds >> item.ledgerNumaSizes;
         if (!deserializer.Check()) {
             UBSE_LOG_ERROR << "ProcessMemReturnRequestHandler: deserialize failed at item " << i;
             return UBSE_ERROR;
         }
+        // 借出节点为消息级字段, 落到各条目供归还执行侧按 (借出 id, 借出 numa) 核对自身账本
+        item.lenderNodeId = lenderNodeId;
         items.push_back(std::move(item));
     }
     auto ret = decision::ProcessMemPidDecision::GetInstance().HandleReturnRequest(items);

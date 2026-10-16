@@ -104,6 +104,9 @@ struct ResolvedReturnDebt {
     int srcNuma{-1};
     std::string lentNodeId{};
     int remoteNumaId{-1};
+    // 本地账本记录的本债借出 numa 明细(lentNumaIdList 原样): 被动归还携带账本 id 集合时
+    // 据此核对请求与本债的对应关系
+    std::vector<int16_t> lentNumaIds{};
 };
 
 struct ReplacementDebtCtx {
