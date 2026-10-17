@@ -259,6 +259,27 @@ TEST_F(TestSchedulerFilterManager, SharedPoolFilterRejectsWhenProjectedExceedsCa
     EXPECT_TRUE(nodes.empty());
 }
 
+TEST_F(TestSchedulerFilterManager, SharedPoolFilterCountsSharedLentInTotal)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.UpdateNodeInfo(MakePoolNode("1", 20));
+
+    auto* numa = nodeMgr.GetNumaInfo("1", 0);
+    ASSERT_NE(numa, nullptr);
+    numa->AddNumaLentSize(15 * BYTES_PER_GB);
+    numa->AddNumaShareSize(3 * BYTES_PER_GB); // 共享借出也占用节点借出总量
+
+    SharedPoolFilter filter;
+    std::vector<NodeInfo> nodes = {MakePoolNodeView("1")};
+    SchedulerRequest req;
+    req.requestSize_ = 4 * BYTES_PER_GB; // 15 + 3 + 4 = 22GB > 20GB 上限
+
+    auto ret = filter.FilterNodes(nodes, nodeMgr, accMgr, req);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_TRUE(nodes.empty());
+}
+
 TEST_F(TestSchedulerFilterManager, SharedPoolFilterKeepsWhenProjectedEqualsCap)
 {
     SchedulerNodeManager nodeMgr;

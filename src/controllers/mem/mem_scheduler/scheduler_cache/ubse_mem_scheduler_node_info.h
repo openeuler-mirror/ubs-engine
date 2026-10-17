@@ -85,13 +85,12 @@ public:
     }
     [[nodiscard]] uint64_t GetLentSize() const
     {
+        // 借出总量含共享借出, 与 socket 级 GetLentSize() 口径保持一致
         uint64_t lentSize = 0;
         for (const auto& [_, socketInfo] : socketInfoMap_) {
-            for (const auto& [__, numaInfo] : socketInfo->GetAllNumaInfos()) {
-                uint64_t result = 0;
-                if (ubse::utils::SafeAdd(lentSize, numaInfo->GetMemLentSize(), result)) {
-                    lentSize = result;
-                }
+            uint64_t result = 0;
+            if (ubse::utils::SafeAdd(lentSize, socketInfo->GetLentSize(), result)) {
+                lentSize = result;
             }
         }
         return lentSize;
