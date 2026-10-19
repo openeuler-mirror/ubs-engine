@@ -52,7 +52,6 @@ uint32_t UbseNetUtil::ParseIpList(const std::string &ipListStr, std::vector<std:
             return UBSE_ERROR_INVAL;
         }
     }
-    std::sort(ipList.begin(), ipList.end());
     return UBSE_OK;
 }
 
