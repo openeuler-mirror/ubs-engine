@@ -85,6 +85,21 @@ TEST_F(TestSchedulerNodeInfo, ConstructFromNodeInfo)
     EXPECT_EQ(node.GetClusterState(), UbseNodeClusterState::UBSE_NODE_WORKING);
 }
 
+TEST_F(TestSchedulerNodeInfo, GetLentSizeSharedLentScope)
+{
+    auto info = MakeSimpleNodeInfo("1");
+    SchedulerNodeInfo node(info);
+
+    auto* numa0 = node.GetNumaInfo(36, 0);
+    ASSERT_NE(numa0, nullptr);
+    numa0->AddNumaLentSize(100);
+    numa0->AddNumaShareSize(30);
+
+    // 借出配额口径含共享借出, 角色冲突口径不含
+    EXPECT_EQ(node.GetLentSize(), 130u);
+    EXPECT_EQ(node.GetLentSizeExcludingShared(), 100u);
+}
+
 TEST_F(TestSchedulerNodeInfo, GetSocketInfoFound)
 {
     auto info = MakeSimpleNodeInfo("1");

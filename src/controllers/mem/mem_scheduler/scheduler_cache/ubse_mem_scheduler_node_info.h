@@ -85,12 +85,27 @@ public:
     }
     [[nodiscard]] uint64_t GetLentSize() const
     {
-        // 借出总量含共享借出, 与 socket 级 GetLentSize() 口径保持一致
+        // 借出总量含共享借出(node_lending_limit 口径), 与 socket 级 GetLentSize() 保持一致;
+        // 角色冲突判定不含共享借出, 使用 GetLentSizeExcludingShared()
         uint64_t lentSize = 0;
         for (const auto& [_, socketInfo] : socketInfoMap_) {
             uint64_t result = 0;
             if (ubse::utils::SafeAdd(lentSize, socketInfo->GetLentSize(), result)) {
                 lentSize = result;
+            }
+        }
+        return lentSize;
+    }
+    [[nodiscard]] uint64_t GetLentSizeExcludingShared() const
+    {
+        // 与重构前 CheckBorrowNodeHasLent 跳过 SHM 账本的口径一致: 共享借出不构成借入/借出角色冲突
+        uint64_t lentSize = 0;
+        for (const auto& [_, socketInfo] : socketInfoMap_) {
+            for (const auto& [__, numaInfo] : socketInfo->GetAllNumaInfos()) {
+                uint64_t result = 0;
+                if (ubse::utils::SafeAdd(lentSize, numaInfo->GetMemLentSize(), result)) {
+                    lentSize = result;
+                }
             }
         }
         return lentSize;

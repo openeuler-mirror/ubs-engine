@@ -19,6 +19,7 @@
 #include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_node_controller.h"
 #include "scheduler_filter/ubse_mem_scheduler_free_memory_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_role_conflict_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_shared_pool_filter.h"
 
 namespace ubse::mem::scheduler::ut {
@@ -335,6 +336,49 @@ TEST_F(TestSchedulerFilterManager, SharedPoolFilterUnknownNodeSkipped)
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(nodes.size(), 1u);
     EXPECT_EQ(nodes[0].nodeId, "1");
+}
+
+// ==================== RoleConflictFilter Tests ====================
+
+TEST_F(TestSchedulerFilterManager, RoleConflictFilterSharedLentDoesNotBlockBorrow)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.UpdateNodeInfo(MakePoolNode("1", 20));
+    nodeMgr.UpdateNodeInfo(MakePoolNode("2", 20));
+
+    auto* numa = nodeMgr.GetNumaInfo("1", 0);
+    ASSERT_NE(numa, nullptr);
+    numa->AddNumaShareSize(10 * BYTES_PER_GB); // 仅共享借出, 不构成借入/借出角色冲突
+
+    RoleConflictFilter filter;
+    std::vector<NodeInfo> nodes = {MakePoolNodeView("1"), MakePoolNodeView("2")};
+    SchedulerRequest req;
+    req.importNodeId_ = "1";
+
+    auto ret = filter.FilterNodes(nodes, nodeMgr, accMgr, req);
+    EXPECT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodes.size(), 1u); // 借入节点不能同时作为 provider
+    EXPECT_EQ(nodes[0].nodeId, "2");
+}
+
+TEST_F(TestSchedulerFilterManager, RoleConflictFilterExclusiveLentBlocksBorrow)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.UpdateNodeInfo(MakePoolNode("1", 20));
+
+    auto* numa = nodeMgr.GetNumaInfo("1", 0);
+    ASSERT_NE(numa, nullptr);
+    numa->AddNumaLentSize(BYTES_PER_GB);
+
+    RoleConflictFilter filter;
+    std::vector<NodeInfo> nodes = {MakePoolNodeView("1")};
+    SchedulerRequest req;
+    req.importNodeId_ = "1";
+
+    auto ret = filter.FilterNodes(nodes, nodeMgr, accMgr, req);
+    EXPECT_EQ(ret, UBSE_SCHEDULER_ERROR_INVAL);
 }
 
 // ==================== FreeMemoryFilter Tests ====================
