@@ -1575,8 +1575,8 @@ TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeLackLocalMem)
 
 TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeLackRemoteMem)
 {
-    // code=4 (LACK_REMOTE_MEM), not retryable
-    ASSERT_FALSE(IsBmcFaultRetryableCode(MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE));
+    // code=4 (LACK_REMOTE_MEM), retryable
+    ASSERT_TRUE(IsBmcFaultRetryableCode(MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE));
 }
 
 TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodePartialSuccess)
@@ -1592,8 +1592,9 @@ TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeAboveRange)
 
 TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeOtherRetryable)
 {
-    // codes 2,5,6,7 are in range [1,8] and not 3 or 4, so retryable
+    // codes 2,4,5,6,7 are in range [1,8] and not 3, so retryable
     ASSERT_TRUE(IsBmcFaultRetryableCode(2));
+    ASSERT_TRUE(IsBmcFaultRetryableCode(4));
     ASSERT_TRUE(IsBmcFaultRetryableCode(5));
     ASSERT_TRUE(IsBmcFaultRetryableCode(6));
     ASSERT_TRUE(IsBmcFaultRetryableCode(7));

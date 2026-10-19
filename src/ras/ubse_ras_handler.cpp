@@ -155,7 +155,7 @@ static void SubmitClearExpiredHandlerResult()
 // RAS 侧硬编码的 BMC 故障码数值（不引入 mp_error.h，修改 RMRS 侧数值须同步此处）
 constexpr uint32_t MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE = 1;       // 节点通信失败（可重试）
 constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE = 3;  // 本地内存不足（不可重试）
-constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE = 4; // 借用内存不足（不可重试）
+constexpr uint32_t MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE = 4; // 借用内存不足（可重试）
 constexpr uint32_t MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE = 8;     // 可重试码上界
 
 constexpr const char* REBOOT_TIMEOUT_SYSFS_PATH = "/sys/module/sentry_reporter/parameters/reboot_timeout_ms";
@@ -166,7 +166,7 @@ static bool IsBmcFaultRetryableCode(uint32_t code)
     if (code < MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE || code > MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE) {
         return false;
     }
-    return code != MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE && code != MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE;
+    return code != MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE;
 }
 
 static uint32_t ReadRebootTimeoutMs()
