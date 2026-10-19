@@ -1,3 +1,10 @@
+---
+description: 提供 UBS Engine 及 RMRS、Ucache、virt_agent 组件的版本修改记录与软硬件版本配套关系说明。
+keywords: [UBS Engine, 版本说明, 发布说明, 版本配套, openEuler]
+changefreq: weekly
+date: 2026-08-21
+---
+
 # 版本说明
 
 ## 修改记录

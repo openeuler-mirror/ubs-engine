@@ -1,3 +1,10 @@
+---
+description: 介绍 UBS RMRS 内存资源调度插件的安装步骤与配置文件说明，指导用户完成机架内存资源调度组件的部署与使用。
+keywords: [RMRS, 内存资源调度, 机架内存, 插件配置, 安装部署]
+changefreq: monthly
+date: 2026-05-21
+---
+
 # RMRS 用户指南
 
 ## RMRS 简介

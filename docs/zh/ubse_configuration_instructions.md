@@ -1,3 +1,10 @@
+---
+description: 说明 UBS Engine 配置文件的 ini 格式与配置原则，详细介绍日志、HA 选举、RPC 通信、UBFM 对接、内存池化、URMA、权限点及场景化插件等配置项的取值范围与默认值，指导用户完成各节点的统一配置。
+keywords: [UBS Engine, 配置说明, 配置文件, 内存池化, HA 选举]
+changefreq: monthly
+date: 2025-11-06
+---
+
 # UBSE 配置说明
 
 ## 配置原则说明

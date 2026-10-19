@@ -1,3 +1,10 @@
+---
+description: 介绍 UBS-Engine（UBSE）的环境要求、RPM 包安装与容器镜像部署流程，以及安装后的验证步骤，帮助用户在 openEuler 上完成 UBSE 的部署。
+keywords: [UBS-Engine, UBSE, 安装指南, openEuler, RPM 部署]
+changefreq: monthly
+date: 2026-05-10
+---
+
 # UBS-Engine (UBSE) 安装指南
 
 当前 UBSE 提供两种环境部署方式：RPM 包安装、容器镜像部署。环境部署流程包含以下主要步骤：

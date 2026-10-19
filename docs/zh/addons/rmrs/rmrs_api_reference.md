@@ -1,3 +1,10 @@
+---
+description: 介绍 RMRS 提供的内存资源调度 C++ API，涵盖反亲和性配置更新等接口的函数原型、参数、返回值与约束条件。
+keywords: [RMRS, API 参考, 内存调度, 反亲和性, C++ 接口]
+changefreq: monthly
+date: 2026-05-21
+---
+
 # RMRS API参考
 
 ## UBSRMRSUpdateAntiNode

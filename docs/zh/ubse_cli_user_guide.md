@@ -1,3 +1,10 @@
+---
+description: 介绍 UBS 统一命令行工具 ubsectl 的命令格式、命令字、操作对象与参数用法，并通过示例演示内存借用等常见操作。
+keywords: [UBS Engine, ubsectl, 命令行工具, CLI, 内存管理]
+changefreq: monthly
+date: 2026-05-10
+---
+
 # UBSE CLI 使用指南
 
 ## ubsectl总体设计原则
@@ -1113,7 +1120,7 @@ ubsectl display topo -t <OPTIONS>
 
 以3节点如下组网场景为例：
 
-![img.png](./images/img-ubse-node.png)
+![3 节点组网场景示例：computer1、computer2、computer3 通过 UB 端口互联](./images/img-ubse-node.png)
 
 场景1：Ubse能够获取全量各节点信息场景：
 

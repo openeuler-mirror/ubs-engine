@@ -1,3 +1,10 @@
+---
+description: 介绍 UBS Engine SDK 提供的 C 语言 API，涵盖客户端管理、日志、拓扑查询、内存共享与借用、URMA 及 NPU 等接口的函数原型、参数与返回值，供开发者集成调用。
+keywords: [UBS Engine, API 参考, SDK, 内存调度, C API]
+changefreq: monthly
+date: 2025-11-06
+---
+
 # UBS Engine API 参考指南
 
 ## 前言
