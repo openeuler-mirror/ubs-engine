@@ -304,4 +304,13 @@ bool IsOptionalNqnValid(const std::string &nqn)
     return nqn.empty() || IsValidHostNqn(nqn);
 }
 
+std::string MaskNqn(const std::string &nqn)
+{
+    constexpr size_t NQN_MASK_SUFFIX_LEN = 4;
+    if (nqn.size() <= NQN_MASK_SUFFIX_LEN) {
+        return "****";
+    }
+    return "****" + nqn.substr(nqn.size() - NQN_MASK_SUFFIX_LEN);
+}
+
 } // namespace ubse::ssu::utils

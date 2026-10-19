@@ -13,6 +13,7 @@
 #include "ubse_remove_access_permission_handler.h"
 #include "ubse_logger.h"
 #include "../message/ubse_ssu_handler_message.h"
+#include "../../ubse_ssu_utils.h"
 namespace ubse::ssu::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::plugin::service::ssu;
@@ -41,7 +42,7 @@ UbseResult UbseRemoveAccessPermissionHandler::Handle()
 
 void UbseRemoveAccessPermissionHandler::LogRequest()
 {
-    UBSE_LOG_DEBUG << "RemoveAccessPermission req: name=" << name << ", nqn=" << nqn
+    UBSE_LOG_DEBUG << "RemoveAccessPermission req: name=" << name << ", nqn=" << utils::MaskNqn(nqn)
                    << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
 }
 

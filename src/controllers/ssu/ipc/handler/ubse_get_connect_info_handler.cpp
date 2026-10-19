@@ -13,6 +13,7 @@
 #include "ubse_get_connect_info_handler.h"
 #include "ubse_logger.h"
 #include "../message/ubse_ssu_handler_message.h"
+#include "../../ubse_ssu_utils.h"
 namespace ubse::ssu::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::plugin::service::ssu;
@@ -62,8 +63,8 @@ void UbseGetConnectInfoHandler::LogResponse()
     for (size_t i = 0; i < connectInfoList.size(); i++) {
         const auto &ci = connectInfoList[i];
         UBSE_LOG_DEBUG << "  connectInfo[" << i << "]: srcEid=" << ci.srcEid
-                       << ", tgtEid=" << ci.tgtEid << ", tgtNqn=" << ci.tgtNqn
-                       << ", hostNqn=" << ci.hostNqn << ", nsUuid=" << ci.nsUuid
+                       << ", tgtEid=" << ci.tgtEid << ", tgtNqn=" << utils::MaskNqn(ci.tgtNqn)
+                       << ", hostNqn=" << utils::MaskNqn(ci.hostNqn) << ", nsUuid=" << ci.nsUuid
                        << ", nsId=" << ci.nsId;
     }
 }

@@ -13,6 +13,7 @@
 #include "ubse_get_alloc_info_by_name_handler.h"
 #include "ubse_logger.h"
 #include "../message/ubse_ssu_handler_message.h"
+#include "../../ubse_ssu_utils.h"
 namespace ubse::ssu::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::plugin::service::ssu;
@@ -53,7 +54,7 @@ void UbseGetAllocInfoByNameHandler::LogResponse()
                    << ", nameSpaceList.size=" << result.nameSpaceList.size();
     for (size_t i = 0; i < result.nameSpaceList.size(); i++) {
         const auto &ns = result.nameSpaceList[i];
-        UBSE_LOG_DEBUG << "  ns[" << i << "]: tgtEid=" << ns.tgtEid << ", tgtNqn=" << ns.tgtNqn
+        UBSE_LOG_DEBUG << "  ns[" << i << "]: tgtEid=" << ns.tgtEid << ", tgtNqn=" << utils::MaskNqn(ns.tgtNqn)
                        << ", nsUuid=" << ns.nsUuid << ", namespaceId=" << ns.namespaceId
                        << ", nsDevPath=" << ns.nsDevPath << ", nsSize=" << ns.nsSize
                        << ", lbaFormat=" << static_cast<uint32_t>(ns.lbaFormat)

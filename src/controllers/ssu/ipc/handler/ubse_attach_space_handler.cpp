@@ -13,6 +13,7 @@
 #include "ubse_attach_space_handler.h"
 #include "ubse_logger.h"
 #include "../message/ubse_ssu_handler_message.h"
+#include "../../ubse_ssu_utils.h"
 namespace ubse::ssu::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::plugin::service::ssu;
@@ -48,7 +49,7 @@ UbseResult UbseAttachSpaceHandler::Handle()
 
 void UbseAttachSpaceHandler::LogRequest()
 {
-    UBSE_LOG_DEBUG << "AttachSpace req: name=" << req.name << ", nqn=" << req.nqn << ", srcEid=" << req.srcEid
+    UBSE_LOG_DEBUG << "AttachSpace req: name=" << req.name << ", nqn=" << utils::MaskNqn(req.nqn) << ", srcEid=" << req.srcEid
                    << ", identity.userName=" << req.identity.userName << ", identity.uid=" << req.identity.uid;
 }
 

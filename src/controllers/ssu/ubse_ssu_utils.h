@@ -41,6 +41,10 @@ bool IsValidHostNqn(const std::string &hostNqn);
 // 封装了 attach/detach/权限入口共用的"空值跳过，非空则校验"模式
 bool IsOptionalNqnValid(const std::string &nqn);
 
+// NQN日志脱敏：仅保留末尾4字符用于问题定位，其余以****掩码替代，
+// 长度不足等于4时整体返回****；与adapter插件侧MaskNqn行为一致
+std::string MaskNqn(const std::string &nqn);
+
 // 校验聚合块设备名称：仅允许白名单字符[A-Za-z0-9_-]，且长度不超过协议上限32（MAX_DEV_NAME_LEN-1）。
 // 与adapter侧IsSafeDeviceName保持一致：该名字会拼接为/dev/ssu/{devName}路径返回，
 // 白名单天然阻断路径分隔符、路径穿越（..）及shell元字符，防止拼接后逃逸/dev/ssu/目录
