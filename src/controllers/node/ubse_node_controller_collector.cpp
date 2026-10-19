@@ -74,16 +74,23 @@ UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo)
     }
     // Read the per-node lending limit. Each node reports its own value, aggregated on the master scheduler side.
     // Range [0, 65535] GB, 0 = unlimited; out of range falls back to 0 (unlimited)
-    const std::string nodeMaxLendKey = "scheduler.node_lending_limit";
-    uint32_t nodeMaxLendGb = 0;
-    ret = confModule->GetConf<uint32_t>(IS_LENDER_SECTION, nodeMaxLendKey, nodeMaxLendGb);
-    constexpr uint32_t maxNodeMaxLendGb = 65535;
-    if (ret == UBSE_OK && nodeMaxLendGb <= maxNodeMaxLendGb) {
-        ubseNodeInfo.nodeMaxLendGb = nodeMaxLendGb;
-    } else if (ret == UBSE_OK) {
-        UBSE_LOG_WARN << "config " << nodeMaxLendKey << "=" << nodeMaxLendGb << " out of range [0, " << maxNodeMaxLendGb
-                      << "], fallback to 0 (unlimited)";
-    }
+    // 配置仅在启动时加载一次, 缓存解析结果, 避免周期采集时对未配置(被注释)的 key 反复打印告警
+    static const uint32_t nodeMaxLendGb = [confModule]() {
+        const std::string nodeMaxLendKey = "scheduler.node_lending_limit";
+        uint32_t value = 0;
+        auto ret = confModule->GetConf<uint32_t>(IS_LENDER_SECTION, nodeMaxLendKey, value);
+        constexpr uint32_t maxNodeMaxLendGb = 65535;
+        if (ret != UBSE_OK) {
+            return 0u;
+        }
+        if (value > maxNodeMaxLendGb) {
+            UBSE_LOG_WARN << "config " << nodeMaxLendKey << "=" << value << " out of range [0, " << maxNodeMaxLendGb
+                          << "], fallback to 0 (unlimited)";
+            return 0u;
+        }
+        return value;
+    }();
+    ubseNodeInfo.nodeMaxLendGb = nodeMaxLendGb;
     return UBSE_OK;
 }
 

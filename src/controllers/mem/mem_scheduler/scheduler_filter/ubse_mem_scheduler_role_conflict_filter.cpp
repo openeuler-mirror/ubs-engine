@@ -22,7 +22,8 @@ UbseResult RoleConflictFilter::FilterNodes(std::vector<NodeInfo>& nodes, const S
         RecordWarning(std::string("GetNodeInfo failed, node=") + request.importNodeId_);
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
-    if (memNode->GetLentSize() > 0) {
+    // 共享借出不计入角色冲突, 仅普通借出阻止借入
+    if (memNode->GetLentSizeExcludingShared() > 0) {
         RecordError("Import node has lent before, cannot borrow");
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
