@@ -11,6 +11,7 @@
  */
 #include "ubse_attach_striped_space_handler.h"
 #include "../message/ubse_ssu_handler_message.h"
+#include "../../ubse_ssu_utils.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::ssu::ipc {
@@ -48,7 +49,7 @@ UbseResult UbseAttachStripedSpaceHandler::Handle()
 
 void UbseAttachStripedSpaceHandler::LogRequest()
 {
-    UBSE_LOG_DEBUG << "AttachStripedSpace req: name=" << req.name << ", nqn=" << req.nqn
+    UBSE_LOG_DEBUG << "AttachStripedSpace req: name=" << req.name << ", nqn=" << utils::MaskNqn(req.nqn)
                    << ", srcEid=" << req.srcEid << ", devName=" << req.devName
                    << ", level=" << static_cast<uint32_t>(req.level)
                    << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize)

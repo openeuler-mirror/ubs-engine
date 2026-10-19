@@ -387,7 +387,7 @@ static uint32_t FillNsCustomData(UbseSsuDevNameSpace &ns, const UbseSsuAllocSpac
     }
     memset_s(ns.customData.defaultNqn, sizeof(ns.customData.defaultNqn), 0, sizeof(ns.customData.defaultNqn));
     if (strncpy_s(ns.customData.defaultNqn, sizeof(ns.customData.defaultNqn), hostNqn.c_str(), hostNqn.size()) != EOK) {
-        UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to copy defaultNqn, defaultNqn=" << hostNqn;
+        UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to copy defaultNqn, defaultNqn=" << MaskNqn(hostNqn);
         return UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID;
     }
     return UBSE_OK;
@@ -450,7 +450,7 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
         auto allowRet = UbseSsuAdapterInterface::GetInstance().AddNameSpaceAllowHost(ns, hostNqn);
         if (allowRet != UBSE_OK) {
             UBSE_LOG_ERROR << "CreateDevNameSpaces: AddNameSpaceAllowHost failed, eid=" << eid
-                           << ", nsId=" << ns.namespaceId << ", hostNqn=" << hostNqn << ", ret=" << allowRet;
+                           << ", nsId=" << ns.namespaceId << ", hostNqn=" << MaskNqn(hostNqn) << ", ret=" << allowRet;
             RollbackCreatedNameSpaces(createdNsList);
             return UBSE_SSU_ERROR_PERMISSION_ADD_FAILED;
         }
@@ -1939,11 +1939,11 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "AttachSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "AttachSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << req.nqn;
+    UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     // VM 模式:校验 vmCache_ 命中 → 调 adapter AttachDevNameSpace → MarkAttached
@@ -2061,11 +2061,11 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "DetachSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "DetachSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "DetachSpace: name=" << req.name << ", nqn=" << req.nqn;
+    UBSE_LOG_INFO << "DetachSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     // VM 模式:调 adapter DetachDevNameSpace → MarkDetached
@@ -2243,11 +2243,11 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "AttachLinearSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "AttachLinearSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "AttachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    UBSE_LOG_INFO << "AttachLinearSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn) << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     UbseCreateBlockDeviceOptions options;
@@ -2370,11 +2370,11 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "AttachStripedSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "AttachStripedSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "AttachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName
+    UBSE_LOG_INFO << "AttachStripedSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn) << ", devName=" << req.devName
                   << ", level=" << static_cast<int>(req.level)
                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
@@ -2564,11 +2564,11 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "DetachLinearSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "DetachLinearSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn) << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     // VM 模式:DeleteBlockDevice + VmDetachSpace
@@ -2645,11 +2645,11 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_ERR_INVALID_ARG;
     }
     if (!IsOptionalNqnValid(req.nqn)) {
-        UBSE_LOG_ERROR << "DetachStripedSpace: invalid nqn format, nqn=" << req.nqn;
+        UBSE_LOG_ERROR << "DetachStripedSpace: invalid nqn format, nqn=" << MaskNqn(req.nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << "DetachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    UBSE_LOG_INFO << "DetachStripedSpace: name=" << req.name << ", nqn=" << MaskNqn(req.nqn) << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     // VM 模式:DeleteBlockDevice + VmDetachSpace
@@ -2751,7 +2751,7 @@ static uint32_t AccessPermissionViaRpc(const std::string &name, const std::strin
                                        const UbseSsuAllocIdentityInfo &identity, bool isAdd)
 {
     std::string funcName = isAdd ? "AddAccessPermissionViaRpc" : "RemoveAccessPermissionViaRpc";
-    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << MaskNqn(nqn);
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
@@ -2802,7 +2802,7 @@ static uint32_t AccessPermissionViaRpc(const std::string &name, const std::strin
         return resp.errorCode;
     }
 
-    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << MaskNqn(nqn);
     return UBSE_OK;
 }
 
@@ -2836,7 +2836,7 @@ static void RollbackPermOperations(const std::vector<SucceededPermNs> &succeeded
         auto ret = UbseSsuAdapterInterface::GetInstance().RemoveNameSpaceAllowHost(*targetNs, item.nqn);
         if (ret != UBSE_OK) {
             UBSE_LOG_WARN << "RollbackPermOperations: rollback RemoveNameSpaceAllowHost failed, eid=" << item.eid
-                          << ", nsId=" << item.nsId << ", nqn=" << item.nqn << ", ret=" << ret;
+                          << ", nsId=" << item.nsId << ", nqn=" << MaskNqn(item.nqn) << ", ret=" << ret;
         }
     }
 }
@@ -2850,7 +2850,7 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
         return UBSE_ERR_INVALID_ARG;
     }
 
-    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << MaskNqn(nqn);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
 
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
@@ -2911,7 +2911,7 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << funcName << ": " << (isAdd ? "AddNameSpaceAllowHost" : "RemoveNameSpaceAllowHost")
                            << " failed, eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId
-                           << ", nqn=" << nqnFinal << ", ret=" << ret;
+                           << ", nqn=" << MaskNqn(nqnFinal) << ", ret=" << ret;
             RollbackPermOperations(succeededNsList, isAdd, devMap);
             return isAdd ? UBSE_SSU_ERROR_PERMISSION_ADD_FAILED : UBSE_SSU_ERROR_PERMISSION_REMOVE_FAILED;
         }
@@ -2919,18 +2919,18 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
         succeededNsList.push_back({nsInfo.tgtEid, nsInfo.namespaceId, nsInfo.nsUuid, nqnFinal});
     }
 
-    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << MaskNqn(nqn);
     return UBSE_OK;
 }
 
 uint32_t UbseSsuServiceImp::AddAccessPermission(const std::string &name, const std::string &nqn,
                                                 const UbseSsuAllocIdentityInfo &identity)
 {
-    UBSE_LOG_INFO << "AddAccessPermission: name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << "AddAccessPermission: name=" << name << ", nqn=" << MaskNqn(nqn);
 
     // 空nqn表示使用defaultNqn（内部由ResolveNqn处理，为defaultNqn时跳过），不校验；非空则须为合法HostNqn格式
     if (!IsOptionalNqnValid(nqn)) {
-        UBSE_LOG_ERROR << "AddAccessPermission: invalid nqn format, nqn=" << nqn;
+        UBSE_LOG_ERROR << "AddAccessPermission: invalid nqn format, nqn=" << MaskNqn(nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -2962,11 +2962,11 @@ uint32_t UbseSsuServiceImp::AddAccessPermission(const std::string &name, const s
 uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, const std::string &nqn,
                                                    const UbseSsuAllocIdentityInfo &identity)
 {
-    UBSE_LOG_INFO << "RemoveAccessPermission: name=" << name << ", nqn=" << nqn;
+    UBSE_LOG_INFO << "RemoveAccessPermission: name=" << name << ", nqn=" << MaskNqn(nqn);
 
     // 空nqn表示使用defaultNqn（内部由ResolveNqn处理，为defaultNqn时跳过），不校验；非空则须为合法HostNqn格式
     if (!IsOptionalNqnValid(nqn)) {
-        UBSE_LOG_ERROR << "RemoveAccessPermission: invalid nqn format, nqn=" << nqn;
+        UBSE_LOG_ERROR << "RemoveAccessPermission: invalid nqn format, nqn=" << MaskNqn(nqn);
         return UBSE_ERR_INVALID_ARG;
     }
 
