@@ -29,6 +29,11 @@ uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler hand
 
 void UbseTimerHandlerUnregister(const std::string& name);
 
+// 进程退出前必须调用: 全量收敛timer框架线程——回收handlers清空后的异步拆除stopper,
+// 并对handlers有残留(模块退出未注销完handler)的场景强制停止并回收check线程与timer线程;
+// 任一joinable线程残留到静态析构阶段都会触发std::terminate coredump
+void UbseTimerFrameworkFinalize();
+
 class UbseTimerController {
 public:
     UbseTimerController() noexcept : running_(false) {}
