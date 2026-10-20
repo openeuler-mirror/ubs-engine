@@ -283,6 +283,29 @@ static UbseSsuAllocationResult AllocateNormal(const std::vector<UbseSsuFilterDev
     return res;
 }
 
+std::string DeriveDevTenant(const UbseSsuDevInfo &dev)
+{
+    for (const auto &ns : dev.nameSpaces) {
+        std::string tenant(ns.customData.tenant, strnlen(ns.customData.tenant, sizeof(ns.customData.tenant)));
+        if (!tenant.empty()) {
+            return tenant;
+        }
+    }
+    return {};
+}
+
+// 过滤设备排序规则：剩余空间降序（优先分配空间大的设备，提高分配成功率）、nsCount升序，兼顾均衡
+// PreprocessDevices与租户配额裁剪共用，保证裁剪拼接后selectedDevs仍满足全局降序
+// （AllocateStriped按"前nsNum个"直接选成员并以filterDevs[nsNum-1]为组内最小值校验容量，
+// AllocateLinear负载均衡也仅使用前nsNum个设备，均依赖该降序假设）
+static bool FilterDevGreater(const UbseSsuFilterDev &a, const UbseSsuFilterDev &b)
+{
+    if (a.freeBytes != b.freeBytes) {
+        return a.freeBytes > b.freeBytes;
+    }
+    return a.nsCount < b.nsCount;
+}
+
 // 预处理设备，初步过滤出符合条件的设备
 std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo> &devices,
                                                 const UbseSsuAllocRequest &request)
@@ -300,13 +323,7 @@ std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo
         uint64_t freeBytes = (dev.totalBytes > dev.usedBytes) ? (dev.totalBytes - dev.usedBytes) : 0;
         uint64_t sectorSize = request.lbaSize == 0 ? DEFAULT_SECTOR_SIZE : request.lbaSize;
         uint32_t nsCount = static_cast<uint32_t>(dev.nameSpaces.size());
-        std::string tenant;
-        if (!dev.nameSpaces.empty()) {
-            tenant =
-                std::string(dev.nameSpaces[0].customData.tenant,
-                            strnlen(dev.nameSpaces[0].customData.tenant, sizeof(dev.nameSpaces[0].customData.tenant)));
-        }
-        filterDevs.push_back({dev.subSystem.eid, freeBytes, sectorSize, nsCount, tenant});
+        filterDevs.push_back({dev.subSystem.eid, freeBytes, sectorSize, nsCount, DeriveDevTenant(dev)});
     }
 
     // 针对条带化增加容量初筛策略，过滤掉不足容纳条带化Namespace分配的设备
@@ -323,12 +340,7 @@ std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo
     }
 
     // 按剩余空间降序（优先分配空间大的设备，提高分配成功率）、nsCount升序，兼顾均衡
-    std::sort(filterDevs.begin(), filterDevs.end(), [](const UbseSsuFilterDev &a, const UbseSsuFilterDev &b) {
-        if (a.freeBytes != b.freeBytes) {
-            return a.freeBytes > b.freeBytes;
-        }
-        return a.nsCount < b.nsCount;
-    });
+    std::sort(filterDevs.begin(), filterDevs.end(), FilterDevGreater);
     return filterDevs;
 }
 
@@ -412,11 +424,17 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
 bool UbseSsuTenantIsolationFilter::Handle(UbseSsuAllocationContext &ctx)
 {
     const auto &requestTenant = ctx.request.tenant;
-    // 过滤掉tenant不匹配的设备，device.tenant为空时保留（即，该设备未被tenant隔离）
-    // requestTenant为空时，所有device.tenant非空的设备均会被过滤掉，确保无租户请求不会占用已被租户隔离的设备
+    // 严格三态隔离（归属推导见DeriveDevTenant）：
+    // - 干净设备（无NS）：租户与非租户请求均可首次圈占
+    // - 非租户占用设备（有NS且全为空tenant）：仅非租户请求可用，租户请求不可混入
+    // - 租户占用设备（全NS同tenant）：仅该租户请求可用
     auto it = std::remove_if(ctx.selectedDevs.begin(), ctx.selectedDevs.end(),
         [&requestTenant](const UbseSsuFilterDev &dev) {
-            return !dev.tenant.empty() && dev.tenant != requestTenant;
+            if (requestTenant.empty()) {
+                return !dev.tenant.empty();
+            }
+            // 租户请求：排除非租户占用设备（有NS但无租户归属）与其他租户设备
+            return (dev.nsCount > 0 && dev.tenant.empty()) || (!dev.tenant.empty() && dev.tenant != requestTenant);
         });
     ctx.selectedDevs.erase(it, ctx.selectedDevs.end());
 
@@ -464,39 +482,75 @@ bool UbseSsuTenantQuotaFilter::Handle(UbseSsuAllocationContext &ctx)
         if (dev.nameSpaces.empty()) {
             continue;
         }
-        std::string tenant(dev.nameSpaces[0].customData.tenant,
-                           strnlen(dev.nameSpaces[0].customData.tenant,
-                                   sizeof(dev.nameSpaces[0].customData.tenant)));
-        if (tenant == requestTenant) {
+        // 仅归属本租户的专用设备计入分子
+        if (DeriveDevTenant(dev) == requestTenant) {
             ++ownedByRequestTenant;
         }
     }
 
     // 向上取整：正配额至少允许1台设备，避免小占比在小集群下被floor成0导致租户完全锁死
     // （如3台设备配额30%：ceil(0.9)=1，floor则为0）
-    // 配额100等价关闭：ownedByRequestTenant最多等于onlineTotal，
-    // 此时已无未归属设备可剔除，软限制动作天然为no-op
+    // 配额100等价关闭：ownedByRequestTenant最多等于onlineTotal，已无未归属设备可裁剪，天然no-op
     uint32_t perTenantLimit = (onlineTotal * perTenantPct_ + 99) / 100;
-    if (ownedByRequestTenant < perTenantLimit) {
-        return true;
+    // 增量预算：本租户本次请求还可新圈占的设备数（已圈占数+本次新圈占数<=上限，
+    // 首次大请求也无法一次性突破配额）
+    uint32_t allowedNew = (ownedByRequestTenant < perTenantLimit) ? (perTenantLimit - ownedByRequestTenant) : 0;
+
+    // 前置快筛：LINEAR/STRIPED一设备一NS，本请求需nsNum台设备，其中最多可新圈占allowedNew台，
+    // 其余须落在己方已归属设备上——nsNum超过"己方设备数+预算"时不可能在配额内满足，直接拒绝
+    // （NORMAL豁免：允许同设备多NS，packing可在少量设备上完成。
+    //   owned < limit 时上限等价于limit，与"nsNum超过配额上限"口径一致；
+    //   设备下线使分母收缩、owned > limit 存量超限时退化为 nsNum <= owned 放行，
+    //   由后续裁剪+数量校验兜底，与"已超限存量归属不受影响、仅拦截新圈占"的语义一致）
+    if (ctx.request.strategy != UbseSsuAllocStrategy::NORMAL &&
+        ctx.request.nsNum > ownedByRequestTenant + allowedNew) {
+        UBSE_LOG_ERROR << "Tenant quota: nsNum=" << ctx.request.nsNum
+                       << " exceeds servable=" << (ownedByRequestTenant + allowedNew)
+                       << " (owned=" << ownedByRequestTenant << ", limit=" << perTenantLimit
+                       << ") for tenant=" << requestTenant;
+        ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
+                               "Tenant quota reached: nsNum exceeds servable devices for tenant=" + requestTenant);
+        return false;
     }
 
-    UBSE_LOG_INFO << "Tenant quota reached: tenant=" << requestTenant
-                  << ", owned=" << ownedByRequestTenant << ", limit=" << perTenantLimit
-                  << ", online=" << onlineTotal << "; confine allocation to owned devices";
+    uint32_t unclaimed = 0;
+    for (const auto &dev : ctx.selectedDevs) {
+        if (dev.tenant.empty()) {
+            ++unclaimed;
+        }
+    }
+    if (unclaimed <= allowedNew) {
+        return true; // 预算充足，不干预
+    }
 
-    // 软限制：剔除未归属设备，租户仍可在自己已归属的设备上继续分配
-    auto it = std::remove_if(ctx.selectedDevs.begin(), ctx.selectedDevs.end(),
-                             [](const UbseSsuFilterDev &dev) { return dev.tenant.empty(); });
-    ctx.selectedDevs.erase(it, ctx.selectedDevs.end());
+    // 已归属设备全保留（租户仍可在己方设备扩容）；
+    // 未归属设备按剩余空间，降序保留前allowedNew个
+    // 本次新圈占数都不超过预算。allowedNew==0（配额用尽）时退化为剔除全部未归属设备
+    UBSE_LOG_INFO << "Tenant quota budget: tenant=" << requestTenant << ", owned=" << ownedByRequestTenant
+                  << ", limit=" << perTenantLimit << ", online=" << onlineTotal << ", unclaimed candidates="
+                  << unclaimed << ", trim to " << allowedNew;
+    std::vector<UbseSsuFilterDev> ownedDevs;
+    std::vector<UbseSsuFilterDev> unclaimedDevs;
+    for (auto &dev : ctx.selectedDevs) {
+        (dev.tenant.empty() ? unclaimedDevs : ownedDevs).push_back(std::move(dev));
+    }
+    std::sort(unclaimedDevs.begin(), unclaimedDevs.end(), FilterDevGreater);
+    unclaimedDevs.resize(allowedNew);
+    ctx.selectedDevs = std::move(ownedDevs);
+    for (auto &dev : unclaimedDevs) {
+        ctx.selectedDevs.push_back(std::move(dev));
+    }
+    // 拼接后整体重排：ownedDevs与unclaimedDevs各自有序但整体无序，
+    // 下游AllocateStriped/AllocateLinear依赖"前nsNum个为最优且降序"的全局序（见FilterDevGreater注释）
+    std::sort(ctx.selectedDevs.begin(), ctx.selectedDevs.end(), FilterDevGreater);
 
-    // 剔除后可用设备不足（数量校验口径与TenantIsolationFilter一致，NORMAL策略允许同设备多NS）
+    // 裁剪后可用设备不足（数量校验口径与TenantIsolationFilter一致，NORMAL策略允许同设备多NS）
     if (ctx.selectedDevs.empty() ||
         (ctx.request.strategy != UbseSsuAllocStrategy::NORMAL && ctx.selectedDevs.size() < ctx.request.nsNum)) {
-        UBSE_LOG_ERROR << "Tenant quota: only " << ctx.selectedDevs.size() << " owned devices available for tenant="
+        UBSE_LOG_ERROR << "Tenant quota: only " << ctx.selectedDevs.size() << " devices available for tenant="
                        << requestTenant << ", but " << ctx.request.nsNum << " required";
         ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
-                               "Tenant quota reached: insufficient owned devices for tenant=" + requestTenant);
+                               "Tenant quota reached: insufficient devices for tenant=" + requestTenant);
         return false;
     }
     return true;
