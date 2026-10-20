@@ -76,8 +76,8 @@ UBSE 服务以 ubse 用户作为运行用户，特权的使用遵从最小化使
 特权收敛由`UbseSecurityModule`在进程初始化时完成（`src/framework/security/`）：
 
 - systemd通过`AmbientCapabilities`授予8个能力：CAP_SYS_NICE、CAP_DAC_OVERRIDE、CAP_FOWNER、CAP_CHOWN、CAP_AUDIT_WRITE、CAP_NET_ADMIN、CAP_SYS_PTRACE、CAP_DAC_READ_SEARCH；`CapabilityBoundingSet`额外保留CAP_SETUID、CAP_SETGID（仅供SEI降级sudo切换uid/gid，见下表第8项）
-- 进程启动后，`SetInitialCapabilities`将permitted集收敛为上述8个能力，effective集仅保留5个常驻能力：CAP_SYS_NICE、CAP_DAC_READ_SEARCH、CAP_AUDIT_WRITE、CAP_NET_ADMIN、CAP_SYS_PTRACE
-- CAP_DAC_OVERRIDE等非常驻能力保留在permitted集中，业务使用前通过`ChangeOverrideCapability(true)`临时加入effective集，使用完毕后立即移除（内存借用、rmrs页面文件/smap/libvirt操作等路径均遵循该模式）
+- 进程启动后，`SetInitialCapabilities`将permitted集收敛为上述8个能力，effective集仅保留4个常驻能力：CAP_SYS_NICE、CAP_DAC_READ_SEARCH、CAP_AUDIT_WRITE、CAP_NET_ADMIN
+- CAP_DAC_OVERRIDE、CAP_SYS_PTRACE等非常驻能力保留在permitted集中，业务使用前通过`ChangeOverrideCapability(true)`/`ChangePtraceCapability(true)`临时加入effective集，使用完毕后立即移除（CAP_DAC_OVERRIDE用于内存借用、rmrs页面文件/smap/libvirt操作等路径；CAP_SYS_PTRACE用于读取其他进程/proc/pid/numa_maps等需通过内核ptrace权限检查的场景，如virt_agent热迁移、process_mem NUMA内存采集、rmrs观测等路径，均遵循该模式）
 
 此外，systemd单元还配置了`MemoryMax`、`CPUQuota`、`CPUAffinity`、`Restart=on-failure`等资源约束；对sysSentry、xalarm等周边组件socket的访问通过`setfacl`按需授权（ExecStartPre），不引入额外特权。
 
@@ -90,7 +90,7 @@ UBSE 服务以 ubse 用户作为运行用户，特权的使用遵从最小化使
 | 3    | 借用内存等跨属主文件访问   | CAP_DAC_OVERRIDE      | 按需开启/关闭    | ioctl：/dev/obmm；rmrs page file、smap、libvirt等操作前临时开启，用后关闭 |
 | 4    | 修改文件权限               | CAP_FOWNER  CAP_CHOWN | 按需开启/关闭    | 借用内存完成后，调整借到的设备文件的权限，使用户可用（如果不改权限，设备文件为root 600，用户无法使用）<br />/dev/obmm_shmdev1 |
 | 5    | 设置bonding eid            | CAP_NET_ADMIN         | 常驻             | ioctl：/dev/uburma/*<br />ioctl执行后，会额外检查特权CAP_NET_ADMIN |
-| 6    | 读取其他进程信息           | CAP_DAC_READ_SEARCH  CAP_SYS_PTRACE | 常驻 | 允许读取其他进程的 /proc/* 文件，如 /proc/pid/numa_maps      |
+| 6    | 读取其他进程信息           | CAP_DAC_READ_SEARCH  CAP_SYS_PTRACE | CAP_DAC_READ_SEARCH常驻；CAP_SYS_PTRACE按需开启/关闭 | 允许读取其他进程的 /proc/* 文件；读取 /proc/pid/numa_maps 前需临时开启CAP_SYS_PTRACE（内核对该文件执行ptrace读取权限检查），读完后立即关闭 |
 | 7    | urma通信                   | CAP_DAC_OVERRIDE      | 按需开启/关闭    | 依赖关系urma->udma->ummu<br/>ummu依赖下述两个文件：<br/>1./dev/ummu/tid root:root 600 存储urma通信需要的tokenid，属于敏感信息<br/>2./usr/lib64/libummu.so root:root 600 -> 755 |
 | 8    | SEI降级执行sysctl提权       | CAP_SETUID  CAP_SETGID | 仅保留在CapabilityBoundingSet | 通过sudo执行sysctl修改内核参数kernel.arm64_sync_sei（命令固定为`sudo /usr/sbin/sysctl -w kernel.arm64_sync_sei=0/1`），sudo为setuid-root二进制，内核执行时需这两个capability允许uid/gid切换；免密范围由/etc/sudoers.d/ubse-sei严格限定为上述两条命令 |
 | 9    | UDS的sock目录重建           | CAP_DAC_OVERRIDE      | 按需开启/关闭    | /var/run/ubse安装时由RPM脚本创建并chown为ubse:ubse（755）；/run为内存文件系统，重启后目录被清除，UBSE启动时临时开启该特权重建目录，完成后立即关闭 |
