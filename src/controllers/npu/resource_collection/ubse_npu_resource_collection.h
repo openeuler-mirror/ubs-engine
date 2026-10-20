@@ -121,6 +121,10 @@ private:
 
     UbseResult SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId);
 
+    UbseResult GetNicOptModuleType(NicOptModuleType& optModuleType);
+
+    NicOptModuleType ParseNicOptModuleType(const std::string& cmdOutput);
+
     std::vector<std::string> SplitLines(std::string result);
 
     std::vector<std::string> SplitFields(std::vector<std::string> lines);
@@ -129,6 +133,8 @@ private:
 
 private:
     void CacheProductType(ProductType productType);
+
+    void CacheNicOptModuleType(NicOptModuleType optModuleType);
 
     std::vector<CollectionDevIdToDevice> devIdToDevice_;
     CollectionGuidToDevice guidToDevice_;
@@ -139,6 +145,10 @@ private:
     mutable std::mutex productTypeMutex_;
     ProductType productTypeCache_ = ProductType::SERVER;
     bool productTypeCached_ = false;
+    // 光模块类型为静态硬件属性，成功检测后缓存，避免每次采集刷新重复执行hinicadm5命令
+    mutable std::mutex optModuleTypeMutex_;
+    NicOptModuleType optModuleTypeCache_ = NicOptModuleType::M_2X400G;
+    bool optModuleTypeCached_ = false;
 };
 
 } // namespace ubse::npu::controller
