@@ -799,7 +799,7 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
 
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
     std::unordered_map<pid_t, uint64_t> borrowedThisRound;
-    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, false};
+    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, false, false};
     ExecuteBorrowRound(ctx, shortages);
 
     auto roundEnd = std::chrono::steady_clock::now();
@@ -1533,7 +1533,8 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         ctx.borrowedThisRound[candidate.pid] += amount;
 
         if (ctx.emergency) {
-            UBSE_LOG_INFO << "[process_mem] oom emergency_borrow pid=" << candidate.pid
+            UBSE_LOG_INFO << "[process_mem] oom emergency_borrow " << (ctx.oomEvent ? "oom_event=" : "oom_round=")
+                          << ctx.roundNum << " pid=" << candidate.pid << " src_numa=" << shortage.srcNumaId
                           << " amount_gb=" << BytesToGbDouble(amount) << " (smap)";
         } else {
             UBSE_LOG_INFO << "[process_mem] borrow round=" << ctx.roundNum << " step=execute pid=" << candidate.pid
@@ -1960,7 +1961,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     }
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
     UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pid=" << pid << " slot_completed debt_id=" << debtId
-                  << " numa_target_migrate";
+                  << " migrate_out_gb=" << BytesToGbDouble(need) << " numa_target_migrate";
 }
 
 // 递归语义: 整笔借用容量不足(803)时对半拆成两块(need 已 block 对齐, 折半取 floor 整块, 两块
@@ -3962,12 +3963,29 @@ void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeF
 void ProcessMemPidDecision::ExecuteEmergencyBorrowRound(uint64_t roundNum,
                                                         const std::vector<def::BorrowCandidate>& candidates,
                                                         std::vector<NumaShortage>& shortages,
-                                                        ResidenceCache& residenceCache)
+                                                        ResidenceCache& residenceCache, bool oomEvent)
 {
     uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
     std::unordered_map<pid_t, uint64_t> borrowedThisRound;
-    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, true};
+    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, true, oomEvent};
+    uint64_t shortageTotal = 0;
+    for (const auto& shortage : shortages) {
+        shortageTotal += shortage.bytes;
+    }
+    auto roundStart = std::chrono::steady_clock::now();
     ExecuteBorrowRound(ctx, shortages);
+    uint64_t remainTotal = 0;
+    for (const auto& shortage : shortages) {
+        remainTotal += shortage.bytes;
+    }
+    auto durMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - roundStart).count();
+    UBSE_LOG_INFO << "[process_mem] oom emergency_borrow " << (ctx.oomEvent ? "oom_event=" : "oom_round=") << roundNum
+                  << " step=summary"
+                  << " shortage_gb=" << BytesToGbDouble(shortageTotal)
+                  << " dispatched_gb=" << BytesToGbDouble(shortageTotal - remainTotal)
+                  << " remaining_shortage_gb=" << BytesToGbDouble(remainTotal)
+                  << " pids=" << ctx.borrowedThisRound.size() << " dur_ms=" << durMs;
 }
 
 uint32_t ProcessMemPidDecision::HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo)
@@ -3987,7 +4005,7 @@ uint32_t ProcessMemPidDecision::HandleOomAlarmEvent(int alarmFaultEvent, std::st
         UBSE_LOG_WARN << "[process_mem] oom alarm ignore: reason=" << reason << " fault_info=" << faultInfo;
         return UBSE_OK;
     }
-    uint64_t roundNum = oomRoundNumber_.fetch_add(1) + 1;
+    uint64_t roundNum = oomEventId_.fetch_add(1) + 1;
     std::string numaDesc;
     for (size_t i = 0; i < numaIds.size(); ++i) {
         if (i > 0) {
@@ -3996,9 +4014,13 @@ uint32_t ProcessMemPidDecision::HandleOomAlarmEvent(int alarmFaultEvent, std::st
         numaDesc += std::to_string(numaIds[i]);
     }
     UBSE_LOG_INFO << "[process_mem] oom alarm borrow: reason=" << reason << " numas=[" << numaDesc
-                  << "] oom_round=" << roundNum;
-    if (borrowExecutor_ == nullptr || !borrowExecutor_->Execute([this, eventNumas = std::move(numaIds), roundNum]() {
+                  << "] oom_event=" << roundNum;
+    std::string traceId = TraceContext::GetTraceId();
+    if (borrowExecutor_ == nullptr ||
+        !borrowExecutor_->Execute([this, eventNumas = std::move(numaIds), roundNum, traceId]() {
+            TraceContext::SetTraceId(traceId);
             this->OomEventRespond(eventNumas, roundNum);
+            TraceContext::Clear();
         })) {
         UBSE_LOG_WARN << "[process_mem] oom alarm borrow enqueue failed (stopping/executor stopped)";
     }
@@ -4041,7 +4063,7 @@ void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uin
     // 不再借入; 债务查询失败状态未知, 放弃本次响应, 由 200ms 紧急/周期轮询兜底
     auto lentOnEvent = HasLentDebtOnEventNumas(eventNumas);
     if (!lentOnEvent.has_value()) {
-        UBSE_LOG_WARN << "[process_mem] oom alarm respond round=" << roundNum
+        UBSE_LOG_WARN << "[process_mem] oom alarm respond oom_event=" << roundNum
                       << " skip: own lent debt query failed, fallback to periodic polling";
         return;
     }
@@ -4058,7 +4080,7 @@ void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uin
             return;
         }
         auto nodeFree = GetNodeFreeBytes();
-        UBSE_LOG_INFO << "[process_mem] oom alarm return(lender) round=" << roundNum
+        UBSE_LOG_INFO << "[process_mem] oom alarm return(lender) oom_event=" << roundNum
                       << " shortage_numas=" << eventNumas.size() << ", broadcast return to borrowers";
         BroadcastPassiveReturn(roundNum, nodeFree.value_or(0), true, eventNumas);
         return;
@@ -4070,14 +4092,14 @@ void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uin
     // 明细不可用本轮跳过(不退化整机口径), 同样由周期紧急线兜底
     auto memMap = ReadLocalNumaMemMap();
     if (!memMap.has_value() || memMap->empty()) {
-        UBSE_LOG_WARN << "[process_mem] oom alarm borrow round=" << roundNum
+        UBSE_LOG_WARN << "[process_mem] oom alarm borrow oom_event=" << roundNum
                       << " skip: local numa detail unavailable, fallback to periodic polling";
         return;
     }
     // 借用轮(决策定时轮/其它紧急轮)在飞时跳过本轮借出: 非阻塞, 由 200ms 周期紧急线兜底
     std::unique_lock<std::mutex> roundLock(borrowRoundMutex_, std::try_to_lock);
     if (!roundLock.owns_lock()) {
-        UBSE_LOG_DEBUG << "[process_mem] oom alarm borrow round=" << roundNum << " skip: borrow round busy";
+        UBSE_LOG_DEBUG << "[process_mem] oom alarm borrow oom_event=" << roundNum << " skip: borrow round busy";
         return;
     }
     auto candidates = BuildCandidates(roundNum);
@@ -4098,20 +4120,47 @@ void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uin
         uint64_t freeBytes = it->second.freeKb * 1024;
         uint64_t emgBytes = SplitThresholdToNuma(emergencyThresholdBytes_, it->second.totalKb, localTotalKb);
         if (emgBytes > freeBytes) {
+            UBSE_LOG_INFO << "[process_mem] oom alarm borrow oom_event=" << roundNum << " numa=" << srcNumaId
+                          << " free_gb=" << BytesToGbDouble(freeBytes) << " emg_target_gb=" << BytesToGbDouble(emgBytes)
+                          << " shortage_gb=" << BytesToGbDouble(emgBytes - freeBytes);
             shortages.push_back({srcNumaId, emgBytes - freeBytes});
         }
     }
     if (shortages.empty()) {
-        UBSE_LOG_WARN << "[process_mem] oom alarm borrow round=" << roundNum
+        UBSE_LOG_WARN << "[process_mem] oom alarm borrow oom_event=" << roundNum
                       << " skip: event numas free above emergency quota threshold (snapshot lag), "
                       << "fallback to periodic polling";
         return;
     }
-    UBSE_LOG_INFO << "[process_mem] oom alarm borrow round=" << roundNum
-                  << " step=execute shortage_numas=" << shortages.size() << " candidates=" << candidates.size();
-    // 事件轮无在途扣减(仅补紧急份额), 缓存仅供本轮借出准入估计使用
+    // 与快速轮同一在途防线: 先扣 per-src 未落地量(BORROWING 全额 + COMPLETED 采样观测),
+    // 前一轮事件已同步落槽, 并发/连续事件按其在途量收缩同一快照缺口, 防重复下发;
+    // 缓存复用给本轮借出准入的驻留估计
     ResidenceCache residenceCache;
-    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages, residenceCache);
+    auto pendingPerSrc = BuildPendingUnlandedPerSrc(residenceCache);
+    for (auto& shortage : shortages) {
+        auto pendingIt = pendingPerSrc.find(shortage.srcNumaId);
+        if (pendingIt == pendingPerSrc.end() || pendingIt->second == 0) {
+            continue;
+        }
+        uint64_t rawBytes = shortage.bytes;
+        uint64_t pendingBytes = pendingIt->second;
+        shortage.bytes = (rawBytes > pendingBytes) ? (rawBytes - pendingBytes) : 0;
+        UBSE_LOG_INFO << "[process_mem] oom alarm borrow oom_event=" << roundNum << " numa=" << shortage.srcNumaId
+                      << " raw_shortage_gb=" << BytesToGbDouble(rawBytes)
+                      << " pending_gb=" << BytesToGbDouble(pendingBytes)
+                      << " effective_shortage_gb=" << BytesToGbDouble(shortage.bytes);
+    }
+    shortages.erase(std::remove_if(shortages.begin(), shortages.end(),
+                                   [](const NumaShortage& shortage) { return shortage.bytes == 0; }),
+                    shortages.end());
+    if (shortages.empty()) {
+        UBSE_LOG_INFO << "[process_mem] oom alarm borrow oom_event=" << roundNum
+                      << " skip: shortage covered by in-flight unlanded, wait for landing";
+        return;
+    }
+    UBSE_LOG_INFO << "[process_mem] oom alarm borrow oom_event=" << roundNum
+                  << " step=execute shortage_numas=" << shortages.size() << " candidates=" << candidates.size();
+    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages, residenceCache, true);
 }
 
 void ProcessMemPidDecision::OomActiveReturnPerNuma(uint64_t roundNum)

@@ -84,6 +84,20 @@ BorrowState MakeBorrow(uint64_t amountGb, const std::string& debtId)
     return borrow;
 }
 
+// 在途未落地槽: 建债已发起、迁移尚未完成(BORROWING 全额计入 per-src 在途)
+BorrowState MakePendingBorrow(uint64_t amountGb, const std::string& debtId, int srcNuma)
+{
+    BorrowState borrow;
+    BorrowSlot slot;
+    slot.debtId = debtId;
+    slot.migratedBytes = amountGb * GB;
+    slot.capacity = amountGb * GB;
+    slot.status = BorrowSlotStatus::BORROWING;
+    slot.srcNumaId = srcNuma;
+    borrow.slots.push_back(slot);
+    return borrow;
+}
+
 void AddManagedPid(pid_t pid, uint64_t maxGb, double ratio, uint64_t vmRssGb, const BorrowState& borrow = {})
 {
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
@@ -523,6 +537,81 @@ TEST_F(TestProcessMemPidDecision, OomEmergencyAllowsExistingDebt)
     ASSERT_NE(it, snapshot.end());
     EXPECT_EQ(it->second.borrow.currentRemote, 2 * GB);
     EXPECT_EQ(it->second.borrow.slots.size(), 2u);
+}
+
+// 事件轮缺口先扣 per-src 在途未落地(BORROWING 全额): 2GB 缺口 - 1GB 在途 = 仅下发 1GB
+TEST_F(TestProcessMemPidDecision, OomEventBorrowDeductsPendingUnlanded)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4, MakePendingBorrow(1, "debt-pending", 0));
+    AddManagedPid(1002, 10, 0.5, 4);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomEventRespond({0}, 1);
+
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+    EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), GB);
+    EXPECT_EQ(migrateCalls, 1);
+    uint64_t remoteTotal = 0;
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    for (const auto& [pid, entry] : snapshot) {
+        remoteTotal += entry.borrow.currentRemote;
+    }
+    EXPECT_EQ(remoteTotal, GB);
+    // 在途槽不因本轮判定被改写
+    ASSERT_EQ(snapshot.at(1001).borrow.slots.size(), 1u);
+    EXPECT_EQ(snapshot.at(1001).borrow.currentRemote, 0u);
+}
+
+// 并发事件: 前一轮的下发仍在建债(2GB BORROWING 已同步落槽)时, 后一轮按同一在途口径
+// 把 2GB 缺口全额覆盖并跳过, 不重复借出
+TEST_F(TestProcessMemPidDecision, OomEventConcurrentDoesNotOverBorrow)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    AddManagedPid(1002, 10, 0.5, 4);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    auto& decision = ProcessMemPidDecision::GetInstance();
+    ubse::task_executor::MockSetExecutorAsync(true);
+    ubse::mem::controller::MockBlockNumaCreate();
+
+    decision.OomEventRespond({0}, 1);
+    ASSERT_TRUE(ubse::mem::controller::MockWaitNumaCreateEntered(5000));
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+
+    decision.OomEventRespond({0}, 2);
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+    EXPECT_EQ(migrateCalls, 0);
+
+    ubse::mem::controller::MockReleaseNumaCreate();
+    ubse::task_executor::MockWaitExecutorIdle();
+    EXPECT_EQ(migrateCalls, 1);
+
+    uint64_t remoteTotal = 0;
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    for (const auto& [pid, entry] : snapshot) {
+        remoteTotal += entry.borrow.currentRemote;
+    }
+    EXPECT_EQ(remoteTotal, 2 * GB);
+
+    ubse::task_executor::MockSetExecutorAsync(false);
 }
 
 // 整笔 2GB 超所有可借节点容量(>1GB 返回 803)触发拆分: 折半 1GB+1GB 由两个借出节点凑足

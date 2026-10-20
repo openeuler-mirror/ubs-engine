@@ -92,6 +92,7 @@ struct BorrowRoundCtx {
     uint64_t blockSizeBytes{0};
     uint64_t roundNum{0};
     bool emergency{false};
+    bool oomEvent{false}; // 事件轮: roundNum 为内部事件 id, 日志 tag 用 oom_event
 };
 
 struct ReplacementDebt {
@@ -283,7 +284,8 @@ private:
     // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize + 驻留采样缓存(与在途观测
     // 共用) + emergency ctx → ExecuteBorrowRound
     void ExecuteEmergencyBorrowRound(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates,
-                                     std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache);
+                                     std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache,
+                                     bool oomEvent = false);
 
     // OOM 事件订阅处理(reason 0/1 = 4K 小页, 2 = 大页跳过): ras 故障线程上校验/投递后即返回
     uint32_t HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo);
@@ -438,6 +440,8 @@ private:
     // 事件路径归还广播节流(borrow 执行器线程), 与周期紧急线的 lastEmergencyBroadcast_ 独立
     std::atomic<int64_t> lastOomEventBroadcastMs_{0};
     std::atomic<uint64_t> oomRoundNumber_{0};
+    // OOM 事件专用内部事件 id(与快速轮 oomRoundNumber_ 独立): 事件链日志按它定位, 不随快速轮跳号
+    std::atomic<uint64_t> oomEventId_{0};
 };
 
 } // namespace process_mem::decision
