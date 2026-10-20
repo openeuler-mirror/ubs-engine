@@ -199,9 +199,9 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ConstructExportMemDesc return null.";
         return INVALID_MEM_ID;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     mem_id memId = obmmExportFunc(size, obmmFlags, obmmMemDesc);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport returned! memid=" << memId
                   << ", obmmFlags=" << obmmFlags;
     PrintObmmMemDesc(*obmmMemDesc);
@@ -232,9 +232,9 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnexportFunc is nullptr, please check.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     auto ret = obmmUnexportFunc(id, flags);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnExport error! memid=" << id << ", ret=" << ret
@@ -287,9 +287,9 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc& desc, const Obmm
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return INVALID_MEM_ID;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     memid = obmmImportFunc(obmmMemDesc, obmmFlags, OBMM_IMPORT_BASE_DIST, numa);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (memid == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport error! memid=" << memid << ", flag=" << obmmFlags
@@ -323,9 +323,9 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id)
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnimportFunc is nullptr, please check.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     ret = obmmUnimportFunc(id, obmmFlags);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid=" << id << ", ret=" << ret
@@ -355,9 +355,9 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id, uint64_t timeoutMs)
         pthread_kill(targetTid, SIGUSR1);
     });
 
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     ret = obmmUnimportFunc(id, obmmFlags);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
 
     guard.Cancel();
 
@@ -567,9 +567,9 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obm
     UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va="
                   << reinterpret_cast<uint64_t>(param.va) // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                   << ", size=" << param.size;
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     param.memid = obmmExportByPidFunc(param.pid, param.va, param.size, flag, obmmMemDesc);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (param.memid == INVALID_MEM_ID) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "Export failed, memid=0. errno=" << errno
                        << ", errMsg: " << strerror(errno);
@@ -599,9 +599,9 @@ UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long o
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmmQueryPaByMemIdFunc is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     auto ret = obmmQueryPaByMemIdFunc(handle, offset, pa);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (ret != 0) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmmQueryPaByMemIdFunc error handle is " << handle << ".";
         return UBSE_MMI_OBMM_OP_FAILED;
@@ -623,9 +623,9 @@ UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info* preimport_i
         return UBSE_ERROR_NULLPTR;
     }
 
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     auto ret = obmmPreImportFunc(preimport_info, flags);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
 
     if (ret == -1 && errno == EEXIST) {
         UBSE_LOG_INFO << MMI_LOG_INFO << "The cna connect has been preOnline, scna=" << preimport_info->scna
@@ -654,9 +654,9 @@ UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info* preimport
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error_code=" << UBSE_ERROR_NULLPTR;
         return UBSE_ERROR_NULLPTR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    CapabilityGuard overrideCapGuard(overrideCap);
     auto ret = obmmUnPreImportFunc(preimport_info, flags);
-    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+    overrideCapGuard.Disable();
     if (ret != 0) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmUnPreImportFailed, ret=" << ret << ", scna=" << preimport_info->scna
                        << ", dcna=" << preimport_info->dcna;
