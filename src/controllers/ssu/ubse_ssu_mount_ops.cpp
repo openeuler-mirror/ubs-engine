@@ -304,6 +304,17 @@ bool BuildRecordFromLedger(const UbseSsuLedgerEntry &entry,
         verify.jettyId = targetNs->subSystem.jettyId;
         verify.guid = targetNs->guid;
         record.nsVerifyList.emplace_back(std::move(verify));
+        // identity从NS customData恢复（分配时写入，同空间NS一致）：
+        std::string userName(
+            targetNs->customData.userName, strnlen(targetNs->customData.userName, UBSE_SSU_MAX_USER_NAME_LENGTH));
+        if (record.identity.userName.empty()) {
+            record.identity.uid = targetNs->customData.uid;
+            record.identity.userName = std::move(userName);
+        } else if (record.identity.uid != targetNs->customData.uid || record.identity.userName != userName) {
+            UBSE_LOG_WARN << "BuildRecordFromLedger: ns identity mismatch, name=" << entry.name
+                          << ", eid=" << ns.tgtEid;
+            return false; // 同空间NS identity异常：放弃本条，下轮重试
+        }
     }
     if (record.strategy != UbseSsuAllocStrategy::NORMAL) {
         UbseCreateBlockDeviceOptions options;
@@ -312,6 +323,11 @@ bool BuildRecordFromLedger(const UbseSsuLedgerEntry &entry,
         record.blockDeviceOptions = options;
     }
     record.attachedAt = static_cast<int64_t>(time(nullptr));
+    // 出口终检：产出必须通过字段校验（RPC serde与落盘共用同一校验）
+    if (!IsRecordFieldsValid(record)) {
+        UBSE_LOG_WARN << "BuildRecordFromLedger: built record failed field validation, name=" << entry.name;
+        return false;
+    }
     return true;
 }
 

@@ -153,6 +153,10 @@ void UbseSsuServiceImp::StopCollecting()
 {
     StopMountReconcileTimer();
     collector_.Stop();
+    // 主备切换降级/进程停止：账本置失效（ready_=false）而非清空。内容保留供重晋升时
+    // Rebuild以Upsert覆盖刷新（不依赖降级通知可靠到达，部分扫描也不至蒸发条目）；
+    // 降级窗口内误达的master侧RPC统一走MASTER_NOT_READY保守路径
+    UbseSsuDebtLedger::GetInstance().SetReady(false);
     UBSE_LOG_INFO << "StopCollecting: collector stopped";
 }
 
@@ -182,7 +186,8 @@ void UbseSsuServiceImp::RebuildLedgerFromDevList()
         return;
     }
     // 采集成功但列表为空同样是真实账本状态（硬件确实无已分配空间）：
-    // Rebuild对空输入安全（置位就绪+空账本），避免agent重报永久收到MASTER_NOT_READY
+    // Rebuild对空输入安全（置位就绪、不追加新条目、不清旧条目——存亡由FAULTED增量对账裁决），
+    // 避免agent重报永久收到MASTER_NOT_READY
     UbseSsuDebtLedger::GetInstance().Rebuild(devList);
 }
 

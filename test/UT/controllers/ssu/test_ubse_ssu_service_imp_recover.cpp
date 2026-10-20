@@ -1193,6 +1193,10 @@ TEST_F(TestUbseSsuServiceImpRecover, MountReconcileBuildRecordFromLedger)
     ASSERT_EQ(record.nsVerifyList.size(), 1U);
     EXPECT_EQ(record.nsVerifyList[0].defaultNqn, "nqn.build.default"); // ResolveNqn回落值（nqn留空）
     EXPECT_EQ(record.nsVerifyList[0].jettyId, cacheNs.subSystem.jettyId);
+    // identity从NS customData恢复：留空会导致RPC serde字段校验失败（对账批次整体被拒）且落盘记录无法重载
+    EXPECT_EQ(record.identity.uid, 100U);
+    EXPECT_EQ(record.identity.userName, "test_user");
+    EXPECT_TRUE(IsRecordFieldsValid(record)); // 与RPC serde共用校验，账本重建记录必须可下发/可落盘
     ASSERT_TRUE(record.blockDeviceOptions.has_value());
     EXPECT_EQ(record.blockDeviceOptions->addressingType, UbseSsuAddressingType::LINEAR);
 
@@ -1202,6 +1206,12 @@ TEST_F(TestUbseSsuServiceImpRecover, MountReconcileBuildRecordFromLedger)
     missingEntry.allocResult.nameSpaceList.push_back(MakeNameSpaceInfo(missingNs));
     auto missingPtr = std::make_shared<const UbseSsuLedgerEntry>(missingEntry);
     EXPECT_FALSE(BuildRecordFromLedger(*missingPtr, devMap, record));
+
+    // 空nsList条目（Rebuild时全部NS异常仍入账本的边缘场景）：出口终检拒绝，放弃本条，
+    // 否则带空nsList的记录下发后被serde字段校验拒收整个对账批次
+    auto emptyPtr = std::make_shared<const UbseSsuLedgerEntry>(
+        MakeAttachedEntry("sp_empty_ns", UbseSsuAllocStrategy::NORMAL, {"master_node_1"}));
+    EXPECT_FALSE(BuildRecordFromLedger(*emptyPtr, devMap, record));
 }
 
 // UT24-3：本机直平正向——账本无该空间（已free）本地残留记录 → 清理+删记录

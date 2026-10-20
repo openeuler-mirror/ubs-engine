@@ -46,6 +46,19 @@ bool UbseSsuDebtLedger::Put(const std::string &name, std::shared_ptr<const UbseS
     return true;
 }
 
+bool UbseSsuDebtLedger::Upsert(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry)
+{
+    if (!entry) {
+        UBSE_LOG_ERROR << "Ledger upsert: entry is null";
+        return false;
+    }
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    bool replaced = ledger_.find(name) != ledger_.end();
+    ledger_[name] = std::move(entry);
+    UBSE_LOG_INFO << "Ledger upsert: name=" << name << ", replaced=" << replaced;
+    return replaced;
+}
+
 std::shared_ptr<const UbseSsuLedgerEntry> UbseSsuDebtLedger::Get(const std::string &name) const
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
@@ -163,13 +176,21 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
     // 硬件恢复标记：恢复收敛窗口守卫据此区分重启前已存在的空间与窗口内新分配的空间
     entry.restoredFromHardware = true;
 
-    if (!ledger.Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
-        UBSE_LOG_WARN << "Rebuild entry: ledger entry already exists, skip: name=" << name;
+    // Upsert覆盖而非跳过：主备回切时进程级单例仍驻留上一任期条目，以当前硬件清单刷新
+    // （state=CREATED、attachNodes空），陈旧attachNodes会让对账跳过本应触发的REMOUNT；
+    // 不在扫描中的条目维持不清（防部分扫描损伤，存亡由FAULTED增量对账裁决）
+    const bool replaced = ledger.Upsert(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry));
+    if (replaced) {
+        UBSE_LOG_INFO << "Rebuild entry: replaced stale entry from previous tenure: name=" << name;
     }
 }
 
 void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
 {
+    // 重建期间置未就绪：主备回切再次触发Rebuild时，上一任期的就绪态仍残留，
+    // 不清位则verify/attach/对账可并发消费半新半旧的混合账本（对账窗口判定用旧rebuildTime_
+    // 早已超窗）；置位后统一走MASTER_NOT_READY/跳过本轮/继续等待的保守路径，完成后置回
+    SetReady(false);
     auto &ledger = *this;
     std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>> groups;
 

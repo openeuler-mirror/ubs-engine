@@ -379,6 +379,41 @@ TEST_F(TestUbseSsuDebtLedger, RebuildMultipleEntries)
 }
 
 /*
+ * 用例描述：主备回切场景——账本已驻留上一任期陈旧条目（ATTACHED + attachNodes非空）时，
+ * Rebuild应以当前硬件清单覆盖刷新（state=CREATED、attachNodes清空），
+ * 而非因"条目已存在"跳过（跳过会让对账基于陈旧attachNodes漏发REMOUNT）
+ * 测试步骤：
+ * 1、Put 一个 ATTACHED、attachNodes 非空的陈旧条目
+ * 2、用相同 name 的设备列表调用 Rebuild
+ * 预期结果：
+ * 1、条目被覆盖为重建视图：state=CREATED、attachNodes 为空、restoredFromHardware=true
+ * 2、allocResult 以扫描到的 NS 为准
+ */
+TEST_F(TestUbseSsuDebtLedger, RebuildReplacesStaleEntryFromPreviousTenure)
+{
+    auto& ledger = UbseSsuDebtLedger::GetInstance();
+    UbseSsuLedgerEntry stale;
+    stale.name = "rebuild-entry";
+    stale.state = UbseSsuNsState::ATTACHED;
+    stale.attachNodes.insert("master_node_1");
+    stale.allocReq.strategy = UbseSsuAllocStrategy::NORMAL;
+    ASSERT_TRUE(ledger.Put("rebuild-entry", std::make_shared<const UbseSsuLedgerEntry>(stale)));
+
+    auto ns1 = MakeNs("rebuild-entry", "eid-1", 1, 1024);
+    ns1.customData.nsNum = 1;
+    ns1.customData.totalBytes = 1024;
+    ledger.Rebuild({MakeDev("eid-1", {ns1})});
+
+    auto entry = ledger.Get("rebuild-entry");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::CREATED);
+    EXPECT_TRUE(entry->attachNodes.empty());
+    EXPECT_TRUE(entry->restoredFromHardware);
+    ASSERT_EQ(entry->allocResult.nameSpaceList.size(), 1u);
+    EXPECT_EQ(entry->allocResult.nameSpaceList[0].namespaceId, 1u);
+}
+
+/*
  * 用例描述：多线程并发 Put/Get/Modify/Remove，不应有数据竞争
  * 测试步骤：
  * 1、4 个线程同时操作 10 个不同的 key
