@@ -1,3 +1,10 @@
+---
+description: 阐述 UBS Engine 的安全架构与最小特权设计，覆盖北向 UDS、节点间通信、UBM 对接等暴露面的安全策略与加固措施。
+keywords: [UBS Engine, 安全管理, 安全加固, 最小特权, 通信安全]
+changefreq: monthly
+date: 2025-11-06
+---
+
 # 安全管理与加固
 
 ## 安全设计

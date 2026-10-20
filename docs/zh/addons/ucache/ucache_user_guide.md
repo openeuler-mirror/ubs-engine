@@ -1,3 +1,10 @@
+---
+description: 介绍 Ucache 组件的安装部署与配置方法，说明如何基于灵衢总线构建全局 PageCache 池，提升存算一体场景的 I/O 效率。
+keywords: [Ucache, PageCache, 灵衢总线, 内存借用, IO 优化]
+changefreq: monthly
+date: 2026-03-12
+---
+
 # Ucache 用户指南
 
 ## 简介

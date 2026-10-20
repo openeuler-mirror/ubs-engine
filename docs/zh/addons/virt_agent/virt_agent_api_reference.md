@@ -1,3 +1,10 @@
+---
+description: 介绍 UBS VirtAgent 提供的虚拟化场景 API，涵盖场景配置查询等接口的函数原型、数据结构、参数与返回值。
+keywords: [VirtAgent, API 参考, 虚拟化, SDK, 内存借用]
+changefreq: monthly
+date: 2026-05-21
+---
+
 # virt_agent API 参考
 
 ## 虚拟化

@@ -1,3 +1,10 @@
+---
+description: 说明 UBS VirtAgent 插件配置文件的格式与配置原则，详细介绍虚拟机信息采集周期、内存借用水位等决策配置项的取值范围与默认值。
+keywords: [VirtAgent, 虚拟化插件, 配置说明, 内存借用, 水位配置]
+changefreq: monthly
+date: 2026-03-12
+---
+
 # 配置项说明
 
 ## 配置原则说明

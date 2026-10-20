@@ -1,3 +1,10 @@
+---
+description: 阐述 UBS VirtAgent 的安全设计目标与威胁分析，介绍最小化特权、文件权限设计及各信任边界的暴露面安全策略。
+keywords: [VirtAgent, 安全设计, 威胁分析, 最小特权, 插件安全]
+changefreq: monthly
+date: 2026-03-12
+---
+
 # UBS VirtAgent安全设计
 
 ## 安全架构说明
@@ -10,7 +17,7 @@
 
 ### 安全威胁分析
 
-![Virt_agent安全威胁分析](./images/VirtAgent安全威胁分析.png)
+![UBS VirtAgent 安全威胁分析：标识其与 MatrixServiceAgent、UBS RMRS 之间的信任边界](./images/VirtAgent安全威胁分析.png)
 
 **边界说明:**
 
@@ -91,7 +98,7 @@
 
 ## 确定性热迁移安全设计
 
-![img.png](./images/确定性热迁移威胁分析.png)
+![确定性热迁移威胁分析：源、目的节点内部组件及节点间通信的信任边界划分](./images/确定性热迁移威胁分析.png)
 
 **边界说明:**
 
@@ -110,11 +117,11 @@
 
 **攻击路径**
 
-![img.png](./images/确定性热迁移攻击路径.png)
+![确定性热迁移攻击路径：UDS 权限被攻破后仿冒 PID 触发内存借用](./images/确定性热迁移攻击路径.png)
 
 **攻击时序**
 
-![img.png](./images/确定性热迁移攻击时序.png)
+![确定性热迁移攻击时序：仿冒进程经 UDS 向 VirtAgent 发送借用请求的消息交互](./images/确定性热迁移攻击时序.png)
 
 ## 安全编译
 
