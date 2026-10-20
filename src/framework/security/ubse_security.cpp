@@ -22,4 +22,10 @@ uint32_t ChangeOverrideCapability(bool isAdd)
     std::vector<__u32> cap{CAP_DAC_OVERRIDE};
     return UbseSecurityModule::ModifyEffectiveCapabilities(cap, isAdd);
 }
+
+uint32_t ChangePtraceCapability(bool isAdd)
+{
+    std::vector<__u32> cap{CAP_SYS_PTRACE};
+    return UbseSecurityModule::ModifyEffectiveCapabilities(cap, isAdd);
+}
 } // namespace ubse::security
