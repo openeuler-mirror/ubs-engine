@@ -276,6 +276,9 @@ TEST_F(TestUbseMemControllerMsg, GetLocalNumaInfoByPid)
     uint32_t numaId = 1;
     uint32_t socketId = 0;
 
+    // MockUbseSecurity::ChangePtraceCapability
+    MOCKER(ubse::security::ChangePtraceCapability).stubs().will(returnValue(UBSE_OK));
+
     // MockUbseOsUtil::GetNumaIdByPid
     MOCKER(UbseOsUtil::GetNumaIdByPid).stubs().with(pid, _).will(returnValue(UBSE_OK));
 
