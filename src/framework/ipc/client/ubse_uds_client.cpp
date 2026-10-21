@@ -532,6 +532,13 @@ void UbseUDSClient::Stop()
     // 停止重连线程
     StopReconnectThread();
 
+    // 复位监听注册表: 防止finalize后残留列表在下一次重连时向服务端重注册
+    // 已无本地handler的事件(SDK重拉后注册表为空, 应由业务重新注册)
+    {
+        std::lock_guard<std::mutex> lock(longlinkNotifyMapMutex_);
+        longlinkNotifyList_.clear();
+    }
+
     IPC_LOG_INFO << "Stop completed";
 }
 

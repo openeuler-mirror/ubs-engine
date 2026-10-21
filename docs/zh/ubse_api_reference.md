@@ -26,6 +26,10 @@ srw-rw---- ubse ubse /run/ubse/ubse.sock
 
 加入ubse group的用户，才能访问UBSE的SDK接口。
 
+**通用约束（所有业务接口）**
+
+调用 `ubs_engine_client_finalize` 后（含finalize进行中），所有业务接口（内存申请/查询、拓扑查询、故障通知注册、invoke类直调等经统一门禁的入口）一律返回 `UBS_ERR_RESOURCE_BUSY`（11），需调用 `ubs_engine_client_initialize` 重拉runtime后方可恢复。
+
 ## libubse client
 
 ### ubs\_engine\_client\_initialize
@@ -62,7 +66,7 @@ int32_t ubs_engine_client_initialize(const char *ubs_engine_uds_path);
 | Error                            | Description  |
 | -------------------------------- | ------------ |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE | 参数数据长度超108字节 |
-| UBS\_ENGINE\_ERR\_RESOURCE       | 资源创建失败       |
+| UBS\_ENGINE\_ERR\_RESOURCE       | SDK正在finalize过程中，初始化被拒绝（需等待finalize完成后重试） |
 
 **约束 CONSTRAINTS**
 
@@ -70,7 +74,7 @@ int32_t ubs_engine_client_initialize(const char *ubs_engine_uds_path);
 
 **附注 NOTES**
 
-暂无
+支持fork子进程场景：父进程调用`ubs_engine_client_finalize`后fork，子进程调用本接口将SDK runtime状态从FINALIZED重新迁移回READY，业务接口恢复可用。
 
 **样例 EXAMPLES**
 
@@ -114,7 +118,9 @@ void ubs_engine_client_finalize(void);
 
 **描述 DESCRIPTION**
 
-销毁ubse客户端，完成内部资源释放。
+销毁ubse客户端，完成内部资源释放：阻塞等待所有in-flight业务调用完成（排空，上限与默认业务总超时对齐：1800秒业务超时+60秒余量，超时打ERROR日志并继续拆除），随后停止长连接工作线程（事件循环/重连/任务执行线程），并清理已注册的故障通知handler。
+
+注：线程停止阶段为join语义，最长受在途用户回调执行时长约束（在途调用阻塞在用户注册的回调内不返回时，本接口不返回）。
 
 **参数 PARAMETERS**
 
@@ -130,11 +136,14 @@ void ubs_engine_client_finalize(void);
 
 **约束 CONSTRAINTS**
 
-暂无
+1. void返回且幂等，finalize完成后重复调用为无操作；
+2. 本接口不支持并发调用：调用方必须自行保证任一时刻仅一个线程调用本接口（串行化是调用方责任，接口内部不提供并发同步）；finalize进行中的重复调用会打ERROR日志并立即返回（仅为防御性检测，不构成并发支持）；
+3. 禁止在SDK回调（故障通知handler）内调用，会被拒绝并打ERROR日志（防自死锁）；
+4. 单进程内仅允许链接一份SDK实现（动态库，或仅一处链接的静态库）；静态库被多个so分别链接时，各副本runtime状态独立，finalize的进程级静默语义与故障handler注册表不跨副本生效。
 
 **附注 NOTES**
 
-暂无
+支持fork子进程场景：建议在fork前调用本接口使SDK进入静默态（排空in-flight调用、停工作线程），fork后子进程调用`ubs_engine_client_initialize`重新拉起。SDK已注册atfork防御：违约直接fork时子进程在runtime状态锁与handler表锁上不会死锁（未完成的finalize在子进程内视同完成），但长连接客户端内部状态（含其内部互斥量）仍可能未定义，子进程仍应调用`ubs_engine_client_initialize`重新拉起。防御自首次initialize后生效，仅使用invoke类接口而未调用过initialize的进程无atfork保护。
 
 **样例 EXAMPLES**
 
