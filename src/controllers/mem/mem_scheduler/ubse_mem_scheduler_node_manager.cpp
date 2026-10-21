@@ -369,7 +369,8 @@ UbseResult SchedulerNodeManager::UpdateAllNumaMemInfo(const std::unordered_map<N
 {
     for (const auto& [nodeId, nodeInfo] : nodeMap) {
         // 只更新非故障节点的numa内存信息，故障节点nodeController的数据不可靠
-        if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+            nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
             continue;
         }
         auto nodeData = nodeMap_.find(nodeId);
@@ -396,7 +397,8 @@ UbseResult SchedulerNodeManager::UpdateAllLinkInfo(const std::unordered_map<Node
     UpdateStaticNodeInfo(staticNodeIds);
 
     for (const auto& [nodeId, nodeInfo] : nodeMap) {
-        if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+            nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
             continue;
         }
         auto nodeData = nodeMap_.find(nodeId);
