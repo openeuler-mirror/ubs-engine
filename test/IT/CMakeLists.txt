@@ -172,6 +172,11 @@ add_dependencies(ubse_it_runtime
 add_subdirectory(${IT_TESTS_DIR} ${CMAKE_BINARY_DIR}/test/IT/cases)
 
 # =====================================================
+# Controller module ITs (scene registration via add_it_scene)
+# =====================================================
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/controllers ${CMAKE_BINARY_DIR}/test/IT/controllers)
+
+# =====================================================
 # Scene-driven IT tests — one binary per scene
 # =====================================================
 set(UBSE_IT_NON_MODULE_DIRS
@@ -179,6 +184,7 @@ set(UBSE_IT_NON_MODULE_DIRS
     scenarios
     stubs
     tests
+    controllers
 )
 
 file(GLOB UBSE_IT_CHILDREN LIST_DIRECTORIES true RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
