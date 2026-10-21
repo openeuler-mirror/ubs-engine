@@ -11,6 +11,7 @@
  */
 #include "ubse_npu_resource_collection.h"
 #include <algorithm>
+#include <cctype>
 #include <mutex>
 #include <set>
 #include <utility>
@@ -72,6 +73,10 @@ void ResourceCollection::ClearAllDevices()
     {
         std::lock_guard<std::mutex> ptLock(productTypeMutex_);
         productTypeCached_ = false;
+    }
+    {
+        std::lock_guard<std::mutex> omLock(optModuleTypeMutex_);
+        optModuleTypeCached_ = false;
     }
 }
 
@@ -994,33 +999,136 @@ UbseResult ResourceCollection::GenerateDavidNicMap(ProductType productType,
         UBSE_LOG_ERROR << "GetDavidSlotId failed, " << FormatRetCode(ret);
         return ret;
     }
-    switch (productType) {
-        case ProductType::SERVER: {
-            for (const auto& [davidChip, nicSlot, nicChip, nicPf] : SERVER_DAVID_NIC_MAPPING) {
-                davidDevIdTo1825DevId.insert(
-                    {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
-                                                             davidSlotId, davidChip),
-                     CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
-                                                             nicSlot, nicChip, nicPf)});
-            }
-            break;
+    if (productType == ProductType::SERVER) {
+        for (const auto& [davidChip, nicSlot, nicChip, nicPf] : SERVER_DAVID_NIC_MAPPING) {
+            davidDevIdTo1825DevId.insert(
+                {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU), davidSlotId,
+                                                         davidChip),
+                 CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE), nicSlot,
+                                                         nicChip, nicPf)});
         }
-        case ProductType::POD_16_1825:
-        case ProductType::POD_32_1825:
-            const auto& mapping = (productType == ProductType::POD_16_1825) ? POD_16_1825_DAVID_NIC_MAPPING :
-                                                                              POD_32_1825_DAVID_NIC_MAPPING;
-            for (const auto& [davidSlot, davidChip, nicSlot, nicChip, nicPf] : mapping) {
-                if (davidSlot == davidSlotId) {
-                    davidDevIdTo1825DevId.insert(
-                        {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
-                                                                 davidSlot, davidChip),
-                         CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
-                                                                 nicSlot, nicChip, nicPf)});
-                }
-            }
-            break;
+        return UBSE_OK;
+    }
+
+    // POD类型需要区分1825网卡光模块类型：2*400G对应默认映射，4*200G对应专用映射
+    // hinicadm5查询失败或解析失败时，保守退回默认2*400G映射，避免阻塞资源采集
+    NicOptModuleType optModuleType = NicOptModuleType::M_2X400G;
+    ret = GetNicOptModuleType(optModuleType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNicOptModuleType failed, " << FormatRetCode(ret) << ", fallback to default 2*400G";
+        optModuleType = NicOptModuleType::M_2X400G;
+    }
+    const bool is4X200G = (optModuleType == NicOptModuleType::M_4X200G);
+    const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t, uint8_t>>* selectMapping = nullptr;
+    if (productType == ProductType::POD_16_1825) {
+        selectMapping = is4X200G ? &POD_16_1825_DAVID_NIC_MAPPING_4_200G : &POD_16_1825_DAVID_NIC_MAPPING;
+    } else {
+        selectMapping = is4X200G ? &POD_32_1825_DAVID_NIC_MAPPING_4_200G : &POD_32_1825_DAVID_NIC_MAPPING;
+    }
+    for (const auto& [davidSlot, davidChip, nicSlot, nicChip, nicPf] : *selectMapping) {
+        if (davidSlot == davidSlotId) {
+            davidDevIdTo1825DevId.insert(
+                {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU), davidSlot,
+                                                         davidChip),
+                 CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE), nicSlot,
+                                                         nicChip, nicPf)});
+        }
     }
     return UBSE_OK;
+}
+
+UbseResult ResourceCollection::GetNicOptModuleType(NicOptModuleType& optModuleType)
+{
+    // 光模块类型为静态硬件属性，成功检测后缓存，避免每次采集刷新重复执行hinicadm5命令
+    {
+        std::lock_guard<std::mutex> lock(optModuleTypeMutex_);
+        if (optModuleTypeCached_) {
+            optModuleType = optModuleTypeCache_;
+            return UBSE_OK;
+        }
+    }
+    // 第一步：通过hinicadm5 info获取卡片名称，输出格式示例：|----hinic0(CAL_2X400G_POD)
+    constexpr char realCmd[] = "hinicadm5 info";
+    std::string result;
+    UbseResult ret = ubse::utils::UbseOsUtil::Exec(realCmd, result);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNicOptModuleType failed, " << FormatRetCode(ret) << " ,output: " << result;
+        return ret;
+    }
+    UBSE_LOG_DEBUG << "hinicadm5 info output: " << result;
+    std::string cardName;
+    for (const auto& line : SplitLines(result)) {
+        // 卡片行形如 |----hinic0(....),PF信息行形如 |--------0000f(NIC:....)，需要跳过PF行
+        size_t pos = line.find("----");
+        if (pos == std::string::npos) {
+            continue;
+        }
+        size_t nameStart = pos + 4;
+        if (nameStart >= line.size() || line[nameStart] == '-') {
+            continue;
+        }
+        size_t nameEnd = line.find('(', nameStart);
+        if (nameEnd == std::string::npos) {
+            continue;
+        }
+        cardName = line.substr(nameStart, nameEnd - nameStart);
+        if (!cardName.empty()) {
+            break;
+        }
+    }
+    if (cardName.empty()) {
+        UBSE_LOG_WARN << "Failed to get card name from hinicadm5 info, output: " << result;
+        return UBSE_ERROR;
+    }
+    // 卡名来自子进程输出且需拼接进shell命令，仅允许字母数字字符，防止命令注入
+    if (std::any_of(cardName.begin(), cardName.end(),
+                    [](char c) { return std::isalnum(static_cast<unsigned char>(c)) == 0; })) {
+        UBSE_LOG_WARN << "Invalid card name from hinicadm5 info: " << cardName;
+        return UBSE_ERROR;
+    }
+    // 第二步：通过hinicadm5 info -i <cardName>获取该卡的port num和port speed
+    std::string cardCmd = std::string(realCmd) + " -i " + cardName;
+    std::string cardResult;
+    ret = ubse::utils::UbseOsUtil::Exec(cardCmd, cardResult);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << cardCmd << " failed, " << FormatRetCode(ret) << " ,output: " << cardResult;
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_DEBUG << cardCmd << " output: " << cardResult;
+    optModuleType = ParseNicOptModuleType(cardResult);
+    if (optModuleType == NicOptModuleType::UNKNOWN) {
+        UBSE_LOG_WARN << "Failed to parse nic optical module type, output: " << cardResult;
+        // 解析失败不缓存，由调用方保守回退默认2*400G映射，下次采集可重试
+        return UBSE_ERROR;
+    }
+    CacheNicOptModuleType(optModuleType);
+    return UBSE_OK;
+}
+
+NicOptModuleType ResourceCollection::ParseNicOptModuleType(const std::string& cmdOutput)
+{
+    // hinicadm5 info -i <cardName>输出中包含port num和port speed，用于区分光模块类型：
+    // port num==4且port speed==200Gbps为4*200G,port num==2且port speed==400Gbps为2*400G
+    std::string portNum;
+    std::string portSpeed;
+    for (const auto& line : SplitLines(cmdOutput)) {
+        size_t colonPos = line.find(':');
+        if (colonPos == std::string::npos) {
+            continue;
+        }
+        if (line.find("port num") != std::string::npos) {
+            portNum = Trim(line.substr(colonPos + 1));
+        } else if (line.find("port speed") != std::string::npos) {
+            portSpeed = Trim(line.substr(colonPos + 1));
+        }
+    }
+    if (portNum == "4" && portSpeed == "200Gbps") {
+        return NicOptModuleType::M_4X200G;
+    }
+    if (portNum == "2" && portSpeed == "400Gbps") {
+        return NicOptModuleType::M_2X400G;
+    }
+    return NicOptModuleType::UNKNOWN;
 }
 
 UbseResult ResourceCollection::SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId)
@@ -1173,6 +1281,13 @@ void ResourceCollection::CacheProductType(ProductType productType)
     std::lock_guard<std::mutex> lock(productTypeMutex_);
     productTypeCache_ = productType;
     productTypeCached_ = true;
+}
+
+void ResourceCollection::CacheNicOptModuleType(NicOptModuleType optModuleType)
+{
+    std::lock_guard<std::mutex> lock(optModuleTypeMutex_);
+    optModuleTypeCache_ = optModuleType;
+    optModuleTypeCached_ = true;
 }
 
 UbseResult ResourceCollection::ValidateAndRefreshNic()

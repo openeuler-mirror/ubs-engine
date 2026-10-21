@@ -2303,6 +2303,18 @@ TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod16Test)
 {
     auto& rc = ResourceCollection::GetInstance();
     rc.ClearAllDevices();
+    // mock两步hinicadm5查询返回2*400G，避免UT真实执行子进程
+    std::string infoOutput = "card list:\n|----hinic0(CAL_2X400G_POD)\n|--------0000f(NIC: 09:00.0)";
+    std::string cardOutput = "port num : 2\nport speed : 400Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
     CollectDeviceLoc davidLoc;
     davidLoc.slotId = 23;
     davidLoc.chipId = 1;
@@ -2312,6 +2324,14 @@ TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod16Test)
     CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
     EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_16_1825, davidDevIdTo1825DevId), UBSE_OK);
     EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    // 2*400G默认映射表：david(23,1)对应1825(27,3,1)
+    auto expectKey = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                             static_cast<uint8_t>(23), static_cast<uint8_t>(1));
+    auto expectVal = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                             static_cast<uint8_t>(27), static_cast<uint8_t>(3),
+                                                             static_cast<uint8_t>(1));
+    EXPECT_NE(davidDevIdTo1825DevId.find(expectKey), davidDevIdTo1825DevId.end());
+    EXPECT_EQ(davidDevIdTo1825DevId[expectKey], expectVal);
     rc.ClearAllDevices();
 }
 
@@ -2319,6 +2339,18 @@ TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod32Test)
 {
     auto& rc = ResourceCollection::GetInstance();
     rc.ClearAllDevices();
+    // mock两步hinicadm5查询返回2*400G，避免UT真实执行子进程
+    std::string infoOutput = "card list:\n|----hinic0(CAL_2X400G_POD)\n|--------0000f(NIC: 09:00.0)";
+    std::string cardOutput = "port num : 2\nport speed : 400Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
     CollectDeviceLoc davidLoc;
     davidLoc.slotId = 23;
     davidLoc.chipId = 1;
@@ -2328,7 +2360,262 @@ TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod32Test)
     CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
     EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_32_1825, davidDevIdTo1825DevId), UBSE_OK);
     EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    // 2*400G默认映射表：david(23,1)对应1825(27,3,2)
+    auto expectKey = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                             static_cast<uint8_t>(23), static_cast<uint8_t>(1));
+    auto expectVal = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                             static_cast<uint8_t>(27), static_cast<uint8_t>(3),
+                                                             static_cast<uint8_t>(2));
+    EXPECT_NE(davidDevIdTo1825DevId.find(expectKey), davidDevIdTo1825DevId.end());
+    EXPECT_EQ(davidDevIdTo1825DevId[expectKey], expectVal);
     rc.ClearAllDevices();
+}
+
+// === GenerateDavidNicMap POD 4*200G tests ===
+
+TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod16X200GTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    // mock两步hinicadm5查询返回4*200G，应选择4*200G专用映射表
+    std::string infoOutput = "card list:\n|----hinic0(CAL_4X200G_POD)\n|--------0000f(NIC: 09:00.0)";
+    std::string cardOutput = "port num : 4\nport speed : 200Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 23;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto device = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(device);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_16_1825, davidDevIdTo1825DevId), UBSE_OK);
+    EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    // 4*200G映射表：david(23,1)对应1825(27,3,2)，与2*400G表(27,3,1)不同
+    auto expectKey = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                             static_cast<uint8_t>(23), static_cast<uint8_t>(1));
+    auto expectVal = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                             static_cast<uint8_t>(27), static_cast<uint8_t>(3),
+                                                             static_cast<uint8_t>(2));
+    EXPECT_NE(davidDevIdTo1825DevId.find(expectKey), davidDevIdTo1825DevId.end());
+    EXPECT_EQ(davidDevIdTo1825DevId[expectKey], expectVal);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod32X200GTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    // mock两步hinicadm5查询返回4*200G，应选择4*200G专用映射表
+    std::string infoOutput = "card list:\n|----hinic0(CAL_4X200G_POD)\n|--------0000f(NIC: 09:00.0)";
+    std::string cardOutput = "port num : 4\nport speed : 200Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 23;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto device = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(device);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_32_1825, davidDevIdTo1825DevId), UBSE_OK);
+    EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    // 4*200G映射表：david(23,1)对应1825(27,3,4)，与2*400G表(27,3,2)不同
+    auto expectKey = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                             static_cast<uint8_t>(23), static_cast<uint8_t>(1));
+    auto expectVal = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                             static_cast<uint8_t>(27), static_cast<uint8_t>(3),
+                                                             static_cast<uint8_t>(4));
+    EXPECT_NE(davidDevIdTo1825DevId.find(expectKey), davidDevIdTo1825DevId.end());
+    EXPECT_EQ(davidDevIdTo1825DevId[expectKey], expectVal);
+    rc.ClearAllDevices();
+}
+
+// === GetNicOptModuleType tests ===
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeSuccessTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    std::string infoOutput = "card list:\n|----hinic0(CAL_2X400G_POD)\n|--------0000f(NIC: 09:00.0)";
+    std::string cardOutput = "port num : 2\nport speed : 400Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_OK);
+    EXPECT_EQ(optModuleType, NicOptModuleType::M_2X400G);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeCacheHitTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    std::string infoOutput = "card list:\n|----hinic0(CAL_4X200G_POD)";
+    std::string cardOutput = "port num : 4\nport speed : 200Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .expects(exactly(1))
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .expects(exactly(1))
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    // 第一次执行子进程检测并写入缓存
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_OK);
+    EXPECT_EQ(optModuleType, NicOptModuleType::M_4X200G);
+    // 第二次应命中缓存，不再触发子进程
+    NicOptModuleType cachedType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(cachedType), UBSE_OK);
+    EXPECT_EQ(cachedType, NicOptModuleType::M_4X200G);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeFirstExecFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc).stubs().will(returnValue(UBSE_ERROR));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_ERROR);
+    EXPECT_EQ(optModuleType, NicOptModuleType::UNKNOWN);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeNoCardNameTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    // 输出中无卡片行，无法提取卡名
+    std::string infoOutput = "card list:\nno card found";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeInvalidCardNameTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    // 卡名含非字母数字字符（命令注入场景），应拒绝执行第二步命令
+    std::string infoOutput = "card list:\n|----hinic0;rm -rf /(CAL_2X400G_POD)";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    // 若白名单校验失效，第二步将以注入命令调用Exec，此stub用never()验证其不会发生
+    MOCKER_CPP(execFunc)
+        .expects(never())
+        .with(eq(std::string("hinicadm5 info -i hinic0;rm -rf /")), outBound(std::string()))
+        .will(returnValue(UBSE_OK));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeSecondExecFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    std::string infoOutput = "card list:\n|----hinic0(CAL_2X400G_POD)";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(std::string()))
+        .will(returnValue(UBSE_ERROR));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GetNicOptModuleTypeParseFailNoCacheTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    std::string infoOutput = "card list:\n|----hinic0(CAL_2X400G_POD)";
+    std::string cardOutput = "port num : 8\nport speed : 100Gbps";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info")), outBound(infoOutput))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(execFunc)
+        .stubs()
+        .with(eq(std::string("hinicadm5 info -i hinic0")), outBound(cardOutput))
+        .will(returnValue(UBSE_OK));
+    NicOptModuleType optModuleType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(optModuleType), UBSE_ERROR);
+    // 解析失败不应写入缓存，再次调用应重新执行检测流程
+    NicOptModuleType retryType = NicOptModuleType::UNKNOWN;
+    EXPECT_EQ(rc.GetNicOptModuleType(retryType), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+// === ParseNicOptModuleType tests ===
+
+TEST_F(TestUbseNpuResourceCollection, ParseNicOptModuleType2X400GTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    std::string output = "Card info:\nport num : 2\nport speed : 400Gbps";
+    EXPECT_EQ(rc.ParseNicOptModuleType(output), NicOptModuleType::M_2X400G);
+}
+
+TEST_F(TestUbseNpuResourceCollection, ParseNicOptModuleType4X200GTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    std::string output = "Card info:\nport num : 4\nport speed : 200Gbps";
+    EXPECT_EQ(rc.ParseNicOptModuleType(output), NicOptModuleType::M_4X200G);
+}
+
+TEST_F(TestUbseNpuResourceCollection, ParseNicOptModuleTypeMismatchTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    // port num与port speed组合不合法
+    EXPECT_EQ(rc.ParseNicOptModuleType("port num : 4\nport speed : 400Gbps"), NicOptModuleType::UNKNOWN);
+    EXPECT_EQ(rc.ParseNicOptModuleType("port num : 2\nport speed : 200Gbps"), NicOptModuleType::UNKNOWN);
+}
+
+TEST_F(TestUbseNpuResourceCollection, ParseNicOptModuleTypeInvalidOutputTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    // 空输出、无关键字段、格式错误均应返回UNKNOWN
+    EXPECT_EQ(rc.ParseNicOptModuleType(""), NicOptModuleType::UNKNOWN);
+    EXPECT_EQ(rc.ParseNicOptModuleType("no useful fields"), NicOptModuleType::UNKNOWN);
+    EXPECT_EQ(rc.ParseNicOptModuleType("port num 2\nport speed : 400Gbps"), NicOptModuleType::UNKNOWN);
 }
 
 // === SetDavidAffinityNic null tests ===
