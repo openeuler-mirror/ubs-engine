@@ -77,7 +77,9 @@ uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state,
 // master以账本allocResult+collector缓存补齐完整挂载记录
 // （RunMountReconcile本机直平反向补记录/远端REMOUNT项首发补齐共用）。
 // nqn留空：RemountLocal回放AgentAttachNs时经ResolveNqn取verify.defaultNqn，与首次挂载行为一致；
-// identity不参与回放（AgentAttachDetachNs仅用nsInfo+verifyInfo+nqn），留空可接受；
+// identity从NS customData恢复（账本无此字段）：identity虽不参与回放
+// （AgentAttachDetachNs仅用nsInfo+verifyInfo+nqn），但留空会导致RPC serde
+// 字段校验失败（对账批次整体被拒）且落盘记录无法重载，必须补齐；
 // STRIPED的raidLevel/chunkSize账本不存储（属首次attach请求参数），仅Probe降级Create路径使用，
 // 置默认值即可（该场景元数据已丢失、数据本不可恢复，见SetupBlockDeviceWithProbe的probe==0分支）
 bool BuildRecordFromLedger(const debt::UbseSsuLedgerEntry &entry,

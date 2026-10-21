@@ -56,6 +56,12 @@ public:
 
     bool Put(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry);
 
+    // 插入或整体覆盖（原子），返回true表示覆盖了已存在的条目。
+    // 仅Rebuild使用：主备回切再次触发Rebuild时，进程级单例仍驻留上一任期条目，
+    // 必须以当前硬件清单刷新（state=CREATED、attachNodes空，由agent重报收敛），
+    // 否则陈旧attachNodes会让对账跳过本应触发的REMOUNT。业务路径一律用只插不覆盖的Put
+    bool Upsert(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry);
+
     std::shared_ptr<const UbseSsuLedgerEntry> Get(const std::string &name) const;
 
     bool Modify(const std::string &name, std::function<void(UbseSsuLedgerEntry &)> modify);
@@ -67,8 +73,9 @@ public:
     void Rebuild(const std::vector<UbseSsuDevInfo> &devices);
 
     // 账本就绪标志
-    // master首次硬件采集成功并完成Rebuild后置位；该窗口内收到的状态上报返回
-    // MASTER_NOT_READY（而非SPACE_NOT_FOUND），杜绝agent误判space已free而错误自愈清理本地挂载
+    // master首次硬件采集成功并完成Rebuild后置位；再次Rebuild（主备回切重选中）期间清位，
+    // 重建期间收到的状态上报返回MASTER_NOT_READY（而非SPACE_NOT_FOUND），杜绝agent误判
+    // space已free而错误自愈清理本地挂载，同时阻止对账/verify消费半新半旧的混合账本
     bool IsReady() const;
     void SetReady(bool ready);
 

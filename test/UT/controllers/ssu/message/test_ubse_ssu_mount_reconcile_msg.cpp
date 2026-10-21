@@ -228,6 +228,33 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileRespRoundTrip)
 }
 
 /*
+ * 用例描述：REMOUNT首发记录identity为空（如账本重建漏补identity）→ 字段校验失败拒收
+ * 预期结果：整个对账请求反序列化失败（IsRecordFieldsValid要求userName非空，
+ * 上游BuildRecordFromLedger必须从NS customData补齐identity，否则对账无法收敛）
+ */
+TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqEmptyIdentityRejected)
+{
+    auto record = MakeFullRecord();
+    record.identity = {}; // 模拟账本重建未补identity
+
+    UbseSsuReconcileReq req;
+    UbseSsuReconcileItem item;
+    item.name = record.name;
+    item.action = UbseSsuReconcileAction::REMOUNT;
+    item.hasRecord = true;
+    item.record = std::move(record);
+    req.items.push_back(std::move(item));
+
+    UbseSsuReconcileReqMsg original(req);
+    std::unique_ptr<uint8_t[]> buffer;
+    uint32_t bufferSize = 0;
+    ASSERT_EQ(UBSE_OK, original.Serialize(buffer, bufferSize));
+
+    UbseSsuReconcileReqMsg deserialized;
+    EXPECT_NE(UBSE_OK, deserialized.Deserialize(buffer.get(), bufferSize));
+}
+
+/*
  * 用例描述：摘要/平账响应 Deserialize 传入空指针与非法数据
  * 预期结果：返回非 UBSE_OK（防篡改防御性解析）
  */
