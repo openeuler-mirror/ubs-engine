@@ -16,7 +16,6 @@
 #include <unordered_map>
 
 #include <dlfcn.h>
-#include <linux/capability.h>
 
 #include <securec.h>
 
@@ -29,7 +28,6 @@
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_node_controller.h"
-#include "ubse_security_module.h"
 #include "ubse_serial_util.h"
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_config_manager.h"
@@ -517,9 +515,6 @@ uint32_t ProcessMemPidBridge::Init()
         UBSE_LOG_ERROR << "Failed to load libmempooling.so, process_mem init aborted";
         return UBSE_ERROR;
     }
-
-    std::vector<__u32> dacReadSearchCap = {CAP_DAC_READ_SEARCH};
-    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(dacReadSearchCap, true);
 
     process_mem::manager::ProcessMemPidInfoManager::GetInstance().Init();
 
