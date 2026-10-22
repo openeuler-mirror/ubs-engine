@@ -17,5 +17,7 @@
 
 namespace ubse::security {
 uint32_t ChangeOverrideCapability(bool isAdd);
-}
+
+uint32_t ChangePtraceCapability(bool isAdd);
+} // namespace ubse::security
 #endif // UBS_ENGINE_UBSE_SECURITY_H
