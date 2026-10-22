@@ -97,6 +97,8 @@ private:
 
     void UbseNodeRetryLedger(const std::string& nodeId);
 
+    void UbseRegisterLedgerRetryTimer(const std::string& nodeId);
+
     void UbseNodeUpLedger(const std::string& nodeId);
 
     void UbseNodeLedger(const std::string& nodeId);

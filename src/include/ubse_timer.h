@@ -35,5 +35,11 @@ uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler hand
  * @param name [in] 定时器回调标识
  */
 void UbseTimerHandlerUnregister(const std::string& name);
+
+/**
+ * 进程退出前全量收敛定时器框架线程（回收异步拆除线程，并强制收敛handler残留场景）；
+ * 使用本框架的进程在退出前必须调用，否则joinable线程残留会在静态析构阶段触发coredump
+ */
+void UbseTimerFrameworkFinalize();
 } // namespace ubse::timer
 #endif // UBS_ENGINE_UBSE_TIMER_CONTROLLER_H

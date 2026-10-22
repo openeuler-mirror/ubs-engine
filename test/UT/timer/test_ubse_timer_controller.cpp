@@ -18,6 +18,7 @@
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer_controller.h" // 需要包含这个头文件
 
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <thread>
@@ -49,6 +50,23 @@ public:
         context::g_globalStop.store(false);
     }
 };
+
+// 全局Environment: 所有timer用例结束后全量收敛框架线程——回收异步拆除stopper,
+// 并对handler残留场景强制收敛check线程与timer线程, 防止UT进程退出时joinable线程
+// 残留到静态析构阶段触发std::terminate coredump
+class TimerFrameworkFinalizeEnv : public ::testing::Environment {
+public:
+    void TearDown() override
+    {
+        // Finalize收敛会经g_ubseTimer.Stop()访问task executor模块, 此前用例stub的
+        // mock对象已随用例析构, 重新stub存活实例防止悬垂访问
+        auto executorModule = std::make_shared<UbseTaskExecutorModule>();
+        MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
+        UbseTimerFrameworkFinalize();
+    }
+};
+static ::testing::Environment* const g_timerFinalizeEnv =
+    ::testing::AddGlobalTestEnvironment(new TimerFrameworkFinalizeEnv());
 
 /*
  * 用例描述：
@@ -892,6 +910,113 @@ TEST(TestUbseTimerController, TestRunningStateToggle)
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     timer.Stop();
+}
+
+/*
+ * 测试timer池线程内注销最后一个handler不死锁
+ * 覆盖 S1-01 修复: 业务闭包(如RetryLedger对账成功分支)在timer池线程执行时注销自身,
+ * handlers清空触发框架拆除; 旧实现在调用线程同步Stop会join池线程自身死锁,
+ * 修复后拆除移交专用stopper线程, 池线程安全返回
+ */
+TEST(TestUbseTimerController, TestUnregisterSelfFromPoolThread)
+{
+    context::g_globalStop.store(false);
+    std::shared_ptr<UbseTaskExecutorModule> executorModule = std::make_shared<UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
+
+    std::promise<void> unregistered;
+    // 模拟业务重试闭包: 在timer池线程内注销自身(唯一handler, 注销后handlers清空触发拆除)
+    auto selfUnregisterHandler = [&unregistered]() -> uint32_t {
+        UbseTimerHandlerUnregister("self_unregister_handler");
+        unregistered.set_value();
+        return UBSE_OK;
+    };
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("self_unregister_handler", selfUnregisterHandler, 1));
+
+    // 等待池线程内注销完成(不死锁即通过), 兜底超时防UT挂死
+    auto future = unregistered.get_future();
+    EXPECT_EQ(future.wait_for(std::chrono::seconds(10)), std::future_status::ready);
+    // 用例内收敛异步拆除, 时序确定且防止后续桩生命周期外访问
+    UbseTimerFrameworkFinalize();
+}
+
+/*
+ * 测试多线程并发注销不死锁不崩溃
+ * 覆盖 S1-01 修复: 并发注销最后一批handler时, 仅一个线程进入拆除,
+ * 消除并发join同一thread的UB
+ */
+TEST(TestUbseTimerController, TestConcurrentUnregisterNoDeadlock)
+{
+    context::g_globalStop.store(false);
+    std::shared_ptr<UbseTaskExecutorModule> executorModule = std::make_shared<UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
+
+    // interval取最大值, 避免周期触发干扰并发注销窗口
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("concurrent_h1", MockHandler1, 3600));
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("concurrent_h2", MockHandler1, 3600));
+
+    std::atomic<int> doneCount{0};
+    auto unregisterTask = [&doneCount](const std::string& name) {
+        UbseTimerHandlerUnregister(name);
+        doneCount.fetch_add(1);
+    };
+    std::thread t1(unregisterTask, "concurrent_h1");
+    std::thread t2(unregisterTask, "concurrent_h2");
+    t1.join();
+    t2.join();
+    EXPECT_EQ(doneCount.load(), 2);
+    UbseTimerFrameworkFinalize();
+}
+
+/*
+ * 测试框架拆除后重注册(重启)与Finalize幂等
+ * 覆盖 S1-01 修复: Register重启前join旧stopper(防止赋值覆盖joinable线程terminate);
+ * UbseTimerFrameworkFinalize多次调用幂等
+ */
+TEST(TestUbseTimerController, TestRegisterRestartAfterTeardown)
+{
+    context::g_globalStop.store(false);
+    std::shared_ptr<UbseTaskExecutorModule> executorModule = std::make_shared<UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
+
+    // 第一轮: 注册->注销(异步拆除)->不Finalize直接重注册, Register内部join旧stopper
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("restart_handler", MockHandler1, 3600));
+    UbseTimerHandlerUnregister("restart_handler");
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("restart_handler", MockHandler1, 3600));
+    UbseTimerHandlerUnregister("restart_handler");
+
+    // 第二轮: 拆除后收敛, 再重启验证完整生命周期
+    UbseTimerFrameworkFinalize();
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("restart_handler2", MockHandler1, 3600));
+    UbseTimerHandlerUnregister("restart_handler2");
+
+    // Finalize幂等: 重复调用不崩溃
+    UbseTimerFrameworkFinalize();
+    UbseTimerFrameworkFinalize();
+}
+
+/*
+ * 测试handlers残留时Finalize全量收敛线程
+ * 覆盖场景: 模块退出未注销完handler(handlers非空), 框架拆除从未触发,
+ * check线程随g_globalStop退出但无人join, timer线程仍在周期派发,
+ * 任一joinable残留到静态析构都会std::terminate coredump;
+ * UbseTimerFrameworkFinalize强制停止并回收全部线程, 且支持收敛后再重启再收敛
+ */
+TEST(TestUbseTimerController, TestFinalizeConvergeResidualHandlers)
+{
+    context::g_globalStop.store(false);
+    std::shared_ptr<UbseTaskExecutorModule> executorModule = std::make_shared<UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
+
+    // 注册后不注销(模拟handler残留), 直接Finalize强制收敛
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("residual_handler", MockHandler1, 3600));
+    UbseTimerFrameworkFinalize();
+
+    // 收敛后框架可重启(Register置running并重启check/timer线程), 再次残留再收敛
+    EXPECT_EQ(UBSE_OK, UbseTimerHandlerRegister("residual_handler2", MockHandler1, 3600));
+    UbseTimerFrameworkFinalize();
+    // Finalize幂等: 框架已完全收敛时重复调用不崩溃
+    UbseTimerFrameworkFinalize();
 }
 
 } // namespace ubse::ut::timer

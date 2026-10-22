@@ -21,6 +21,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_audit.h"
+#include "ubse_timer.h"
 
 namespace ubse {
 using namespace ubse::context;
@@ -65,6 +66,7 @@ int main(int argc, char* argv[])
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::Run failed" << std::endl;
         ubse::g_ubseContext.Stop();
+        ubse::timer::UbseTimerFrameworkFinalize();
         AuditDestroy();
         std::cerr << "ubse service failed to start." << std::endl;
         return static_cast<int>(ret);
@@ -76,6 +78,8 @@ int main(int argc, char* argv[])
     }
     // 停止上下文
     g_ubseContext.Stop();
+    // 回收timer框架异步拆除线程(模块Stop内的注销可能已触发handlers清空拆除)
+    ubse::timer::UbseTimerFrameworkFinalize();
     AuditDestroy();
     return 0;
 }
