@@ -120,6 +120,7 @@ public:
                             const UbseSsuAllocIdentityInfo &identity) override;
 
     // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回所需字段(defaultNqn/jettyId/guid)
+    // identity校验先于幂等/state判断，防止幂等分支向非属主泄露nsDevPath/devPath
     // requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断
     uint32_t VerifyAttachDetachPrecondition(const std::string& name, const UbseSsuAllocIdentityInfo& identity,
                                             const std::string& requestNodeId,

@@ -183,6 +183,23 @@ TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_IdentityNotMatch)
 }
 
 /*
+ * 用例：AddAccessPermission_IdentityCheckBeforeStateProbe
+ * 身份校验先于state判断：非属主对IDLE空间不得借STATE_INVALID错误码
+ * 探测空间生命周期状态（状态探测守卫）。
+ */
+TEST_F(TestUbseSsuServiceImpPerm, AddAccessPermission_IdentityCheckBeforeStateProbe)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    SetupPermLedger("test_state_probe", UbseSsuNsState::IDLE, {ns1});
+
+    EXPECT_EQ(service_.AddAccessPermission("test_state_probe",
+                                           "nqn.2024-01.org.nvmexpress:uuid:11111111-1111-1111-1111-111111111111",
+                                           MakeIdentity("intruder", 200)),
+              UBSE_ERR_ACCESS_DENIED);
+}
+
+/*
  * 用例：AddAccessPermission_PartialFailAndRollback
  * 第二个 NS AddNameSpaceAllowHost 失败，回滚第一个已添加的 NS。
  */

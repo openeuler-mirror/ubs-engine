@@ -77,11 +77,16 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_Master_RecordNotFound)
 TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_NotCreated)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_striped_not_created", UbseSsuNsState::IDLE, {ns1}, UbseSsuAllocStrategy::STRIPED);
 
     std::vector<std::string> nsDevPaths;
     std::string devPath;
-    EXPECT_EQ(service_.AttachStripedSpace(MakeStripedReq("test_striped_not_created"), nsDevPaths, devPath),
+    EXPECT_EQ(service_.AttachStripedSpace(
+                  MakeStripedReq("test_striped_not_created", "md_striped", UbseSsuAggregationRaidLevel::RAID0,
+                                 UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity()),
+                  nsDevPaths, devPath),
               UBSE_SSU_ERROR_STATE_INVALID);
 }
 
@@ -93,15 +98,43 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_AlreadyAttached)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
     SetupLedgerForAttach("test_striped_attached", UbseSsuNsState::ATTACHED, {ns1, ns2},
                          UbseSsuAllocStrategy::STRIPED);
 
     std::vector<std::string> nsDevPaths;
     std::string devPath;
-    auto ret = service_.AttachStripedSpace(MakeStripedReq("test_striped_attached"), nsDevPaths, devPath);
+    auto ret = service_.AttachStripedSpace(
+        MakeStripedReq("test_striped_attached", "md_striped", UbseSsuAggregationRaidLevel::RAID0,
+                       UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity()),
+        nsDevPaths, devPath);
 
     EXPECT_EQ(ret, UBSE_ERR_ALREADY_ATTACHED);
     ASSERT_EQ(nsDevPaths.size(), 2u);
+}
+
+/*
+ * 用例：AttachStriped_AlreadyAttached_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）attach已挂载空间：
+ * 身份校验先于幂等判断，返回 ACCESS_DENIED 且不泄露 nsDevPaths/devPath。
+ */
+TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_AlreadyAttached_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    SetupLedgerForAttach("test_striped_idem_mismatch", UbseSsuNsState::ATTACHED, {ns1},
+                         UbseSsuAllocStrategy::STRIPED);
+
+    std::vector<std::string> nsDevPaths;
+    std::string devPath;
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    auto ret = service_.AttachStripedSpace(MakeStripedReq("test_striped_idem_mismatch"), nsDevPaths, devPath);
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    EXPECT_TRUE(nsDevPaths.empty());
+    EXPECT_TRUE(devPath.empty());
 }
 
 /*
@@ -164,6 +197,8 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_RAID5_LessThan3Ns)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 8192);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1, 8192);
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
 
     UbseSsuAllocResult result;
     result.name = "test_striped_raid5_less";
@@ -175,7 +210,7 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_RAID5_LessThan3Ns)
     std::vector<std::string> nsDevPaths;
     std::string devPath;
     auto req = MakeStripedReq("test_striped_raid5_less", "md_striped_raid5", UbseSsuAggregationRaidLevel::RAID5,
-                              UbseSsuChunkSize::CHUNK_SIZE_4K);
+                              UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity());
     EXPECT_EQ(service_.AttachStripedSpace(req, nsDevPaths, devPath), UBSE_ERR_INVALID_ARG);
 }
 
@@ -188,6 +223,8 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_NsSizeNotMultipleOfChunk)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 5000);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1, 5000);
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
 
     UbseSsuAllocResult result;
     result.name = "test_striped_chunk_mismatch";
@@ -199,7 +236,7 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_NsSizeNotMultipleOfChunk)
     std::vector<std::string> nsDevPaths;
     std::string devPath;
     auto req = MakeStripedReq("test_striped_chunk_mismatch", "md_striped", UbseSsuAggregationRaidLevel::RAID0,
-                              UbseSsuChunkSize::CHUNK_SIZE_4K);
+                              UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity());
     EXPECT_EQ(service_.AttachStripedSpace(req, nsDevPaths, devPath), UBSE_SSU_ERROR_STRIPED_CONFIG_INVALID);
 }
 
@@ -211,6 +248,8 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_NsSizesNotEqual)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1, 8192);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1, 4096);
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
 
     UbseSsuAllocResult result;
     result.name = "test_striped_sizes_unequal";
@@ -222,7 +261,7 @@ TEST_F(TestUbseSsuServiceImpStriped, AttachStriped_NsSizesNotEqual)
     std::vector<std::string> nsDevPaths;
     std::string devPath;
     auto req = MakeStripedReq("test_striped_sizes_unequal", "md_striped", UbseSsuAggregationRaidLevel::RAID0,
-                              UbseSsuChunkSize::CHUNK_SIZE_4K);
+                              UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity());
     EXPECT_EQ(service_.AttachStripedSpace(req, nsDevPaths, devPath), UBSE_SSU_ERROR_STRIPED_CONFIG_INVALID);
 }
 
@@ -301,10 +340,14 @@ TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_RecordNotFound)
 TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_NotAttached_Created)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_detach_striped_created", UbseSsuNsState::CREATED, {ns1},
                          UbseSsuAllocStrategy::STRIPED);
 
-    EXPECT_EQ(service_.DetachStripedSpace(MakeStripedReq("test_detach_striped_created")),
+    EXPECT_EQ(service_.DetachStripedSpace(MakeStripedReq("test_detach_striped_created", "md_striped",
+                                                         UbseSsuAggregationRaidLevel::RAID0,
+                                                         UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity())),
               UBSE_ERR_NO_NEED_DETACH);
 }
 
@@ -315,9 +358,13 @@ TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_NotAttached_Created)
 TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_InvalidState)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，state校验路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_detach_striped_idle", UbseSsuNsState::IDLE, {ns1}, UbseSsuAllocStrategy::STRIPED);
 
-    EXPECT_EQ(service_.DetachStripedSpace(MakeStripedReq("test_detach_striped_idle")),
+    EXPECT_EQ(service_.DetachStripedSpace(MakeStripedReq("test_detach_striped_idle", "md_striped",
+                                                         UbseSsuAggregationRaidLevel::RAID0,
+                                                         UbseSsuChunkSize::CHUNK_SIZE_4K, "", MakeIdentity())),
               UBSE_SSU_ERROR_STATE_INVALID);
 }
 
@@ -353,6 +400,8 @@ TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_DeleteBlockDevIdempote
 TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_DevNameMismatch)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，devName校验路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     UbseSsuAllocResult result;
     result.name = "test_detach_striped_master_devname_mismatch";
     result.strategy = UbseSsuAllocStrategy::STRIPED;
@@ -375,6 +424,28 @@ TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_DevNameMismatch)
     auto entryAfter = UbseSsuDebtLedger::GetInstance().Get("test_detach_striped_master_devname_mismatch");
     ASSERT_NE(entryAfter, nullptr);
     EXPECT_EQ(entryAfter->state, UbseSsuNsState::ATTACHED);
+}
+
+/*
+ * 用例：DetachStriped_Master_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）detach：
+ * 身份校验先于幂等/state判断与StopBlockDevice，返回 ACCESS_DENIED 且账本保持 ATTACHED，
+ * 防止非属主借幂等语义探测挂载状态或停用属主聚合块设备。
+ */
+TEST_F(TestUbseSsuServiceImpStriped, DetachStriped_Master_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    SetupLedgerForAttach("test_detach_striped_identity_mismatch", UbseSsuNsState::ATTACHED, {ns1},
+                         UbseSsuAllocStrategy::STRIPED);
+
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    auto ret = service_.DetachStripedSpace(MakeStripedReq("test_detach_striped_identity_mismatch", "md_striped"));
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_detach_striped_identity_mismatch");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
 }
 
 /*

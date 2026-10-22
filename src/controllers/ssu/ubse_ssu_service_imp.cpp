@@ -724,6 +724,48 @@ static void RefreshDevCache(const std::string &eid, const std::string &subNqn,
     }
 }
 
+// NS不可见时的处理策略：
+// FAIL_CLOSED：回NS_NOT_FOUND（attach/detach——账本与硬件不一致属异常态，
+//   拒绝重试优于在暗状态下放行幂等分支回填nsDevPath）
+// SKIP_INVISIBLE：跳过该NS（free/权限操作——含止损与幂等容错语义，
+//   NS不可见视为已释放/权限已失效，free是FAULTED空间的人工止损出口）
+enum class NsIdentityVerifyPolicy { FAIL_CLOSED, SKIP_INVISIBLE };
+
+// 空间属主预校验：比对空间全部NS的customData与请求方identity（缓存未命中先实时刷新）。
+// 必须在ALREADY_ATTACHED/NO_NEED_DETACH等幂等分支与state判断之前调用：
+// 幂等/state分支会向调用方返回nsDevPath/devPath或暴露挂载状态，若身份校验后置，
+// 非属主可借幂等语义探测空间状态并获取挂载路径（信息泄露/状态探测）
+static uint32_t VerifySpaceNsIdentity(const std::vector<UbseSsuNameSpaceInfo> &nsList,
+                                      const UbseSsuAllocIdentityInfo &identity,
+                                      std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                      NsIdentityVerifyPolicy policy)
+{
+    std::unordered_set<std::string> refreshedEids;
+    for (const auto &nsInfo : nsList) {
+        auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
+        }
+        if (targetNs == nullptr) {
+            if (policy == NsIdentityVerifyPolicy::FAIL_CLOSED) {
+                UBSE_LOG_ERROR << "VerifySpaceNsIdentity: namespace not found in cache, eid=" << nsInfo.tgtEid
+                               << ", nsId=" << nsInfo.namespaceId;
+                return UBSE_SSU_ERROR_NS_NOT_FOUND;
+            }
+            UBSE_LOG_WARN << "VerifySpaceNsIdentity: namespace not found in cache, skip, eid=" << nsInfo.tgtEid
+                          << ", nsId=" << nsInfo.namespaceId;
+            continue;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << "VerifySpaceNsIdentity: uid or userName not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+    }
+    return UBSE_OK;
+}
+
 // ===== 本地挂载记录持久化 hook =====
 // 记录是"本节点挂载了什么"的唯一事实源（重启恢复依据）。
 // 挂载/卸载主流程不因记录失败而失败（挂载是主业务，记录是可靠性增强），
@@ -816,6 +858,15 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
         return UBSE_ERR_NO_NEED_FREE;
     }
 
+    // 身份校验先于state判断（与attach/detach路径对齐）：非属主不得借state错误码
+    // 探测空间挂载状态；可见NS逐一校验，NS不可见维持止损跳过语义（不阻断FAULTED止损free）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, identity, devMap,
+                                       NsIdentityVerifyPolicy::SKIP_INVISIBLE);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     if (entryPtr->state != UbseSsuNsState::CREATED) {
         if (entryPtr->state == UbseSsuNsState::ATTACHED) {
             UBSE_LOG_WARN << "ExecuteFree: namespace is attached, need detach first, name=" << name;
@@ -832,7 +883,6 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
         }
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     uint32_t firstErr = UBSE_OK;
     std::vector<UbseSsuNameSpaceInfo> remainingNs; // 未删成功的namespace，保留在账本中便于上层重试
     std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
@@ -1322,6 +1372,7 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
 }
 
 // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回构造AttachDevNameSpace所需字段。
+// identity校验为账本Get后的第一道门（先于策略/FAULTED/幂等/state判断，见VerifySpaceNsIdentity注释），
 // requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断幂等
 uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& name,
                                                            const UbseSsuAllocIdentityInfo& identity,
@@ -1351,6 +1402,15 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: record not found, name=" << name;
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    }
+
+    // 身份校验为账本Get后的第一道门（与本地attach/detach路径对齐）：先于策略/FAULTED/幂等/state判断，
+    // 非属主不得借策略/故障/幂等语义探测空间属性与挂载状态（信息泄露）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
     }
 
     auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.expectedStrategy);
@@ -1467,10 +1527,11 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
         }
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     auto& nsVerifyList = verifyResp.nsVerifyList;
     nsVerifyList.clear();
     nsVerifyList.reserve(entryPtr->allocResult.nameSpaceList.size());
+    // NS存在性与identity已由前置VerifySpaceNsIdentity统一校验（同一devMap快照，两循环间devMap不变，
+    // 此处刷新分支正常不触发），保留刷新+空指针双重防御
     std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
@@ -1483,11 +1544,6 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
             UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: namespace not found in cache, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
             return UBSE_SSU_ERROR_NS_NOT_FOUND;
-        }
-        if (!IsNsIdentityMatch(*targetNs, identity)) {
-            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: identity not match, eid=" << nsInfo.tgtEid
-                           << ", nsId=" << nsInfo.namespaceId;
-            return UBSE_ERR_ACCESS_DENIED;
         }
         UbseSsuNsVerifyInfo verifyInfo;
         verifyInfo.defaultNqn =
@@ -1982,6 +2038,15 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
+    // 非属主不得借策略/故障/幂等语义探测空间属性与挂载状态并获取挂载路径（信息泄露）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 分配策略校验：NORMAL策略只能通过AttachSpace挂载（不聚合块设备），
     // LINEAR/STRIPED策略必须使用配套的AttachLinearSpace/AttachStripedSpace
     auto strategyRet =
@@ -2022,7 +2087,6 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
     // NORMAL多节点共挂下该标记会阻塞其他节点并发attach，
     // master本地并发互斥已由入口处per-name resourceLock保证（见UpdateStateOrNotify的策略分支注释）
 
-    auto devMap = collector_.GetCachedDevMap();
     nsDevPaths.clear();
     nsDevPaths.reserve(entryPtr->allocResult.nameSpaceList.size());
     std::vector<UbseSsuNameSpaceInfo> attachedNsList;
@@ -2097,6 +2161,15 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验先于幂等/state判断（与attach路径及verify路径对齐）：
+    // 幂等分支（NO_NEED_DETACH）会向调用方回传状态信息，若后置校验，非属主可探测空间挂载状态
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 分配策略校验：NORMAL策略只能通过DetachSpace卸载（不删除聚合块设备），
     // LINEAR/STRIPED策略必须使用配套的DetachLinearSpace/DetachStripedSpace。
     // 先于幂等/状态校验执行：策略不匹配直接拒绝，避免对聚合设备空间做NORMAL语义的节点级判断
@@ -2126,7 +2199,6 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return UBSE_SSU_ERROR_STATE_INVALID;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     uint32_t detachRet = UBSE_OK;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         auto ret = DetachSingleNs(nsInfo, req.identity, req.nqn, devMap);
@@ -2289,6 +2361,15 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
+    // 非属主不得借策略/故障/幂等语义探测空间属性与挂载状态并获取nsDevPath/devPath（信息泄露）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 校验分配策略与挂载策略匹配：LINEAR分配只能通过AttachLinearSpace挂载
     auto strategyRet =
         ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::LINEAR);
@@ -2344,7 +2425,6 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         return UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
     auto ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
                                             entryPtr->devName, output);
@@ -2420,6 +2500,15 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
+    // 非属主不得借策略/故障/幂等语义探测空间属性与挂载状态并获取nsDevPath/devPath（信息泄露）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 校验分配策略与挂载策略匹配：STRIPED分配只能通过AttachStripedSpace挂载
     auto strategyRet =
         ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::STRIPED);
@@ -2482,7 +2571,6 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
     ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
                                        entryPtr->devName, output);
@@ -2600,6 +2688,15 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验先于幂等/state判断与设备操作（StopBlockDevice）：与attach路径对齐，
+    // 防止非属主借幂等语义探测挂载状态，或在校验通过前停用属主聚合块设备
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 校验分配策略与卸载策略匹配：LINEAR分配只能通过DetachLinearSpace卸载
     auto strategyRet =
         ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::LINEAR);
@@ -2626,7 +2723,6 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         return detacherRet;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     auto ret = DetachNsAndStopBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
                                            entryPtr->devName);
     if (ret != UBSE_OK) {
@@ -2681,6 +2777,15 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验先于幂等/state判断与设备操作（StopBlockDevice）：与attach路径对齐，
+    // 防止非属主借幂等语义探测挂载状态，或在校验通过前停用属主聚合块设备
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, req.identity, devMap,
+                                       NsIdentityVerifyPolicy::FAIL_CLOSED);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 校验分配策略与卸载策略匹配：STRIPED分配只能通过DetachStripedSpace卸载
     auto strategyRet =
         ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, UbseSsuAllocStrategy::STRIPED);
@@ -2707,7 +2812,6 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
         return detacherRet;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     auto ret = DetachNsAndStopBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
                                           entryPtr->devName);
     if (ret != UBSE_OK) {
@@ -2859,6 +2963,15 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
         return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
     }
 
+    // 身份校验先于state判断（与attach/detach路径对齐）：非属主不得借state错误码
+    // 探测空间状态；可见NS逐一校验，NS不可见维持幂等跳过语义（remove视为权限已失效）
+    auto devMap = collector_.GetCachedDevMap();
+    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, identity, devMap,
+                                       NsIdentityVerifyPolicy::SKIP_INVISIBLE);
+    if (idRet != UBSE_OK) {
+        return idRet;
+    }
+
     // 命名空间必须已创建完成，CREATING状态下NS可能尚未落盘，IDLE表示初始/失败回退
     if (entryPtr->state == UbseSsuNsState::IDLE || entryPtr->state == UbseSsuNsState::CREATING) {
         UBSE_LOG_ERROR << funcName << ": invalid state, name=" << name
@@ -2866,7 +2979,6 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
         return UBSE_SSU_ERROR_STATE_INVALID;
     }
 
-    auto devMap = collector_.GetCachedDevMap();
     // 记录已成功操作的NS信息，用于失败时回滚
     std::vector<SucceededPermNs> succeededNsList;
     std::unordered_set<std::string> refreshedEids;

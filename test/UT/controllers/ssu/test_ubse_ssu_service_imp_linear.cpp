@@ -101,15 +101,39 @@ TEST_F(TestUbseSsuServiceImpLinear, AttachLinear_Master_AlreadyAttached)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
     SetupLedgerForAttach("test_linear_attached", UbseSsuNsState::ATTACHED, {ns1, ns2});
 
     std::vector<std::string> nsDevPaths;
     std::string devPath;
-    auto req = MakeLinearReq("test_linear_attached");
+    auto req = MakeLinearReq("test_linear_attached", "md_linear", "", MakeIdentity());
     auto ret = service_.AttachLinearSpace(req, nsDevPaths, devPath);
 
     EXPECT_EQ(ret, UBSE_ERR_ALREADY_ATTACHED);
     ASSERT_EQ(nsDevPaths.size(), 2u);
+}
+
+/*
+ * 用例：AttachLinear_Master_AlreadyAttached_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）attach已挂载空间：
+ * 身份校验先于幂等判断，返回 ACCESS_DENIED 且不泄露 nsDevPaths/devPath。
+ */
+TEST_F(TestUbseSsuServiceImpLinear, AttachLinear_Master_AlreadyAttached_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    SetupLedgerForAttach("test_linear_idem_mismatch", UbseSsuNsState::ATTACHED, {ns1});
+
+    std::vector<std::string> nsDevPaths;
+    std::string devPath;
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    auto ret = service_.AttachLinearSpace(MakeLinearReq("test_linear_idem_mismatch"), nsDevPaths, devPath);
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    EXPECT_TRUE(nsDevPaths.empty());
+    EXPECT_TRUE(devPath.empty());
 }
 
 /*
@@ -119,11 +143,13 @@ TEST_F(TestUbseSsuServiceImpLinear, AttachLinear_Master_AlreadyAttached)
 TEST_F(TestUbseSsuServiceImpLinear, AttachLinear_Master_NotCreated)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_linear_not_created", UbseSsuNsState::IDLE, {ns1});
 
     std::vector<std::string> nsDevPaths;
     std::string devPath;
-    EXPECT_EQ(service_.AttachLinearSpace(MakeLinearReq("test_linear_not_created"), nsDevPaths, devPath),
+    EXPECT_EQ(service_.AttachLinearSpace(MakeLinearReq("test_linear_not_created", "md_linear", "", MakeIdentity()),
+                                         nsDevPaths, devPath),
               UBSE_SSU_ERROR_STATE_INVALID);
 }
 
@@ -289,9 +315,12 @@ TEST_F(TestUbseSsuServiceImpLinear, AttachLinear_Agent_VerifyFailed)
 TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_NotAttached_Created)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_detach_linear_created", UbseSsuNsState::CREATED, {ns1});
 
-    EXPECT_EQ(service_.DetachLinearSpace(MakeLinearReq("test_detach_linear_created")), UBSE_ERR_NO_NEED_DETACH);
+    EXPECT_EQ(service_.DetachLinearSpace(MakeLinearReq("test_detach_linear_created", "md_linear", "", MakeIdentity())),
+              UBSE_ERR_NO_NEED_DETACH);
 }
 
 /*
@@ -311,9 +340,12 @@ TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_RecordNotFound)
 TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_InvalidState)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，state校验路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     SetupLedgerForAttach("test_detach_linear_idle", UbseSsuNsState::IDLE, {ns1});
 
-    EXPECT_EQ(service_.DetachLinearSpace(MakeLinearReq("test_detach_linear_idle")), UBSE_SSU_ERROR_STATE_INVALID);
+    EXPECT_EQ(service_.DetachLinearSpace(MakeLinearReq("test_detach_linear_idle", "md_linear", "", MakeIdentity())),
+              UBSE_SSU_ERROR_STATE_INVALID);
 }
 
 /*
@@ -346,6 +378,8 @@ TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_DeleteBlockDevIdempotent
 TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_DevNameMismatch)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，devName校验路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     UbseSsuAllocResult result;
     result.name = "test_detach_linear_master_devname_mismatch";
     result.strategy = UbseSsuAllocStrategy::LINEAR;
@@ -367,6 +401,27 @@ TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_DevNameMismatch)
     auto entryAfter = UbseSsuDebtLedger::GetInstance().Get("test_detach_linear_master_devname_mismatch");
     ASSERT_NE(entryAfter, nullptr);
     EXPECT_EQ(entryAfter->state, UbseSsuNsState::ATTACHED);
+}
+
+/*
+ * 用例：DetachLinear_Master_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）detach：
+ * 身份校验先于幂等/state判断与StopBlockDevice，返回 ACCESS_DENIED 且账本保持 ATTACHED，
+ * 防止非属主借幂等语义探测挂载状态或停用属主聚合块设备。
+ */
+TEST_F(TestUbseSsuServiceImpLinear, DetachLinear_Master_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    SetupLedgerForAttach("test_detach_linear_identity_mismatch", UbseSsuNsState::ATTACHED, {ns1});
+
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    auto ret = service_.DetachLinearSpace(MakeLinearReq("test_detach_linear_identity_mismatch", "md_linear"));
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_detach_linear_identity_mismatch");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
 }
 
 /*

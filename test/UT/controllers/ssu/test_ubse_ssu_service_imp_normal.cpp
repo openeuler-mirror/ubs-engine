@@ -57,6 +57,9 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AttachedIdempotent)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
+    AddNsToCollectorCache(ns2);
     UbseSsuAllocResult result;
     result.name = "test_attach_idempotent";
     result.strategy = UbseSsuAllocStrategy::NORMAL;
@@ -76,20 +79,45 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AttachedIdempotent)
 }
 
 /*
+ * 用例：AttachSpace_Master_AttachedIdempotent_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）attach已挂载空间：
+ * 身份校验先于幂等判断，返回 ACCESS_DENIED 且不泄露 nsDevPaths。
+ */
+TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_AttachedIdempotent_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    UbseSsuAllocResult result;
+    result.name = "test_attach_idem_mismatch";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1, 4096));
+    PutLedgerEntry("test_attach_idem_mismatch", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
+
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    std::vector<std::string> nsDevPaths;
+    auto ret = service_.AttachSpace(MakeSpaceReq("test_attach_idem_mismatch"), nsDevPaths);
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    EXPECT_TRUE(nsDevPaths.empty());
+}
+
+/*
  * 用例：AttachSpace_Master_NotCreated
  * 预置非 CREATED 条目（如 IDLE），Attach 返回 UBSE_ERROR。
  */
 TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Master_NotCreated)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
     UbseSsuAllocResult result;
     result.name = "test_attach_not_created";
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     PutLedgerEntry("test_attach_not_created", UbseSsuNsState::IDLE, result);
 
+    auto identity = MakeIdentity();
     std::vector<std::string> nsDevPaths;
-    EXPECT_EQ(service_.AttachSpace(MakeSpaceReq("test_attach_not_created"), nsDevPaths),
+    EXPECT_EQ(service_.AttachSpace(MakeSpaceReq("test_attach_not_created", "", identity), nsDevPaths),
               UBSE_SSU_ERROR_STATE_INVALID);
 }
 
@@ -239,13 +267,16 @@ TEST_F(TestUbseSsuServiceImpNormal, AttachSpace_Agent_RpcGetCurrentNodeInfoFaile
 TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Created)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，幂等路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     UbseSsuAllocResult result;
     result.name = "test_detach_created";
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     PutLedgerEntry("test_detach_created", UbseSsuNsState::CREATED, result);
 
-    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_created")), UBSE_ERR_NO_NEED_DETACH);
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_created", "", MakeIdentity())),
+              UBSE_ERR_NO_NEED_DETACH);
 }
 
 /*
@@ -255,13 +286,40 @@ TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Created)
 TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_NotAttached_Other)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    // 身份预校验需从collector缓存读取NS customData，state校验路径同样要求NS可见
+    AddNsToCollectorCache(ns1);
     UbseSsuAllocResult result;
     result.name = "test_detach_idle";
     result.strategy = UbseSsuAllocStrategy::NORMAL;
     result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
     PutLedgerEntry("test_detach_idle", UbseSsuNsState::IDLE, result, {"master_node_1"});
 
-    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_idle")), UBSE_SSU_ERROR_STATE_INVALID);
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_idle", "", MakeIdentity())),
+              UBSE_SSU_ERROR_STATE_INVALID);
+}
+
+/*
+ * 用例：DetachSpace_Master_IdentityMismatch
+ * 预置 ATTACHED 条目，非属主（identity不匹配）detach：
+ * 身份校验先于幂等/state判断，返回 ACCESS_DENIED 且账本保持 ATTACHED，
+ * 防止非属主借幂等语义探测空间挂载状态。
+ */
+TEST_F(TestUbseSsuServiceImpNormal, DetachSpace_Master_IdentityMismatch)
+{
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    AddNsToCollectorCache(ns1);
+    UbseSsuAllocResult result;
+    result.name = "test_detach_identity_mismatch";
+    result.strategy = UbseSsuAllocStrategy::NORMAL;
+    result.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
+    PutLedgerEntry("test_detach_identity_mismatch", UbseSsuNsState::ATTACHED, result, {"master_node_1"});
+
+    // 默认构造的identity（uid=0/空userName）与NS customData（uid=100/test_user）不匹配
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq("test_detach_identity_mismatch")), UBSE_ERR_ACCESS_DENIED);
+
+    auto entry = UbseSsuDebtLedger::GetInstance().Get("test_detach_identity_mismatch");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->state, UbseSsuNsState::ATTACHED);
 }
 
 /*
