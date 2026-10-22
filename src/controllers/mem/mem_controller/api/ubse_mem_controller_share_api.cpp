@@ -25,6 +25,7 @@
 #include "ubse_logger.h"
 #include "ubse_logger_audit.h"
 #include "ubse_mem_advice.h"
+#include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_mem_debt_ledger.h"
@@ -247,6 +248,13 @@ static uint32_t PrepareAttachImport(const UbseMemShareAttachReq &req, IShareStor
     if (auto ret = store.GetCnaTopo(req, exportObj, importObj); ret != UBSE_OK) {
         return ret;
     }
+    // 共享借用算法阶段无importNumaInfos，需从exportNumaInfos和CNA信息构造导入端cpu信息,仅需要一个即可,实际导入不依赖该信息,仅用于故障上报
+    importObj.algoResult.importNumaInfos.push_back(
+        {req.importNodeId, static_cast<int>(importObj.algoResult.attachSocketId),
+         importObj.algoResult.exportNumaInfos[0].numaId, importObj.algoResult.exportNumaInfos[0].size});
+    FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
+                                importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
+                                importObj.algoResult.importNumaInfos);
     importObj.req.trustRingData.ClearReqSignedDataMemory();
     UBSE_LOG_INFO << "import size=" << importObj.req.size << ", requestId=" << req.requestId;
     ConstructShareImportObj(importObj, req);

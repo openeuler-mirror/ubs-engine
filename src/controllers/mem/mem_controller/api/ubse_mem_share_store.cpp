@@ -604,6 +604,16 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
             importObj.req.name = item.name;
             importObj.algoResult.blockSize = item.blockSize;
             importObj.algoResult.exportNumaInfos = item.exportNumaInfos;
+            if (!item.exportNumaInfos.empty()) {
+                // 共享借用算法阶段无importNumaInfos且摘要项不持久化，按attach阶段同规则从exportNumaInfos重建；
+                // 仅构造一条即可，实际导入不依赖该信息，仅保存cpu信息用于故障上报
+                importObj.algoResult.attachSocketId = static_cast<uint32_t>(item.exportNumaInfos[0].socketId);
+                importObj.algoResult.importNumaInfos.push_back(
+                    {nodeId, item.exportNumaInfos[0].socketId, item.exportNumaInfos[0].numaId,
+                     item.exportNumaInfos[0].size});
+                FillImportNumaPortAndChipId(item.exportNumaInfos[0].nodeId, item.exportNumaInfos[0].socketId, nodeId,
+                                            importObj.algoResult.importNumaInfos);
+            }
             importObj.req.size = 0;
             for (const auto &numaInfo : item.exportNumaInfos) {
                 importObj.req.size += numaInfo.size;
