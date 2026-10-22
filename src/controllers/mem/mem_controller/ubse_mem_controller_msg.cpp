@@ -569,11 +569,15 @@ UbseResult GetLocalNumaInfoByPid(const uint64_t& pid, uint32_t& numaId, uint32_t
     // /proc/<pid>/numa_maps 属于其他进程, 读取需要 CAP_SYS_PTRACE, 按需获取后立即归还
     auto capRet = ubse::security::ChangePtraceCapability(true);
     if (capRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "Change ptrace capability failed, " << FormatRetCode(capRet);
+        UBSE_LOG_ERROR << "Change ptrace capability failed, pid=" << pid << ", " << FormatRetCode(capRet);
         return UBSE_ERROR;
     }
     auto ret = UbseOsUtil::GetNumaIdByPid(pid, numaId);
-    (void)ubse::security::ChangePtraceCapability(false);
+    capRet = ubse::security::ChangePtraceCapability(false);
+    if (capRet != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to remove ptrace capability after reading numa_maps, pid=" << pid
+                      << ", ret=" << capRet;
+    }
     if (ret != UBSE_OK) {
         return ret;
     }
