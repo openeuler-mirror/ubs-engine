@@ -12,6 +12,7 @@
 *.yaml text eol=lf
 *.json text eol=lf
 *.spec text eol=lf
+*.sudoers text eol=lf
 
 .clang-format text eol=lf
 .clang-tidy text eol=lf

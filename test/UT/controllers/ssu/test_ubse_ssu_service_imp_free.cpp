@@ -490,6 +490,28 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_IdentityNotMatch)
 
 /*
  * 用例描述：
+ * ExecuteFree 身份校验先于state判断：非属主不得借NEED_DETACH_BEFORE_FREE等
+ * state错误码探测空间挂载状态（状态探测守卫）。
+ * 测试步骤：
+ * 1、预置 ATTACHED 条目（1 个 NS，缓存可见，customData 与 MakeIdentity 默认值一致）
+ * 2、以非属主身份（uid=200）调用 FreeSpace
+ * 预期结果：
+ * 1、返回 UBSE_ERR_ACCESS_DENIED 而非 UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE
+ * 2、账本条目保留
+ */
+TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_IdentityCheckBeforeStateProbe)
+{
+    auto ns = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    SetupFreeEnv({ns}, UbseSsuNsState::ATTACHED, "exec_free_state_probe");
+
+    auto ret = service_.FreeSpace("exec_free_state_probe", MakeIdentity("intruder", 200));
+
+    EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
+    EXPECT_TRUE(LedgerEntryExists("exec_free_state_probe"));
+}
+
+/*
+ * 用例描述：
  * ExecuteFree 部分删除成功的场景：第 1 个 NS 删除成功，第 2 个失败。
  * 测试步骤：
  * 1、预置 CREATED 条目（2 个 NS）
