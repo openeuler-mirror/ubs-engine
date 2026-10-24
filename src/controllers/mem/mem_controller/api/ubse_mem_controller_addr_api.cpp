@@ -1079,6 +1079,8 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
     if (!importObjPtr && !exportObjPtr) {
         BorrowFailedAdvice(
             {MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::ADDR, 0, "", req.requestNodeId, req.requestNodeId});
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Memory does not exist", UBSE_ERR_NOT_EXIST,
+                                   MemOperationType::ADDR_RETURN);
         return UBSE_ERR_NOT_EXIST;
     }
     status.hasImport = importObjPtr != nullptr;
@@ -1092,6 +1094,8 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
         auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
         BorrowFailedAdvice(
             {MemFault::RETURN_REQ_CONFLICT, req.name, MemType::ADDR, 0, "", req.importNodeId, req.requestNodeId});
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
+                                   MemOperationType::ADDR_RETURN);
         return ret;
     }
     exportObj = status.hasExport ? *exportObjPtr : UbseMemAddrBorrowExportObj{};
