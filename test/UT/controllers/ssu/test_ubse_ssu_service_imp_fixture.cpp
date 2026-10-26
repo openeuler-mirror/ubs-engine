@@ -564,7 +564,8 @@ void UbseSsuServiceImpTestBase::CleanupLedger()
     auto &ledger = UbseSsuDebtLedger::GetInstance();
     auto entries = ledger.GetAll();
     for (const auto &entry : entries) {
-        ledger.Remove(entry->name);
+        // 复合键条目按 (name, resourceUuid) 精确删除
+        ledger.Remove(entry->name, entry->allocResult.resourceUuid);
     }
     // 清零rebuildTime_：防止单例60s恢复收敛窗口跨用例残留（需窗口的用例自行Rebuild激活）
     ledger.ResetRebuildTime();

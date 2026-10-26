@@ -931,7 +931,7 @@ TEST_F(TestUbseSsuRpcHandler, HandleFreeReqReceiver_ExecutorNull)
     UbseSsuAllocIdentityInfo identity;
     identity.uid = 100;
     identity.userName = "test_user";
-    UbseSsuFreeReqMsg reqMsg("req_free_001", "agent_node_1", "test_free_ns", identity);
+    UbseSsuFreeReqMsg reqMsg("req_free_001", "agent_node_1", "test_free_ns", "", identity);
     SerializedData sd(reqMsg);
     std::unique_ptr<UbseRpcMessage> resp;
     HandleFreeReqReceiver(sd.data.get(), sd.size, resp);

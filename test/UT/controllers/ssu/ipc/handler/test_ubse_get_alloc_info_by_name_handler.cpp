@@ -16,8 +16,9 @@ TEST_F(IpcTestFixture, GetAllocInfoByName_NormalFlow)
     RequestGuard req(MakeGetAllocInfoByNameReq("by_name_normal"));
     auto ctx = MakeContext();
     HandlerAccessor<UbseGetAllocInfoByNameHandler> handler;
-    mockService->getByNameResult.name = "by_name_normal";
-    mockService->getByNameResult.strategy = UbseSsuAllocStrategy::LINEAR;
+    mockService->getByNameResult = std::vector<UbseSsuAllocResult>(1);
+    mockService->getByNameResult[0].name = "by_name_normal";
+    mockService->getByNameResult[0].strategy = UbseSsuAllocStrategy::LINEAR;
     EXPECT_EQ(handler.Init(req.Ref(), ctx), UBSE_OK);
     EXPECT_EQ(handler.Unpack(), UBSE_OK);
     EXPECT_EQ(handler.Handle(), UBSE_OK);

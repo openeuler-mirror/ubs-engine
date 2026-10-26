@@ -34,7 +34,7 @@ void TestUbseSsuFreeMsg::TearDown()
 TEST_F(TestUbseSsuFreeMsg, ReqRoundTrip)
 {
     UbseSsuAllocIdentityInfo identity{"test_user", 100};
-    UbseSsuFreeReqMsg original("req-001", "node-1", "test_free", identity);
+    UbseSsuFreeReqMsg original("req-001", "node-1", "test_free", "resource-uuid-1", identity);
 
     std::unique_ptr<uint8_t[]> buffer;
     uint32_t bufferSize = 0;
@@ -49,6 +49,7 @@ TEST_F(TestUbseSsuFreeMsg, ReqRoundTrip)
     EXPECT_EQ("req-001", req.requestId);
     EXPECT_EQ("node-1", req.requestNodeId);
     EXPECT_EQ("test_free", req.name);
+    EXPECT_EQ("resource-uuid-1", req.resourceUuid);
     EXPECT_EQ("test_user", req.identityInfo.userName);
     EXPECT_EQ(static_cast<uid_t>(100), req.identityInfo.uid);
 }

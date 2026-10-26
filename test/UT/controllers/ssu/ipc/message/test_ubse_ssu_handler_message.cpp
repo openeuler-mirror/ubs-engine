@@ -146,9 +146,10 @@ TEST_F(TestUbseSsuHandlerMessage, SsuGetAllocInfoByName_RoundTrip)
     EXPECT_EQ(SsuGetAllocInfoByNameUnpack(req, name), UBSE_OK);
     EXPECT_EQ(name, srcName);
 
+    // 响应统一走列表格式（同名多 resourceUuid 时逐条返回），单条为 size=1 的特例。
     IpcMessageGuard guard;
-    const auto result = MakeAllocResult();
-    EXPECT_EQ(SsuGetAllocInfoByNamePack(result, guard.msg), UBSE_OK);
+    std::vector<UbseSsuAllocResult> results = {MakeAllocResult()};
+    EXPECT_EQ(SsuAllocResultListPack(results, guard.msg), UBSE_OK);
     ASSERT_NE(guard.msg.buffer, nullptr);
     EXPECT_GT(guard.msg.length, 0u);
 }
@@ -364,21 +365,41 @@ TEST_F(TestUbseSsuHandlerMessage, SsuAllocSpaceUnpack_InvalidStrategy_ReturnsErr
 TEST_F(TestUbseSsuHandlerMessage, SsuFreeSpaceUnpack_RoundTrip)
 {
     const std::string srcName = "free_space_test";
+    const std::string srcUuid = "resource-uuid-1";
+    uint8_t buf[128] = {0};
+    UbsePackUtil packer(buf, sizeof(buf));
+    ASSERT_TRUE(packer.UbsePackString(srcName, MAX_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackString(srcUuid, MAX_UUID_LEN));
+    UbseIpcMessage req{buf, sizeof(buf)};
+
+    std::string name;
+    std::string resourceUuid;
+    EXPECT_EQ(SsuFreeSpaceUnpack(req, name, resourceUuid), UBSE_OK);
+    EXPECT_EQ(name, srcName);
+    EXPECT_EQ(resourceUuid, srcUuid);
+}
+
+TEST_F(TestUbseSsuHandlerMessage, SsuFreeSpaceUnpack_NoUuid_LegacyFormat)
+{
+    const std::string srcName = "free_space_legacy";
     uint8_t buf[64] = {0};
     UbsePackUtil packer(buf, sizeof(buf));
     ASSERT_TRUE(packer.UbsePackString(srcName, MAX_NAME_LEN));
     UbseIpcMessage req{buf, sizeof(buf)};
 
     std::string name;
-    EXPECT_EQ(SsuFreeSpaceUnpack(req, name), UBSE_OK);
+    std::string resourceUuid;
+    EXPECT_EQ(SsuFreeSpaceUnpack(req, name, resourceUuid), UBSE_OK);
     EXPECT_EQ(name, srcName);
+    EXPECT_TRUE(resourceUuid.empty());
 }
 
 TEST_F(TestUbseSsuHandlerMessage, SsuFreeSpaceUnpack_NullBuffer_ReturnsError)
 {
     UbseIpcMessage req{nullptr, 0};
     std::string name;
-    EXPECT_EQ(SsuFreeSpaceUnpack(req, name), UBSE_ERROR_DESERIALIZE_FAILED);
+    std::string resourceUuid;
+    EXPECT_EQ(SsuFreeSpaceUnpack(req, name, resourceUuid), UBSE_ERROR_DESERIALIZE_FAILED);
 }
 
 // ===== SsuAddAccessPermissionUnpack / SsuRemoveAccessPermissionUnpack =====
@@ -507,6 +528,23 @@ TEST_F(TestUbseSsuHandlerMessage, SsuDetachSpaceUnpack_NullBuffer_ReturnsError)
     EXPECT_EQ(SsuDetachSpaceUnpack(req, dst), UBSE_ERROR_DESERIALIZE_FAILED);
 }
 
+// 新版SDK detach尾部追加resourceUuid（精确卸载路径），解包后应填入req.resourceUuid
+TEST_F(TestUbseSsuHandlerMessage, SsuDetachSpaceUnpack_WithResourceUuid)
+{
+    uint8_t reqBuf[256] = {0};
+    UbsePackUtil packer(reqBuf, sizeof(reqBuf));
+    ASSERT_TRUE(packer.UbsePackString("detach_test", MAX_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackString("nqn.detach", MAX_NQN_LEN));
+    ASSERT_TRUE(packer.UbsePackString("eid_detach", MAX_EID_LEN));
+    ASSERT_TRUE(packer.UbsePackString("550e8400-e29b-41d4-a716-446655440000", MAX_UUID_LEN));
+    UbseIpcMessage req{reqBuf, sizeof(reqBuf)};
+
+    UbseSsuSpaceReq dst{};
+    EXPECT_EQ(SsuDetachSpaceUnpack(req, dst), UBSE_OK);
+    EXPECT_EQ(dst.name, "detach_test");
+    EXPECT_EQ(dst.resourceUuid, "550e8400-e29b-41d4-a716-446655440000");
+}
+
 // ===== SsuAttachLinearSpaceUnpack / Pack =====
 
 TEST_F(TestUbseSsuHandlerMessage, SsuAttachLinearSpace_RoundTrip)
@@ -621,7 +659,7 @@ TEST_F(TestUbseSsuHandlerMessage, SsuAttachStripedSpaceUnpack_InvalidRaidLevel_R
 
 // ===== SsuDetachStripedSpaceUnpack =====
 
-// 卸载仅反序列化线性空间基本字段（name/nqn/srcEid/devName），不读 level/chunkSize
+// 卸载与attach同构：线性字段 + level/chunkSize（读取但不校验），不带uuid时按name解析
 TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_RoundTrip)
 {
     UbseSsuStripedSpaceReq src{};
@@ -636,6 +674,8 @@ TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_RoundTrip)
     ASSERT_TRUE(packer.UbsePackString(src.nqn, MAX_NQN_LEN));
     ASSERT_TRUE(packer.UbsePackString(src.srcEid, MAX_EID_LEN));
     ASSERT_TRUE(packer.UbsePackString(src.devName, MAX_DEV_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackUint8(0));     // level：卸载不校验，CLI/SDK入口不暴露，可为0
+    ASSERT_TRUE(packer.UbsePackUint32(0));    // chunkSize：同上
     UbseIpcMessage req{reqBuf, sizeof(reqBuf)};
 
     UbseSsuStripedSpaceReq dst{};
@@ -644,33 +684,43 @@ TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_RoundTrip)
     EXPECT_EQ(dst.nqn, src.nqn);
     EXPECT_EQ(dst.srcEid, src.srcEid);
     EXPECT_EQ(dst.devName, src.devName);
+    EXPECT_TRUE(dst.resourceUuid.empty());
 }
 
-// 客户端打包侧仍按 attach 格式发送 6 字段（含 level/chunkSize），服务端需容忍尾部多余字节
-TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_ToleratesExtraStripedFields)
+// 缺少level/chunkSize的报文（截断在devName之后）应解包失败，与"格式必带"约定一致
+TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_MissingStripedFields_Fails)
 {
-    UbseSsuStripedSpaceReq src{};
-    src.name = "striped_detach";
-    src.nqn = "nqn.sd";
-    src.srcEid = "eid_sd";
-    src.devName = "striped_dev";
-    src.level = UbseSsuAggregationRaidLevel::RAID0;
-    src.chunkSize = UbseSsuChunkSize::CHUNK_SIZE_32K;
-
     uint8_t reqBuf[256] = {0};
     UbsePackUtil packer(reqBuf, sizeof(reqBuf));
-    ASSERT_TRUE(packer.UbsePackString(src.name, MAX_NAME_LEN));
-    ASSERT_TRUE(packer.UbsePackString(src.nqn, MAX_NQN_LEN));
-    ASSERT_TRUE(packer.UbsePackString(src.srcEid, MAX_EID_LEN));
-    ASSERT_TRUE(packer.UbsePackString(src.devName, MAX_DEV_NAME_LEN));
-    ASSERT_TRUE(packer.UbsePackUint8(static_cast<uint8_t>(src.level)));
-    ASSERT_TRUE(packer.UbsePackUint32(static_cast<uint32_t>(src.chunkSize)));
+    ASSERT_TRUE(packer.UbsePackString("striped_detach", MAX_NAME_LEN));   // 4 + 14 = 18
+    ASSERT_TRUE(packer.UbsePackString("nqn.sd", MAX_NQN_LEN));            // 4 + 6  = 10
+    ASSERT_TRUE(packer.UbsePackString("eid_sd", MAX_EID_LEN));            // 4 + 6  = 10
+    ASSERT_TRUE(packer.UbsePackString("striped_dev", MAX_DEV_NAME_LEN));  // 4 + 11 = 15
+    // 按实际打包长度截断（共53字节），尾部无 level/chunkSize
+    UbseIpcMessage req{reqBuf, 18 + 10 + 10 + 15};
+
+    UbseSsuStripedSpaceReq dst{};
+    EXPECT_EQ(SsuDetachStripedSpaceUnpack(req, dst), UBSE_ERROR_DESERIALIZE_FAILED);
+}
+
+// 新版SDK striped detach尾部追加resourceUuid（精确卸载路径），解包后应填入req.resourceUuid
+TEST_F(TestUbseSsuHandlerMessage, SsuDetachStripedSpaceUnpack_WithResourceUuid)
+{
+    uint8_t reqBuf[256] = {0};
+    UbsePackUtil packer(reqBuf, sizeof(reqBuf));
+    ASSERT_TRUE(packer.UbsePackString("striped_detach", MAX_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackString("nqn.sd", MAX_NQN_LEN));
+    ASSERT_TRUE(packer.UbsePackString("eid_sd", MAX_EID_LEN));
+    ASSERT_TRUE(packer.UbsePackString("striped_dev", MAX_DEV_NAME_LEN));
+    ASSERT_TRUE(packer.UbsePackUint8(0));
+    ASSERT_TRUE(packer.UbsePackUint32(0));
+    ASSERT_TRUE(packer.UbsePackString("550e8400-e29b-41d4-a716-446655440000", MAX_UUID_LEN));
     UbseIpcMessage req{reqBuf, sizeof(reqBuf)};
 
     UbseSsuStripedSpaceReq dst{};
     EXPECT_EQ(SsuDetachStripedSpaceUnpack(req, dst), UBSE_OK);
-    EXPECT_EQ(dst.name, src.name);
-    EXPECT_EQ(dst.devName, src.devName);
+    EXPECT_EQ(dst.name, "striped_detach");
+    EXPECT_EQ(dst.resourceUuid, "550e8400-e29b-41d4-a716-446655440000");
 }
 
 // ===== SsuGetFeDeviceListPack =====
