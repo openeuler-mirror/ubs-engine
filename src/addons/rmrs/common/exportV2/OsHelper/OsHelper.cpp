@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "ubse_logger.h"
+#include "ubse_security.h"
 #include "OsHelper.h"
 #include "mp_configuration.h"
 #include "mp_file_util.h"
@@ -308,17 +309,37 @@ MpResult OsHelper::GetProcessStartTimeByPid(const pid_t& pid, std::time_t& start
 MpResult OsHelper::GetVmNumaInfoByPid(const pid_t& pid, VmDomainInfo& info)
 {
     std::string filePath = procPathPrefix + std::to_string(pid) + "/numa_maps";
-    std::ifstream file(filePath);
-    if (!file.is_open()) {
-        LOG_ERROR << "Cannot open file at " << filePath << ": " << std::strerror(errno) << ".";
+    std::vector<std::string> lines;
+    // capability 仅作用于当前线程，在实际采集线程内按需开启，文件读取结束后立即关闭。
+    auto ret = ubse::security::ChangePtraceCapability(true);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "开启 PTRACE 权限失败，pid=" << pid << ", ret=" << ret;
+        return MEM_POOLING_ERROR;
+    }
+    try {
+        ret = MpFileUtil::GetFileInfo(filePath, lines);
+    } catch (...) {
+        // 覆盖文件读取的异常出口，避免线程池复用携带已开启的权限。
+        auto dropRet = ubse::security::ChangePtraceCapability(false);
+        if (dropRet != MEM_POOLING_OK) {
+            LOG_ERROR << "异常路径关闭 PTRACE 权限失败，pid=" << pid << ", ret=" << dropRet;
+        }
+        throw;
+    }
+    auto dropRet = ubse::security::ChangePtraceCapability(false);
+    if (dropRet != MEM_POOLING_OK) {
+        LOG_ERROR << "关闭 PTRACE 权限失败，pid=" << pid << ", ret=" << dropRet;
+        return MEM_POOLING_ERROR;
+    }
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "读取 NUMA 映射失败，pid=" << pid << ", ret=" << ret;
         return MEM_POOLING_ERROR;
     }
 
-    std::string line;
     static const std::regex pagesizeRegex(R"(.*libvirt.*kernelpagesize_kB=(\d+))");
     static const std::regex numaRegex(R"(N(\d+)=([0-9]+))");
 
-    while (std::getline(file, line)) {
+    for (const auto& line : lines) {
         /* 解析 pageSize */
         std::smatch pagesizeMatch;
         if (line.find("libvirt") == std::string::npos || line.find("qemu") == std::string::npos ||
@@ -370,8 +391,6 @@ MpResult OsHelper::GetVmNumaInfoByPid(const pid_t& pid, VmDomainInfo& info)
             }
         }
     }
-
-    file.close();
 
     if (info.numaInfo.empty()) {
         LOG_ERROR << "No NUMA info parsed for pid=" << pid;

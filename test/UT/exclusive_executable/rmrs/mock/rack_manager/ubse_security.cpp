@@ -10,11 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <cstdint>
+#include "ubse_security.h"
 
 namespace ubse::security {
 // 线程级提权
 uint32_t ChangeOverrideCapability(bool isAdd)
+{
+    return 0;
+}
+
+uint32_t ChangePtraceCapability(bool isAdd)
 {
     return 0;
 }
