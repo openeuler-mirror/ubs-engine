@@ -29,6 +29,7 @@ private:
     void LogRequest();
 
     std::string name;
+    std::string resourceUuid; // 分配唯一标识：非空精确释放，空串释放name下全部（旧版本SDK不携带）
 };
 
 } // namespace ubse::ssu::ipc

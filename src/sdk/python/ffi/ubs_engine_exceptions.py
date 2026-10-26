@@ -160,6 +160,11 @@ class UbsEngineInsufficientSpaceError(UbsError):
     """设备可用空间不足（含租户设备配额用尽）"""
     pass
 
+
+class UbsEngineNameDuplicatedError(UbsError):
+    """同名多个resourceUuid（疑似脑裂残留），操作被拒绝"""
+    pass
+
 class UbsBinaryCodecError(UbsError):
     """二进制编解码异常基类。
 

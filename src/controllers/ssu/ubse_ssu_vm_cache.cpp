@@ -107,6 +107,7 @@ static void SerializeAllocResult(const UbseSsuAllocResult& ar, Value& out, Docum
 {
     out.SetObject();
     out.AddMember("name", Value(ar.name.c_str(), alloc), alloc);
+    out.AddMember("resourceUuid", Value(ar.resourceUuid.c_str(), alloc), alloc);
     out.AddMember("strategy", Value(static_cast<uint32_t>(ar.strategy)), alloc);
     Value nsList(rapidjson::kArrayType);
     for (const auto& ns : ar.nameSpaceList) {
@@ -134,6 +135,11 @@ static bool DeserializeAllocResult(const Value& in, UbseSsuAllocResult& ar)
         return false;
     }
     ar.strategy = static_cast<UbseSsuAllocStrategy>(strat);
+    // resourceUuid为可选字段（旧版本缓存文件无此字段，读出为空串按遗留数据处理）
+    std::string resourceUuid;
+    if (UbseJsonUtil::GetStrFromJsonPtr(in, "resourceUuid", resourceUuid) == UBSE_OK) {
+        ar.resourceUuid = resourceUuid;
+    }
     auto nsIt = in.FindMember("nameSpaceList");
     if (nsIt == in.MemberEnd() || !nsIt->value.IsArray()) {
         return false;

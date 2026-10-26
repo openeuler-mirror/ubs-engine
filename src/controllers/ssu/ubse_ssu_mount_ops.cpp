@@ -400,7 +400,8 @@ void DiffNodeMountSummary(const std::string &nodeId, const UbseSsuMountSummaryRe
         if (agentItem->recordState == UbseSsuAttachRecordState::PENDING) {
             continue;
         }
-        if (ledger.Get(name) == nullptr) {
+        // 复合键账本按name维度判断：该name下任意resourceUuid条目仍存在则不清理
+        if (ledger.GetByName(name).empty()) {
             UbseSsuReconcileItem item;
             item.name = name;
             item.action = UbseSsuReconcileAction::CLEANUP;

@@ -21,6 +21,7 @@ from .ubs_engine_exceptions import (
     UbsEngineAllocateError, UbsEngineStateError, UbsEngineStrategyMismatchError,
     UbsEngineAttacherMismatchError, UbsEngineSpaceFaultedError, UbsEngineMasterNotReadyError,
     UbsEngineMountSuspectedError, UbsEngineInsufficientSpaceError,
+    UbsEngineNameDuplicatedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ _ERROR_MAP: Dict[int, _ErrorEntry] = {
     1205: ("UBSE_SSU_ERROR_MASTER_NOT_READY", UbsEngineMasterNotReadyError),
     1206: ("UBSE_SSU_ERROR_MOUNT_SUSPECTED", UbsEngineMountSuspectedError),
     1207: ("UBSE_SSU_ERROR_INSUFFICIENT_SPACE", UbsEngineInsufficientSpaceError),
+    1208: ("UBSE_SSU_ERROR_NAME_DUPLICATED", UbsEngineNameDuplicatedError),
     # 重复操作错误 (2000-2099)
     2000: ("UBSE_ERR_ALREADY_ALLOCATED", UbsEngineExistedError),
     2001: ("UBSE_ERR_ALREADY_ATTACHED", UbsEngineExistedError),

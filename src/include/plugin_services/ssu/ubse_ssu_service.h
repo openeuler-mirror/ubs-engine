@@ -71,6 +71,7 @@ struct UbseSsuNameSpaceInfo {
 
 struct UbseSsuAllocResult {
     std::string name;                                // 请求标识，最大48个字符
+    std::string resourceUuid;                        // 分配唯一标识，脑裂合并后区分同名多次分配
     UbseSsuAllocStrategy strategy;                   // 分配策略
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList; // 命名空间信息列表
 };
@@ -125,6 +126,8 @@ struct UbseSsuSpaceReq {
     std::string name;                  // 需挂载|卸载的存储空间标识，最大48个字符
     std::string nqn;                   // Host 的 NVMe Qualified Name
     std::string srcEid;                // 源EID
+    std::string resourceUuid;          // detach可选：精确卸载该resourceUuid对应空间（脑裂合并同名多份场景）；
+                                       // 空串按name解析（同名多份时拒绝）；attach忽略该字段
     UbseSsuAllocIdentityInfo identity; // 使用方进程的身份信息
 };
 struct UbseSsuLinearSpaceReq : UbseSsuSpaceReq {
@@ -183,18 +186,19 @@ public:
                                    const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
-     * @brief 根据名称获取已分配的存储空间信息
+     * @brief 根据名称获取已分配的存储空间信息列表
      *
      * 根据存储空间的名称查询其详细信息，包括命名空间列表、容量、LBA格式和使用类型等。
+     * 同名多个resourceUuid（脑裂合并遗留）时逐条返回，调用方可据resourceUuid精确清理。
      *
      * @param name     存储空间标识（与 AllocSpace 时的 name 参数一致）
-     * @param result   [输出] 已分配空间信息
+     * @param results  [输出] 已分配空间信息列表（每条携带各自的resourceUuid）
      * @param identity 调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+    virtual uint32_t GetAllocInfoByName(const std::string &name, std::vector<UbseSsuAllocResult> &results,
                                         const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
@@ -253,15 +257,19 @@ public:
      *
      * 释放之前通过 AllocSpace 分配的存储空间及其关联的所有命名空间。
      *
-     * @param name     要释放的存储空间标识（与 AllocSpace 时的 name 参数一致）
-     * @param identity 调用方身份信息, 包含用户名和uid
+     * @param name         要释放的存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param resourceUuid 分配唯一标识：非空时仅释放该resourceUuid对应的空间；
+     *                     空串时释放该name下全部空间（含脑裂合并遗留的同名多份分配）
+     * @param identity     调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      *
-     * @note 释放操作不再幂等：释放不存在的空间将报错（UBSE_ERR_NO_NEED_FREE）
+     * @note 释放操作不再幂等：释放不存在的空间（含指定的resourceUuid在该name下
+     *       不存在）将报错（UBSE_ERR_NO_NEED_FREE）
      */
-    virtual uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) = 0;
+    virtual uint32_t FreeSpace(const std::string &name, const std::string &resourceUuid,
+                               const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 添加存储空间访问权限

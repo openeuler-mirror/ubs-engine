@@ -29,64 +29,120 @@ UbseSsuDebtLedger &UbseSsuDebtLedger::GetInstance()
     return instance;
 }
 
-bool UbseSsuDebtLedger::Put(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry)
+// 复合键拼接：'\x1f'（ASCII单元分隔符）不会出现在name合法字符集[A-Za-z0-9_-]与
+// UUID格式[0-9a-f-]中，分隔无歧义；空resourceUuid（遗留数据）与name直接拼接
+std::string ComposeResourceKey(const std::string &name, const std::string &resourceUuid)
+{
+    return name + '\x1f' + resourceUuid;
+}
+
+// 从NS customData读取resourceUuid（遗留数据尾部补零读出为空串）
+static std::string ReadCustomDataResourceUuid(const UbseSsuDevNameSpaceCustomData &customData)
+{
+    return std::string(customData.resourceUuid, strnlen(customData.resourceUuid, sizeof(customData.resourceUuid)));
+}
+
+bool UbseSsuDebtLedger::Put(const std::string &name, const std::string &resourceUuid,
+                            std::shared_ptr<const UbseSsuLedgerEntry> entry)
 {
     if (!entry) {
         UBSE_LOG_ERROR << "Ledger put: entry is null";
         return false;
     }
+    auto key = ComposeResourceKey(name, resourceUuid);
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    bool isNew = ledger_.find(name) == ledger_.end();
+    bool isNew = ledger_.find(key) == ledger_.end();
     if (!isNew) {
-        UBSE_LOG_ERROR << "Ledger put: entry already exists, reject overwrite: name=" << name;
+        UBSE_LOG_ERROR << "Ledger put: entry already exists, reject overwrite: name=" << name
+                       << ", resourceUuid=" << resourceUuid;
         return false;
     }
-    ledger_[name] = std::move(entry);
-    UBSE_LOG_INFO << "Ledger put: name=" << name;
+    ledger_[key] = std::move(entry);
+    UBSE_LOG_INFO << "Ledger put: name=" << name << ", resourceUuid=" << resourceUuid;
     return true;
 }
 
-bool UbseSsuDebtLedger::Upsert(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry)
+bool UbseSsuDebtLedger::Upsert(const std::string &name, const std::string &resourceUuid,
+                               std::shared_ptr<const UbseSsuLedgerEntry> entry)
 {
     if (!entry) {
         UBSE_LOG_ERROR << "Ledger upsert: entry is null";
         return false;
     }
+    auto key = ComposeResourceKey(name, resourceUuid);
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    bool replaced = ledger_.find(name) != ledger_.end();
-    ledger_[name] = std::move(entry);
-    UBSE_LOG_INFO << "Ledger upsert: name=" << name << ", replaced=" << replaced;
+    bool replaced = ledger_.find(key) != ledger_.end();
+    ledger_[key] = std::move(entry);
+    UBSE_LOG_INFO << "Ledger upsert: name=" << name << ", resourceUuid=" << resourceUuid
+                  << ", replaced=" << replaced;
     return replaced;
 }
 
-std::shared_ptr<const UbseSsuLedgerEntry> UbseSsuDebtLedger::Get(const std::string &name) const
+std::shared_ptr<const UbseSsuLedgerEntry> UbseSsuDebtLedger::Get(const std::string &name,
+                                                                 const std::string &resourceUuid) const
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
-    auto it = ledger_.find(name);
+    auto it = ledger_.find(ComposeResourceKey(name, resourceUuid));
     return it != ledger_.end() ? it->second : nullptr;
 }
 
-bool UbseSsuDebtLedger::Modify(const std::string &name, std::function<void(UbseSsuLedgerEntry &)> modify)
+std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> UbseSsuDebtLedger::GetByName(const std::string &name) const
 {
+    std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> entries;
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    for (const auto &[key, entry] : ledger_) {
+        // 复合键以name为前缀（'\x1f'分隔），前缀匹配即属于该name
+        if (key.size() > name.size() && key.compare(0, name.size(), name) == 0 && key[name.size()] == '\x1f') {
+            entries.push_back(entry);
+        }
+    }
+    return entries;
+}
+
+bool UbseSsuDebtLedger::Modify(const std::string &name, const std::string &resourceUuid,
+                               std::function<void(UbseSsuLedgerEntry &)> modify)
+{
+    auto key = ComposeResourceKey(name, resourceUuid);
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    auto it = ledger_.find(name);
+    auto it = ledger_.find(key);
     if (it == ledger_.end()) {
-        UBSE_LOG_WARN << "Ledger entry not found for modify: name=" << name;
+        UBSE_LOG_WARN << "Ledger entry not found for modify: name=" << name << ", resourceUuid=" << resourceUuid;
         return false;
     }
     auto oldEntry = it->second;
     auto newEntry = std::make_shared<UbseSsuLedgerEntry>(*oldEntry);
     modify(*newEntry);
-    ledger_[name] = std::move(newEntry);
+    ledger_[key] = std::move(newEntry);
     return true;
 }
 
-bool UbseSsuDebtLedger::Remove(const std::string &name)
+bool UbseSsuDebtLedger::Remove(const std::string &name, const std::string &resourceUuid)
 {
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    auto erased = ledger_.erase(name);
+    auto erased = ledger_.erase(ComposeResourceKey(name, resourceUuid));
     if (erased > 0) {
-        UBSE_LOG_INFO << "Ledger remove: name=" << name;
+        UBSE_LOG_INFO << "Ledger remove: name=" << name << ", resourceUuid=" << resourceUuid;
+        return true;
+    }
+    UBSE_LOG_WARN << "Ledger entry not found for remove: name=" << name << ", resourceUuid=" << resourceUuid;
+    return false;
+}
+
+bool UbseSsuDebtLedger::RemoveByName(const std::string &name)
+{
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    bool erasedAny = false;
+    for (auto it = ledger_.begin(); it != ledger_.end();) {
+        if (it->first.size() > name.size() && it->first.compare(0, name.size(), name) == 0 &&
+            it->first[name.size()] == '\x1f') {
+            it = ledger_.erase(it);
+            erasedAny = true;
+        } else {
+            ++it;
+        }
+    }
+    if (erasedAny) {
+        UBSE_LOG_INFO << "Ledger remove by name: name=" << name;
         return true;
     }
     UBSE_LOG_WARN << "Ledger entry not found for remove: name=" << name;
@@ -104,7 +160,40 @@ std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> UbseSsuDebtLedger::GetAll
     return entries;
 }
 
-static void RebuildEntry(const std::string &name, const std::vector<const UbseSsuDevNameSpace *> &nsList,
+// ---- name维度便捷重载：测试与name唯一场景的便利入口，生产路径应优先复合键接口 ----
+
+std::shared_ptr<const UbseSsuLedgerEntry> UbseSsuDebtLedger::Get(const std::string &name) const
+{
+    auto entries = GetByName(name);
+    return entries.size() == 1 ? entries[0] : nullptr;
+}
+
+bool UbseSsuDebtLedger::Put(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry)
+{
+    if (!entry) {
+        return false;
+    }
+    // 先取uuid再move：实参求值顺序不确定，move后entry为空，再解引用会段错误
+    const std::string &resourceUuid = entry->allocResult.resourceUuid;
+    return Put(name, resourceUuid, std::move(entry));
+}
+
+bool UbseSsuDebtLedger::Modify(const std::string &name, std::function<void(UbseSsuLedgerEntry &)> modify)
+{
+    auto entries = GetByName(name);
+    if (entries.size() != 1 || entries[0] == nullptr) {
+        return false;
+    }
+    return Modify(name, entries[0]->allocResult.resourceUuid, std::move(modify));
+}
+
+bool UbseSsuDebtLedger::Remove(const std::string &name)
+{
+    return RemoveByName(name);
+}
+
+static void RebuildEntry(const std::string &name, const std::string &resourceUuid,
+                         const std::vector<const UbseSsuDevNameSpace *> &nsList,
                          UbseSsuDebtLedger &ledger, const std::string &tenant)
 {
     if (nsList.empty()) {
@@ -142,6 +231,7 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
 
     UbseSsuAllocResult allocResult;
     allocResult.name = name;
+    allocResult.resourceUuid = resourceUuid;
     allocResult.strategy = req.strategy;
     for (const auto *ns : nsList) {
         UbseSsuNameSpaceInfo info;
@@ -179,9 +269,10 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
     // Upsert覆盖而非跳过：主备回切时进程级单例仍驻留上一任期条目，以当前硬件清单刷新
     // （state=CREATED、attachNodes空），陈旧attachNodes会让对账跳过本应触发的REMOUNT；
     // 不在扫描中的条目维持不清（防部分扫描损伤，存亡由FAULTED增量对账裁决）
-    const bool replaced = ledger.Upsert(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry));
+    const bool replaced = ledger.Upsert(entry.name, resourceUuid, std::make_shared<const UbseSsuLedgerEntry>(entry));
     if (replaced) {
-        UBSE_LOG_INFO << "Rebuild entry: replaced stale entry from previous tenure: name=" << name;
+        UBSE_LOG_INFO << "Rebuild entry: replaced stale entry from previous tenure: name=" << name
+                      << ", resourceUuid=" << resourceUuid;
     }
 }
 
@@ -192,7 +283,10 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
     // 早已超窗）；置位后统一走MASTER_NOT_READY/跳过本轮/继续等待的保守路径，完成后置回
     SetReady(false);
     auto &ledger = *this;
-    std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>> groups;
+    // 二级分组：name -> resourceUuid -> NS列表。同name不同resourceUuid（脑裂合并遗留）
+    // 各自成条目；resourceUuid为空（遗留数据）同name归并为一条
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>>> groups;
+    size_t entryCount = 0;
 
     for (const auto &dev : devices) {
         for (const auto &ns : dev.nameSpaces) {
@@ -203,19 +297,42 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
             if (nsName.empty()) {
                 continue;
             }
-            groups[nsName].push_back(&ns);
+            groups[nsName][ReadCustomDataResourceUuid(ns.customData)].push_back(&ns);
         }
     }
 
-    for (const auto &[name, nsList] : groups) {
-        if (nsList.empty()) {
-            UBSE_LOG_WARN << "Rebuild debt ledger entry: nsList is empty: name=" << name;
+    for (const auto &[name, uuidGroups] : groups) {
+        for (const auto &[resourceUuid, nsList] : uuidGroups) {
+            if (nsList.empty()) {
+                UBSE_LOG_WARN << "Rebuild debt ledger entry: nsList is empty: name=" << name
+                              << ", resourceUuid=" << resourceUuid;
+                continue;
+            }
+            // 同一个请求name，来自同一个租户，每个namespace的tenant都应相同
+            std::string tenant(nsList[0]->customData.tenant,
+                               strnlen(nsList[0]->customData.tenant, sizeof(nsList[0]->customData.tenant)));
+            RebuildEntry(name, resourceUuid, nsList, ledger, tenant);
+            entryCount++;
+        }
+    }
+
+    // 同名多份（脑裂合并遗留的典型特征）：入账后显式告警并列出各组uuid与NS数，
+    // 供运维直接取uuid执行detach/free消歧，无需再查alloc_detail。对账3a不覆盖此场景
+    // （两批均为合法账本条目，硬件无孤儿），此处是感知脑裂同名冲突的唯一时机
+    for (const auto &[name, uuidGroups] : groups) {
+        if (uuidGroups.size() <= 1) {
             continue;
         }
-        // 同一个请求name，来自同一个租户，每个namespace的tenant都应相同
-        std::string tenant(nsList[0]->customData.tenant,
-                           strnlen(nsList[0]->customData.tenant, sizeof(nsList[0]->customData.tenant)));
-        RebuildEntry(name, nsList, ledger, tenant);
+        std::string uuidList;
+        for (const auto &[resourceUuid, nsList] : uuidGroups) {
+            if (!uuidList.empty()) {
+                uuidList += ",";
+            }
+            uuidList += resourceUuid + "(" + std::to_string(nsList.size()) + "ns)";
+        }
+        UBSE_LOG_WARN << "Ledger rebuild: duplicated name with multiple resourceUuid (suspected split-brain "
+                         "residue), name=" << name << ", count=" << uuidGroups.size()
+                      << ", groups=[" << uuidList << "], hint: detach/free with resourceUuid to disambiguate";
     }
 
     // Rebuild完成即视为账本就绪（空账本也是真实状态：硬件上确实无已分配空间）
@@ -226,7 +343,7 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
         rebuildTime_ = std::chrono::steady_clock::now();
     }
 
-    UBSE_LOG_INFO << "Ledger rebuild complete: " << groups.size() << " entries restored";
+    UBSE_LOG_INFO << "Ledger rebuild complete: " << entryCount << " entries restored";
 }
 
 bool UbseSsuDebtLedger::IsInReconcileWindow() const

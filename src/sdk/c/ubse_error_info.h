@@ -75,6 +75,8 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
         &(ubs_error_info_t){"UBSE_SSU_ERROR_MOUNT_SUSPECTED", "Suspected residual local mount, manual check required (auto-cleared after free or local device cleanup)"},
     [UBS_ENGINE_ERR_SSU_INSUFFICIENT_SPACE - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBSE_SSU_ERROR_INSUFFICIENT_SPACE", "Insufficient device space (including tenant device quota reached)"},
+    [UBS_ENGINE_ERR_SSU_NAME_DUPLICATED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_SSU_ERROR_NAME_DUPLICATED", "Multiple resourceUuid entries with the same name exist (suspected split-brain residue), operation rejected"},
 };
 
 #ifdef __cplusplus

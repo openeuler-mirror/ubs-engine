@@ -85,7 +85,8 @@ public:
     uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                         UbseSsuAllocResult &result) override;
 
-    uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) override;
+    uint32_t FreeSpace(const std::string &name, const std::string &resourceUuid,
+                       const UbseSsuAllocIdentityInfo &identity) override;
 
     uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths) override;
 
@@ -112,7 +113,7 @@ public:
 
     uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result, const UbseSsuAllocIdentityInfo &identity) override;
 
-    uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+    uint32_t GetAllocInfoByName(const std::string &name, std::vector<UbseSsuAllocResult> &results,
                                 const UbseSsuAllocIdentityInfo &identity) override;
 
     uint32_t GetConnectInfo(const std::string &name, const UbseSsuVfe *vfe,
@@ -122,10 +123,12 @@ public:
     // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回所需字段(defaultNqn/jettyId/guid)
     // identity校验先于幂等/state判断，防止幂等分支向非属主泄露nsDevPath/devPath
     // requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断
+    // resourceUuid：detach精确卸载路径非空（按(name, resourceUuid)定位，跳过多uuid歧义拒绝），attach恒为空
     uint32_t VerifyAttachDetachPrecondition(const std::string& name, const UbseSsuAllocIdentityInfo& identity,
                                             const std::string& requestNodeId,
                                             const ubse::ssu::message::UbseSsuAttachDetachVerifyOption& option,
-                                            ubse::ssu::message::UbseSsuAttachDetachVerifyResp& verifyResp);
+                                            ubse::ssu::message::UbseSsuAttachDetachVerifyResp& verifyResp,
+                                            const std::string& resourceUuid = "");
 
     // 设备故障周期增量对账
     void ReconcileSpaceFaultStates(const std::vector<UbseSsuDevInfo> &devList);
@@ -159,7 +162,8 @@ private:
     uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                           UbseSsuAllocResult &result);
 
-    uint32_t ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
+    uint32_t ExecuteFree(const std::string &name, const std::string &resourceUuid,
+                         const UbseSsuAllocIdentityInfo &identity);
 
     uint32_t ExecuteScheduler(const UbseSsuAllocSpaceReq &req,
                               std::vector<std::pair<std::string, uint64_t>> &eidNsSizeList);

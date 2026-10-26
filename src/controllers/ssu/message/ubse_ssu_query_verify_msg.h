@@ -122,7 +122,8 @@ struct UbseSsuGetAllocInfoReq {
 struct UbseSsuGetAllocInfoResp {
     std::string requestId;
     uint32_t errorCode{0};
-    UbseSsuAllocResult result; // master端直接返回完整的分配结果
+    // 同名多个resourceUuid（脑裂合并遗留）时逐条返回
+    std::vector<UbseSsuAllocResult> results;
 };
 
 class UbseSsuGetAllocInfoReqMsg : public ubse::com::UbseRpcMessage {

@@ -198,6 +198,7 @@ void BuildAllocSpaceSuccessResp(UbseHttpResponse &resp, const UbseSsuAllocResult
 
     rapidjson::Value data(rapidjson::kObjectType);
     data.AddMember("name", rapidjson::Value(result.name.c_str(), allocator), allocator);
+    data.AddMember("resourceUuid", rapidjson::Value(result.resourceUuid.c_str(), allocator), allocator);
     data.AddMember("strategy", static_cast<uint8_t>(result.strategy), allocator);
 
     rapidjson::Value nsList(rapidjson::kArrayType);
@@ -313,7 +314,8 @@ uint32_t FreeSpaceHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
         return UBSE_ERR_IPC_SERVICE_UNAVAILABLE;
     }
 
-    auto ret = ssuService->FreeSpace(name, identity);
+    // HTTP接口语义为释放name下全部空间（resourceUuid传空串），精确释放走SDK/CLI的free by resource uuid
+    auto ret = ssuService->FreeSpace(name, "", identity);
     // 释放不存在的空间返回成功（幂等性保证）
     if (ret != UBSE_OK && ret != UBSE_ERR_NOT_EXIST) {
         UBSE_LOG_ERROR << "FreeSpace failed, name=" << name << ", ret=" << ret;
