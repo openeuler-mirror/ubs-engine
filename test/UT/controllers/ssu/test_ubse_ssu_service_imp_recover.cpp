@@ -1427,7 +1427,7 @@ UbseSsuNameSpaceInfo MakeGuardNsInfo(const std::string &eid, uint32_t nsId)
 }
 
 void PutGuardEntry(const std::string &name, UbseSsuAllocStrategy strategy, UbseSsuNsState state,
-                   bool restoredFromHardware = false, size_t nsCount = 0)
+                   bool restoredFromHardware = false, size_t nsCount = 0, bool syncNsToCache = false)
 {
     UbseSsuLedgerEntry entry{};
     entry.name = name;
@@ -1437,7 +1437,17 @@ void PutGuardEntry(const std::string &name, UbseSsuAllocStrategy strategy, UbseS
     entry.restoredFromHardware = restoredFromHardware;
     for (uint32_t i = 1; i <= static_cast<uint32_t>(nsCount); ++i) {
         auto eid = "eid_grd_" + std::to_string(10000000 + i); // "eid_grd_10000001"恰16字符
-        entry.allocResult.nameSpaceList.push_back(MakeGuardNsInfo(eid, i));
+        if (syncNsToCache) {
+            // attach入口身份预校验先于守卫判断且需从缓存读取NS customData：
+            // 缓存与账本NS须同源构造（uuid经StrToUuid规范格式才能与缓存比对命中），
+            // uid/userName留空与请求默认identity（空值）天然匹配
+            auto ns = UbseSsuServiceImpTestBase::MakeNsForCache(eid, "nqn.tgt.guard", i, 4096, std::string(16, '\xAB'),
+                                                                std::string(16, '\xAB'), 0, "");
+            UbseSsuServiceImpTestBase::AddNsToCollectorCache(ns);
+            entry.allocResult.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns));
+        } else {
+            entry.allocResult.nameSpaceList.push_back(MakeGuardNsInfo(eid, i));
+        }
     }
     UbseSsuDebtLedger::GetInstance().Put(name, std::make_shared<const UbseSsuLedgerEntry>(entry));
 }
@@ -1492,7 +1502,7 @@ TEST_F(TestUbseSsuServiceImpRecover, MasterLocalAttachFaultedRejected)
 TEST_F(TestUbseSsuServiceImpRecover, MasterLocalAttachSuspectedGuardExclusive)
 {
     PutGuardEntry("space_sus_l", UbseSsuAllocStrategy::LINEAR, UbseSsuNsState::CREATED);
-    PutGuardEntry("space_sus_s", UbseSsuAllocStrategy::STRIPED, UbseSsuNsState::CREATED, false, 2);
+    PutGuardEntry("space_sus_s", UbseSsuAllocStrategy::STRIPED, UbseSsuNsState::CREATED, false, 2, true);
     {
         std::lock_guard<std::mutex> lock(service_.suspectedMountTable_.mtx_);
         service_.suspectedMountTable_.suspected_.insert("space_sus_l");
@@ -1501,11 +1511,14 @@ TEST_F(TestUbseSsuServiceImpRecover, MasterLocalAttachSuspectedGuardExclusive)
 
     std::vector<std::string> nsDevPaths;
     std::string devPath;
+    // UbseSsuAllocIdentityInfo.uid无默认初始化器，须显式置空（uid=0）与守卫NS空customData匹配
     UbseSsuLinearSpaceReq linearReq;
     linearReq.name = "space_sus_l";
+    linearReq.identity = UbseSsuAllocIdentityInfo{};
     EXPECT_EQ(service_.AttachLinearSpace(linearReq, nsDevPaths, devPath), UBSE_SSU_ERROR_MOUNT_SUSPECTED);
     UbseSsuStripedSpaceReq stripedReq;
     stripedReq.name = "space_sus_s";
+    stripedReq.identity = UbseSsuAllocIdentityInfo{};
     EXPECT_EQ(service_.AttachStripedSpace(stripedReq, nsDevPaths, devPath), UBSE_SSU_ERROR_MOUNT_SUSPECTED);
 }
 
@@ -1524,16 +1537,20 @@ TEST_F(TestUbseSsuServiceImpRecover, MasterLocalAttachWindowGuardRestoredSpace)
     ASSERT_TRUE(UbseSsuDebtLedger::GetInstance().IsInReconcileWindow());
 
     // Rebuild生成的LINEAR硬件恢复条目（CREATED+restoredFromHardware）：窗口内master本地attach被拒
+    // （请求携带属主identity以通过前置身份校验，winNs customData为uid=100/test_user）
     std::vector<std::string> nsDevPaths;
     std::string devPath;
     UbseSsuLinearSpaceReq linearReq;
     linearReq.name = "space_win3_act";
+    linearReq.identity = MakeIdentity();
     EXPECT_EQ(service_.AttachLinearSpace(linearReq, nsDevPaths, devPath), UBSE_SSU_ERROR_MASTER_NOT_READY);
 
     // 同窗口手工STRIPED硬件恢复条目：同样被拒（覆盖striped入口接线，条带化参数校验已通过）
-    PutGuardEntry("space_win3_s", UbseSsuAllocStrategy::STRIPED, UbseSsuNsState::CREATED, true, 2);
+    PutGuardEntry("space_win3_s", UbseSsuAllocStrategy::STRIPED, UbseSsuNsState::CREATED, true, 2, true);
     UbseSsuStripedSpaceReq stripedReq;
     stripedReq.name = "space_win3_s";
+    // UbseSsuAllocIdentityInfo.uid无默认初始化器，须显式置空（uid=0）与守卫NS空customData匹配
+    stripedReq.identity = UbseSsuAllocIdentityInfo{};
     EXPECT_EQ(service_.AttachStripedSpace(stripedReq, nsDevPaths, devPath), UBSE_SSU_ERROR_MASTER_NOT_READY);
 
     // NORMAL多节点共挂无独占双重挂载竞态，不设该守卫（挂载继续走正常流程）
