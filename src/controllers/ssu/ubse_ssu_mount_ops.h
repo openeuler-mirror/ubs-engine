@@ -71,8 +71,11 @@ uint32_t RemountLocal(const persist::UbseSsuAttachRecord &record);
 void CleanupLocalMount(const persist::UbseSsuAttachRecord &record);
 
 // agent端发送SSU状态更新RPC请求到master节点
+// resourceUuid：复合键精确上报（master按(name, resourceUuid)定位账本条目）；
+// 空（旧记录）时master按name维度兼容解析
 uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state,
-                          const std::string &devName, const std::string &nodeId);
+                          const std::string &devName, const std::string &nodeId,
+                          const std::string &resourceUuid = "");
 
 // master以账本allocResult+collector缓存补齐完整挂载记录
 // （RunMountReconcile本机直平反向补记录/远端REMOUNT项首发补齐共用）。

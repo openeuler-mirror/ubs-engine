@@ -363,7 +363,8 @@ TEST_F(TestUbseSsuServiceImpRecover, MasterLedgerEntryGoneSelfHeal)
     unlink(devPath.c_str());
 }
 
-// UT12：agent重报收到SPACE_NOT_FOUND → 本地清理+记录删除
+// UT12：agent重报收到SPACE_NOT_FOUND → 纯重试不自愈清理（SPACE_NOT_FOUND可能是条目待收编
+// 而非确已free，误清会拆掉在用挂载；清理交由周期对账CLEANUP收敛，重试耗尽保留记录）
 TEST_F(TestUbseSsuServiceImpRecover, AgentReportSpaceNotFoundSelfHeal)
 {
     const std::string devPath = "/tmp/ubse_ssut_recover_agent_gone_dev";
@@ -375,9 +376,9 @@ TEST_F(TestUbseSsuServiceImpRecover, AgentReportSpaceNotFoundSelfHeal)
     g_mockStatusUpdateResult = UBSE_SSU_ERROR_SPACE_NOT_FOUND;
 
     EXPECT_EQ(service_.RecoverLocalAttachments(), UBSE_OK);
-    EXPECT_EQ(g_statusUpdateCallCount, 1u);
-    EXPECT_EQ(GetRecords().size(), 0u); // 记录删除
-    EXPECT_EQ(g_detachCallCount.load(), 1); // 本地NS清理
+    EXPECT_EQ(g_statusUpdateCallCount, 5u); // 与MASTER_NOT_READY同款纯重试
+    EXPECT_EQ(GetRecords().size(), 1u); // 记录保留，交由对账CLEANUP收敛
+    EXPECT_EQ(g_detachCallCount.load(), 0); // 不自愈清理
     unlink(devPath.c_str());
 }
 
@@ -1071,14 +1072,15 @@ TEST_F(TestUbseSsuServiceImpRecover, NodeUpClearsOfflineRecordAndDownIdempotent)
 
 namespace {
 
-// 摘要项（{name, recordState, devName}，不含nsList明细）
+// 摘要项（{name, recordState, devName, resourceUuid}，不含nsList明细）
 UbseSsuMountSummaryItem MakeSummaryItem(const std::string &name, UbseSsuAttachRecordState state,
-                                        const std::string &devName = "")
+                                        const std::string &devName = "", const std::string &resourceUuid = "")
 {
     UbseSsuMountSummaryItem item;
     item.name = name;
     item.recordState = state;
     item.devName = devName;
+    item.resourceUuid = resourceUuid;
     return item;
 }
 
@@ -1166,6 +1168,161 @@ TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffRules)
     EXPECT_EQ(FindReconcileItem(items, "sp_suspect"), nullptr);
     EXPECT_EQ(FindReconcileItem(items, "sp_faulted"), nullptr);
     EXPECT_EQ(FindReconcileItem(items, "sp_devdrift"), nullptr);
+}
+
+// UT24-9：diff复合键精确匹配——
+// agent记录uuid与账本一致→无平账项；uuid不一致（同名free后重分配旧代残留）→REMOUNT且携带账本新代uuid；
+// 同名双条目（脑裂合并遗留）按uuid各自精确归属不跨条目误配；CLEANUP项携带agent记录uuid（回报精确归属）；
+// 不期望挂载方向+记录uuid异于账本uuid→不自动清理（防同名多代并存误清活挂载），仅告警人工介入，无平账项；
+// 同名双条目收编后形态+记录uuid被另一条目跟踪→归属核验静默跳过，不告警不清理，无平账项
+TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffCompoundKeyMatch)
+{
+    const std::string nodeId = "nodeA";
+    const std::string uuidV1 = "0198f7a1-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    const std::string uuidV2 = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+
+    // 一致：期望挂载且agent记录uuid与账本一致 → 无平账项
+    auto sameEntry = MakeAttachedEntry("sp_ck_same", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    sameEntry.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_same", std::make_shared<const UbseSsuLedgerEntry>(sameEntry));
+
+    // 旧代残留：期望挂载但agent记录uuid与账本不一致 → REMOUNT（携带账本新代uuid）
+    auto staleEntry = MakeAttachedEntry("sp_ck_stale", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    staleEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_stale", std::make_shared<const UbseSsuLedgerEntry>(staleEntry));
+
+    // 同名双条目（脑裂合并遗留）：U1期望本节点、U2归属未知；agent记录uuid=U2
+    // → U1按uuid无匹配记录REMOUNT、U2精确命中走REPORT，不跨条目误配
+    auto dupEntry1 = MakeAttachedEntry("sp_ck_dup", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    dupEntry1.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_dup", std::make_shared<const UbseSsuLedgerEntry>(dupEntry1));
+    auto dupEntry2 = MakeAttachedEntry("sp_ck_dup", UbseSsuAllocStrategy::NORMAL, {});
+    dupEntry2.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_dup", std::make_shared<const UbseSsuLedgerEntry>(dupEntry2));
+    // 前提保护：账本为(name,uuid)复合键，同名两次Put必须各自成条（若退化为name单键覆盖，
+    // 此断言即红，避免双条目场景空转误报覆盖）
+    ASSERT_EQ(UbseSsuDebtLedger::GetInstance().GetByName("sp_ck_dup").size(), 2U);
+
+    // 旧代残留·不期望挂载方向：账本新代条目attachNodes不含本节点，agent持有旧代uuid挂载
+    // → 不自动清理（同名多代并存场景存在误清活挂载风险，如本用例sp_ck_dup双条目形态），
+    // 仅输出StaleGenerationAlarm告警人工介入，不产生平账项
+    auto staleUnexpEntry = MakeAttachedEntry("sp_ck_stale_unexp", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    staleUnexpEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_stale_unexp",
+                                         std::make_shared<const UbseSsuLedgerEntry>(staleUnexpEntry));
+
+    // 同名双条目+记录uuid被另一条目跟踪（收编后形态）：U1期望本节点、U2归属他节点，
+    // agent持有U1活挂载 → U1自身diff视为一致，U2条目不告警不清理（uuid被U1条目跟踪，
+    // 不满足"真旧代已free"前提）
+    auto trackedEntry1 = MakeAttachedEntry("sp_ck_tracked", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    trackedEntry1.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_tracked",
+                                         std::make_shared<const UbseSsuLedgerEntry>(trackedEntry1));
+    auto trackedEntry2 = MakeAttachedEntry("sp_ck_tracked", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    trackedEntry2.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_tracked",
+                                         std::make_shared<const UbseSsuLedgerEntry>(trackedEntry2));
+    // 前提保护：同上，双条目必须各自成条
+    ASSERT_EQ(UbseSsuDebtLedger::GetInstance().GetByName("sp_ck_tracked").size(), 2U);
+
+    UbseSsuMountSummaryResp summary;
+    summary.items.push_back(MakeSummaryItem("sp_ck_same", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_stale", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_dup", UbseSsuAttachRecordState::ATTACHED, "", uuidV2));
+    summary.items.push_back(MakeSummaryItem("sp_ck_stale_unexp", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_tracked", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    // 账本无（已free）+记录带uuid：CLEANUP项携带agent记录uuid
+    summary.items.push_back(MakeSummaryItem("sp_ck_freed", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+
+    std::vector<UbseSsuReconcileItem> items;
+    DiffNodeMountSummary(nodeId, summary, items);
+
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_same"), nullptr);
+
+    auto *staleItem = FindReconcileItem(items, "sp_ck_stale");
+    ASSERT_NE(staleItem, nullptr);
+    EXPECT_EQ(staleItem->action, UbseSsuReconcileAction::REMOUNT);
+    EXPECT_EQ(staleItem->resourceUuid, uuidV2);
+
+    std::vector<const UbseSsuReconcileItem *> dupItems;
+    for (const auto &item : items) {
+        if (item.name == "sp_ck_dup") {
+            dupItems.push_back(&item);
+        }
+    }
+    ASSERT_EQ(dupItems.size(), 2U);
+    bool foundRemountU1 = false;
+    bool foundReportU2 = false;
+    for (const auto *item : dupItems) {
+        if (item->action == UbseSsuReconcileAction::REMOUNT && item->resourceUuid == uuidV1) {
+            foundRemountU1 = true;
+        }
+        if (item->action == UbseSsuReconcileAction::REPORT && item->resourceUuid == uuidV2) {
+            foundReportU2 = true;
+        }
+    }
+    EXPECT_TRUE(foundRemountU1);
+    EXPECT_TRUE(foundReportU2);
+
+    auto *freedItem = FindReconcileItem(items, "sp_ck_freed");
+    ASSERT_NE(freedItem, nullptr);
+    EXPECT_EQ(freedItem->action, UbseSsuReconcileAction::CLEANUP);
+    EXPECT_EQ(freedItem->resourceUuid, uuidV1);
+
+    // 旧代残留·不期望挂载方向：不自动清理，无平账项（uuid不匹配交由人工介入）
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_stale_unexp"), nullptr);
+
+    // 同名双条目收编后形态：记录uuid被另一同名条目跟踪，不告警不清理，无平账项
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_tracked"), nullptr);
+}
+
+// UT24-10：diff空uuid兼容语义（升级期混合形态锁定）——
+// 账本uuid非空+同名唯一记录uuid为空（升级前落盘旧记录）→ 回落name匹配不误判漂移（无REMOUNT风暴）；
+// 账本uuid为空+记录uuid非空 → 不与新代记录强配，走幂等REMOUNT保活（空uuid账本条目升级期遗留）；
+// 不期望挂载方向+记录uuid为空 → 走REPORT而非旧代兜底CLEANUP（升级期活挂载不被误清）
+TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffEmptyUuidCompat)
+{
+    const std::string nodeId = "nodeA";
+    const std::string uuidV1 = "0198f7a1-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    const std::string uuidV2 = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+
+    // 方向1：账本uuid非空 + 记录uuid为空（升级前旧记录）→ 回落name匹配，无平账项
+    auto hitEntry = MakeAttachedEntry("sp_upg_hit", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    hitEntry.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_hit", std::make_shared<const UbseSsuLedgerEntry>(hitEntry));
+
+    // 方向2：账本uuid为空（升级期遗留条目）+ 记录uuid非空 → 不强配，REMOUNT幂等保活
+    auto revEntry = MakeAttachedEntry("sp_upg_rev", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_rev", std::make_shared<const UbseSsuLedgerEntry>(revEntry));
+
+    // 方向3：账本uuid非空且不期望本节点 + 记录uuid为空 → REPORT兜底而非CLEANUP
+    auto unexpEntry = MakeAttachedEntry("sp_upg_unexp", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    unexpEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_unexp",
+                                         std::make_shared<const UbseSsuLedgerEntry>(unexpEntry));
+
+    UbseSsuMountSummaryResp summary;
+    summary.items.push_back(MakeSummaryItem("sp_upg_hit", UbseSsuAttachRecordState::ATTACHED, ""));
+    summary.items.push_back(MakeSummaryItem("sp_upg_rev", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_upg_unexp", UbseSsuAttachRecordState::ATTACHED, ""));
+
+    std::vector<UbseSsuReconcileItem> items;
+    DiffNodeMountSummary(nodeId, summary, items);
+
+    // 方向1：回落name匹配视为一致，不产生REMOUNT
+    EXPECT_EQ(FindReconcileItem(items, "sp_upg_hit"), nullptr);
+
+    // 方向2：空uuid账本条目与记录非空uuid不强配，REMOUNT且项uuid为空（与账本一致）
+    auto *revItem = FindReconcileItem(items, "sp_upg_rev");
+    ASSERT_NE(revItem, nullptr);
+    EXPECT_EQ(revItem->action, UbseSsuReconcileAction::REMOUNT);
+    EXPECT_TRUE(revItem->resourceUuid.empty());
+
+    // 方向3：空uuid记录走REPORT非破坏性补报，不触发旧代兜底CLEANUP
+    auto *unexpItem = FindReconcileItem(items, "sp_upg_unexp");
+    ASSERT_NE(unexpItem, nullptr);
+    EXPECT_EQ(unexpItem->action, UbseSsuReconcileAction::REPORT);
+    EXPECT_EQ(unexpItem->resourceUuid, uuidV2);
 }
 
 // UT24-2：BuildRecordFromLedger——以账本allocResult+collector缓存补齐完整记录

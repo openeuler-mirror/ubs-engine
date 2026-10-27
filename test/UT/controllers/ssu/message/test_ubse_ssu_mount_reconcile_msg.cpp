@@ -38,6 +38,7 @@ UbseSsuAttachRecord MakeFullRecord()
 {
     UbseSsuAttachRecord record{};
     record.name = "sp_reconcile_serde";
+    record.resourceUuid = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
     record.strategy = UbseSsuAllocStrategy::STRIPED;
     record.recordState = UbseSsuAttachRecordState::SUSPECT;
     record.devName = "agg_dev_serde";
@@ -99,6 +100,7 @@ TEST_F(TestUbseSsuMountReconcileMsg, SummaryRespRoundTrip)
     item1.name = "sp_attached";
     item1.recordState = UbseSsuAttachRecordState::ATTACHED;
     item1.devName = "agg_dev_1";
+    item1.resourceUuid = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
     UbseSsuMountSummaryItem item2;
     item2.name = "sp_pending";
     item2.recordState = UbseSsuAttachRecordState::PENDING;
@@ -121,6 +123,7 @@ TEST_F(TestUbseSsuMountReconcileMsg, SummaryRespRoundTrip)
     EXPECT_EQ("sp_attached", out.items[0].name);
     EXPECT_EQ(UbseSsuAttachRecordState::ATTACHED, out.items[0].recordState);
     EXPECT_EQ("agg_dev_1", out.items[0].devName);
+    EXPECT_EQ("0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f", out.items[0].resourceUuid);
     EXPECT_EQ(UbseSsuAttachRecordState::PENDING, out.items[1].recordState);
     EXPECT_EQ(UbseSsuAttachRecordState::SUSPECT, out.items[2].recordState);
 }
@@ -137,6 +140,7 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqRoundTrip)
     UbseSsuReconcileReq req;
     UbseSsuReconcileItem light;
     light.name = "sp_light";
+    light.resourceUuid = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f"; // master下发时已知的账本uuid
     light.action = UbseSsuReconcileAction::REMOUNT; // 轻量首发
     UbseSsuReconcileItem refill;
     refill.name = "sp_refill";
@@ -145,6 +149,7 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqRoundTrip)
     refill.record = fullRecord;
     UbseSsuReconcileItem cleanup;
     cleanup.name = "sp_cleanup";
+    cleanup.resourceUuid = "0198f7a3-3b4c-7c5e-9f01-2a3b4c5d6e7f";
     cleanup.action = UbseSsuReconcileAction::CLEANUP;
     UbseSsuReconcileItem report;
     report.name = "sp_report";
@@ -162,6 +167,7 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqRoundTrip)
     const auto &out = deserialized.GetReconcileReq();
     ASSERT_EQ(4U, out.items.size());
     EXPECT_EQ("sp_light", out.items[0].name);
+    EXPECT_EQ("0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f", out.items[0].resourceUuid);
     EXPECT_EQ(UbseSsuReconcileAction::REMOUNT, out.items[0].action);
     EXPECT_FALSE(out.items[0].hasRecord);
 
@@ -189,8 +195,10 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqRoundTrip)
     EXPECT_EQ(fullRecord.nsVerifyList[0].jettyId, record.nsVerifyList[0].jettyId);
     EXPECT_EQ(fullRecord.nsVerifyList[0].guid, record.nsVerifyList[0].guid);
     EXPECT_EQ(fullRecord.attachedAt, record.attachedAt);
+    EXPECT_EQ(fullRecord.resourceUuid, record.resourceUuid);
 
     EXPECT_EQ(UbseSsuReconcileAction::CLEANUP, out.items[2].action);
+    EXPECT_EQ("0198f7a3-3b4c-7c5e-9f01-2a3b4c5d6e7f", out.items[2].resourceUuid);
     EXPECT_EQ(UbseSsuReconcileAction::REPORT, out.items[3].action);
 }
 
@@ -236,6 +244,33 @@ TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqEmptyIdentityRejected)
 {
     auto record = MakeFullRecord();
     record.identity = {}; // 模拟账本重建未补identity
+
+    UbseSsuReconcileReq req;
+    UbseSsuReconcileItem item;
+    item.name = record.name;
+    item.action = UbseSsuReconcileAction::REMOUNT;
+    item.hasRecord = true;
+    item.record = std::move(record);
+    req.items.push_back(std::move(item));
+
+    UbseSsuReconcileReqMsg original(req);
+    std::unique_ptr<uint8_t[]> buffer;
+    uint32_t bufferSize = 0;
+    ASSERT_EQ(UBSE_OK, original.Serialize(buffer, bufferSize));
+
+    UbseSsuReconcileReqMsg deserialized;
+    EXPECT_NE(UBSE_OK, deserialized.Deserialize(buffer.get(), bufferSize));
+}
+
+/*
+ * 用例描述：REMOUNT首发记录resourceUuid含越界字符（非[0-9a-f-]白名单）→ 字段校验失败拒收
+ * 预期结果：整个对账请求反序列化失败（IsRecordFieldsValid对非空uuid执行系列白名单口径，
+ * 与CLI/SDK四端对齐，非法uuid不得参与(name, resourceUuid)复合键语义）
+ */
+TEST_F(TestUbseSsuMountReconcileMsg, ReconcileReqIllegalUuidRejected)
+{
+    auto record = MakeFullRecord();
+    record.resourceUuid = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7G"; // 'G'越界白名单
 
     UbseSsuReconcileReq req;
     UbseSsuReconcileItem item;

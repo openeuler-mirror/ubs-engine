@@ -49,6 +49,33 @@ TEST_F(TestUbseSsuStatusUpdateMsg, ReqRoundTrip)
     EXPECT_EQ(UbseSsuNsState::CREATED, req.state);
     EXPECT_EQ("dev_ssd0", req.devName);
     EXPECT_EQ("node_001", req.nodeId);
+    EXPECT_TRUE(req.resourceUuid.empty()); // 未携带uuid时反序列化为空串（兼容解析语义）
+}
+
+/*
+ * 用例描述：测试尾部追加的resourceUuid字段编解码往返（复合键精确上报）
+ * 预期结果：resourceUuid往返一致
+ */
+TEST_F(TestUbseSsuStatusUpdateMsg, ReqRoundTripWithResourceUuid)
+{
+    UbseSsuStatusReqMsg original("uuid_status", UbseSsuNsState::ATTACHED, "dev_ssd0", "node_001",
+                                 "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f");
+
+    std::unique_ptr<uint8_t[]> buffer;
+    uint32_t bufferSize = 0;
+    ASSERT_EQ(UBSE_OK, original.Serialize(buffer, bufferSize));
+    ASSERT_NE(nullptr, buffer);
+    ASSERT_GT(bufferSize, 0);
+
+    UbseSsuStatusReqMsg deserialized;
+    ASSERT_EQ(UBSE_OK, deserialized.Deserialize(buffer.get(), bufferSize));
+
+    const auto &req = deserialized.GetStatusUpdateReq();
+    EXPECT_EQ("uuid_status", req.requestName);
+    EXPECT_EQ(UbseSsuNsState::ATTACHED, req.state);
+    EXPECT_EQ("dev_ssd0", req.devName);
+    EXPECT_EQ("node_001", req.nodeId);
+    EXPECT_EQ("0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f", req.resourceUuid);
 }
 
 /*

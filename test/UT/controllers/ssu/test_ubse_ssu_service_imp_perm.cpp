@@ -545,13 +545,19 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NsNotInCache)
 
 /*
  * 用例：VerifyAttachDetachPrecondition_NotMatch
- * identity 不匹配，返回 UBSE_ERR_ACCESS_DENIED。
+ * identity 不匹配，返回 UBSE_ERR_ACCESS_DENIED；
+ * 失败响应零回填：resourceUuid不得携带账本属主属性（防非属主探测空间存在性与跨租户定位键）
  */
 TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NotMatch)
 {
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     AddNsToCollectorCache(ns1);
-    SetupPermLedger("test_verify_not_match", UbseSsuNsState::CREATED, {ns1});
+    UbseSsuAllocResult result;
+    result.name = "test_verify_not_match";
+    result.strategy = UbseSsuAllocStrategy::LINEAR;
+    result.resourceUuid = "0198f7a3-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    result.nameSpaceList.push_back(MakeNameSpaceInfo(ns1));
+    PutLedgerEntry("test_verify_not_match", UbseSsuNsState::CREATED, result);
 
     auto differentIdentity = MakeIdentity("other_user", 999);
     ubse::ssu::message::UbseSsuAttachDetachVerifyOption option;
@@ -560,6 +566,8 @@ TEST_F(TestUbseSsuServiceImpPerm, VerifyAttachDetachPrecondition_NotMatch)
     EXPECT_EQ(service_.VerifyAttachDetachPrecondition("test_verify_not_match", differentIdentity, "agent_node_1",
                                                       option, verifyResp),
               UBSE_ERR_ACCESS_DENIED);
+    // FAIL_CLOSED零泄露：非属主被拒响应不得回填resourceUuid（空间存在性+精确上报/free的定位键）
+    EXPECT_TRUE(verifyResp.resourceUuid.empty());
 }
 
 } // namespace ubse::ssu::service::ut

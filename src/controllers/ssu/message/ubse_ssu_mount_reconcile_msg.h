@@ -30,7 +30,8 @@ using UbseSsuAttachRecordState = ubse::ssu::persist::UbseSsuAttachRecordState;
 struct UbseSsuMountSummaryItem {
     std::string name;
     UbseSsuAttachRecordState recordState{UbseSsuAttachRecordState::PENDING};
-    std::string devName; // 聚合块设备名（NORMAL为空）
+    std::string devName;      // 聚合块设备名（NORMAL为空）
+    std::string resourceUuid; // 复合键精确比对：master按(name, resourceUuid)匹配账本条目，序列化尾部追加
 };
 
 // 摘要响应：agent/standby均可响应，返回本机AttachRecordStore全量摘要
@@ -55,7 +56,8 @@ enum class UbseSsuReconcileAction : uint8_t {
 struct UbseSsuReconcileItem {
     std::string name;
     UbseSsuReconcileAction action{UbseSsuReconcileAction::REMOUNT};
-    bool hasRecord{false};        // true时record携带master补齐的完整记录
+    std::string resourceUuid;   // master下发时已知的账本resourceUuid，agent回报状态时按复合键精确上报
+    bool hasRecord{false};      // true时record携带master补齐的完整记录
     UbseSsuAttachRecord record{}; // hasRecord=false时为空壳
     uint32_t result{0};           // agent受理结果（响应方向有效）：UBSE_OK=已受理，
                                   // 实际执行结果经SendStatusUpdate异步回报由master收敛
