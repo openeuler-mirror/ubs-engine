@@ -198,6 +198,25 @@ int32_t ubs_ssu_space_free(const char *name)
         nullptr);
 }
 
+int32_t ubs_ssu_space_free_by_resource_uuid(const char *name, const char *resource_uuid)
+{
+    auto ret = ubs_ssu_name_is_valid(name);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Invalid parameters: name: " << name;
+        return ret;
+    }
+    ret = ubs_ssu_uuid_is_valid(resource_uuid);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Invalid parameters: resource_uuid: " << (resource_uuid == nullptr ? "nullptr" : resource_uuid);
+        return ret;
+    }
+    return ssu_call(UBSE_IPC_SSU_FREE_SPACE,
+                    [name, resource_uuid](ubse_api_buffer_t &buf) {
+                        return ubs_ssu_space_free_by_resource_uuid_pack(name, resource_uuid, buf);
+                    },
+                    nullptr);
+}
+
 int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_paths,
                              uint32_t *ns_dev_path_cnt)
 {
@@ -223,6 +242,25 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req)
     return ssu_call(
         UBSE_IPC_SSU_DETACH_SPACE, [req](ubse_api_buffer_t &buf) { return ubs_ssu_space_detach_pack(req, buf); },
         nullptr);
+}
+
+int32_t ubs_ssu_space_detach_by_resource_uuid(const ubs_ssu_space_req_t *req, const char *resource_uuid)
+{
+    auto ret = ubs_ssu_space_detach_req_validate(req);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "param validate failed, ret: " << ret;
+        return ret;
+    }
+    ret = ubs_ssu_uuid_is_valid(resource_uuid);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Invalid parameters: resource_uuid: " << (resource_uuid == nullptr ? "nullptr" : resource_uuid);
+        return ret;
+    }
+    return ssu_call(UBSE_IPC_SSU_DETACH_SPACE,
+                    [req, resource_uuid](ubse_api_buffer_t &buf) {
+                        return ubs_ssu_space_detach_by_resource_uuid_pack(req, resource_uuid, buf);
+                    },
+                    nullptr);
 }
 
 int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req, char ***ns_dev_paths,
@@ -253,6 +291,25 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req)
         [req](ubse_api_buffer_t &buf) { return ubs_ssu_linear_space_detach_pack(req, buf); }, nullptr);
 }
 
+int32_t ubs_ssu_linear_space_detach_by_resource_uuid(const ubs_ssu_linear_space_req_t *req, const char *resource_uuid)
+{
+    auto ret = ubs_ssu_linear_space_detach_req_validate(req);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "param validate failed, ret: " << ret;
+        return ret;
+    }
+    ret = ubs_ssu_uuid_is_valid(resource_uuid);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Invalid parameters: resource_uuid: " << (resource_uuid == nullptr ? "nullptr" : resource_uuid);
+        return ret;
+    }
+    return ssu_call(UBSE_IPC_SSU_DETACH_LINEAR_SPACE,
+                    [req, resource_uuid](ubse_api_buffer_t &buf) {
+                        return ubs_ssu_linear_space_detach_by_resource_uuid_pack(req, resource_uuid, buf);
+                    },
+                    nullptr);
+}
+
 int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req, char ***ns_dev_paths,
                                      uint32_t *ns_dev_path_cnt, char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH])
 {
@@ -279,6 +336,26 @@ int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req)
     return ssu_call(
         UBSE_IPC_SSU_DETACH_STRIPED_SPACE,
         [req](ubse_api_buffer_t &buf) { return ubs_ssu_striped_space_detach_pack(req, buf); }, nullptr);
+}
+
+int32_t ubs_ssu_striped_space_detach_by_resource_uuid(const ubs_ssu_striped_space_req_t *req,
+                                                      const char *resource_uuid)
+{
+    auto ret = ubs_ssu_striped_space_detach_req_validate(req);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "param validate failed, ret: " << ret;
+        return ret;
+    }
+    ret = ubs_ssu_uuid_is_valid(resource_uuid);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Invalid parameters: resource_uuid: " << (resource_uuid == nullptr ? "nullptr" : resource_uuid);
+        return ret;
+    }
+    return ssu_call(UBSE_IPC_SSU_DETACH_STRIPED_SPACE,
+                    [req, resource_uuid](ubse_api_buffer_t &buf) {
+                        return ubs_ssu_striped_space_detach_by_resource_uuid_pack(req, resource_uuid, buf);
+                    },
+                    nullptr);
 }
 
 int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn)

@@ -90,6 +90,8 @@ typedef struct {
     ubs_ssu_alloc_strategy_t strategy;  // 分配策略
     uint32_t namespace_cnt;             // 命名空间信息数量
     ubs_ssu_namespace_info_t *namespaces; // 命名空间信息列表, 由SDK内部动态分配, 需通过释放接口回收
+    char resource_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 分配唯一标识, 每次分配生成一次, 供精确释放等场景使用;
+                                                 // 置于结构体末尾: 新增字段不改变既有成员偏移, 保持ABI兼容
 } ubs_ssu_alloc_result_t;
 
 // 挂载|卸载存储空间请求参数
@@ -296,6 +298,26 @@ void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result);
 int32_t ubs_ssu_space_free(const char *name);
 
 /**
+ * @brief 按resourceUuid精确释放已分配的存储空间
+ *
+ * 仅释放name下指定resourceUuid对应的那次分配（同名多次分配/脑裂合并遗留场景）。
+ * 可先通过ubs_ssu_alloc_info_list查询到同名多条分配各自的resource_uuid后再精确释放。
+ *
+ * @param name [IN] 要释放的存储空间标识
+ * @param resource_uuid [IN] 分配唯一标识, 由ubs_ssu_space_alloc返回的resource_uuid
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或resource_uuid参数超出范围;
+ * UBS_ERR_INVALID_ARG:resource_uuid包含非法字符, 仅允许[0-9a-f-];
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NO_NEED_FREE:存储空间不存在或已释放(含name下不存在该resourceUuid), 无需释放报错;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_space_free_by_resource_uuid(const char *name, const char *resource_uuid);
+
+/**
  * @brief 添加存储空间访问权限
  *
  * 为指定的Host授予对已分配存储空间的访问权限, 在Target侧将Host NQN添加到子系统的
@@ -388,6 +410,18 @@ int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_path
 int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 
 /**
+ * @brief 按resourceUuid精确卸载存储空间
+ *
+ * 脑裂合并后同名多份分配场景下, 按(name, resource_uuid)复合键精确定位条目卸载,
+ * 跳过同名多resourceUuid的歧义拒绝。resource_uuid未命中报UBS_ENGINE_ERR_NOT_EXIST。
+ *
+ * @param req [IN] 卸载请求参数, 含存储空间标识、Host的NVMe Qualified Name和源EID
+ * @param resource_uuid [IN] 分配唯一标识, 由ubs_ssu_space_alloc返回的resource_uuid
+ * @return 返回值同ubs_ssu_space_detach
+ */
+int32_t ubs_ssu_space_detach_by_resource_uuid(const ubs_ssu_space_req_t *req, const char *resource_uuid);
+
+/**
  * @brief 挂载线性编址的存储空间
  *
  * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
@@ -437,6 +471,19 @@ int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
+
+/**
+ * @brief 按resourceUuid精确卸载线性编址的存储空间
+ *
+ * 脑裂合并后同名多份分配场景下, 按(name, resource_uuid)复合键精确定位条目卸载,
+ * 跳过同名多resourceUuid的歧义拒绝。resource_uuid未命中报UBS_ENGINE_ERR_NOT_EXIST。
+ *
+ * @param req [IN] 卸载请求参数, 含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
+ * @param resource_uuid [IN] 分配唯一标识, 由ubs_ssu_space_alloc返回的resource_uuid
+ * @return 返回值同ubs_ssu_linear_space_detach
+ */
+int32_t ubs_ssu_linear_space_detach_by_resource_uuid(const ubs_ssu_linear_space_req_t *req,
+                                                     const char *resource_uuid);
 
 /**
  * @brief 挂载条带化编址的存储空间
@@ -490,6 +537,19 @@ int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
+
+/**
+ * @brief 按resourceUuid精确卸载条带化编址的存储空间
+ *
+ * 脑裂合并后同名多份分配场景下, 按(name, resource_uuid)复合键精确定位条目卸载,
+ * 跳过同名多resourceUuid的歧义拒绝。resource_uuid未命中报UBS_ENGINE_ERR_NOT_EXIST。
+ *
+ * @param req [IN] 卸载请求参数, 含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
+ * @param resource_uuid [IN] 分配唯一标识, 由ubs_ssu_space_alloc返回的resource_uuid
+ * @return 返回值同ubs_ssu_striped_space_detach
+ */
+int32_t ubs_ssu_striped_space_detach_by_resource_uuid(const ubs_ssu_striped_space_req_t *req,
+                                                      const char *resource_uuid);
 
 /**
  * @brief 获取功能单元设备列表

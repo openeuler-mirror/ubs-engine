@@ -40,6 +40,12 @@ static bool is_valid_dev_name_char(int ch)
     return is_ascii_alnum(ch) || ch == '_' || ch == '/' || ch == '.' || ch == '-';
 }
 
+// 校验resource_uuid仅允许 [0-9a-f-]，与服务端 GenerateUuid 输出格式（小写十六进制+连字符）对齐
+static bool is_valid_uuid_char(int ch)
+{
+    return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || ch == '-';
+}
+
 // 校验可选字符串: 允许为空, 非空时长度不超过 max_len-1（含结尾'\0'）
 static uint32_t ubs_ssu_optional_string_is_valid(const char *s, size_t max_len)
 {
@@ -127,7 +133,7 @@ uint32_t ubs_ssu_eid_is_valid(const char *eid)
     return UBS_SUCCESS;
 }
 
-// 检查uuid是否符合规范: 1-36个字符(缓冲区容量37字节, 含'\0')
+// 检查uuid是否符合规范: 1-36个字符(缓冲区容量37字节, 含'\0'), 仅允许[0-9a-f-]
 uint32_t ubs_ssu_uuid_is_valid(const char *uuid)
 {
     if (uuid == nullptr) {
@@ -138,6 +144,12 @@ uint32_t ubs_ssu_uuid_is_valid(const char *uuid)
     if (len == 0 || len >= UBS_SSU_MAX_UUID_LENGTH) {
         IPC_LOG_ERROR << "validate failed, attr: uuid, ret: " << UBS_ERR_OUT_OF_RANGE;
         return UBS_ERR_OUT_OF_RANGE;
+    }
+    for (const char *p = uuid; *p; p++) {
+        if (!is_valid_uuid_char(static_cast<unsigned char>(*p))) {
+            IPC_LOG_ERROR << "validate failed, attr: uuid, ret: " << UBS_ERR_INVALID_ARG;
+            return UBS_ERR_INVALID_ARG;
+        }
     }
     return UBS_SUCCESS;
 }

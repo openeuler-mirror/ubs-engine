@@ -101,12 +101,14 @@ class UbsSsuNamespaceInfo:
 class UbsSsuAllocResult:
     """分配存储空间结果"""
     name: str = ""  # 请求标识, 最大48个字符
+    resource_uuid: str = ""  # 分配唯一标识, 每次分配生成一次, 供精确释放等场景使用
     strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.NORMAL  # 分配策略
     namespaces: List[UbsSsuNamespaceInfo] = field(default_factory=list)  # 命名空间信息列表
 
     def __str__(self):
         return (
             f"AllocResult(name='{self.name}', "
+            f"resource_uuid='{self.resource_uuid}', "
             f"strategy={self.strategy.name}, "
             f"namespace_cnt={len(self.namespaces)})"
         )
@@ -114,6 +116,7 @@ class UbsSsuAllocResult:
     def to_dict(self) -> dict:
         return {
             'name': self.name,
+            'resource_uuid': self.resource_uuid,
             'strategy': self.strategy.name,
             'namespaces': [ns.to_dict() for ns in self.namespaces],
         }
@@ -136,6 +139,9 @@ class UbsSsuSpaceReq:
     name: str = ""  # 需挂载|卸载的存储空间标识, 最大48个字符
     nqn: str = ""  # Host 的 NVMe Qualified Name
     src_eid: str = ""  # 源EID
+    # 卸载可选: 精确卸载该resource_uuid对应空间(脑裂合并同名多份场景);
+    # None按name解析(同名多份时拒绝); 挂载忽略该字段
+    resource_uuid: Optional[str] = None
 
 
 @dataclass
@@ -145,6 +151,9 @@ class UbsSsuLinearSpaceReq:
     nqn: str = ""  # Host 的 NVMe Qualified Name
     src_eid: str = ""  # 源EID
     dev_name: str = ""  # 聚合后的块设备名称, 由外部指定
+    # 卸载可选: 精确卸载该resource_uuid对应空间(脑裂合并同名多份场景);
+    # None按name解析(同名多份时拒绝); 挂载忽略该字段
+    resource_uuid: Optional[str] = None
 
 
 @dataclass
@@ -156,6 +165,9 @@ class UbsSsuStripedSpaceReq:
     dev_name: str = ""  # 聚合后的块设备名称, 由外部指定
     level: UbsSsuRaidLevel = UbsSsuRaidLevel.RAID0  # RAID级别
     chunk_size: UbsSsuChunkSize = UbsSsuChunkSize.CHUNK_4K  # chunk大小, 单位KB
+    # 卸载可选: 精确卸载该resource_uuid对应空间(脑裂合并同名多份场景);
+    # None按name解析(同名多份时拒绝); 挂载忽略该字段
+    resource_uuid: Optional[str] = None
 
 
 @dataclass

@@ -75,7 +75,8 @@ static void PackNamespaceInfo(PackCtx &ctx, const char *tgtEid, const char *tgtN
 }
 
 /** 构造一个 AllocResultPack 二进制 */
-static void PackAllocResult(PackCtx &ctx, const char *name, uint8_t strategy, uint32_t nsCount)
+static void PackAllocResult(PackCtx &ctx, const char *name, uint8_t strategy, uint32_t nsCount,
+                            const char *resourceUuid = "resource-uuid-001")
 {
     packString(ctx, name, UBS_SSU_MAX_NAME_LENGTH - 1);
     packValue(ctx, strategy);
@@ -84,6 +85,8 @@ static void PackAllocResult(PackCtx &ctx, const char *name, uint8_t strategy, ui
         PackNamespaceInfo(ctx, "tgt_eid", "nqn.tgt", "uuid-ns-001", 1, "/dev/ns1", 1ULL * 1024 * 1024 * 1024,
                           static_cast<uint32_t>(UBS_SSU_LBA_FORMAT_4K), 1, "nqn.host1");
     }
+    // 尾部追加字段: resourceUuid, 与服务端 AllocResultPack 顺序对应
+    packString(ctx, resourceUuid, UBS_SSU_MAX_UUID_LENGTH - 1);
 }
 
 // ============================================================================
@@ -491,8 +494,59 @@ TEST(SsuSpaceAllocUnpack, ValidBufferUnpacksCorrectly)
     EXPECT_EQ(result->namespaces[0].nqn_count, 1U);
     ASSERT_NE(result->namespaces[0].host_nqns, nullptr);
     EXPECT_NE(result->namespaces[0].host_nqns[0], nullptr);
+    EXPECT_STREQ(result->resource_uuid, "resource-uuid-001");
     ubs_ssu_alloc_info_free(&result);
     EXPECT_EQ(result, nullptr);
+    ubse_api_buffer_free(&buf);
+}
+
+// ---------- ubs_ssu_alloc_info_list_unpack ----------
+
+// 两条目编解码往返：第二条目uuid/策略与首条不同，尾部追加字段（resourceUuid）错读
+// 会污染后续条目布局并被断言捕获，防止uuid后第二条目整体错位
+TEST(SsuAllocInfoListUnpack, TwoItemsRoundTripKeepsFieldsAligned)
+{
+    auto buf = BuildBuffer(1024, [](PackCtx &ctx) {
+        packValue(ctx, static_cast<uint32_t>(2));
+        PackAllocResult(ctx, "alloc_first", static_cast<uint8_t>(UBS_SSU_ALLOC_STRATEGY_LINEAR), 1);
+        PackAllocResult(ctx, "alloc_second", static_cast<uint8_t>(UBS_SSU_ALLOC_STRATEGY_STRIPED), 1,
+                        "resource-uuid-002");
+    });
+    ubs_ssu_alloc_result_t *results = nullptr;
+    uint32_t result_cnt = 0;
+    EXPECT_EQ(ubs_ssu_alloc_info_list_unpack(buf, &results, &result_cnt), UBS_SUCCESS);
+    ASSERT_NE(results, nullptr);
+    EXPECT_EQ(result_cnt, 2U);
+    EXPECT_STREQ(results[0].name, "alloc_first");
+    EXPECT_EQ(results[0].strategy, UBS_SSU_ALLOC_STRATEGY_LINEAR);
+    EXPECT_STREQ(results[0].resource_uuid, "resource-uuid-001");
+    EXPECT_EQ(results[0].namespace_cnt, 1U);
+    EXPECT_STREQ(results[1].name, "alloc_second");
+    EXPECT_EQ(results[1].strategy, UBS_SSU_ALLOC_STRATEGY_STRIPED);
+    EXPECT_STREQ(results[1].resource_uuid, "resource-uuid-002");
+    EXPECT_EQ(results[1].namespace_cnt, 1U);
+    ubs_ssu_alloc_info_list_free(&results, result_cnt);
+    EXPECT_EQ(results, nullptr);
+    ubse_api_buffer_free(&buf);
+}
+
+// 第二条目尾部resourceUuid被截断时应整体失败且不残留：已解包条目内部资源
+// 由实现回滚释放，出参归零，调用方free对nullptr安全
+TEST(SsuAllocInfoListUnpack, TruncatedSecondItemReturnsErrorAndCleansUp)
+{
+    auto buf = BuildBuffer(1024, [](PackCtx &ctx) {
+        packValue(ctx, static_cast<uint32_t>(2));
+        PackAllocResult(ctx, "alloc_first", static_cast<uint8_t>(UBS_SSU_ALLOC_STRATEGY_LINEAR), 1);
+        PackAllocResult(ctx, "alloc_second", static_cast<uint8_t>(UBS_SSU_ALLOC_STRATEGY_STRIPED), 1);
+    });
+    ASSERT_GT(buf.length, 16U);
+    buf.length -= 16; // 截断第二条目尾部resourceUuid字段
+    ubs_ssu_alloc_result_t *results = nullptr;
+    uint32_t result_cnt = 0;
+    EXPECT_NE(ubs_ssu_alloc_info_list_unpack(buf, &results, &result_cnt), UBS_SUCCESS);
+    EXPECT_EQ(results, nullptr);
+    EXPECT_EQ(result_cnt, 0U);
+    ubs_ssu_alloc_info_list_free(&results, result_cnt); // 对nullptr安全，无二次释放
     ubse_api_buffer_free(&buf);
 }
 
@@ -560,6 +614,7 @@ TEST(SsuAllocInfoListUnpack, ValidListUnpacksCorrectly)
     EXPECT_EQ(cnt, 1U);
     ASSERT_NE(results, nullptr);
     EXPECT_STREQ(results[0].name, "list_result_1");
+    EXPECT_STREQ(results[0].resource_uuid, "resource-uuid-001");
     ubs_ssu_alloc_info_list_free(&results, cnt);
     EXPECT_EQ(results, nullptr);
     ubse_api_buffer_free(&buf);
