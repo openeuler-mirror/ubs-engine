@@ -34,6 +34,29 @@ public:
     static UbseResult ModifyEffectiveCapabilities(std::vector<__u32>& caps, bool isAdd);
 };
 
+/*
+ * 能力位的 RAII 守卫：构造时把能力加入有效集，析构时移出。
+ * 即使中间调用的外部库抛异常，权限也会在栈展开时被收起，不会一直留在有效集里。
+ * 需要提前收起时（比如只想包住一次调用）显式调用 Disable。
+ */
+class CapabilityGuard final {
+public:
+    explicit CapabilityGuard(const std::vector<__u32>& caps);
+    ~CapabilityGuard();
+
+    CapabilityGuard(const CapabilityGuard&) = delete;
+    CapabilityGuard& operator=(const CapabilityGuard&) = delete;
+    CapabilityGuard(CapabilityGuard&&) = delete;
+    CapabilityGuard& operator=(CapabilityGuard&&) = delete;
+
+    void Disable();
+    [[nodiscard]] bool IsEnabled() const;
+
+private:
+    std::vector<__u32> caps_;
+    bool enabled_{false};
+};
+
 } // namespace ubse::security
 
 #endif // UBSE_SECURITY_MODULE_H
