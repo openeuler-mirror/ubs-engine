@@ -375,43 +375,73 @@ static bool FindCommonMinUpPort(const UbseCpuInfo &importCpuInfo, const UbseCpuI
     return minPortId != UINT32_MAX;
 }
 
+// 指定端口口径：两侧同号端口均为UP才生效，返回导出侧portCna
+// （导入侧scna与未指定端口路径口径一致，统一取busNodeCna，不随端口变化）
+static bool FindSpecifiedUpPortBothSides(const UbseCpuInfo &importCpuInfo, const UbseCpuInfo &exportCpuInfo,
+                                         uint32_t specifiedPortId, uint32_t &exportCna)
+{
+    const std::string portIdStr = std::to_string(specifiedPortId);
+    auto exportIt = exportCpuInfo.portInfos.find(portIdStr);
+    auto importIt = importCpuInfo.portInfos.find(portIdStr);
+    if (exportIt == exportCpuInfo.portInfos.end() || exportIt->second.portStatus != PortStatus::UP ||
+        importIt == importCpuInfo.portInfos.end() || importIt->second.portStatus != PortStatus::UP) {
+        return false;
+    }
+    exportCna = exportIt->second.portCna;
+    return true;
+}
+
+// CLOS组网下确定导入/导出两侧的通信端口：
+// 未指定端口时取两侧同号UP端口的最小值，指定端口时要求两侧同号端口均为UP
+static bool FindClosCommonPort(const std::string& exportNodeId, const std::string& importNodeId, int socketId,
+                               uint32_t specifiedPortId, uint32_t& matchedPortId)
+{
+    auto exportNode = UbseNodeController::GetInstance().GetNodeById(exportNodeId);
+    auto importNode = UbseNodeController::GetInstance().GetNodeById(importNodeId);
+    UbseCpuInfo importCpuInfo {};
+    UbseCpuInfo exportCpuInfo {};
+    if (!FindCpuInfoBySocketId(importNode, socketId, importCpuInfo) ||
+        !FindCpuInfoBySocketId(exportNode, socketId, exportCpuInfo)) {
+        UBSE_LOG_WARN << "Find cpuInfo by socketId failed, exportNodeId=" << exportNodeId
+                      << ", importNodeId=" << importNodeId << ", socketId=" << socketId;
+        return false;
+    }
+    if (specifiedPortId != UINT32_MAX) {
+        uint32_t exportCna = 0;
+        if (!FindSpecifiedUpPortBothSides(importCpuInfo, exportCpuInfo, specifiedPortId, exportCna)) {
+            UBSE_LOG_WARN << "Specified port not up on both sides, exportNodeId=" << exportNodeId
+                          << ", importNodeId=" << importNodeId << ", socketId=" << socketId
+                          << ", specifiedPortId=" << specifiedPortId;
+            return false;
+        }
+        matchedPortId = specifiedPortId;
+        return true;
+    }
+    uint32_t exportCna = 0;
+    if (!FindCommonMinUpPort(importCpuInfo, exportCpuInfo, matchedPortId, exportCna)) {
+        UBSE_LOG_WARN << "No common up port between import and export, exportNodeId=" << exportNodeId
+                      << ", importNodeId=" << importNodeId << ", socketId=" << socketId;
+        return false;
+    }
+    return true;
+}
+
 void FillImportNumaPortAndChipId(const std::string& exportNodeId, int exportSocketId, const std::string& importNodeId,
                                  std::vector<UbseMemDebtNumaInfo>& importNumaInfos, uint32_t specifiedPortId)
 {
     if (importNumaInfos.empty()) {
         return;
     }
-    // CLOS组网下导出端口表对端可能是交换侧，remoteSlotId无法解析出导入节点；
-    // 与GetCnaInfoWhenImportClos保持一致，用导入/导出两侧同号UP端口的最小值确定导入侧端口。
+    // CLOS组网下导出端口表对端可能是交换侧，remoteSlotId无法解析出导入节点，按两侧同号UP端口确定；
     // fullmesh组网下端口直连，沿用导出端口表remoteSlotId==导入节点的匹配。
     bool foundPort = false;
     uint32_t matchedPortId = 0;
     if (adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
-        // CLOS组网下specifiedPortId不生效，端口一律取两侧同号UP端口最小值
-        if (specifiedPortId != UINT32_MAX) {
-            UBSE_LOG_INFO << "specifiedPortId ignored in clos mode, exportNodeId=" << exportNodeId
-                          << ", importNodeId=" << importNodeId << ", specifiedPortId=" << specifiedPortId;
-        }
-        auto exportNode = UbseNodeController::GetInstance().GetNodeById(exportNodeId);
-        auto importNode = UbseNodeController::GetInstance().GetNodeById(importNodeId);
-        UbseCpuInfo importCpuInfo {};
-        UbseCpuInfo exportCpuInfo {};
-        if (!FindCpuInfoBySocketId(importNode, exportSocketId, importCpuInfo) ||
-            !FindCpuInfoBySocketId(exportNode, exportSocketId, exportCpuInfo)) {
-            UBSE_LOG_WARN << "Find cpuInfo by socketId failed, exportNodeId=" << exportNodeId
-                          << ", importNodeId=" << importNodeId << ", socketId=" << exportSocketId;
-        } else {
-            uint32_t exportCna = 0;
-            foundPort = FindCommonMinUpPort(importCpuInfo, exportCpuInfo, matchedPortId, exportCna);
-            if (!foundPort) {
-                UBSE_LOG_WARN << "No common up port between import and export, exportNodeId=" << exportNodeId
-                              << ", importNodeId=" << importNodeId << ", socketId=" << exportSocketId;
-            }
-        }
+        foundPort = FindClosCommonPort(exportNodeId, importNodeId, exportSocketId, specifiedPortId, matchedPortId);
     } else {
         auto result = SelectPortCna(exportNodeId, std::to_string(exportSocketId), importNodeId, specifiedPortId);
         foundPort = result.found;
-        if (result.found) {
+        if (foundPort) {
             ConvertStrToUint32(result.borrowPortId, matchedPortId);
         }
     }
@@ -555,7 +585,7 @@ uint32_t FillExportObmmDescs(const std::string &borrowNodeId, uint32_t srcSocket
 }
 
 uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::string &importNodeId,
-                              UbseMemBorrowImportBaseObj &importObj)
+                              UbseMemBorrowImportBaseObj &importObj, uint32_t specifiedPortId)
 {
     if (importObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "exportNumaInfos is empty";
@@ -587,7 +617,15 @@ uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::st
     // 找到import和export两侧同时存在、且均为UP状态的最小portId，分别取对应侧的portCna
     uint32_t minPortId = UINT32_MAX;
 
-    if (!FindCommonMinUpPort(importCpuInfo, exportCpuInfo, minPortId, exportCna)) {
+    if (specifiedPortId != UINT32_MAX) {
+        if (!FindSpecifiedUpPortBothSides(importCpuInfo, exportCpuInfo, specifiedPortId, exportCna)) {
+            UBSE_LOG_ERROR << "Specified port not up on both sides, exportNodeId=" << exportNodeId
+                           << ", importNodeId=" << importNodeId << ", socketId=" << socketId
+                           << ", specifiedPortId=" << specifiedPortId;
+            return UBSE_ERROR;
+        }
+        minPortId = specifiedPortId;
+    } else if (!FindCommonMinUpPort(importCpuInfo, exportCpuInfo, minPortId, exportCna)) {
         UBSE_LOG_ERROR << "No valid portId found";
         return UBSE_ERROR;
     }

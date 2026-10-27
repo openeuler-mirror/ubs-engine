@@ -34,6 +34,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_mmi_interface_impl.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_topo_util.h"
@@ -1949,6 +1950,138 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImport)
     MOCKER(&UbseNodeController::GetEid).reset();
     MOCKER(&UbseNodeController::GetEid).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_OK);
+}
+
+namespace {
+constexpr int CLOS_TEST_SOCKET_ID = 36;
+
+ubse::nodeController::UbseNodeInfo MakeClosNode(
+    const std::string& nodeId, uint32_t busNodeCna,
+    const std::map<uint32_t, std::pair<PortStatus, uint32_t>>& ports)
+{
+    ubse::nodeController::UbseNodeInfo node{};
+    node.nodeId = nodeId;
+    UbseCpuLocation location{.nodeId = nodeId, .chipId = 1};
+    UbseCpuInfo cpuInfo{};
+    cpuInfo.socketId = CLOS_TEST_SOCKET_ID;
+    cpuInfo.busNodeCna = busNodeCna;
+    cpuInfo.chipId = "5";
+    for (const auto& [portId, prop] : ports) {
+        UbsePortInfo port{};
+        port.portId = std::to_string(portId);
+        port.portStatus = prop.first;
+        port.portCna = prop.second;
+        cpuInfo.portInfos[std::to_string(portId)] = port;
+    }
+    node.cpuInfos[location] = cpuInfo;
+    return node;
+}
+
+UbseMemFdBorrowImportObj MakeClosImportObj(const std::string& exportNodeId)
+{
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "test";
+    importObj.req.requestNodeId = "2";
+    importObj.req.size = 128;
+    importObj.algoResult.exportNumaInfos.push_back(
+        {.nodeId = exportNodeId, .socketId = CLOS_TEST_SOCKET_ID, .numaId = 0, .size = 128});
+    importObj.exportObmmInfo.emplace_back(UbseMemObmmInfo{});
+    return importObj;
+}
+}
+
+TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImportClosSpecifiedPortUpOnBothSides)
+{
+    const std::string exportNodeId = "1";
+    const std::string importNodeId = "2";
+    // GetCnaInfoWhenImportClos内部先查导入节点再查导出节点
+    auto importNode = MakeClosNode(importNodeId, 0x21, {{2, {PortStatus::UP, 0x11}}});
+    auto exportNode = MakeClosNode(exportNodeId, 0x99, {{2, {PortStatus::UP, 0x22}}});
+    MOCKER(&UbseNodeController::GetNodeById)
+        .stubs()
+        .will(returnValue(importNode))
+        .then(returnValue(exportNode));
+    MOCKER(&UbseNodeController::GetEid).stubs().will(returnValue(UBSE_OK));
+
+    auto importObj = MakeClosImportObj(exportNodeId);
+    auto ret = GetCnaInfoWhenImportClos(exportNodeId, importNodeId, importObj, 2);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(importObj.algoResult.attachSocketId, CLOS_TEST_SOCKET_ID);
+    // 数据面desc应使用指定端口：dcna取导出侧指定端口portCna而非busNodeCna，marId=2/4
+    EXPECT_EQ(importObj.exportObmmInfo[0].desc.scna, 0x21);
+    EXPECT_EQ(importObj.exportObmmInfo[0].desc.dcna, 0x22);
+    EXPECT_EQ(importObj.exportObmmInfo[0].desc.marId, 0);
+}
+
+TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImportClosSpecifiedPortDownOnImportSideShouldFail)
+{
+    const std::string exportNodeId = "1";
+    const std::string importNodeId = "2";
+    // 导入侧端口DOWN：指定端口两侧非均UP必须显式拒绝，删除该校验时本用例失败
+    auto importNode = MakeClosNode(importNodeId, 0x21, {{2, {PortStatus::DOWN, 0x11}}});
+    auto exportNode = MakeClosNode(exportNodeId, 0x22, {{2, {PortStatus::UP, 0x22}}});
+    MOCKER(&UbseNodeController::GetNodeById)
+        .stubs()
+        .will(returnValue(importNode))
+        .then(returnValue(exportNode));
+
+    auto importObj = MakeClosImportObj(exportNodeId);
+    auto ret = GetCnaInfoWhenImportClos(exportNodeId, importNodeId, importObj, 2);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImportClosUnspecifiedPortUsesMinCommonUpPort)
+{
+    const std::string exportNodeId = "1";
+    const std::string importNodeId = "2";
+    // 两侧同号UP端口为1和7，未指定端口时应取最小值1：marId=1/4，dcna取1号端口portCna
+    auto node = MakeClosNode(importNodeId, 0x21, {{1, {PortStatus::UP, 0xA1}}, {7, {PortStatus::UP, 0xA7}}});
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&UbseNodeController::GetEid).stubs().will(returnValue(UBSE_OK));
+
+    auto importObj = MakeClosImportObj(exportNodeId);
+    auto ret = GetCnaInfoWhenImportClos(exportNodeId, importNodeId, importObj, UINT32_MAX);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(importObj.exportObmmInfo[0].desc.marId, 0);
+    EXPECT_EQ(importObj.exportObmmInfo[0].desc.dcna, 0xA1);
+}
+
+TEST_F(TestUbseMemControllerApi, FillImportNumaPortAndChipIdClosSpecifiedPort)
+{
+    MOCKER(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    auto node = MakeClosNode("1", 0x21, {{2, {PortStatus::UP, 0x22}}});
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+
+    std::vector<UbseMemDebtNumaInfo> importNumaInfos{{"2", CLOS_TEST_SOCKET_ID, 0, 128}};
+    FillImportNumaPortAndChipId("1", CLOS_TEST_SOCKET_ID, "2", importNumaInfos, 2);
+    EXPECT_EQ(importNumaInfos[0].portId, 2);
+    EXPECT_EQ(importNumaInfos[0].chipId, 5);
+}
+
+TEST_F(TestUbseMemControllerApi, FillImportNumaPortAndChipIdClosSpecifiedPortDownShouldKeepZero)
+{
+    MOCKER(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    // 两侧同号端口非均UP时匹配失败，portId保持默认0静默跳过；
+    // 强校验由desc绑定路径GetCnaInfoWhenImportClos负责（见上方失败用例）
+    auto node = MakeClosNode("1", 0x21, {{2, {PortStatus::DOWN, 0x22}}});
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+
+    std::vector<UbseMemDebtNumaInfo> importNumaInfos{{"2", CLOS_TEST_SOCKET_ID, 0, 128}};
+    FillImportNumaPortAndChipId("1", CLOS_TEST_SOCKET_ID, "2", importNumaInfos, 2);
+    EXPECT_EQ(importNumaInfos[0].portId, 0);
+    EXPECT_EQ(importNumaInfos[0].chipId, 5);
+}
+
+TEST_F(TestUbseMemControllerApi, FillImportNumaPortAndChipIdClosUnspecifiedPortUsesMinCommonUpPort)
+{
+    MOCKER(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    auto node = MakeClosNode("1", 0x21, {{1, {PortStatus::UP, 0xA1}}, {3, {PortStatus::DOWN, 0xA3}},
+                                         {7, {PortStatus::UP, 0xA7}}});
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+
+    std::vector<UbseMemDebtNumaInfo> importNumaInfos{{"2", CLOS_TEST_SOCKET_ID, 0, 128}};
+    FillImportNumaPortAndChipId("1", CLOS_TEST_SOCKET_ID, "2", importNumaInfos, UINT32_MAX);
+    EXPECT_EQ(importNumaInfos[0].portId, 1);
 }
 
 TEST_F(TestUbseMemControllerApi, ClearNodeMap)
