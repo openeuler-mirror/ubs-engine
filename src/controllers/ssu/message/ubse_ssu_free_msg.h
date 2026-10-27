@@ -25,6 +25,7 @@ struct UbseSsuFreeReq {
     std::string requestId;
     std::string requestNodeId;
     std::string name;
+    std::string resourceUuid; // 分配唯一标识：非空精确释放，空串释放name下全部
     UbseSsuAllocIdentityInfo identityInfo;
 };
 
@@ -38,7 +39,7 @@ public:
     UbseSsuFreeReqMsg() = default;
 
     UbseSsuFreeReqMsg(const std::string &requestId, const std::string &requestNodeId, const std::string &name,
-                      const UbseSsuAllocIdentityInfo &identity);
+                      const std::string &resourceUuid, const UbseSsuAllocIdentityInfo &identity);
     
     const UbseSsuFreeReq &GetSsuFreeRequest() const;
 

@@ -159,12 +159,13 @@ TEST_F(TestUbseSsuServiceImpQuery, GetAllocInfoByName_Master_Success)
     AddNsToCollectorCache(ns1);
     SetupQueryLedger("test_get_by_name", {ns1});
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("test_get_by_name", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("test_get_by_name", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(result.name, "test_get_by_name");
-    ASSERT_EQ(result.nameSpaceList.size(), 1u);
+    ASSERT_EQ(results.size(), 1u);
+    EXPECT_EQ(results[0].name, "test_get_by_name");
+    ASSERT_EQ(results[0].nameSpaceList.size(), 1u);
 }
 
 /*
@@ -173,8 +174,8 @@ TEST_F(TestUbseSsuServiceImpQuery, GetAllocInfoByName_Master_Success)
  */
 TEST_F(TestUbseSsuServiceImpQuery, GetAllocInfoByName_Master_NotFound)
 {
-    UbseSsuAllocResult result;
-    EXPECT_EQ(service_.GetAllocInfoByName("test_not_found", result, MakeIdentity()),
+    std::vector<UbseSsuAllocResult> results;
+    EXPECT_EQ(service_.GetAllocInfoByName("test_not_found", results, MakeIdentity()),
               UBSE_SSU_ERROR_SPACE_NOT_FOUND);
 }
 
@@ -193,8 +194,8 @@ TEST_F(TestUbseSsuServiceImpQuery, GetAllocInfoByName_AgentViaRpc)
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
 
-    UbseSsuAllocResult result;
-    EXPECT_EQ(service_.GetAllocInfoByName("test_agent_rpc", result, MakeIdentity()), UBSE_ERROR);
+    std::vector<UbseSsuAllocResult> results;
+    EXPECT_EQ(service_.GetAllocInfoByName("test_agent_rpc", results, MakeIdentity()), UBSE_ERROR);
 }
 
 // ============================================================================
@@ -343,12 +344,13 @@ TEST_F(TestUbseSsuServiceImpQuery, GetAllocInfoByName_Master_FillAllowHostNqnLis
     // nsId=1 的硬件 allow 列表：包含一个与 defaultNqn 相同的 NQN（应被去重），以及一个额外 NQN
     g_allowHostsMap[1] = {"nqn.default.1", "nqn.host.extra"};
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("test_fill_allow", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("test_fill_allow", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
-    ASSERT_EQ(result.nameSpaceList.size(), 1u);
-    const auto &allowList = result.nameSpaceList[0].allowHostNqnList;
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_EQ(results[0].nameSpaceList.size(), 1u);
+    const auto &allowList = results[0].nameSpaceList[0].allowHostNqnList;
     ASSERT_EQ(allowList.size(), 2u);
     EXPECT_EQ(allowList[0], "nqn.default.1");
     EXPECT_EQ(allowList[1], "nqn.host.extra");
@@ -425,15 +427,16 @@ TEST_F(TestUbseSsuServiceImpQuery, FillAllowHostNqnList_GetFailed_SkipNs)
         return ControllableGetNamespaceAllowHosts(adminNqn, nsInfo, list, count);
     };
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("test_fill_partial_fail", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("test_fill_partial_fail", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
-    ASSERT_EQ(result.nameSpaceList.size(), 2u);
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_EQ(results[0].nameSpaceList.size(), 2u);
     // 找到 nsId=1 和 nsId=2
     const UbseSsuNameSpaceInfo *nsInfo1 = nullptr;
     const UbseSsuNameSpaceInfo *nsInfo2 = nullptr;
-    for (const auto &ns : result.nameSpaceList) {
+    for (const auto &ns : results[0].nameSpaceList) {
         if (ns.namespaceId == 1) {
             nsInfo1 = &ns;
         } else if (ns.namespaceId == 2) {
@@ -466,12 +469,13 @@ TEST_F(TestUbseSsuServiceImpQuery, FillAllowHostNqnList_CacheMissRefreshSuccess)
 
     g_allowHostsMap[1] = {"nqn.host.x"};
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("test_fill_cache_miss", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("test_fill_cache_miss", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
-    ASSERT_EQ(result.nameSpaceList.size(), 1u);
-    const auto &allowList = result.nameSpaceList[0].allowHostNqnList;
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_EQ(results[0].nameSpaceList.size(), 1u);
+    const auto &allowList = results[0].nameSpaceList[0].allowHostNqnList;
     ASSERT_EQ(allowList.size(), 2u);
     EXPECT_EQ(allowList[0], "nqn.default.1");
     EXPECT_EQ(allowList[1], "nqn.host.x");

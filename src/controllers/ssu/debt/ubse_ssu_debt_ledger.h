@@ -34,6 +34,11 @@ using namespace ubse::adapter_plugins::ssu::def;
 // 防止"账本CREATED+attachNodes空"窗口期的独占空间双重挂载
 inline constexpr int64_t SSU_RECONCILE_WINDOW_SECONDS = 60;
 
+// 复合键拼接：'\x1f'（ASCII单元分隔符）不会出现在name合法字符集[A-Za-z0-9_-]与
+// UUID格式[0-9a-f-]中，分隔无歧义；空resourceUuid（遗留数据）与name直接拼接。
+// 账本key与服务层对账/重建预检共用此定义，格式变更仅需改此一处
+std::string ComposeResourceKey(const std::string &name, const std::string &resourceUuid);
+
 struct UbseSsuLedgerEntry {
     std::string name;
     std::string devName; // 聚合块设备名称，attach成功时写入；重启暂时无法恢复，待后续可靠性设计补充本地attach持久化功能
@@ -54,18 +59,42 @@ public:
 
     static UbseSsuDebtLedger &GetInstance();
 
-    bool Put(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry);
+    // 复合键接口：账本key为(name, resourceUuid)。稳态（无脑裂）下同name仅一条；
+    // 脑裂合并后同name多resourceUuid各自成条目，可区分、可精确释放。
+    // resourceUuid为空表示遗留数据（旧版本分配），同name空uuid的NS归并为一条
+    bool Put(const std::string &name, const std::string &resourceUuid,
+             std::shared_ptr<const UbseSsuLedgerEntry> entry);
 
     // 插入或整体覆盖（原子），返回true表示覆盖了已存在的条目。
     // 仅Rebuild使用：主备回切再次触发Rebuild时，进程级单例仍驻留上一任期条目，
     // 必须以当前硬件清单刷新（state=CREATED、attachNodes空，由agent重报收敛），
     // 否则陈旧attachNodes会让对账跳过本应触发的REMOUNT。业务路径一律用只插不覆盖的Put
-    bool Upsert(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry);
+    bool Upsert(const std::string &name, const std::string &resourceUuid,
+                std::shared_ptr<const UbseSsuLedgerEntry> entry);
 
+    // 精确查询：(name, resourceUuid) 复合键命中
+    std::shared_ptr<const UbseSsuLedgerEntry> Get(const std::string &name, const std::string &resourceUuid) const;
+
+    // name维度查询：返回该name下全部条目（含不同resourceUuid）
+    std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> GetByName(const std::string &name) const;
+
+    bool Modify(const std::string &name, const std::string &resourceUuid,
+                std::function<void(UbseSsuLedgerEntry &)> modify);
+
+    // 删除指定(name, resourceUuid)条目
+    bool Remove(const std::string &name, const std::string &resourceUuid);
+
+    // 删除name下全部条目（free未指定resourceUuid时清理全部）
+    bool RemoveByName(const std::string &name);
+
+    // ---- name维度便捷重载（供测试与name唯一场景使用；生产路径应优先复合键接口）----
+    // name维度解析唯一条目：0条或多条均返回nullptr（多条为脑裂歧义，调用方须显式处理）
     std::shared_ptr<const UbseSsuLedgerEntry> Get(const std::string &name) const;
-
+    // 以entry内携带的resourceUuid作为复合键入账
+    bool Put(const std::string &name, std::shared_ptr<const UbseSsuLedgerEntry> entry);
+    // name维度解析唯一条目后修改，0条或多条返回false
     bool Modify(const std::string &name, std::function<void(UbseSsuLedgerEntry &)> modify);
-
+    // 等价RemoveByName：删除name下全部条目
     bool Remove(const std::string &name);
 
     std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> GetAll() const;

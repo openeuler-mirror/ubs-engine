@@ -59,7 +59,7 @@ public:
     // ====== 预设输出值 ======
     UbseSsuAllocResult allocResult;
     std::vector<UbseSsuAllocResult> listResult;
-    UbseSsuAllocResult getByNameResult;
+    std::vector<UbseSsuAllocResult> getByNameResult;
     std::vector<UbseSsuNsStats> nsStatsList;
     std::vector<UbseSsuConnectInfo> connectInfoList;
     std::vector<std::string> attachNsDevPaths;
@@ -90,6 +90,7 @@ public:
     UbseSsuAllocSpaceReq lastAllocReq;
     UbseSsuAllocIdentityInfo lastIdentity;
     std::string lastName;
+    std::string lastFreeResourceUuid;
     std::string lastNqn;
     UbseSsuSpaceReq lastSpaceReq;
     UbseSsuLinearSpaceReq lastLinearReq;
@@ -109,13 +110,13 @@ public:
         return listRet;
     }
 
-    uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+    uint32_t GetAllocInfoByName(const std::string &name, std::vector<UbseSsuAllocResult> &results,
                                 const UbseSsuAllocIdentityInfo &identity) override
     {
         getByNameCount++;
         lastName = name;
         lastIdentity = identity;
-        result = getByNameResult;
+        results = getByNameResult;
         return getByNameRet;
     }
 
@@ -154,10 +155,12 @@ public:
         return allocRet;
     }
 
-    uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) override
+    uint32_t FreeSpace(const std::string &name, const std::string &resourceUuid,
+                       const UbseSsuAllocIdentityInfo &identity) override
     {
         freeCount++;
         lastName = name;
+        lastFreeResourceUuid = resourceUuid;
         lastIdentity = identity;
         return freeRet;
     }

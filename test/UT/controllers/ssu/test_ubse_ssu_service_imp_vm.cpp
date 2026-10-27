@@ -205,11 +205,12 @@ TEST_F(TestUbseSsuServiceImpVm, GetAllocInfoByName_VmMode_Exists_ReturnsResult)
     pushed.nameSpaceList.push_back(PushAdapterNs(eidA, "nqn.target.vm_query_ok", 1, std::string(16, 'P')));
     vmCache_.UpdateAllocInfo(pushed);
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("vm_query_ok", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("vm_query_ok", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(result.name, "vm_query_ok");
+    ASSERT_EQ(results.size(), 1u);
+    EXPECT_EQ(results[0].name, "vm_query_ok");
 }
 
 /*
@@ -222,8 +223,8 @@ TEST_F(TestUbseSsuServiceImpVm, GetAllocInfoByName_VmMode_Exists_ReturnsResult)
  */
 TEST_F(TestUbseSsuServiceImpVm, GetAllocInfoByName_VmMode_NotExists_ReturnsError)
 {
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("not_in_cache", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("not_in_cache", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_SSU_ERROR_SPACE_NOT_FOUND);
 }
@@ -250,8 +251,8 @@ TEST_F(TestUbseSsuServiceImpVm, GetAllocInfoByName_VmMode_IdentityMismatch_Retur
         PushAdapterNs(eidB, "nqn.target.other", 1, std::string(16, 'Q'), 101, "other_user"));
     vmCache_.UpdateAllocInfo(pushed);
 
-    UbseSsuAllocResult result;
-    auto ret = service_.GetAllocInfoByName("other_alloc", result, MakeIdentity());
+    std::vector<UbseSsuAllocResult> results;
+    auto ret = service_.GetAllocInfoByName("other_alloc", results, MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
 }
@@ -457,7 +458,7 @@ TEST_F(TestUbseSsuServiceImpVm, AllocSpace_VmMode_ReturnsNotSupported)
  */
 TEST_F(TestUbseSsuServiceImpVm, FreeSpace_VmMode_ReturnsNotSupported)
 {
-    auto ret = service_.FreeSpace("vm_free_reject", MakeIdentity());
+    auto ret = service_.FreeSpace("vm_free_reject", "", MakeIdentity());
     EXPECT_EQ(ret, UBSE_ERR_NOT_SUPPORTED);
 }
 

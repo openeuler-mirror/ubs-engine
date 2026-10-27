@@ -55,6 +55,32 @@ TEST_F(TestUbseSsuAttachDetachVerifyMsg, ReqRoundTrip)
 }
 
 /*
+ * 用例描述：测试 detach精确卸载路径——ReqMsg携带非空resourceUuid的序列化与反序列化往返
+ * 预期结果：各字段值一致，resourceUuid往返保持一致
+ */
+TEST_F(TestUbseSsuAttachDetachVerifyMsg, ReqRoundTripWithResourceUuid)
+{
+    UbseSsuAllocIdentityInfo identity{"verify_user", 800};
+    UbseSsuAttachDetachVerifyOption option;
+    const std::string resourceUuid = "550e8400-e29b-41d4-a716-446655440000";
+    UbseSsuAttachDetachVerifyReqMsg original("verify-req", "node-9", "test_verify", identity, option, resourceUuid);
+
+    std::unique_ptr<uint8_t[]> buffer;
+    uint32_t bufferSize = 0;
+    ASSERT_EQ(UBSE_OK, original.Serialize(buffer, bufferSize));
+    ASSERT_NE(nullptr, buffer);
+    ASSERT_GT(bufferSize, 0);
+
+    UbseSsuAttachDetachVerifyReqMsg deserialized;
+    ASSERT_EQ(UBSE_OK, deserialized.Deserialize(buffer.get(), bufferSize));
+
+    const auto &req = deserialized.GetAttachDetachVerifyReq();
+    EXPECT_EQ("verify-req", req.requestId);
+    EXPECT_EQ("test_verify", req.name);
+    EXPECT_EQ(resourceUuid, req.resourceUuid);
+}
+
+/*
  * 用例描述：测试 UbseSsuAttachDetachVerifyRespMsg 往返（空列表）
  * 预期结果：Serialize/Deserialize 返回 UBSE_OK，列表为空
  */

@@ -30,7 +30,8 @@ private:
     void LogResponse();
 
     std::string name;
-    plugin::service::ssu::UbseSsuAllocResult result;
+    // 同名多个resourceUuid（脑裂合并遗留）时逐条返回
+    std::vector<plugin::service::ssu::UbseSsuAllocResult> result;
 };
 
 } // namespace ubse::ssu::ipc

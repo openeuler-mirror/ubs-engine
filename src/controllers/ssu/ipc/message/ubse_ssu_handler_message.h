@@ -25,8 +25,6 @@ common::def::UbseResult SsuAllocResultListPack(
     api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuGetAllocInfoByNameUnpack(const api::server::UbseIpcMessage &buffer, std::string &name);
-common::def::UbseResult SsuGetAllocInfoByNamePack(const plugin::service::ssu::UbseSsuAllocResult &result,
-                                                  api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuGetNsStatsUnpack(const api::server::UbseIpcMessage &buffer, std::string &name);
 common::def::UbseResult SsuGetNsStatsPack(const std::vector<plugin::service::ssu::UbseSsuNsStats> &statsList,
@@ -43,7 +41,8 @@ common::def::UbseResult SsuAllocSpaceUnpack(const api::server::UbseIpcMessage &b
 common::def::UbseResult SsuAllocSpacePack(const plugin::service::ssu::UbseSsuAllocResult &result,
                                           api::server::UbseIpcMessage &response);
 
-common::def::UbseResult SsuFreeSpaceUnpack(const api::server::UbseIpcMessage &buffer, std::string &name);
+common::def::UbseResult SsuFreeSpaceUnpack(const api::server::UbseIpcMessage &buffer, std::string &name,
+                                           std::string &resourceUuid);
 
 common::def::UbseResult SsuAddAccessPermissionUnpack(const api::server::UbseIpcMessage &buffer, std::string &name,
                                                      std::string &nqn);

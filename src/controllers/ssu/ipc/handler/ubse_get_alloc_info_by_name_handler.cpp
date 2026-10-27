@@ -21,7 +21,7 @@ using namespace common::def;
 
 UbseResult UbseGetAllocInfoByNameHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return message::SsuGetAllocInfoByNamePack(result, response);
+    return message::SsuAllocResultListPack(result, response);
 }
 
 UbseResult UbseGetAllocInfoByNameHandler::Handle()
@@ -49,16 +49,20 @@ void UbseGetAllocInfoByNameHandler::LogRequest()
 
 void UbseGetAllocInfoByNameHandler::LogResponse()
 {
-    UBSE_LOG_DEBUG << "GetAllocInfoByName resp: result.name=" << result.name
-                   << ", strategy=" << static_cast<uint32_t>(result.strategy)
-                   << ", nameSpaceList.size=" << result.nameSpaceList.size();
-    for (size_t i = 0; i < result.nameSpaceList.size(); i++) {
-        const auto &ns = result.nameSpaceList[i];
-        UBSE_LOG_DEBUG << "  ns[" << i << "]: tgtEid=" << ns.tgtEid << ", tgtNqn=" << utils::MaskNqn(ns.tgtNqn)
-                       << ", nsUuid=" << ns.nsUuid << ", namespaceId=" << ns.namespaceId
-                       << ", nsDevPath=" << ns.nsDevPath << ", nsSize=" << ns.nsSize
-                       << ", lbaFormat=" << static_cast<uint32_t>(ns.lbaFormat)
-                       << ", allowHostNqnList.size=" << ns.allowHostNqnList.size();
+    UBSE_LOG_DEBUG << "GetAllocInfoByName resp: count=" << result.size();
+    for (size_t i = 0; i < result.size(); i++) {
+        const auto &allocResult = result[i];
+        UBSE_LOG_DEBUG << "  result[" << i << "]: name=" << allocResult.name << ", resourceUuid=" << allocResult.resourceUuid
+                       << ", strategy=" << static_cast<uint32_t>(allocResult.strategy)
+                       << ", nameSpaceList.size=" << allocResult.nameSpaceList.size();
+        for (size_t j = 0; j < allocResult.nameSpaceList.size(); j++) {
+            const auto &ns = allocResult.nameSpaceList[j];
+            UBSE_LOG_DEBUG << "    ns[" << j << "]: tgtEid=" << ns.tgtEid << ", tgtNqn=" << utils::MaskNqn(ns.tgtNqn)
+                           << ", nsUuid=" << ns.nsUuid << ", namespaceId=" << ns.namespaceId
+                           << ", nsDevPath=" << ns.nsDevPath << ", nsSize=" << ns.nsSize
+                           << ", lbaFormat=" << static_cast<uint32_t>(ns.lbaFormat)
+                           << ", allowHostNqnList.size=" << ns.allowHostNqnList.size();
+        }
     }
 }
 

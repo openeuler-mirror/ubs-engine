@@ -31,7 +31,7 @@ UbseResult UbseFreeSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     LogRequest();
-    auto ret = ssuService->FreeSpace(name, identity_);
+    auto ret = ssuService->FreeSpace(name, resourceUuid, identity_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FreeSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;
@@ -41,7 +41,7 @@ UbseResult UbseFreeSpaceHandler::Handle()
 
 void UbseFreeSpaceHandler::LogRequest()
 {
-    UBSE_LOG_DEBUG << "FreeSpace req: name=" << name
+    UBSE_LOG_DEBUG << "FreeSpace req: name=" << name << ", resourceUuid=" << resourceUuid
                    << ", identity.userName=" << identity_.userName << ", identity.uid=" << identity_.uid;
 }
 
@@ -51,7 +51,7 @@ UbseResult UbseFreeSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return message::SsuFreeSpaceUnpack(*buffer_, name);
+    return message::SsuFreeSpaceUnpack(*buffer_, name, resourceUuid);
 }
 
 } // namespace ubse::ssu::ipc

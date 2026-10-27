@@ -63,6 +63,8 @@ UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuAllocR
     for (const auto &ns : result.nameSpaceList) {
         serializer << ns;
     }
+    // 尾部追加字段（现有惯例）：分配唯一标识，脑裂合并后区分同名多次分配
+    serializer << result.resourceUuid;
     return serializer;
 }
 
@@ -72,7 +74,7 @@ UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAllocR
     uint32_t size = 0;
     deserializer >> size >> enum_v(result.strategy);
     result.nameSpaceList.clear();
-    
+
     constexpr uint32_t MAX_ALLOC_RESULT_NS_NUM = 1024;
     if (size > MAX_ALLOC_RESULT_NS_NUM) {
         UBSE_LOG_ERROR << "SSU alloc result ns num exceeds max limit, size=" << size;
@@ -89,6 +91,8 @@ UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAllocR
         }
         result.nameSpaceList.emplace_back(std::move(ns));
     }
+    // 尾部追加字段：resourceUuid，与序列化顺序对应
+    deserializer >> result.resourceUuid;
     return deserializer;
 }
 

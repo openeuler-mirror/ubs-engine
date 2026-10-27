@@ -664,7 +664,7 @@ TEST_F(TestUbseSsuServiceImpRecover, LedgerNotReadyGateBlocksVerifyAllocFree)
     EXPECT_EQ(service_.ExecuteAlloc(MakeAllocReq("space_gate", 4096, 2), MakeIdentity(), result),
               UBSE_SSU_ERROR_MASTER_NOT_READY);
 
-    EXPECT_EQ(service_.ExecuteFree("space_gate", MakeIdentity()), UBSE_SSU_ERROR_MASTER_NOT_READY);
+    EXPECT_EQ(service_.ExecuteFree("space_gate", "", MakeIdentity()), UBSE_SSU_ERROR_MASTER_NOT_READY);
 }
 
 // UT19-2：恢复收敛窗口守卫——Rebuild硬件恢复的独占空间在窗口内拒绝其他节点首个attach；
@@ -889,7 +889,7 @@ TEST_F(TestUbseSsuServiceImpRecover, FaultedSpaceBlocksVerifyButFreeAllowed)
               UBSE_SSU_ERROR_SPACE_FAULTED);
 
     // free保留：FAULTED下允许止损（不要求先detach），账本条目移除
-    EXPECT_EQ(service_.ExecuteFree("space_fault_op", MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(service_.ExecuteFree("space_fault_op", "", MakeIdentity()), UBSE_OK);
     EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_fault_op"), nullptr);
 }
 
@@ -1941,5 +1941,6 @@ TEST_F(TestUbseSsuServiceImpRecover, LocalReconcileMasterPathAttacherConflictSki
     EXPECT_EQ(after->attachNodes.count("master_node_1"), 0u); // 对账未抢占
     EXPECT_EQ(after->devName, "agg_dev_holder_b");
 }
+
 
 } // namespace ubse::ssu::service::ut

@@ -48,6 +48,8 @@ struct UbseSsuAttachDetachVerifyReq {
     std::string requestId;
     std::string requestNodeId;
     std::string name;
+    std::string resourceUuid; // detach精确卸载路径非空：master按(name, resourceUuid)定位条目（跳过多uuid歧义拒绝）；
+                              // attach恒为空。序列化尾部追加
     UbseSsuAllocIdentityInfo identityInfo;
     UbseSsuAttachDetachVerifyOption option;
 };
@@ -69,7 +71,8 @@ public:
 
     UbseSsuAttachDetachVerifyReqMsg(const std::string &requestId, const std::string &requestNodeId,
                                     const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                    const UbseSsuAttachDetachVerifyOption &option);
+                                    const UbseSsuAttachDetachVerifyOption &option,
+                                    const std::string &resourceUuid = "");
 
     const UbseSsuAttachDetachVerifyReq &GetAttachDetachVerifyReq() const;
 

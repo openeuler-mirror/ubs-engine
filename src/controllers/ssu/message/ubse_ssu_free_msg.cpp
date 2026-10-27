@@ -24,8 +24,8 @@ using namespace ubse::serial;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseSsuFreeReqMsg::UbseSsuFreeReqMsg(const std::string &requestId, const std::string &requestNodeId,
-    const std::string &name, const UbseSsuAllocIdentityInfo &identity)
-    : req_{requestId, requestNodeId, name, identity}
+    const std::string &name, const std::string &resourceUuid, const UbseSsuAllocIdentityInfo &identity)
+    : req_{requestId, requestNodeId, name, resourceUuid, identity}
 {
 }
 
@@ -43,7 +43,9 @@ uint32_t UbseSsuFreeReqMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32
 {
     UbseSerialization out;
     out << req_.requestId << req_.requestNodeId << req_.name << req_.identityInfo.uid << req_.identityInfo.userName;
-    
+    // 尾部追加字段（现有惯例）：resourceUuid，非空精确释放，空串释放name下全部
+    out << req_.resourceUuid;
+
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU free req serialize failed.";
         return UBSE_ERROR;
@@ -57,6 +59,8 @@ uint32_t UbseSsuFreeReqMsg::Deserialize(const uint8_t *data, uint32_t size)
 {
     UbseDeSerialization in(data, size);
     in >> req_.requestId >> req_.requestNodeId >> req_.name >> req_.identityInfo.uid >> req_.identityInfo.userName;
+    // 尾部追加字段：resourceUuid，与序列化顺序对应
+    in >> req_.resourceUuid;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU free req deserialize failed.";
         return UBSE_ERROR;

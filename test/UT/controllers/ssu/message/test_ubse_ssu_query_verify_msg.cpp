@@ -283,7 +283,7 @@ TEST_F(TestUbseSsuQueryVerifyMsg, GetAllocInfoRespRoundTrip)
     result.strategy = UbseSsuAllocStrategy::STRIPED;
     result.nameSpaceList = {ns};
 
-    UbseSsuGetAllocInfoResp resp{"getinfo-resp", 0, result};
+    UbseSsuGetAllocInfoResp resp{"getinfo-resp", 0, std::vector<UbseSsuAllocResult>{result}};
     UbseSsuGetAllocInfoRespMsg original(resp);
 
     std::unique_ptr<uint8_t[]> buffer;
@@ -295,9 +295,10 @@ TEST_F(TestUbseSsuQueryVerifyMsg, GetAllocInfoRespRoundTrip)
 
     const auto &got = deserialized.GetGetAllocInfoResp();
     EXPECT_EQ("getinfo-resp", got.requestId);
-    EXPECT_EQ("getinfo_result", got.result.name);
-    ASSERT_EQ(1, got.result.nameSpaceList.size());
-    EXPECT_EQ("eid-y", got.result.nameSpaceList[0].tgtEid);
+    ASSERT_EQ(1, got.results.size());
+    EXPECT_EQ("getinfo_result", got.results[0].name);
+    ASSERT_EQ(1, got.results[0].nameSpaceList.size());
+    EXPECT_EQ("eid-y", got.results[0].nameSpaceList[0].tgtEid);
 }
 
 /*

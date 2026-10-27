@@ -118,6 +118,7 @@
 #define UBSE_SSU_ERROR_MASTER_NOT_READY UBSE_ERROR_DEF(1205)      /* master账本未就绪（首次采集/重建未完成），纯重试语义 */
 #define UBSE_SSU_ERROR_MOUNT_SUSPECTED UBSE_ERROR_DEF(1206)       /* 疑似本地残留挂载，需人工核对（free或清理本地设备后自动解除） */
 #define UBSE_SSU_ERROR_INSUFFICIENT_SPACE UBSE_ERROR_DEF(1207)   /* 设备可用空间不足（含租户配额用尽） */
+#define UBSE_SSU_ERROR_NAME_DUPLICATED UBSE_ERROR_DEF(1208)      /* 同名多个resourceUuid（疑似脑裂残留），操作被拒绝 */
 
 /* ****************************************************** */
 /* 重复操作错误码定义，全局唯一，范围2000~2099，语义为失败（重复操作一律报错） */

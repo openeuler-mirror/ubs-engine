@@ -250,6 +250,10 @@ UbseResult AllocResultPack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuAll
             return UBSE_ERROR_SERIALIZE_FAILED;
         }
     }
+    // 尾部追加字段：resourceUuid（分配唯一标识），与SDK侧unpack顺序对应
+    if (StringPack(packUtil, result.resourceUuid, MAX_UUID_LEN) != UBSE_OK) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
     return UBSE_OK;
 }
 
@@ -259,6 +263,7 @@ uint32_t AllocResultCalcSize(const UbseSsuAllocResult &result)
     for (const auto &nsInfo : result.nameSpaceList) {
         size += NameSpaceInfoCalcSize(nsInfo);
     }
+    size += StringCalcSize(result.resourceUuid, MAX_UUID_LEN);
     return size;
 }
 
