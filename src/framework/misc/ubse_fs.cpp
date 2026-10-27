@@ -128,11 +128,19 @@ uint32_t WriteTmpFile(const std::string& fileName, const uint8_t* data, const ui
         UBSE_LOG_ERROR << "Write tmp file=" << fileName << " fail, error=" << std::strerror(errno);
         return UBSE_ERROR;
     }
-    ssize_t bytesWritten = write(fd, data, dataLen);
-    if (bytesWritten == -1) {
-        close(fd);
-        UBSE_LOG_ERROR << "Write tmp file=" << fileName << " fail, error=" << std::strerror(errno);
-        return UBSE_ERROR;
+    // 循环写入直至写满dataLen，避免部分写入导致临时文件被截断后提交不完整数据
+    uint32_t totalWritten = 0;
+    while (totalWritten < dataLen) {
+        ssize_t bytesWritten = write(fd, data + totalWritten, dataLen - totalWritten);
+        if (bytesWritten == -1 && errno == EINTR) {
+            continue;
+        }
+        if (bytesWritten <= 0) {
+            close(fd);
+            UBSE_LOG_ERROR << "Write tmp file=" << fileName << " fail, error=" << std::strerror(errno);
+            return UBSE_ERROR;
+        }
+        totalWritten += static_cast<uint32_t>(bytesWritten);
     }
     int syncRet = fsync(fd);
     if (syncRet == -1) {

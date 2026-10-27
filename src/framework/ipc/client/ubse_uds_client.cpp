@@ -975,6 +975,12 @@ void UbseUDSClient::HandlerServerResp()
     if (UbseSyncReq::GetInstance().IsReqIdRegister(reqId)) {
         IPC_LOG_INFO << "receive reqId=" << reqId << ", resp.";
         UbseSyncReq::GetInstance().StoreResp(reqId, response);
+    } else {
+        // reqId未注册（等待方已超时注销），body无人接收，需自行释放避免泄漏
+        if (response.freeFunc != nullptr && response.body != nullptr) {
+            response.freeFunc(response.body);
+            response.body = nullptr;
+        }
     }
 }
 
@@ -1029,6 +1035,8 @@ void UbseUDSClient::HandleRequest(UbseRequestMessage request)
             if (ret != UBSE_OK) {
                 IPC_LOG_ERROR << "send response failed";
             }
+            // 错误响应已发送，直接返回，避免下方再次SendResponse造成同一请求重复响应
+            return;
         }
         if (response.header.statusCode != UBSE_OK) {
             IPC_LOG_ERROR << "req moduleId=" << request.header.moduleCode << " req opCode=" << request.header.opCode
@@ -1063,16 +1071,19 @@ uint32_t UbseUDSClient::SendWithWait(UbseRequestMessage request, UbseResponseMes
     UbseSyncReq::GetInstance().RegisterRequest(reqId);
     request.header.clientRequestId = reqId;
     if (!IsConnected()) {
+        UbseSyncReq::GetInstance().UnregisterRequest(reqId);
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
     // Serialized request message
     std::vector<uint8_t> buffer;
     auto ret = SerializeRequestMessage(request, buffer);
     if (ret != UBSE_OK) {
+        UbseSyncReq::GetInstance().UnregisterRequest(reqId);
         return ret;
     }
     // Send request
     if (SendMsg(sockFd_, buffer.data(), buffer.size(), DEFAULT_SEND_TIMEOUT) != UBSE_OK) {
+        UbseSyncReq::GetInstance().UnregisterRequest(reqId);
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
     ret = UbseSyncReq::GetInstance().WaitForResp(reqId, timeoutMs, response);

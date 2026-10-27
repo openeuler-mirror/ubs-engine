@@ -11,8 +11,10 @@
  */
 
 #include <dlfcn.h>
+#include <unistd.h>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -30,14 +32,17 @@ UbseContext& g_ubseContext = UbseContext::GetInstance();
 
 void SignalHandler(int signum)
 {
-    std::cout << "Received signal " << signum << std::endl;
+    // 信号处理函数内只允许调用异步信号安全(async-signal-safe)函数：
+    // std::cout、condition_variable::notify_all均可能持锁，若信号打断持锁线程会死锁，
+    // 此处仅使用write输出并设置原子标志，等待线程通过带超时的wait_for轮询退出
     if (signum == SIGPIPE) {
-        std::cout << "SIGPIPE signal received, ignore it." << std::endl;
         return;
     }
-
+    // 本handler仅注册于SIGINT/SIGTERM，查表输出信号名即可，避免非信号安全的int转字符串
+    const char* msg = (signum == SIGINT) ? "Received SIGINT signal\n" : "Received SIGTERM signal\n";
+    auto unused = write(STDOUT_FILENO, msg, strlen(msg));
+    (void)unused;
     g_globalStop.store(true); // 设置全局停止标志
-    g_globalCv.notify_all();  // 唤醒所有等待线程
 }
 } // namespace ubse
 
@@ -74,6 +79,7 @@ int main(int argc, char* argv[])
     while (!g_globalStop.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100ms
     }
+    g_globalCv.notify_all(); // 唤醒所有等待线程
     // 停止上下文
     g_ubseContext.Stop();
     AuditDestroy();

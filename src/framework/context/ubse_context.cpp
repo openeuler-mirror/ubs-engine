@@ -347,6 +347,7 @@ UbseResult UbseContext::CreateModules(
         if (creatorIt == creatorMap.end()) {
             std::cerr << "UbseContext::CreateModules-Error: creator for module " << Demangle(moduleName.name())
                       << " not found" << std::endl;
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
         }
         try {
             auto module = creatorIt->second.creator();

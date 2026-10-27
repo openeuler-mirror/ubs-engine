@@ -828,7 +828,7 @@ UbseResult UbseComEngine::AddConnectingNodeForServer(UbseComChannelInfo& chInfo)
         return UBSE_ERROR;
     }
     rwLock_.UnLock();
-    connectingMap_[chInfo.GetConnectInfo().GetRemoteNodeId()].emplace(chInfo.GetChannelType());
+    connectingMap_[chInfo.GetConnectInfo().GetIp()].emplace(chInfo.GetChannelType());
     conMutex_.unlock();
     return UBSE_OK;
 }

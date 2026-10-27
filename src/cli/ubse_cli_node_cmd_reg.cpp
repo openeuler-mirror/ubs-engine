@@ -126,7 +126,13 @@ uint32_t DeSerializePhysicalLinks(std::vector<CliPhysicalLink>& links, uint8_t* 
     UbseDeSerialization inStream(buffer, size);
     size_t num = 0;
     inStream >> num;
-    if (!inStream.Check() || num > SIZE_MAX) {
+    if (!inStream.Check()) {
+        return UBSE_ERROR;
+    }
+    // num取自对端数据，需与缓冲实际长度匹配：每个link的嵌套子流在线数据至少占一个
+    // serial_head头块字节，超出说明数据损坏，直接拒绝，
+    // 避免reserve超大num抛bad_alloc/length_error导致CLI进程terminate
+    if (num > size / sizeof(ubse::serial::serial_head)) {
         return UBSE_ERROR;
     }
     links.reserve(num);

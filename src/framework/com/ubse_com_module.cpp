@@ -139,13 +139,13 @@ int16_t GetHeartBeatTimeOutValue()
         UBSE_LOG_WARN << "Unable to get config info, set to default value which is 2";
         return DEFAULT_HB_TIMEOUT;
     }
-    uint32_t time;
+    uint32_t time = 0;
     auto ret = ubseConfModule->GetConf<uint32_t>("ubse.election", "heartbeat.timeInterval", time);
-    time /= MILLISECONDS_PER_SECOND; // 毫秒转化成秒
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to get heartbeat timeout config info, set to default value which is 2";
         return DEFAULT_HB_TIMEOUT;
     }
+    time /= MILLISECONDS_PER_SECOND; // 毫秒转化成秒
     if (time > NO_60) {
         UBSE_LOG_WARN << "Heartbeat timeout config range should be 0 to 60, set to default value which is 2";
         return DEFAULT_HB_TIMEOUT;

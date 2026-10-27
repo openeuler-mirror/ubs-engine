@@ -41,6 +41,8 @@ UbseResult UbseInterCom::StopQueue()
 
 UbseMqHandler UbseInterCom::GetHandler(uint16_t moduleCode, uint16_t opCode)
 {
+    // 与RegMessageHandler的写操作互斥，加读锁保护handlerMap_
+    ubse::utils::ReadLocker<ubse::utils::ReadWriteLock> lock(&rwLock_);
     auto it = handlerMap_.find({moduleCode, opCode});
     if (it == handlerMap_.end() || it->second.handler == nullptr) {
         UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " handler not exists";

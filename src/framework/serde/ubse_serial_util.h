@@ -437,6 +437,14 @@ public:
                 vec[i] = *(p + i);
             }
         } else {
+            // 每个元素至少占用一个对齐头块，据此校验声明长度与剩余缓冲，防止恶意长度导致内存放大
+            auto alignedHeadLen = AlignTo(sizeof(serial_head));
+            auto remaining = static_cast<common_len>(mBuf_ + mLen_ - mPos_);
+            // 显式校验除数非零，消除除零风险（AlignTo结果理论上恒大于0）
+            if (alignedHeadLen == 0 || len > remaining / alignedHeadLen) {
+                mFlag_ = false;
+                return *this;
+            }
             vec.resize(len);
             for (common_len i = 0; i < len; i++) {
                 *this >> vec[i];
@@ -468,6 +476,10 @@ public:
         uint64_t len;
         *this >> array_len_capture(len);
         for (uint64_t i = 0; i < len; i++) {
+            if (!mFlag_) {
+                return *this;
+            }
+
             T_KEY key;
             *this >> key;
             *this >> map[key];

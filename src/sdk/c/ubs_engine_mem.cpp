@@ -676,9 +676,9 @@ int32_t ubs_mem_shm_create_with_lender(const char* name, uint8_t usr_info[UBS_ME
     ubse_api_buffer_free(&response_buffer);
     if (ipc_ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ipc_ret;
-        return static_cast<int32_t>(ipc_ret);
+    } else {
+        IPC_LOG_INFO << "ubse_invoke_call success";
     }
-    IPC_LOG_INFO << "ubse_invoke_call success";
     return ubse_map_daemon_error(ipc_ret);
 }
 

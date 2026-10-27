@@ -1306,7 +1306,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmGetForAllSchene)
     respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
     MOCKER_CPP(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     ret = ubs_mem_shm_get(g_validName, &g_validShmDescs);
-    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+    EXPECT_EQ(ret, UBS_ERR_OUT_OF_MEMORY);
     // 成功
     GlobalMockObject::verify();
     respBuffer = {.buffer = nullptr, .length = 0};
