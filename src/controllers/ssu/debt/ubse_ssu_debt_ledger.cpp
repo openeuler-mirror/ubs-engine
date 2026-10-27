@@ -36,6 +36,18 @@ std::string ComposeResourceKey(const std::string &name, const std::string &resou
     return name + '\x1f' + resourceUuid;
 }
 
+std::string ExtractNameFromResourceKey(const std::string &key)
+{
+    const auto pos = key.find('\x1f');
+    return pos == std::string::npos ? key : key.substr(0, pos);
+}
+
+std::string ExtractUuidFromResourceKey(const std::string &key)
+{
+    const auto pos = key.find('\x1f');
+    return pos == std::string::npos ? std::string() : key.substr(pos + 1);
+}
+
 // 从NS customData读取resourceUuid（遗留数据尾部补零读出为空串）
 static std::string ReadCustomDataResourceUuid(const UbseSsuDevNameSpaceCustomData &customData)
 {
@@ -194,7 +206,7 @@ bool UbseSsuDebtLedger::Remove(const std::string &name)
 
 static void RebuildEntry(const std::string &name, const std::string &resourceUuid,
                          const std::vector<const UbseSsuDevNameSpace *> &nsList,
-                         UbseSsuDebtLedger &ledger, const std::string &tenant)
+                         UbseSsuDebtLedger &ledger, const std::string &tenant, bool overwrite = true)
 {
     if (nsList.empty()) {
         UBSE_LOG_ERROR << "Rebuild entry: nsList is empty: name=" << name;
@@ -268,26 +280,28 @@ static void RebuildEntry(const std::string &name, const std::string &resourceUui
 
     // Upsert覆盖而非跳过：主备回切时进程级单例仍驻留上一任期条目，以当前硬件清单刷新
     // （state=CREATED、attachNodes空），陈旧attachNodes会让对账跳过本应触发的REMOUNT；
-    // 不在扫描中的条目维持不清（防部分扫描损伤，存亡由FAULTED增量对账裁决）
-    const bool replaced = ledger.Upsert(entry.name, resourceUuid, std::make_shared<const UbseSsuLedgerEntry>(entry));
-    if (replaced) {
-        UBSE_LOG_INFO << "Rebuild entry: replaced stale entry from previous tenure: name=" << name
+    // 不在扫描中的条目维持不清（防部分扫描损伤，存亡由FAULTED增量对账裁决）。
+    // 增量收编（overwrite=false）走Put只插不覆盖：账本已有同键条目（如分配流程ledger-first
+    // 刚Put的CREATING在途条目）不可被硬件扫描重置
+    if (overwrite) {
+        const bool replaced = ledger.Upsert(entry.name, resourceUuid, std::make_shared<const UbseSsuLedgerEntry>(entry));
+        if (replaced) {
+            UBSE_LOG_INFO << "Rebuild entry: replaced stale entry from previous tenure: name=" << name
+                          << ", resourceUuid=" << resourceUuid;
+        }
+    } else if (!ledger.Put(entry.name, resourceUuid, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
+        UBSE_LOG_INFO << "Absorb entry: ledger key already exists, skip: name=" << name
                       << ", resourceUuid=" << resourceUuid;
     }
 }
 
-void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
+// 硬件设备按(customData.name, customData.resourceUuid)二级分组（value为NS指针列表）。
+// 同name不同resourceUuid（脑裂合并遗留）各自成组；resourceUuid为空（遗留数据）同name归并。
+// Rebuild与AbsorbHardwareGroups共用此分组口径
+static std::unordered_map<std::string, std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>>>
+GroupHardwareDevices(const std::vector<UbseSsuDevInfo> &devices)
 {
-    // 重建期间置未就绪：主备回切再次触发Rebuild时，上一任期的就绪态仍残留，
-    // 不清位则verify/attach/对账可并发消费半新半旧的混合账本（对账窗口判定用旧rebuildTime_
-    // 早已超窗）；置位后统一走MASTER_NOT_READY/跳过本轮/继续等待的保守路径，完成后置回
-    SetReady(false);
-    auto &ledger = *this;
-    // 二级分组：name -> resourceUuid -> NS列表。同name不同resourceUuid（脑裂合并遗留）
-    // 各自成条目；resourceUuid为空（遗留数据）同name归并为一条
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<const UbseSsuDevNameSpace *>>> groups;
-    size_t entryCount = 0;
-
     for (const auto &dev : devices) {
         for (const auto &ns : dev.nameSpaces) {
             if (ns.customData.name[0] == '\0') {
@@ -300,6 +314,18 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
             groups[nsName][ReadCustomDataResourceUuid(ns.customData)].push_back(&ns);
         }
     }
+    return groups;
+}
+
+void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
+{
+    // 重建期间置未就绪：主备回切再次触发Rebuild时，上一任期的就绪态仍残留，
+    // 不清位则verify/attach/对账可并发消费半新半旧的混合账本（对账窗口判定用旧rebuildTime_
+    // 早已超窗）；置位后统一走MASTER_NOT_READY/跳过本轮/继续等待的保守路径，完成后置回
+    SetReady(false);
+    auto &ledger = *this;
+    auto groups = GroupHardwareDevices(devices);
+    size_t entryCount = 0;
 
     for (const auto &[name, uuidGroups] : groups) {
         for (const auto &[resourceUuid, nsList] : uuidGroups) {
@@ -344,6 +370,59 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
     }
 
     UBSE_LOG_INFO << "Ledger rebuild complete: " << entryCount << " entries restored";
+}
+
+// NODE_UP差异场景的增量收编（与Rebuild的本质差异）：
+// - 账本缺失的硬件组才入账（Put只插不覆盖），既有条目state/attachNodes/devName一律保留——
+//   本master账本持续维护、视图可信，不可像主备回切那样全量清空重置（否则free"需先卸载"
+//   门禁失效可误删挂载中空间，且agent需重报收敛）
+// - 不SetReady(false)：收编是纯新增写（账本mtx_保证原子），不产生半新半旧账本
+// - 仅在收编新条目时刷新rebuildTime_开收敛窗口（新条目attachNodes空，防他节点抢挂独占空间）
+// - 真孤儿（同名无任何账本条目，疑free部分失败残留）与脑裂对端新分配的组在硬件面不可区分，
+//   统一收编（脑裂资源agent重报需命中条目），真孤儿额外打LedgerOrphanAbsorbedAlarm留痕转人工
+// 返回本次新收编的条目个数（0表示无新增，供调用方记日志）
+size_t UbseSsuDebtLedger::AbsorbHardwareGroups(const std::vector<UbseSsuDevInfo> &devices)
+{
+    auto groups = GroupHardwareDevices(devices);
+    size_t absorbedCount = 0;
+    for (const auto &[name, uuidGroups] : groups) {
+        for (const auto &[resourceUuid, nsList] : uuidGroups) {
+            if (nsList.empty()) {
+                continue;
+            }
+            // 同名条目一次查出：既有键判定与真孤儿判定共用
+            const auto sameNameEntries = GetByName(name);
+            bool tracked = false;
+            for (const auto &entry : sameNameEntries) {
+                if (entry->allocResult.resourceUuid == resourceUuid) {
+                    tracked = true;
+                    break;
+                }
+            }
+            if (tracked) {
+                continue; // 既有条目不动：state/attachNodes由周期对账与agent重报维护
+            }
+            // 同一个请求name来自同一个租户，每个namespace的tenant都应相同
+            std::string tenant(nsList[0]->customData.tenant,
+                               strnlen(nsList[0]->customData.tenant, sizeof(nsList[0]->customData.tenant)));
+            RebuildEntry(name, resourceUuid, nsList, *this, tenant, false);
+            absorbedCount++;
+            if (sameNameEntries.empty()) {
+                // 同名无任何账本条目=真孤儿特征（疑free部分失败残留），与脑裂对端新分配的组
+                // 在硬件面不可区分，统一收编但留痕转人工
+                UBSE_LOG_WARN << "LedgerOrphanAbsorbedAlarm: hardware group without any same-name ledger entry "
+                              << "absorbed, possible free partial-failure residue, manual check required, name="
+                              << name << ", resourceUuid=" << resourceUuid << ", nsCount=" << nsList.size();
+            }
+            UBSE_LOG_INFO << "Absorb entry: hardware group without ledger entry absorbed, name=" << name
+                          << ", resourceUuid=" << resourceUuid << ", nsCount=" << nsList.size();
+        }
+    }
+    if (absorbedCount > 0) {
+        std::unique_lock<std::shared_mutex> lock(mtx_);
+        rebuildTime_ = std::chrono::steady_clock::now();
+    }
+    return absorbedCount;
 }
 
 bool UbseSsuDebtLedger::IsInReconcileWindow() const

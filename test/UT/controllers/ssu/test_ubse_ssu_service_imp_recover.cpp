@@ -1942,5 +1942,275 @@ TEST_F(TestUbseSsuServiceImpRecover, LocalReconcileMasterPathAttacherConflictSki
     EXPECT_EQ(after->devName, "agg_dev_holder_b");
 }
 
+// ====== （name, resourceUuid）资源身份对账（ReconcileLedgerResource UT28） ======
+
+namespace {
+
+// 构造带customData身份（name+resourceUuid+nsNum）的NS：devList扫描与账本构造同源，
+// uuid字节各NS须不同（默认MakeNsForCache所有NS同uuid，集合去重后会误判NS缺失）
+UbseSsuDevNameSpace MakeNsWithIdentity(const std::string &eid, uint32_t nsId, const std::string &spaceName,
+                                       const std::string &resourceUuid, uint8_t nsNum, uint8_t uuidByte)
+{
+    auto ns = UbseSsuServiceImpTestBase::MakeNsForCache(eid, "nqn.identity", nsId, 4096,
+                                                        std::string(GUID_SIZE, '\xAB'),
+                                                        std::string(UUID_SIZE, static_cast<char>(uuidByte)));
+    std::strncpy(ns.customData.name, spaceName.c_str(), sizeof(ns.customData.name) - 1);
+    ns.customData.name[sizeof(ns.customData.name) - 1] = '\0';
+    // MakeNsForCache默认初始化不清零customData，resourceUuid须先清零再拷贝，
+    // 否则strnlen会读到尾部垃圾字节导致复合键错位
+    std::memset(ns.customData.resourceUuid, 0, sizeof(ns.customData.resourceUuid));
+    std::strncpy(ns.customData.resourceUuid, resourceUuid.c_str(), sizeof(ns.customData.resourceUuid) - 1);
+    ns.customData.nsNum = nsNum;
+    ns.customData.totalBytes = 4096;
+    return ns;
+}
+
+// 每NS独立设备（对齐一NS一盘的分配约束）
+std::vector<UbseSsuDevInfo> MakeIdentityDevList(const std::vector<UbseSsuDevNameSpace> &nss)
+{
+    std::vector<UbseSsuDevInfo> devList;
+    for (const auto &ns : nss) {
+        UbseSsuDevInfo dev{};
+        dev.subSystem = ns.subSystem;
+        dev.nameSpaces.push_back(ns);
+        devList.push_back(dev);
+    }
+    return devList;
+}
+
+// 账本托管条目：与硬件NS同源构造（allocResult.nsUuid经MakeNameSpaceInfo/StrToUuid，
+// 与扫描侧集合口径一致）
+UbseSsuLedgerEntry MakeIdentityEntry(const std::string &spaceName, const std::string &resourceUuid,
+                                     const std::vector<UbseSsuDevNameSpace> &nss)
+{
+    auto entry = MakeExclusiveEntry(spaceName, false);
+    entry.allocReq.nsNum = static_cast<uint32_t>(nss.size());
+    entry.allocResult.resourceUuid = resourceUuid;
+    for (const auto &ns : nss) {
+        entry.allocResult.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns));
+    }
+    return entry;
+}
+
+} // namespace
+
+// UT28-1：2a uuid漂移——同名硬件组换了resourceUuid（资源被替换），连续
+// SSU_FAULT_DEBOUNCE_CYCLES(3)周期账本uuid组缺失才置FAULTED；组回归即清零并回正，
+// 再次漂移需重新计满
+TEST_F(TestUbseSsuServiceImpRecover, UuidDriftDebounceMarksFaulted)
+{
+    const std::string uuidA = "11111111-1111-1111-1111-111111111111";
+    const std::string uuidB = "22222222-2222-2222-2222-222222222222";
+    auto nsLedger = MakeNsWithIdentity("eid_drift_a_0001", 1, "space_drift_a", uuidA, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_drift_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_drift_a", uuidA, {nsLedger})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    // 硬件同名但uuid换成B（漂移态）
+    auto drifted = MakeIdentityDevList({MakeNsWithIdentity("eid_drift_a_0002", 1, "space_drift_a", uuidB, 1, 0x22)});
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED); // 防抖不足不置障
+
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::FAULTED); // 计满置障
+
+    // 组回归（漂移清零 + FAULTED回正CREATED）；再次漂移重新计满，单周期不置障
+    service_.ReconcileLedgerResource(MakeIdentityDevList({nsLedger}));
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED);
+}
+
+// UT28-2：2b NS缺失与回正——多设备空间单盘故障丢NS，防抖满置FAULTED；
+// 设备回归补齐后回正CREATED（无attacher），且计数已清零（再次缺失需重新计满）
+TEST_F(TestUbseSsuServiceImpRecover, NsMissingDebounceAndRecover)
+{
+    const std::string uuid = "33333333-3333-3333-3333-333333333333";
+    auto ns1 = MakeNsWithIdentity("eid_miss_a_0001", 1, "space_miss_a", uuid, 2, 0x11);
+    auto ns2 = MakeNsWithIdentity("eid_miss_a_0002", 2, "space_miss_a", uuid, 2, 0x22);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_miss_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_miss_a", uuid, {ns1, ns2})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    auto partial = MakeIdentityDevList({ns1});
+    service_.ReconcileLedgerResource(partial);
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 防抖不足
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::FAULTED); // 计满置障
+
+    auto full = MakeIdentityDevList({ns1, ns2});
+    service_.ReconcileLedgerResource(full);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 补齐回正
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 计数已清零
+}
+
+// UT28-3：2b回正按attachNodes分支——attacher仍在挂载则回ATTACHED
+TEST_F(TestUbseSsuServiceImpRecover, NsMissingRecoverToAttachedWhenAttacherHeld)
+{
+    const std::string uuid = "44444444-4444-4444-4444-444444444444";
+    auto ns1 = MakeNsWithIdentity("eid_miss_b_0001", 1, "space_miss_b", uuid, 2, 0x11);
+    auto ns2 = MakeNsWithIdentity("eid_miss_b_0002", 2, "space_miss_b", uuid, 2, 0x22);
+    auto entry = MakeIdentityEntry("space_miss_b", uuid, {ns1, ns2});
+    entry.state = UbseSsuNsState::FAULTED;
+    entry.attachNodes.insert("node_attacher");
+    UbseSsuDebtLedger::GetInstance().Put("space_miss_b", std::make_shared<const UbseSsuLedgerEntry>(entry));
+
+    service_.ReconcileLedgerResource(MakeIdentityDevList({ns1, ns2}));
+    EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_miss_b")->state, UbseSsuNsState::ATTACHED);
+}
+
+// UT28-4：孤儿组不写账本——3a同名不同uuid残留组（free残留后同名重分配）与3b真孤儿组
+// （无同名条目）防抖计满后仅告警：属主条目不受影响，孤儿组不入账
+TEST_F(TestUbseSsuServiceImpRecover, OrphanGroupsAlarmButLedgerUntouched)
+{
+    const std::string uuidHold = "55555555-5555-5555-5555-555555555555";
+    const std::string uuidOrphan = "66666666-6666-6666-6666-666666666666";
+    auto nsHold = MakeNsWithIdentity("eid_orphan_a_0001", 1, "space_orphan_a", uuidHold, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_orphan_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_orphan_a", uuidHold, {nsHold})));
+
+    auto devList = MakeIdentityDevList({nsHold,
+                                        MakeNsWithIdentity("eid_orphan_a_0002", 1, "space_orphan_a", uuidOrphan, 1,
+                                                           0x22),
+                                        MakeNsWithIdentity("eid_orphan_b_0001", 1, "space_orphan_b", uuidOrphan, 1,
+                                                           0x22)});
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES; ++i) {
+        service_.ReconcileLedgerResource(devList);
+    }
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    // 3a：属主条目保持CREATED、uuid不被孤儿组影响（自身组完整不误判漂移/缺失）
+    const auto *holder = ledger.Get("space_orphan_a").get();
+    ASSERT_NE(holder, nullptr);
+    EXPECT_EQ(holder->state, UbseSsuNsState::CREATED);
+    EXPECT_EQ(holder->allocResult.resourceUuid, uuidHold);
+    // 3b：真孤儿不入账
+    EXPECT_EQ(ledger.Get("space_orphan_b"), nullptr);
+}
+
+// UT28-5：CREATING在途跳过——free残留后同名重分配的分配窗口期（账本CREATING、
+// 硬件有旧uuid残留组），孤儿判定静默跳过，条目保持CREATING
+TEST_F(TestUbseSsuServiceImpRecover, OrphanSkippedWhileCreatingInFlight)
+{
+    const std::string uuidNew = "77777777-7777-7777-7777-777777777777";
+    const std::string uuidResidue = "88888888-8888-8888-8888-888888888888";
+    auto nsNew = MakeNsWithIdentity("eid_orphan_c_0001", 1, "space_orphan_c", uuidNew, 1, 0x11);
+    auto entry = MakeIdentityEntry("space_orphan_c", uuidNew, {nsNew});
+    entry.state = UbseSsuNsState::CREATING;
+    UbseSsuDebtLedger::GetInstance().Put("space_orphan_c", std::make_shared<const UbseSsuLedgerEntry>(entry));
+
+    auto devList =
+        MakeIdentityDevList({MakeNsWithIdentity("eid_orphan_c_0002", 1, "space_orphan_c", uuidResidue, 1, 0x22)});
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES + 1; ++i) {
+        service_.ReconcileLedgerResource(devList);
+    }
+    EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_orphan_c")->state, UbseSsuNsState::CREATING);
+}
+
+// UT28-6：name级让路与未就绪门禁——name整体消失时本对账不判身份（防抖不前进，
+// 交给ReconcileSpaceFaultStates）；账本未就绪时no-op
+TEST_F(TestUbseSsuServiceImpRecover, IdentityReconcileDefersNameLevelAndNotReady)
+{
+    const std::string uuid = "99999999-9999-9999-9999-999999999999";
+    auto ns1 = MakeNsWithIdentity("eid_defer_a_0001", 1, "space_defer_a", uuid, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_defer_a", std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_defer_a", uuid, {ns1})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    const std::vector<UbseSsuDevInfo> emptyList{};
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES + 1; ++i) {
+        service_.ReconcileLedgerResource(emptyList);
+    }
+    EXPECT_EQ(ledger.Get("space_defer_a")->state, UbseSsuNsState::CREATED);
+
+    ledger.SetReady(false);
+    service_.ReconcileLedgerResource(MakeIdentityDevList({ns1}));
+    ledger.SetReady(true);
+    EXPECT_EQ(ledger.Get("space_defer_a")->state, UbseSsuNsState::CREATED);
+}
+
+// UT28-7：NODE_UP差异收编——硬件清单与账本无差异时跳过（已收敛的ATTACHED/attachNodes
+// 不被覆盖、不进收敛窗口）；硬件新增资源（脑裂收编模拟）时增量收编新组入账
+// （restoredFromHardware、state=CREATED），且既有条目挂载视图保留、收敛窗口重开
+TEST_F(TestUbseSsuServiceImpRecover, DiffRebuildSkipsWhenInventoryUnchanged)
+{
+    const std::string uuidA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    auto ns1 = MakeNsWithIdentity("eid_diff_a_0001", 1, "space_diff_a", uuidA, 1, 0x11);
+    AddNsToCollectorCache(ns1);
+    service_.RebuildLedgerFromDevList();
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    ASSERT_NE(ledger.Get("space_diff_a"), nullptr);
+
+    // 模拟agent重报收敛后的挂载视图
+    ledger.Modify("space_diff_a", uuidA, [](UbseSsuLedgerEntry &e) {
+        e.state = UbseSsuNsState::ATTACHED;
+        e.attachNodes.insert("node_a");
+    });
+
+    // 无差异：跳过收编，挂载视图不被覆盖，也不重开收敛窗口
+    ledger.ResetRebuildTime();
+    service_.AbsorbLedgerDifferences();
+    auto after = ledger.Get("space_diff_a");
+    ASSERT_NE(after, nullptr);
+    EXPECT_EQ(after->state, UbseSsuNsState::ATTACHED);
+    EXPECT_EQ(after->attachNodes.size(), 1u);
+    EXPECT_FALSE(ledger.IsInReconcileWindow());
+
+    // 硬件新增同名空间的另一uuid组（脑裂期间被收编方分配）→ 增量收编新组入账
+    const std::string uuidB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    AddNsToCollectorCache(MakeNsWithIdentity("eid_diff_b_0001", 1, "space_diff_b", uuidB, 1, 0x22));
+    service_.AbsorbLedgerDifferences();
+    auto merged = ledger.Get("space_diff_b");
+    ASSERT_NE(merged, nullptr);
+    EXPECT_TRUE(merged->restoredFromHardware);
+    EXPECT_EQ(merged->state, UbseSsuNsState::CREATED);
+    EXPECT_EQ(merged->allocResult.resourceUuid, uuidB);
+    // 既有条目挂载视图不被重置（不进全量Rebuild）+ 收编新条目重开收敛窗口
+    auto kept = ledger.Get("space_diff_a");
+    ASSERT_NE(kept, nullptr);
+    EXPECT_EQ(kept->state, UbseSsuNsState::ATTACHED);
+    EXPECT_EQ(kept->attachNodes.size(), 1u);
+    EXPECT_TRUE(ledger.IsInReconcileWindow());
+}
+
+// UT28-8：回正权责分离——身份级FAULTED（uuid漂移）期间name在硬件在线集合中属预期，
+// 同周期串行的name级对账（ReconcileSpaceFaultStates先执行）不得回正身份级FAULTED，
+// 否则两对账对同一FAULTED周期性置障/回正振荡（告警刷屏、FAULTED拦截保护间歇失效）；
+// 身份故障恢复（组匹配清计数）后回正路径恢复正常
+TEST_F(TestUbseSsuServiceImpRecover, NameLevelReconcileKeepsIdentityFaulted)
+{
+    const std::string uuidA = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+    auto nsLedger = MakeNsWithIdentity("eid_idt_0001", 1, "space_idt", uuidA, 1, 0x33);
+    AddNsToCollectorCache(nsLedger);
+    service_.RebuildLedgerFromDevList();
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    ASSERT_NE(ledger.Get("space_idt"), nullptr);
+
+    // 硬件切换为同名不同uuid组（漂移），防抖计满置FAULTED
+    const std::string uuidB = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    auto drifted = MakeIdentityDevList({MakeNsWithIdentity("eid_idt_0002", 1, "space_idt", uuidB, 1, 0x34)});
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    ASSERT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::FAULTED);
+
+    // 同周期串行（与采集回调顺序一致：name级先、身份级后）：FAULTED不被name级回正打断
+    service_.ReconcileSpaceFaultStates(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::FAULTED);
+
+    // 身份故障恢复（换回原uuid组）：身份对账清计数并回正，随后name级对账不产生异常状态
+    auto restored = MakeIdentityDevList({nsLedger});
+    service_.ReconcileSpaceFaultStates(restored);
+    service_.ReconcileLedgerResource(restored);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::CREATED);
+    service_.ReconcileSpaceFaultStates(restored);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::CREATED);
+}
 
 } // namespace ubse::ssu::service::ut

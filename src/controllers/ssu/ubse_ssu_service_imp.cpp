@@ -126,11 +126,15 @@ uint32_t UbseSsuServiceImp::StartCollecting()
         }
         executor->Execute([]() { UbseSsuServiceImp::GetInstance().RecoverLocalAttachments(); });
     });
-    // 周期采集成功回调：设备故障增量对账（FAULTED防抖/回正）
-    // 与离线节点离场处理，collector仅master启动，回调天然master-only
+    // 周期采集成功回调：
+    // 1.设备故障增量对账（FAULTED防抖/回正）
+    // 2.与离线节点离场处理
+    // 3.（name, resourceUuid）复合粒度资源身份对账（uuid漂移/NS缺失置障，硬件孤儿组告警）
+    // collector仅master启动，回调master-only
     collector_.SetOnCollectSuccess([this](const std::vector<UbseSsuDevInfo> &devList) {
         ReconcileSpaceFaultStates(devList);
         ReconcileOfflineNodes();
+        ReconcileLedgerResource(devList);
     });
 
     ret = collector_.Start();
@@ -4077,9 +4081,14 @@ void UbseSsuServiceImp::ReconcileSpaceFaultStates(const std::vector<UbseSsuDevIn
         }
         managedNames.insert(name);
         if (onlineNames.count(name) > 0) {
-            // 恢复即清零；已FAULTED的回正（attachNodes非空=attacher仍在挂载→ATTACHED，否则CREATED）
+            // 恢复即清零；已FAULTED的回正（attachNodes非空=attacher仍在挂载→ATTACHED，否则CREATED）。
+            // 身份级故障在途时name在线属预期（uuid漂移/NS缺失都是name在硬件可见），不得由name级
+            // 对账回正身份级FAULTED，否则两对账对同一FAULTED周期性置障/回正振荡（告警刷屏、
+            // FAULTED拦截保护间歇失效）；身份故障恢复由ReconcileLedgerResource清计数后放行回正
             faultDebouncer_.Reset(name);
-            if (entry->state == UbseSsuNsState::FAULTED) {
+            if (entry->state == UbseSsuNsState::FAULTED &&
+                resourceDebouncer_.GetCount(ComposeResourceKey(name, entry->allocResult.resourceUuid)) <
+                    SSU_FAULT_DEBOUNCE_CYCLES) {
                 ledger.Modify(name, entry->allocResult.resourceUuid, [](UbseSsuLedgerEntry &e) {
                     e.state = e.attachNodes.empty() ? UbseSsuNsState::CREATED : UbseSsuNsState::ATTACHED;
                 });
@@ -4118,6 +4127,15 @@ void UbseSsuServiceImp::OnNodeUpEvent(const std::string &nodeId)
 {
     nodeOfflineTracker_.OnUp(nodeId);
     UBSE_LOG_INFO << "NodeOffline: node back online, nodeId=" << nodeId;
+    // 节点回归触发账本差异重建（预检无差异跳过）：脑裂合并时存续master不再收到
+    // MASTER_ONLINE事件（收编分支角色不变），被收编方在分区期间分配的资源借NODE_UP
+    // 收编入账。executor异步执行不阻塞事件回调；executor为空时跳过，由周期对账兜底
+    auto executor = ubse::ssu::utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        UBSE_LOG_ERROR << "OnNodeUpEvent: get ssu executor failed, skip ledger diff absorb";
+        return;
+    }
+    executor->Execute([]() { UbseSsuServiceImp::GetInstance().AbsorbLedgerDifferences(); });
 }
 
 // 离线超阈值节点的周期处理（由collector采集成功回调触发）：
@@ -4158,6 +4176,255 @@ void UbseSsuServiceImp::ReconcileOfflineNodes()
             }
         }
     }
+}
+
+
+// ============ 资源身份对账与差异重建 ============
+
+// 硬件资源组：同一(name, resourceUuid)下的NS清单。扫描口径与Rebuild一致：
+// customData.name为空的NS跳过（遗留/未写入）；ns.uuid转换失败的NS计入总数但
+// 不计入uuid集合（与RebuildEntry逐NS跳过对齐，避免转换失败放大缺失判定）
+struct UbseSsuHardwareResourceGroup {
+    uint32_t nsCount{0};
+    std::unordered_set<std::string> nsUuids; // 标准连字符UUID
+};
+
+// 从采集设备列表提取硬件资源组（key=复合键），供资源身份对账与差异重建预检共用
+static std::unordered_map<std::string, UbseSsuHardwareResourceGroup> ExtractHardwareResourceGroups(
+    const std::vector<UbseSsuDevInfo> &devList)
+{
+    std::unordered_map<std::string, UbseSsuHardwareResourceGroup> groups;
+    for (const auto &dev : devList) {
+        for (const auto &ns : dev.nameSpaces) {
+            if (ns.customData.name[0] == '\0') {
+                continue;
+            }
+            std::string nsName(ns.customData.name, strnlen(ns.customData.name, sizeof(ns.customData.name)));
+            if (nsName.empty()) {
+                continue;
+            }
+            std::string resourceUuid(ns.customData.resourceUuid,
+                                     strnlen(ns.customData.resourceUuid, sizeof(ns.customData.resourceUuid)));
+            auto &group = groups[ComposeResourceKey(nsName, resourceUuid)];
+            group.nsCount++;
+            auto uuidStr = StrToUuid(ns.uuid);
+            if (!uuidStr.empty()) {
+                group.nsUuids.insert(std::move(uuidStr));
+            }
+        }
+    }
+    return groups;
+}
+
+// 差异收编预检：硬件资源组与账本托管条目（非CREATING/IDLE）的复合键集及NS数量
+// 是否完全一致。CREATING/IDLE不参与（在途分配/失败回退空间）：账本侧排除托管键的同时
+// 硬件侧也须排除同名组，否则ledger-first分配流程"先Put CREATING再写NS"使在途组恒出现
+// 在硬件侧，两侧size恒不等，预检恒判差异；nsNum为0的异常条目仅比对键存在性
+static bool HardwareLedgerGroupsChanged(const std::vector<UbseSsuDevInfo> &devList)
+{
+    auto hwGroups = ExtractHardwareResourceGroups(devList);
+    std::unordered_map<std::string, uint32_t> managedKeys;
+    std::unordered_set<std::string> inFlightNames; // CREATING/IDLE空间名，硬件侧同步排除
+    for (const auto &entry : UbseSsuDebtLedger::GetInstance().GetAll()) {
+        if (entry->state == UbseSsuNsState::CREATING || entry->state == UbseSsuNsState::IDLE) {
+            inFlightNames.insert(entry->name);
+            continue;
+        }
+        managedKeys.emplace(ComposeResourceKey(entry->name, entry->allocResult.resourceUuid),
+                            entry->allocReq.nsNum);
+    }
+    size_t hwManagedCount = 0;
+    for (const auto &[key, group] : hwGroups) {
+        if (inFlightNames.count(ExtractNameFromResourceKey(key)) > 0) {
+            continue; // 在途/回退空间的硬件组与账本侧口径对齐，不参与比对
+        }
+        hwManagedCount++;
+        auto it = managedKeys.find(key);
+        if (it == managedKeys.end()) {
+            return true;
+        }
+        if (it->second > 0 && it->second != group.nsCount) {
+            return true;
+        }
+    }
+    return hwManagedCount != managedKeys.size();
+}
+
+// 节点回归触发的账本差异收编（仅master，OnNodeUpEvent经executor异步调用）：
+// 预检无差异时跳过；有差异走增量收编（AbsorbHardwareGroups）而非全量Rebuild——本master
+// 账本持续维护、视图可信，全量重置会清掉已收敛条目的挂载视图（free"需先卸载"门禁失效）
+// 并重开60s收敛窗口。预检与收编间硬件清单可能变化（竞态良性：多一次幂等收编）
+void UbseSsuServiceImp::AbsorbLedgerDifferences()
+{
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK || role != ELECTION_ROLE_MASTER) {
+        return;
+    }
+    auto devList = collector_.GetCachedDevList();
+    if (devList.empty() && collector_.IsFirstCollectPending()) {
+        // 首采未完成缓存不可信：交给首采恢复回调（SetOnFirstCollectFailRecovery）触发重建
+        return;
+    }
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    if (!ledger.IsReady()) {
+        // 账本未就绪：不预检，直接走全量重建路径（内部有首采守卫与空输入安全）
+        RebuildLedgerFromDevList();
+        return;
+    }
+    if (!HardwareLedgerGroupsChanged(devList)) {
+        UBSE_LOG_INFO << "AbsorbLedgerDifferences: hardware inventory unchanged, skip absorb";
+        return;
+    }
+    UBSE_LOG_INFO << "AbsorbLedgerDifferences: hardware inventory changed, absorb new hardware groups";
+    const size_t absorbedCount = ledger.AbsorbHardwareGroups(devList);
+    UBSE_LOG_INFO << "AbsorbLedgerDifferences: absorb finished, absorbedCount=" << absorbedCount;
+}
+
+// （name, resourceUuid）复合粒度资源身份对账：每个采集成功周期由collector回调触发。
+// name级存亡判障由ReconcileSpaceFaultStates负责，本函数只判身份差异，四类场景：
+// - uuid漂移：账本uuid组从硬件消失，防抖后置FAULTED阻断消费陈旧路径（关键字ResourceUuidChangedAlarm）
+// - NS缺失：uuid组在但成员数不足，防抖后置FAULTED并告警（关键字NsMissingAlarm）；计数补齐即回正
+// - 同名冲突孤儿：硬件多出同名不同uuid组(脑裂后创建同名资源)，告警转人工，关键字LedgerOrphanConflictAlarm
+// - 真孤儿：硬件同名无任何账本条目，告警转人工（关键字LedgerOrphanAlarm）。本对账不清理/不收编；
+//   NODE_UP差异收编路径（AbsorbHardwareGroups）会将其入账（与脑裂对端新分配不可区分，入账后
+//   本告警不再触发），收编时以LedgerOrphanAbsorbedAlarm留痕转人工
+// 写账本仅uuid漂移/NS缺失置障与NS缺失回正，其余仅告警；防抖键空间与name级faultDebouncer_隔离
+void UbseSsuServiceImp::ReconcileLedgerResource(const std::vector<UbseSsuDevInfo> &devList)
+{
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    if (!ledger.IsReady()) {
+        return; // 账本未就绪（Rebuild前），身份语义未知，不判漂移
+    }
+    auto hwGroups = ExtractHardwareResourceGroups(devList);
+    // name在线集合（从复合键反解name，与Rebuild分组口径一致）
+    std::unordered_set<std::string> onlineNames;
+    for (const auto &[key, group] : hwGroups) {
+        onlineNames.insert(ExtractNameFromResourceKey(key));
+    }
+    auto entries = ledger.GetAll();
+    // 账本索引（全状态条目）：ledgerKeys供孤儿判定，creatingNames供同名冲突在途跳过
+    std::unordered_set<std::string> ledgerKeys;
+    std::unordered_set<std::string> ledgerNames;
+    std::unordered_set<std::string> creatingNames;
+    for (const auto &entry : entries) {
+        ledgerNames.insert(entry->name);
+        ledgerKeys.insert(ComposeResourceKey(entry->name, entry->allocResult.resourceUuid));
+        if (entry->state == UbseSsuNsState::CREATING) {
+            creatingNames.insert(entry->name);
+        }
+    }
+    // 防抖键全集：managed复合键 + 超额/孤儿瞬时键，周期末全量Prune防泄漏
+    std::unordered_set<std::string> debounceKeys;
+
+    // ---- 账本侧扫描：uuid漂移 / NS缺失（仅托管条目）----
+    for (const auto &entry : entries) {
+        if (entry->state == UbseSsuNsState::CREATING || entry->state == UbseSsuNsState::IDLE) {
+            continue; // 与name级对账同门槛：未落盘/失败回退不判身份
+        }
+        const auto &name = entry->name;
+        const auto &resourceUuid = entry->allocResult.resourceUuid;
+        const std::string compKey = ComposeResourceKey(name, resourceUuid);
+        debounceKeys.insert(compKey);
+        if (onlineNames.count(name) == 0) {
+            continue; // name级让路：整体消失由ReconcileSpaceFaultStates判FAULTED
+        }
+        auto it = hwGroups.find(compKey);
+        if (it == hwGroups.end()) {
+            // uuid漂移
+            uint32_t count = resourceDebouncer_.Increment(compKey);
+            if (count >= SSU_FAULT_DEBOUNCE_CYCLES && entry->state != UbseSsuNsState::FAULTED) {
+                ledger.Modify(name, resourceUuid,
+                              [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
+                UBSE_LOG_ERROR << "ResourceUuidChangedAlarm: ledger uuid group missing from hardware for " << count
+                               << " cycles, mark FAULTED, name=" << name << ", resourceUuid=" << resourceUuid;
+            }
+            continue;
+        }
+        const auto &group = it->second;
+        const uint32_t expected = entry->allocReq.nsNum;
+        if (expected == 0) {
+            continue; // 异常nsNum防御：不判完整性
+        }
+        if (group.nsUuids.size() < expected) {
+            // NS缺失
+            uint32_t count = resourceDebouncer_.Increment(compKey);
+            if (count >= SSU_FAULT_DEBOUNCE_CYCLES && entry->state != UbseSsuNsState::FAULTED) {
+                std::string missingPaths;
+                for (const auto &nsInfo : entry->allocResult.nameSpaceList) {
+                    if (group.nsUuids.count(nsInfo.nsUuid) == 0) {
+                        missingPaths += " " + nsInfo.nsDevPath;
+                    }
+                }
+                ledger.Modify(name, resourceUuid,
+                              [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
+                UBSE_LOG_ERROR << "NsMissingAlarm: ns count incomplete for " << count
+                               << " cycles, mark FAULTED, name=" << name << ", resourceUuid=" << resourceUuid
+                               << ", expected=" << expected << ", actual=" << group.nsUuids.size()
+                               << ", missingDevPaths=" << missingPaths;
+            }
+            continue;
+        }
+        if (group.nsUuids.size() > expected) {
+            // 同customData重复NS（异常）：防抖后仅告警一次，不置障；超额成因未知不回正
+            const std::string extraKey = ComposeResourceKey(compKey, "extra");
+            debounceKeys.insert(extraKey);
+            uint32_t count = resourceDebouncer_.Increment(extraKey);
+            if (count == SSU_FAULT_DEBOUNCE_CYCLES) {
+                UBSE_LOG_WARN << "NsExtraWarn: scanned ns count exceeds expected, name=" << name
+                              << ", resourceUuid=" << resourceUuid << ", expected=" << expected
+                              << ", actual=" << group.nsUuids.size();
+            }
+            continue;
+        }
+        // 完整：漂移/缺失计数在此清零（Reset须晚于NS缺失判定，否则缺失计数每周期被
+        // 先清后增永远计不满）；因漂移/缺失曾置FAULTED的在此回正
+        resourceDebouncer_.Reset(compKey);
+        if (entry->state == UbseSsuNsState::FAULTED) {
+            ledger.Modify(name, resourceUuid, [](UbseSsuLedgerEntry &e) {
+                e.state = e.attachNodes.empty() ? UbseSsuNsState::CREATED : UbseSsuNsState::ATTACHED;
+            });
+            UBSE_LOG_INFO << "NsIntegrityRecover: space ns count restored, state restored, name=" << name
+                          << ", resourceUuid=" << resourceUuid;
+        }
+    }
+
+    // ---- 硬件侧扫描：同名冲突孤儿 / 真孤儿 ----
+    for (const auto &[key, group] : hwGroups) {
+        if (ledgerKeys.count(key) > 0) {
+            continue; // 账本已有该(name, uuid)条目
+        }
+        std::string name = ExtractNameFromResourceKey(key);
+        if (creatingNames.count(name) > 0) {
+            continue; // 同名CREATING在途：分配中间态，静默跳过（如free残留后同名重分配的窗口期）
+        }
+        const std::string orphanKey = ComposeResourceKey("orphan", key);
+        debounceKeys.insert(orphanKey);
+        uint32_t count = resourceDebouncer_.Increment(orphanKey);
+        if (count != SSU_FAULT_DEBOUNCE_CYCLES) {
+            continue; // 防抖未满或已告警过（仅在阈值当拍告警一次，组消失即清键可重新告警）
+        }
+        std::string devPaths;
+        for (const auto &nsUuid : group.nsUuids) {
+            // 与CreateDevNameSpaces/RebuildEntry的持久化路径口径一致
+            devPaths += " /dev/disk/by-id/nvme-uuid." + nsUuid;
+        }
+        // 硬件存在同名但不同resourceUUID
+        if (ledgerNames.count(name) > 0) {
+            UBSE_LOG_ERROR << "LedgerOrphanConflictAlarm: hardware ns group same name different resourceUuid, "
+                           << "manual check required, name=" << name
+                           << ", orphanUuid=" << ExtractUuidFromResourceKey(key) << ", nsCount=" << group.nsCount
+                           << ", devPaths=" << devPaths;
+        } else {
+            // 硬件存在账本不存在的name资源
+            UBSE_LOG_ERROR << "LedgerOrphanAlarm: hardware ns group not tracked by ledger "
+                           << "(possible free partial-failure residue), manual cleanup required, name=" << name
+                           << ", resourceUuid=" << ExtractUuidFromResourceKey(key) << ", nsCount=" << group.nsCount
+                           << ", devPaths=" << devPaths;
+        }
+    }
+
+    resourceDebouncer_.PruneStale(debounceKeys);
 }
 
 
