@@ -420,8 +420,9 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsInfoWhenEmpty)
     EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_LIST_ALLOC_INFO));
 }
 
-// 摘要表正向内容校验：表头列名与各分配的 name/size/strategy 均应出现在输出中。
-// size 由 nameSpaceList[*].nsSize 求和得出，并以原始字节值展示。
+// 摘要表正向内容校验：表头列名与各分配的 name/size/strategy/resource_uuid 均应出现在输出中。
+// size 由 nameSpaceList[*].nsSize 求和得出，并以原始字节值展示；
+// resource_uuid 用于区分同名多份分配（脑裂合并遗留）。
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNameSizeStrategy)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_normal));
@@ -429,9 +430,11 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNameSizeStrategy)
     EXPECT_NE(output.find("name"), std::string::npos);
     EXPECT_NE(output.find("size"), std::string::npos);
     EXPECT_NE(output.find("strategy"), std::string::npos);
+    EXPECT_NE(output.find("resource_uuid"), std::string::npos);
     EXPECT_NE(output.find("alloc-space-1"), std::string::npos);
     EXPECT_NE(output.find("10737418240"), std::string::npos);
     EXPECT_NE(output.find("Linear"), std::string::npos);
+    EXPECT_NE(output.find("resource-uuid-1"), std::string::npos);
     EXPECT_NE(output.find("alloc-space-2"), std::string::npos);
     EXPECT_NE(output.find("21474836480"), std::string::npos);
     EXPECT_NE(output.find("Striped"), std::string::npos);
@@ -1146,7 +1149,46 @@ TEST_F(TestUbseCliSsuCmdReg, DeleteSerializesNameUsesFreeSpaceOpcodeAndReturnsEm
     EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_FREE_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastFreeSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastFreeSpaceReq.resourceUuid, "");
     EXPECT_EQ(g_ssuMockLastRequestPayload.size(), sizeof(uint32_t) + std::string("alloc-space-1").size());
+}
+
+// delete 指定 resource_uuid 时应透传到释放请求，payload 追加 uuid 字段（精确删除其中一份分配）。
+TEST_F(TestUbseCliSsuCmdReg, DeleteSerializesOptionalResourceUuid)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_free_space_invoke_call_normal));
+    const std::string uuid = "550e8400-e29b-41d4-a716-446655440000";
+    const std::map<std::string, std::string> params{{"name", "alloc-space-1"}, {"resource_uuid", uuid}};
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDeleteSsuFunc(params)).empty());
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_FREE_SPACE));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastFreeSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastFreeSpaceReq.resourceUuid, uuid);
+    EXPECT_EQ(g_ssuMockLastRequestPayload.size(),
+              sizeof(uint32_t) + std::string("alloc-space-1").size() + sizeof(uint32_t) + uuid.size());
+}
+
+// delete 的 resource_uuid 超过长度上限时应在本地拒绝且不进入 IPC。
+TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsOverlongResourceUuid)
+{
+    const std::map<std::string, std::string> params{{"name", "alloc-space-1"},
+                                                    {"resource_uuid", std::string(SSU_CLI_MAX_UUID_LENGTH + 1, 'r')}};
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc(params), "ERROR: Invalid resource_uuid.");
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+}
+
+// delete 的 resource_uuid 含非法字符（大写十六进制/其他字符）时应在本地拒绝且不进入 IPC。
+TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsInvalidResourceUuidCharset)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_free_space_invoke_call_normal));
+    ExpectRenderedContains(
+        UbseCliRegSsuModule::UbseCliDeleteSsuFunc({{"name", "alloc-space-1"}, {"resource_uuid", "resource-uuid-1"}}),
+        "ERROR: Invalid resource_uuid.");
+    ExpectRenderedContains(
+        UbseCliRegSsuModule::UbseCliDeleteSsuFunc({{"name", "alloc-space-1"}, {"resource_uuid", "ABC-123"}}),
+        "ERROR: Invalid resource_uuid.");
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
 }
 
 // IPC 调用失败时，delete ssu 应在回显中保留服务返回的错误码。
@@ -1654,6 +1696,33 @@ TEST_F(TestUbseCliSsuCmdReg, DetachSpaceDefaultsHostNqnToEmpty)
     UbseCliRegSsuModule::UbseCliDetachSsuFunc(DetachParams());
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_TRUE(g_ssuMockLastDetachSpaceReq.hostNqn.empty());
+}
+
+// detach 指定 resource_uuid 时应透传到卸载请求，payload 追加 uuid 字段（精确卸载其中一份分配）。
+TEST_F(TestUbseCliSsuCmdReg, DetachSpaceSerializesOptionalResourceUuid)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    const std::string uuid = "550e8400-e29b-41d4-a716-446655440000";
+    auto params = DetachParams();
+    params["resource_uuid"] = uuid;
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_SPACE));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastDetachSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastDetachSpaceReq.resourceUuid, uuid);
+}
+
+// detach 的 resource_uuid 超长或含非法字符时应在本地拒绝且不进入 IPC。
+TEST_F(TestUbseCliSsuCmdReg, DetachRejectsInvalidResourceUuid)
+{
+    auto overlong = DetachParams();
+    overlong["resource_uuid"] = std::string(SSU_CLI_MAX_UUID_LENGTH + 1, 'r');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(overlong), "ERROR: Invalid resource_uuid.");
+    auto badCharset = DetachParams();
+    badCharset["resource_uuid"] = "ABC-123";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(badCharset), "ERROR: Invalid resource_uuid.");
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
 }
 
 // 未指定聚合类型时携带 dev_name，应拒绝该仅适用于聚合解绑的参数组合。

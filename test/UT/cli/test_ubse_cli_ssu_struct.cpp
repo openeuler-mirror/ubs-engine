@@ -62,7 +62,8 @@ uint32_t NameSpaceSize(const UbseCliSsuNameSpaceInfo& value)
 
 uint32_t AllocationSize(const UbseCliSsuAllocResult& value)
 {
-    uint32_t size = StringSize(value.name) + static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
+    uint32_t size = StringSize(value.name) + StringSize(value.resourceUuid) +
+                    static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
     for (const auto& nameSpace : value.nameSpaceList) {
         size += NameSpaceSize(nameSpace);
     }
@@ -101,7 +102,8 @@ bool PackAllocation(UbsePackUtil& pack, const UbseCliSsuAllocResult& value)
             return false;
         }
     }
-    return true;
+    // 服务端 AllocResultPack 在 namespace 列表尾部追加 resourceUuid。
+    return PackString(pack, value.resourceUuid);
 }
 
 std::vector<uint8_t> PackAllocationList(const std::vector<UbseCliSsuAllocResult>& values)
@@ -152,6 +154,7 @@ UbseCliSsuAllocResult MakeAllocation(const std::string& name, UbseSsuAllocStrate
 {
     UbseCliSsuAllocResult value;
     value.name = name;
+    value.resourceUuid = "resource-uuid-1";
     value.strategy = strategy;
     value.nameSpaceList = {
         {"eid-1",
@@ -228,6 +231,63 @@ TEST(TestUbseCliSsuStruct, FreeSpaceRequestEnforcesNameLengthBoundary)
     const auto validPayload = payload;
     EXPECT_FALSE(overlongRequest.Serialize(payload));
     EXPECT_EQ(payload, validPayload);
+}
+
+// 释放请求的 resourceUuid 为可选字段：缺省时保持旧线报文格式（仅 name）；
+// 非空时按 name + resourceUuid 顺序追加编码，超上限一个字符应失败。
+TEST(TestUbseCliSsuStruct, FreeSpaceRequestSerializesOptionalResourceUuid)
+{
+    UbseCliSsuFreeSpaceReq request;
+    request.name = "alloc-a";
+    request.resourceUuid = "resource-uuid-1";
+    std::vector<uint8_t> payload;
+    auto unpack = SerializeAndOpen(request, payload);
+    std::string actualName;
+    std::string actualUuid;
+    ASSERT_TRUE(unpack.UnpackString(actualName, SSU_CLI_MAX_NAME_LENGTH));
+    ASSERT_TRUE(unpack.UnpackString(actualUuid, SSU_CLI_MAX_UUID_LENGTH));
+    EXPECT_EQ(actualName, request.name);
+    EXPECT_EQ(actualUuid, request.resourceUuid);
+    EXPECT_EQ(payload.size(), sizeof(uint32_t) + request.name.size() + sizeof(uint32_t) + request.resourceUuid.size());
+
+    UbseCliSsuFreeSpaceReq overlongUuidRequest;
+    overlongUuidRequest.name = "alloc-a";
+    overlongUuidRequest.resourceUuid = std::string(SSU_CLI_MAX_UUID_LENGTH + 1, 'r');
+    EXPECT_FALSE(overlongUuidRequest.Serialize(payload));
+}
+
+// 卸载请求的 resourceUuid 为可选字段：缺省时保持旧线报文格式（仅空间基础字段）；
+// 非空时在尾部追加编码，超上限一个字符应失败。
+TEST(TestUbseCliSsuStruct, DetachRequestSerializesOptionalResourceUuid)
+{
+    UbseCliSsuDetachSpaceReq request;
+    request.name = "alloc-a";
+    request.resourceUuid = "550e8400-e29b-41d4-a716-446655440000";
+    std::vector<uint8_t> payload;
+    auto unpack = SerializeAndOpen(request, payload);
+    std::string actualName;
+    std::string actualNqn;
+    std::string actualEid;
+    std::string actualUuid;
+    ASSERT_TRUE(unpack.UnpackString(actualName, SSU_CLI_MAX_NAME_LENGTH));
+    ASSERT_TRUE(unpack.UnpackString(actualNqn, SSU_CLI_MAX_HOST_NQN_LENGTH));
+    ASSERT_TRUE(unpack.UnpackString(actualEid, SSU_CLI_MAX_SRC_EID_LENGTH));
+    ASSERT_TRUE(unpack.UnpackString(actualUuid, SSU_CLI_MAX_UUID_LENGTH));
+    EXPECT_EQ(actualName, request.name);
+    EXPECT_EQ(actualUuid, request.resourceUuid);
+
+    // 缺省 resourceUuid：保持旧格式，无尾部字段
+    UbseCliSsuDetachSpaceReq legacyRequest;
+    legacyRequest.name = "alloc-a";
+    ASSERT_TRUE(legacyRequest.Serialize(payload));
+    EXPECT_EQ(payload.size(), sizeof(uint32_t) + legacyRequest.name.size() + sizeof(uint32_t) +
+                                  legacyRequest.hostNqn.size() + sizeof(uint32_t) + legacyRequest.srcEid.size());
+
+    // 超上限 resourceUuid：本地拒绝
+    UbseCliSsuDetachSpaceReq overlongRequest;
+    overlongRequest.name = "alloc-a";
+    overlongRequest.resourceUuid = std::string(SSU_CLI_MAX_UUID_LENGTH + 1, 'r');
+    EXPECT_FALSE(overlongRequest.Serialize(payload));
 }
 
 // create 请求的字段顺序及枚举宽度必须与服务端 handler 解包契约逐字段一致。
@@ -380,7 +440,9 @@ TEST(TestUbseCliSsuStruct, AggregatedAttachResponseDecodesNamespacePathsBeforeDe
 TEST(TestUbseCliSsuStruct, AllocationListConsumesMultipleNamespacesAndAllowedHostNqns)
 {
     const auto first = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
-    const auto second = MakeAllocation("alloc-b", UbseSsuAllocStrategy::STRIPED, 3);
+    auto second = MakeAllocation("alloc-b", UbseSsuAllocStrategy::STRIPED, 3);
+    // 第二条目uuid与首条不同：尾部字段错位若uuid对uuid互换则同值不暴露，异值可检出
+    second.resourceUuid = "resource-uuid-2";
     const auto payload = PackAllocationList({first, second});
     UbseCliSsuAllocListRsp response;
     ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
@@ -388,7 +450,9 @@ TEST(TestUbseCliSsuStruct, AllocationListConsumesMultipleNamespacesAndAllowedHos
     EXPECT_EQ(response.allocations[0].nameSpaceList[0].allowHostNqnList,
               (std::vector<std::string>{"nqn.2026-07:host-a", "nqn.2026-07:host-b"}));
     EXPECT_EQ(response.allocations[0].nameSpaceList[1].nsUuid, "uuid-2");
+    EXPECT_EQ(response.allocations[0].resourceUuid, first.resourceUuid);
     EXPECT_EQ(response.allocations[1].name, "alloc-b");
+    EXPECT_EQ(response.allocations[1].resourceUuid, second.resourceUuid);
     EXPECT_EQ(response.allocations[1].strategy, UbseSsuAllocStrategy::STRIPED);
 }
 
@@ -484,8 +548,10 @@ TEST(TestUbseCliSsuStruct, ResponsesRejectDefensiveHostLimitAndInvalidEnums)
     allocation.nameSpaceList.resize(1);
     allocation.nameSpaceList[0].allowHostNqnList.clear();
     auto payload = PackAllocationList({allocation});
+    // 尾部追加了 resourceUuid 字符串，hostNqnCount 不再位于最后一个 uint32，需按 uuid 长度回退定位。
     uint32_t tooManyHosts = SSU_CLI_MAX_DESERIALIZED_HOST_NQNS + 1;
-    std::memcpy(payload.data() + payload.size() - sizeof(uint32_t), &tooManyHosts, sizeof(tooManyHosts));
+    const size_t hostCountOffset = payload.size() - StringSize(allocation.resourceUuid) - sizeof(uint32_t);
+    std::memcpy(payload.data() + hostCountOffset, &tooManyHosts, sizeof(tooManyHosts));
     UbseCliSsuAllocListRsp response;
     EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
@@ -627,6 +693,7 @@ TEST(TestUbseCliSsuStruct, ResponsesAcceptStringsAtCliLimits)
     const std::string devPath(SSU_CLI_MAX_DEV_PATH_LENGTH, 'p');
     auto allocation = MakeAllocation(std::string(SSU_CLI_MAX_NAME_LENGTH, 'n'), UbseSsuAllocStrategy::LINEAR, 1);
     allocation.nameSpaceList.resize(1);
+    allocation.resourceUuid = std::string(SSU_CLI_MAX_UUID_LENGTH, 'r');
     auto& nameSpace = allocation.nameSpaceList[0];
     nameSpace.tgtEid = std::string(SSU_CLI_MAX_SRC_EID_LENGTH, 'e');
     nameSpace.tgtNqn = std::string(SSU_CLI_MAX_HOST_NQN_LENGTH, 'q');
@@ -641,6 +708,7 @@ TEST(TestUbseCliSsuStruct, ResponsesAcceptStringsAtCliLimits)
     ASSERT_EQ(allocationResponse.allocations.size(), 1U);
     const auto& actualAllocation = allocationResponse.allocations[0];
     EXPECT_EQ(actualAllocation.name, allocation.name);
+    EXPECT_EQ(actualAllocation.resourceUuid, allocation.resourceUuid);
     EXPECT_EQ(actualAllocation.strategy, allocation.strategy);
     ASSERT_EQ(actualAllocation.nameSpaceList.size(), 1U);
     const auto& actualNameSpace = actualAllocation.nameSpaceList[0];
