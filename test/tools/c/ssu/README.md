@@ -68,5 +68,15 @@ ubse_ssu_test_c> quit
 ```
 
 退出码为 `0` 表示成功，`1` 表示未知命令、参数错误或 SDK 错误，`2` 表示执行了 `quit`/`exit`。
-所有参数均为必填位置参数；空字符串需显式传入 `""`，枚举参数使用 SDK 定义的十进制数值。
+除三个 detach 命令末尾的可选 `[resource_uuid]` 外，所有参数均为必填位置参数；空字符串需显式传入
+`""`，枚举参数使用 SDK 定义的十进制数值。
 完整命令列表参见 [command-examples.md](command-examples.md)。
+
+## 精确卸载（resource_uuid）
+
+脑裂合并后可能出现同名多份分配。detach 命令（`ssu_detach_space`、`ssu_detach_linear_space`、
+`ssu_detach_striped_space`）支持可选尾随参数 `[resource_uuid]`：先用 `ssu_list_alloc_info` 查询
+各次分配的 `ResourceUuid`，再带该参数精确卸载其中一份（按 name+resource_uuid 复合键命中，跳过同名
+多份的歧义拒绝；未命中报空间不存在）。不传时按 name 解析，同名多份会被拒绝，行为与从前一致。
+resource_uuid 长度 1~36、仅允许 `[0-9a-f-]`，工具在本地校验，非法时直接报错不发起 SDK 调用；
+后续可用 `ssu_free_space_by_resource_uuid` 按同一 resource_uuid 精确释放对应分配。

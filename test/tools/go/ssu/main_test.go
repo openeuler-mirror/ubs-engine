@@ -12,7 +12,7 @@ import (
 	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/ssu"
 )
 
-// TestHelpListsAllSdkCommands 验证帮助输出完整列出 16 条 SDK 命令。
+// TestHelpListsAllSdkCommands 验证帮助输出完整列出 17 条 SDK 命令。
 func TestHelpListsAllSdkCommands(t *testing.T) {
 	var output bytes.Buffer
 
@@ -28,6 +28,7 @@ func TestHelpListsAllSdkCommands(t *testing.T) {
 		"ssu_get_fe_device_list",
 		"ssu_alloc_space",
 		"ssu_free_space",
+		"ssu_free_space_by_resource_uuid",
 		"ssu_add_access_permission",
 		"ssu_remove_access_permission",
 		"ssu_attach_space",
@@ -69,7 +70,7 @@ func TestResponseFormats(t *testing.T) {
 		{"empty list", []string{"ssu_get_ns_stats", "name"}, "{\"response\":[]}\n"},
 		{"structured list", []string{"ssu_get_connect_info", "name", "0", "0", "0", "0", "0", "0", "", ""}, "{\"response\":[{\"SrcEid\":\"source eid\",\"TgtEid\":\"\",\"TgtNqn\":\"\",\"HostNqn\":\"\",\"NsUuid\":\"\",\"NsId\":0}]}\n"},
 		{"empty string", []string{"ssu_fe_device_alloc", "0", "0", "0", "0", "0", "0", "", "", ""}, "{\"response\":\"\"}\n"},
-		{"zero value", []string{"ssu_alloc_space", "", "0", "0", "0", "0", ""}, "{\"response\":{\"Name\":\"\",\"Strategy\":0,\"Namespaces\":null}}\n"},
+		{"zero value", []string{"ssu_alloc_space", "", "0", "0", "0", "0", ""}, "{\"response\":{\"Name\":\"\",\"ResourceUuid\":\"\",\"Strategy\":0,\"Namespaces\":null}}\n"},
 		{"multiple values", []string{"ssu_attach_linear_space", "", "", "", ""}, "{\"response\":[[\"dev-a\",\"dev-b\"],\"aggregate path\"]}\n"},
 		{"error only", []string{"ssu_free_space", ""}, "{\"response\":\"success\"}\n"},
 	}
@@ -98,14 +99,18 @@ func TestEveryCommandCallsMatchingSdkFunction(t *testing.T) {
 		{"ssu_get_fe_device_list", nil},
 		{"ssu_alloc_space", []string{"name", "1024", "2", "4096", "9", "tenant"}},
 		{"ssu_free_space", []string{"name"}},
+		{"ssu_free_space_by_resource_uuid", []string{"name", "uuid"}},
 		{"ssu_add_access_permission", []string{"name", "nqn"}},
 		{"ssu_remove_access_permission", []string{"name", "nqn"}},
 		{"ssu_attach_space", []string{"name", "nqn", "eid"}},
 		{"ssu_detach_space", []string{"name", "nqn", "eid"}},
+		{"ssu_detach_space", []string{"name", "nqn", "eid", "uuid"}},
 		{"ssu_attach_linear_space", []string{"name", "nqn", "eid", "linear"}},
 		{"ssu_detach_linear_space", []string{"name", "nqn", "eid", "linear"}},
+		{"ssu_detach_linear_space", []string{"name", "nqn", "eid", "linear", "uuid"}},
 		{"ssu_attach_striped_space", []string{"name", "nqn", "eid", "striped", "7", "13"}},
 		{"ssu_detach_striped_space", []string{"name", "nqn", "eid", "striped", "7", "13"}},
+		{"ssu_detach_striped_space", []string{"name", "nqn", "eid", "striped", "7", "13", "uuid"}},
 		{"ssu_fe_device_alloc", []string{"1", "2", "3", "4", "5", "6", "vfe", "bind", "bus"}},
 		{"ssu_fe_device_free", []string{"1", "2", "3", "4", "5", "6", "vfe", "bind"}},
 	}
@@ -153,6 +158,10 @@ func recordingSDK(called *string) sdkFuncs {
 		},
 		freeSpace: func(string) error {
 			mark("ssu_free_space")
+			return nil
+		},
+		freeSpaceByUuid: func(string, string) error {
+			mark("ssu_free_space_by_resource_uuid")
 			return nil
 		},
 		addAccessPermission: func(string, string) error {
@@ -253,6 +262,28 @@ func TestArgumentsArePassedWithoutBusinessConversion(t *testing.T) {
 			t.Fatalf("enum values were changed: %+v", got)
 		}
 	})
+
+	t.Run("detach optional resource uuid", func(t *testing.T) {
+		var got []ssu.UbsSsuSpaceReq
+		deps := recordingSDK(new(string))
+		deps.detachSpace = func(req ssu.UbsSsuSpaceReq) error {
+			got = append(got, req)
+			return nil
+		}
+		if err := runOnce(strings.Fields("ssu_detach_space name nqn eid"), io.Discard, deps); err != nil {
+			t.Fatalf("detach without resource uuid failed: %v", err)
+		}
+		if err := runOnce(strings.Fields("ssu_detach_space name nqn eid uuid"), io.Discard, deps); err != nil {
+			t.Fatalf("detach with resource uuid failed: %v", err)
+		}
+		want := []ssu.UbsSsuSpaceReq{
+			{Name: "name", Nqn: "nqn", SrcEid: "eid"},
+			{Name: "name", Nqn: "nqn", SrcEid: "eid", ResourceUUID: "uuid"},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("requests %+v, want %+v", got, want)
+		}
+	})
 }
 
 // TestInvalidInputDoesNotCallSDK 验证参数数量或类型错误会在 SDK 调用前被拒绝。
@@ -268,6 +299,9 @@ func TestInvalidInputDoesNotCallSDK(t *testing.T) {
 		{"ssu_alloc_space", "name", "1", "2", "4096", "linear", "tenant"},
 		{"ssu_alloc_space", "name", "-1", "2", "4096", "0", "tenant"},
 		{"ssu_alloc_space", "name", "1", "4294967296", "4096", "0", "tenant"},
+		{"ssu_detach_space", "name", "nqn", "eid", "uuid", "extra"},
+		{"ssu_detach_linear_space", "name", "nqn", "eid", "linear", "uuid", "extra"},
+		{"ssu_detach_striped_space", "name", "nqn", "eid", "striped", "7", "13", "uuid", "extra"},
 	}
 	for _, args := range cases {
 		if err := runOnce(args, io.Discard, deps); err == nil {

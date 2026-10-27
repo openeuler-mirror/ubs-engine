@@ -124,9 +124,10 @@ type UbsSsuNamespaceInfo struct {
 
 // UbsSsuAllocResult 分配存储空间结果
 type UbsSsuAllocResult struct {
-    Name       string
-    Strategy   UbsSsuAllocStrategy
-    Namespaces []UbsSsuNamespaceInfo
+    Name         string
+    ResourceUuid string // 分配唯一标识, 每次分配生成一次, 供精确释放等场景使用
+    Strategy     UbsSsuAllocStrategy
+    Namespaces   []UbsSsuNamespaceInfo
 }
 
 // UbsSsuAllocSpaceReq 分配存储空间请求参数
@@ -144,6 +145,9 @@ type UbsSsuSpaceReq struct {
     Name   string
     Nqn    string
     SrcEid string
+    // 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+    // 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+    ResourceUUID string
 }
 
 // UbsSsuLinearSpaceReq 挂载|卸载线性编址存储空间请求参数
@@ -152,6 +156,9 @@ type UbsSsuLinearSpaceReq struct {
     Nqn     string
     SrcEid  string
     DevName string
+    // 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+    // 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+    ResourceUUID string
 }
 
 // UbsSsuStripedSpaceReq 挂载|卸载条带化编址存储空间请求参数
@@ -162,6 +169,9 @@ type UbsSsuStripedSpaceReq struct {
     DevName   string
     Level     UbsSsuAggregationRaidLevel
     ChunkSize UbsSsuChunkSize
+    // 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+    // 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+    ResourceUUID string
 }
 
 // UbsUbVfe 虚拟功能单元(VFE)信息
@@ -403,7 +413,59 @@ func UbsSsuFreeSpace(name string) error
 
 **附注 NOTES**
 
-暂无。
+释放该 name 下全部分配（含同名多份）；同名多次分配（脑裂合并遗留）场景下需精确释放某一次分配时，请使用 `UbsSsuFreeSpaceByResourceUuid`。
+
+### UbsSsuFreeSpaceByResourceUuid
+
+**包 PACKAGE**
+
+`ssu`
+
+**摘要 SYNOPSIS**
+
+```go
+func UbsSsuFreeSpaceByResourceUuid(name string, resourceUuid string) error
+```
+
+**描述 DESCRIPTION**
+
+按 resourceUuid 精确释放已分配的存储空间。仅释放 name 下指定 resourceUuid 对应的那一次分配，适用于同名多次分配（如脑裂合并遗留）场景。resourceUuid 可先通过 `UbsSsuListAllocInfo` 查询获得。
+
+**参数 PARAMETERS**
+
+| name | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `name` | `string` | 要释放的存储空间标识 |
+| `resourceUuid` | `string` | 分配唯一标识，由 `UbsSsuAllocSpace` 返回 |
+
+**返回值 RETURN VALUE**
+
+| 返回值 | 类型 | 说明 |
+| ------ | ---- | ---- |
+| 第 1 个 | `error` | 错误信息；成功返回 `nil` |
+
+**错误 ERRORS**
+
+| Error | Description |
+| ----- | ----------- |
+| 参数校验错误 | `name` 或 `resourceUuid` 为空、超长或包含非法字符（仅允许 `[0-9a-f-]`） |
+| IPC 通信错误 | 连接 UBSE 服务端失败 |
+| 鉴权错误 | UBSE 服务端鉴权不通过 |
+| 不存在错误 | 存储空间不存在或已释放，无需释放报错 |
+| ResourceUuid 不存在 | name 下不存在该 resourceUuid |
+| 需先卸载 | 该次分配的空间已挂载，需先卸载再释放 |
+| 超时错误 | UBSE 服务端处理超时 |
+| 内部错误 | UBSE 服务端内部错误 |
+
+**约束 CONSTRAINTS**
+
+- `name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
+- `resourceUuid` 不能为空，长度不超过 `UbsSsuMaxUuidLength - 1` 个字符，仅允许字符 `[0-9a-f-]`（与服务端 GenerateUuid 输出格式对齐）。
+- 释放操作不再幂等，释放不存在的空间将报错。
+
+**附注 NOTES**
+
+同名存在多条分配（疑似脑裂残留）时，`UbsSsuAttachSpace`/`UbsSsuDetachSpace` 等 name 维度操作会因歧义被拒绝（`ErrSsuNameDuplicated`），需先通过 `UbsSsuListAllocInfo` 查询各次分配的 ResourceUuid，再用本接口逐份释放消歧。
 
 ### UbsSsuAddAccessPermission
 
@@ -605,6 +667,8 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 
 对应 NORMAL 分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，仅当最后一个节点卸载后空间才回退为未挂载状态。
 
+同名多次分配（如脑裂合并遗留）场景下，可设置 `req.ResourceUUID` 按 (name, resourceUuid) 复合键精确卸载其中一次分配，跳过同名多份歧义拒绝；`ResourceUUID` 为空串时按 name 解析，同名多份将被歧义拒绝（`ErrSsuNameDuplicated`）；精确卸载未命中报不存在错误。ResourceUuid 可先通过 `UbsSsuListAllocInfo` 查询获得。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -621,10 +685,10 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 
 | Error | Description |
 | ----- | ----------- |
-| 参数校验错误 | `req` 字段不合法 |
+| 参数校验错误 | `req` 字段不合法（`ResourceUUID` 非空时仅允许 `[0-9a-f-]`） |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 不存在错误 | 本节点未挂载，无需卸载报错 |
+| 不存在错误 | 本节点未挂载，无需卸载报错；精确卸载时 name 下不存在该 resourceUuid |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
 
@@ -633,11 +697,13 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error
 - `req.Name` 不能为空，长度不超过 `UbsSsuMaxNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_-.:]`。
 - `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
 - `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
+- `req.ResourceUUID` 可选；空串按 name 解析（同名多份时拒绝）；非空时长度不超过 `UbsSsuMaxUuidLength - 1` 个字符，仅允许字符 `[0-9a-f-]`（与服务端 GenerateUuid 输出格式对齐）。
 - 卸载前需确保没有进程正在使用该存储空间。
 
 **附注 NOTES**
 
-已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 同名存在多次分配时，先通过 `UbsSsuListAllocInfo` 查询各次分配的 ResourceUuid，设置 `req.ResourceUUID` 精确卸载其中一份，之后即可用 `UbsSsuFreeSpaceByResourceUuid` 逐份释放清理（对应 C SDK 的 `ubs_ssu_space_detach_by_resource_uuid`）。
 
 ### UbsSsuAttachLinearSpace
 
@@ -714,6 +780,8 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 
 对应 LINEAR 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `errcode.ErrSsuAttacherMismatch`。
 
+同名多次分配（如脑裂合并遗留）场景下，可设置 `req.ResourceUUID` 按 (name, resourceUuid) 复合键精确卸载其中一次分配，跳过同名多份歧义拒绝；`ResourceUUID` 为空串时按 name 解析，同名多份将被歧义拒绝（`ErrSsuNameDuplicated`）；精确卸载未命中报不存在错误。ResourceUuid 可先通过 `UbsSsuListAllocInfo` 查询获得。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -730,10 +798,10 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 
 | Error | Description |
 | ----- | ----------- |
-| 参数校验错误 | `req` 字段不合法 |
+| 参数校验错误 | `req` 字段不合法（`ResourceUUID` 非空时仅允许 `[0-9a-f-]`） |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 不存在错误 | 存储空间不存在或已卸载，无需卸载报错 |
+| 不存在错误 | 存储空间不存在或已卸载，无需卸载报错；精确卸载时 name 下不存在该 resourceUuid |
 | 挂载者不匹配错误 | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
@@ -744,10 +812,12 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error
 - `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
 - `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
 - `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- `req.ResourceUUID` 可选；空串按 name 解析（同名多份时拒绝）；非空时长度不超过 `UbsSsuMaxUuidLength - 1` 个字符，仅允许字符 `[0-9a-f-]`（与服务端 GenerateUuid 输出格式对齐）。
 
 **附注 NOTES**
 
-已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 同名存在多次分配时，先通过 `UbsSsuListAllocInfo` 查询各次分配的 ResourceUuid，设置 `req.ResourceUUID` 精确卸载其中一份，之后即可用 `UbsSsuFreeSpaceByResourceUuid` 逐份释放清理（对应 C SDK 的 `ubs_ssu_linear_space_detach_by_resource_uuid`）。
 
 ### UbsSsuAttachStripedSpace
 
@@ -825,6 +895,8 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 
 对应 STRIPED 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `errcode.ErrSsuAttacherMismatch`。
 
+同名多次分配（如脑裂合并遗留）场景下，可设置 `req.ResourceUUID` 按 (name, resourceUuid) 复合键精确卸载其中一次分配，跳过同名多份歧义拒绝；`ResourceUUID` 为空串时按 name 解析，同名多份将被歧义拒绝（`ErrSsuNameDuplicated`）；精确卸载未命中报不存在错误。ResourceUuid 可先通过 `UbsSsuListAllocInfo` 查询获得。
+
 **参数 PARAMETERS**
 
 | name | 类型 | 说明 |
@@ -841,10 +913,10 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 
 | Error | Description |
 | ----- | ----------- |
-| 参数校验错误 | `req` 字段不合法 |
+| 参数校验错误 | `req` 字段不合法（`ResourceUUID` 非空时仅允许 `[0-9a-f-]`） |
 | IPC 通信错误 | 连接 UBSE 服务端失败 |
 | 鉴权错误 | UBSE 服务端鉴权不通过 |
-| 不存在错误 | 存储空间不存在或已卸载，无需卸载报错 |
+| 不存在错误 | 存储空间不存在或已卸载，无需卸载报错；精确卸载时 name 下不存在该 resourceUuid |
 | 挂载者不匹配错误 | 空间由其他节点挂载，仅 attacher 节点可卸载 |
 | 超时错误 | UBSE 服务端处理超时 |
 | 内部错误 | UBSE 服务端内部错误 |
@@ -855,11 +927,13 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error
 - `req.Nqn` 允许为空；非空时长度不超过 `UbsSsuMaxNqnLength - 1` 个字符。
 - `req.SrcEid` 允许为空；非空时长度不超过 `UbsSsuMaxEidLength - 1` 个字符。
 - `req.DevName` 不能为空，长度不超过 `UbsSsuMaxDevNameLength - 1` 个字符，仅允许字符 `[a-zA-Z0-9_/.-]`。
+- `req.ResourceUUID` 可选；空串按 name 解析（同名多份时拒绝）；非空时长度不超过 `UbsSsuMaxUuidLength - 1` 个字符，仅允许字符 `[0-9a-f-]`（与服务端 GenerateUuid 输出格式对齐）。
 - 卸载操作不校验 `Level` 和 `ChunkSize`。
 
 **附注 NOTES**
 
-已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 已卸载的空间重复卸载将报错，不再幂等返回成功。
+- 同名存在多次分配时，先通过 `UbsSsuListAllocInfo` 查询各次分配的 ResourceUuid，设置 `req.ResourceUUID` 精确卸载其中一份，之后即可用 `UbsSsuFreeSpaceByResourceUuid` 逐份释放清理（对应 C SDK 的 `ubs_ssu_striped_space_detach_by_resource_uuid`）。
 
 ### UbsSsuGetNsStats
 

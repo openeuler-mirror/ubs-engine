@@ -14,12 +14,14 @@
 // 面向 ubs_engine_ssu.h 的交互式命令行工具, 仅调用接口, 不做性能测试
 //   - 交互式 REPL (prompt: ubse_ssu_test_c>)
 //   - 单次执行模式: 命令跟在程序名后, 执行完即退出
-//   - 参数风格: 纯位置参数, 无可选/可省略; 空字符串用 "", 数值零用 0
+//   - 参数风格: 纯位置参数; 空字符串用 "", 数值零用 0
+//   - detach 命令支持可选尾随参数 [resource_uuid], 用于精确卸载同名多份分配之一
 //   - 枚举值填写 SDK 底层十进制数值 (lba_format/strategy/level/chunk_size)
 //   - SDK 调用结果以 JSON 应答输出; help/prompt 为普通文本
 // 编译示例 (见 build.sh):
 //   bash build.sh          # 运行时 dlopen 真实 libubse-ssu-client.so
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
@@ -97,15 +99,19 @@ T LoadSymbol(const char* name)
 #define ubs_ssu_fe_device_list_free UBSE_DYNAMIC_CALL(ubs_ssu_fe_device_list_free)
 #define ubs_ssu_linear_space_attach UBSE_DYNAMIC_CALL(ubs_ssu_linear_space_attach)
 #define ubs_ssu_linear_space_detach UBSE_DYNAMIC_CALL(ubs_ssu_linear_space_detach)
+#define ubs_ssu_linear_space_detach_by_resource_uuid UBSE_DYNAMIC_CALL(ubs_ssu_linear_space_detach_by_resource_uuid)
 #define ubs_ssu_ns_dev_paths_free UBSE_DYNAMIC_CALL(ubs_ssu_ns_dev_paths_free)
 #define ubs_ssu_ns_stats_free UBSE_DYNAMIC_CALL(ubs_ssu_ns_stats_free)
 #define ubs_ssu_ns_stats_get UBSE_DYNAMIC_CALL(ubs_ssu_ns_stats_get)
 #define ubs_ssu_space_alloc UBSE_DYNAMIC_CALL(ubs_ssu_space_alloc)
 #define ubs_ssu_space_attach UBSE_DYNAMIC_CALL(ubs_ssu_space_attach)
 #define ubs_ssu_space_detach UBSE_DYNAMIC_CALL(ubs_ssu_space_detach)
+#define ubs_ssu_space_detach_by_resource_uuid UBSE_DYNAMIC_CALL(ubs_ssu_space_detach_by_resource_uuid)
 #define ubs_ssu_space_free UBSE_DYNAMIC_CALL(ubs_ssu_space_free)
+#define ubs_ssu_space_free_by_resource_uuid UBSE_DYNAMIC_CALL(ubs_ssu_space_free_by_resource_uuid)
 #define ubs_ssu_striped_space_attach UBSE_DYNAMIC_CALL(ubs_ssu_striped_space_attach)
 #define ubs_ssu_striped_space_detach UBSE_DYNAMIC_CALL(ubs_ssu_striped_space_detach)
+#define ubs_ssu_striped_space_detach_by_resource_uuid UBSE_DYNAMIC_CALL(ubs_ssu_striped_space_detach_by_resource_uuid)
 
 namespace {
 
@@ -153,6 +159,17 @@ std::string Trim(const std::string& s)
     }
     auto end = s.find_last_not_of(" \t\r\n");
     return s.substr(begin, end - begin + 1);
+}
+
+/** resource_uuid 校验: 长度1~36, 仅允许[0-9a-f-] */
+bool IsValidResourceUuid(const std::string& uuid)
+{
+    if (uuid.empty() || uuid.size() > 36) {
+        return false;
+    }
+    return std::all_of(uuid.begin(), uuid.end(), [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || c == '-';
+    });
 }
 
 /** 安全拷贝定长字符数组, 保证末尾 '\0' */
@@ -268,7 +285,7 @@ std::string GuidToJson(const uint8_t* guid)
 
 /**
  * 简易位置参数解析器
- * 所有参数均为必填位置参数, 无选项/默认值/可省略
+ * 必填位置参数外加至多一个可选尾随位置参数 (如 detach 的 resource_uuid)
  */
 class ArgParser {
 public:
@@ -279,24 +296,32 @@ public:
         positionals_.push_back(name);
     }
 
+    /** 声明可选尾随位置参数, 必须在所有必填参数之后 */
+    void AddOptionalPositional(const std::string& name)
+    {
+        optionals_.push_back(name);
+    }
+
     /**
-     * 解析参数, 严格校验数量
+     * 解析参数, 必填参数不可缺, 可选尾随参数至多出现一次
      * @return 成功返回 true, 失败填充 errMsg
      */
     bool Parse(const std::vector<std::string>& args, std::string& errMsg)
     {
-        if (args.size() < positionals_.size()) {
-            errMsg = cmd_ + " 参数不足, 期望 " + std::to_string(positionals_.size()) + " 个, 实际 " +
+        const size_t minArgs = positionals_.size();
+        const size_t maxArgs = minArgs + optionals_.size();
+        if (args.size() < minArgs) {
+            errMsg = cmd_ + " 参数不足, 期望至少 " + std::to_string(minArgs) + " 个, 实际 " +
                      std::to_string(args.size()) + " 个";
             return false;
         }
-        if (args.size() > positionals_.size()) {
-            errMsg = cmd_ + " 参数过多, 期望 " + std::to_string(positionals_.size()) + " 个, 实际 " +
+        if (args.size() > maxArgs) {
+            errMsg = cmd_ + " 参数过多, 期望至多 " + std::to_string(maxArgs) + " 个, 实际 " +
                      std::to_string(args.size()) + " 个";
             return false;
         }
-        for (size_t i = 0; i < positionals_.size(); ++i) {
-            values_[positionals_[i]] = args[i];
+        for (size_t i = 0; i < args.size(); ++i) {
+            values_[i < minArgs ? positionals_[i] : optionals_[i - minArgs]] = args[i];
         }
         return true;
     }
@@ -339,6 +364,7 @@ public:
 private:
     std::string cmd_;
     std::vector<std::string> positionals_;
+    std::vector<std::string> optionals_;
     std::map<std::string, std::string> values_;
     mutable bool parseError_ = false;
 };
@@ -452,6 +478,7 @@ private:
     std::map<std::string, CmdHandler> commands_ = {
         {"ssu_alloc_space", &UbseSsuApp::DoSpaceAlloc},
         {"ssu_free_space", &UbseSsuApp::DoSpaceFree},
+        {"ssu_free_space_by_resource_uuid", &UbseSsuApp::DoSpaceFreeByResourceUuid},
         {"ssu_list_alloc_info", &UbseSsuApp::DoAllocInfoList},
         {"ssu_get_ns_stats", &UbseSsuApp::DoNsStatsGet},
         {"ssu_get_connect_info", &UbseSsuApp::DoConnectInfoGet},
@@ -608,6 +635,7 @@ private:
         }
         return JObject({
             JField("Name", JStr(r.name)),
+            JField("ResourceUuid", JStr(r.resource_uuid)),
             JField("Strategy", JNum(static_cast<uint32_t>(r.strategy))),
             JField("Namespaces", JArray(nsList)),
         });
@@ -683,6 +711,8 @@ private:
         static const std::map<std::string, std::string> table = {
             {"ssu_alloc_space", "ssu_alloc_space <name> <ns_size> <ns_num> <lba_format> <strategy> <tenant>"},
             {"ssu_free_space", "ssu_free_space <name>"},
+            {"ssu_free_space_by_resource_uuid",
+             "ssu_free_space_by_resource_uuid <name> <resource_uuid>"},
             {"ssu_list_alloc_info", "ssu_list_alloc_info"},
             {"ssu_get_ns_stats", "ssu_get_ns_stats <name>"},
             {"ssu_get_connect_info", "ssu_get_connect_info <name> <vfe_present> <slot_id> <chip_id> <die_id> <pfe_id> "
@@ -690,13 +720,14 @@ private:
             {"ssu_add_access_permission", "ssu_add_access_permission <name> <nqn>"},
             {"ssu_remove_access_permission", "ssu_remove_access_permission <name> <nqn>"},
             {"ssu_attach_space", "ssu_attach_space <name> <nqn> <src_eid>"},
-            {"ssu_detach_space", "ssu_detach_space <name> <nqn> <src_eid>"},
+            {"ssu_detach_space", "ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]"},
             {"ssu_attach_linear_space", "ssu_attach_linear_space <name> <nqn> <src_eid> <dev_name>"},
-            {"ssu_detach_linear_space", "ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>"},
+            {"ssu_detach_linear_space",
+             "ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]"},
             {"ssu_attach_striped_space",
              "ssu_attach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>"},
             {"ssu_detach_striped_space",
-             "ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>"},
+             "ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]"},
             {"ssu_get_fe_device_list", "ssu_get_fe_device_list"},
             {"ssu_fe_device_alloc", "ssu_fe_device_alloc <upi> <slot_id> <chip_id> <die_id> <pfe_id> <vfe_id> "
                                     "<vfe_guid> <bind_bus_instance_guid> <bus_instance_guid>"},
@@ -780,6 +811,22 @@ private:
             return;
         }
         int32_t ret = ubs_ssu_space_free(parser.Get("name").c_str());
+        EmitSimpleResult(ret);
+    }
+
+    // ssu_free_space_by_resource_uuid <name> <resource_uuid>
+    // 精确释放name下指定resource_uuid对应的那次分配 (同名多次分配/脑裂合并遗留场景)
+    void DoSpaceFreeByResourceUuid(const std::vector<std::string>& args)
+    {
+        ArgParser parser("ssu_free_space_by_resource_uuid");
+        parser.AddPositional("name");
+        parser.AddPositional("resource_uuid");
+        std::string errMsg;
+        if (!ParseArgsOrReport(parser, args, errMsg)) {
+            return;
+        }
+        int32_t ret = ubs_ssu_space_free_by_resource_uuid(parser.Get("name").c_str(),
+                                                          parser.Get("resource_uuid").c_str());
         EmitSimpleResult(ret);
     }
 
@@ -929,21 +976,30 @@ private:
         }
     }
 
-    // ssu_detach_space <name> <nqn> <src_eid>
+    // ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]
+    // 带resource_uuid时精确卸载name下该次分配 (同名多次分配/脑裂合并遗留场景), 本地校验非法即返回
     void DoSpaceDetach(const std::vector<std::string>& args)
     {
         ArgParser parser("ssu_detach_space");
         parser.AddPositional("name");
         parser.AddPositional("nqn");
         parser.AddPositional("src_eid");
+        parser.AddOptionalPositional("resource_uuid");
         std::string errMsg;
         if (!ParseArgsOrReport(parser, args, errMsg)) {
+            return;
+        }
+        const std::string resourceUuid = parser.Get("resource_uuid");
+        if (!resourceUuid.empty() && !IsValidResourceUuid(resourceUuid)) {
+            lastCmdOk_ = false;
+            std::cerr << "ERROR: resource_uuid 非法, 需为1~36字符且仅含[0-9a-f-]: " << resourceUuid << std::endl;
             return;
         }
         ubs_ssu_space_req_t req;
         FillSpaceReq(req, parser);
 
-        int32_t ret = ubs_ssu_space_detach(&req);
+        int32_t ret = resourceUuid.empty() ? ubs_ssu_space_detach(&req)
+                                           : ubs_ssu_space_detach_by_resource_uuid(&req, resourceUuid.c_str());
         EmitSimpleResult(ret);
     }
 
@@ -975,7 +1031,8 @@ private:
         }
     }
 
-    // ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>
+    // ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]
+    // 带resource_uuid时精确卸载name下该次分配 (同名多次分配/脑裂合并遗留场景), 本地校验非法即返回
     void DoLinearSpaceDetach(const std::vector<std::string>& args)
     {
         ArgParser parser("ssu_detach_linear_space");
@@ -983,14 +1040,22 @@ private:
         parser.AddPositional("nqn");
         parser.AddPositional("src_eid");
         parser.AddPositional("dev_name");
+        parser.AddOptionalPositional("resource_uuid");
         std::string errMsg;
         if (!ParseArgsOrReport(parser, args, errMsg)) {
+            return;
+        }
+        const std::string resourceUuid = parser.Get("resource_uuid");
+        if (!resourceUuid.empty() && !IsValidResourceUuid(resourceUuid)) {
+            lastCmdOk_ = false;
+            std::cerr << "ERROR: resource_uuid 非法, 需为1~36字符且仅含[0-9a-f-]: " << resourceUuid << std::endl;
             return;
         }
         ubs_ssu_linear_space_req_t req;
         FillLinearSpaceReq(req, parser);
 
-        int32_t ret = ubs_ssu_linear_space_detach(&req);
+        int32_t ret = resourceUuid.empty() ? ubs_ssu_linear_space_detach(&req)
+                                           : ubs_ssu_linear_space_detach_by_resource_uuid(&req, resourceUuid.c_str());
         EmitSimpleResult(ret);
     }
 
@@ -1033,7 +1098,8 @@ private:
         }
     }
 
-    // ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
+    // ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]
+    // 带resource_uuid时精确卸载name下该次分配 (同名多次分配/脑裂合并遗留场景), 本地校验非法即返回
     void DoStripedSpaceDetach(const std::vector<std::string>& args)
     {
         ArgParser parser("ssu_detach_striped_space");
@@ -1043,8 +1109,15 @@ private:
         parser.AddPositional("dev_name");
         parser.AddPositional("level");
         parser.AddPositional("chunk_size");
+        parser.AddOptionalPositional("resource_uuid");
         std::string errMsg;
         if (!ParseArgsOrReport(parser, args, errMsg)) {
+            return;
+        }
+        const std::string resourceUuid = parser.Get("resource_uuid");
+        if (!resourceUuid.empty() && !IsValidResourceUuid(resourceUuid)) {
+            lastCmdOk_ = false;
+            std::cerr << "ERROR: resource_uuid 非法, 需为1~36字符且仅含[0-9a-f-]: " << resourceUuid << std::endl;
             return;
         }
         ubs_ssu_striped_space_req_t req;
@@ -1054,7 +1127,8 @@ private:
             return;
         }
 
-        int32_t ret = ubs_ssu_striped_space_detach(&req);
+        int32_t ret = resourceUuid.empty() ? ubs_ssu_striped_space_detach(&req)
+                                           : ubs_ssu_striped_space_detach_by_resource_uuid(&req, resourceUuid.c_str());
         EmitSimpleResult(ret);
     }
 

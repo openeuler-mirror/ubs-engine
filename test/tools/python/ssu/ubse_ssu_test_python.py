@@ -5,7 +5,8 @@
 """
 ubse_ssu_test_python - SSU Python SDK 交互式命令行测试工具
  
-命令格式: 扁平下划线形式，所有参数为有序位置参数，不接受可选参数或省略。
+命令格式: 扁平下划线形式，除三个 detach 命令末尾的可选 [resource_uuid] 外，
+所有参数为有序位置参数，不接受省略。
 枚举值填写 SDK 底层十进制数值；空字符串输入 ""，数值零输入 0。
 ns_size 只接受可解析为 uint64 的十进制数值，不接受 1G 等单位形式。
  
@@ -78,7 +79,8 @@ from ubse import ubs_engine_ssu
  
  
 def print_alloc_result(result: UbsSsuAllocResult):
-    logger.info(f"  name={result.name}, strategy={result.strategy.value}, namespace_cnt={len(result.namespaces)}")
+    logger.info(f"  name={result.name}, resource_uuid={result.resource_uuid}, "
+                 f"strategy={result.strategy.value}, namespace_cnt={len(result.namespaces)}")
     for ns in result.namespaces:
         logger.info(f"    tgt_eid={ns.tgt_eid}, tgt_nqn={ns.tgt_nqn}, uuid={ns.ns_uuid}, "
                      f"ns_id={ns.namespace_id}, path={ns.ns_dev_path}, size={ns.ns_size}, "
@@ -120,18 +122,21 @@ class UbseSsuTestPython(cmd.Cmd):
             '  ssu_alloc_space <name> <ns_size> <ns_num>     - 分配存储空间\n'
             '    <lba_format> <strategy> <tenant>\n'
             '  ssu_free_space <name>                          - 释放存储空间\n'
+            '  ssu_free_space_by_resource_uuid <name>        - 按resourceUuid精确释放\n'
+            '    <resource_uuid>\n'
             '  ssu_add_access_permission <name> <nqn>        - 添加访问权限\n'
             '  ssu_remove_access_permission <name> <nqn>     - 移除访问权限\n'
             '  ssu_attach_space <name> <nqn> <src_eid>       - 挂载存储空间\n'
             '  ssu_detach_space <name> <nqn> <src_eid>       - 卸载存储空间\n'
+            '    [resource_uuid]                             - 精确卸载同名多份分配之一\n'
             '  ssu_attach_linear_space <name> <nqn>          - 挂载线性编址存储空间\n'
             '    <src_eid> <dev_name>\n'
             '  ssu_detach_linear_space <name> <nqn>          - 卸载线性编址存储空间\n'
-            '    <src_eid> <dev_name>\n'
+            '    <src_eid> <dev_name> [resource_uuid]\n'
             '  ssu_attach_striped_space <name> <nqn>         - 挂载条带化编址存储空间\n'
             '    <src_eid> <dev_name> <level> <chunk_size>\n'
             '  ssu_detach_striped_space <name> <nqn>         - 卸载条带化编址存储空间\n'
-            '    <src_eid> <dev_name> <level> <chunk_size>\n'
+            '    <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]\n'
             '  ssu_get_ns_stats <name>                       - 查询命名空间统计信息\n'
             '  ssu_get_connect_info <name> <vfe_present>     - 查询连接信息\n'
             '    <slot_id> <chip_id> <die_id> <pfe_id> <vfe_id>\n'
@@ -146,7 +151,8 @@ class UbseSsuTestPython(cmd.Cmd):
             '  quit                                           - 退出\n'
             '\n'
             'Notes:\n'
-            '  所有参数为有序位置参数，不接受可选参数或省略。\n'
+            '  除detach命令末尾的[resource_uuid]外，所有参数为有序位置参数，不接受省略。\n'
+            '  detach带resource_uuid时精确卸载同名多份分配之一，可先用ssu_list_alloc_info查询各次分配的resource_uuid。\n'
             '  枚举值填写SDK底层十进制数值(lba_format=4096/512, strategy=0/1, level=0/5, chunk_size=4/16/32/64/128/256/512)。\n'
             '  空字符串输入 ""，数值零输入 0。\n'
             '  ns_size只接受uint64十进制数值，不接受1G等单位形式。\n'
@@ -234,6 +240,25 @@ class UbseSsuTestPython(cmd.Cmd):
             logger.info("Free succeeded")
         except Exception as ex:
             self._handle_error(ex)
+
+    def do_ssu_free_space_by_resource_uuid(self, arg):
+        """ssu_free_space_by_resource_uuid <name> <resource_uuid>
+        按resourceUuid精确释放name下对应的那次分配（同名多次分配/脑裂合并遗留场景）。
+        可先通过ssu_list_alloc_info查询到同名多条分配各自的resource_uuid后再精确释放。
+        Example: ssu_free_space_by_resource_uuid test-space 0123456789abcdef0123456789abcdef012
+        """
+        try:
+            parts = shlex.split(arg)
+            if len(parts) != 2:
+                logger.error("Usage: ssu_free_space_by_resource_uuid <name> <resource_uuid>")
+                logger.error("  Example: ssu_free_space_by_resource_uuid test-space 0123456789abcdef0123456789abcdef012")
+                return
+            name, resource_uuid = parts[0], parts[1]
+            logger.info(f"Freeing by resource_uuid: name={name}, resource_uuid={resource_uuid}")
+            ubs_engine_ssu.ubs_ssu_space_free(name, resource_uuid)
+            logger.info("Free succeeded")
+        except Exception as ex:
+            self._handle_error(ex)
  
     def do_ssu_add_access_permission(self, arg):
         """ssu_add_access_permission <name> <nqn>
@@ -291,19 +316,23 @@ class UbseSsuTestPython(cmd.Cmd):
             self._handle_error(ex)
  
     def do_ssu_detach_space(self, arg):
-        """ssu_detach_space <name> <nqn> <src_eid>
+        """ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]
         卸载已分配的存储空间，释放设备占用。卸载前需确保没有进程正在使用该存储空间。
+        可选resource_uuid用于脑裂合并后同名多份分配场景: 精确卸载其中一次分配，
+        可先通过ssu_list_alloc_info查询各次分配的resource_uuid；不传时按name解析(同名多份时拒绝)。
         Example: ssu_detach_space test-space nqn.2024-01.example:host-a 0000000000000001
+        Example: ssu_detach_space test-space nqn.2024-01.example:host-a 0000000000000001 0123456789abcdef0123456789abcdef012
         """
         try:
             parts = shlex.split(arg)
-            if len(parts) != 3:
-                logger.error("Usage: ssu_detach_space <name> <nqn> <src_eid>")
+            if len(parts) not in (3, 4):
+                logger.error("Usage: ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]")
                 logger.error("  Example: ssu_detach_space test-space nqn.2024-01.example:host-a 0000000000000001")
                 return
             name, nqn, src_eid = parts[0], parts[1], parts[2]
-            req = UbsSsuSpaceReq(name=name, nqn=nqn, src_eid=src_eid)
-            logger.info(f"Detaching: name={name}, nqn={nqn}, src_eid={src_eid}")
+            resource_uuid = parts[3] if len(parts) == 4 else None
+            req = UbsSsuSpaceReq(name=name, nqn=nqn, src_eid=src_eid, resource_uuid=resource_uuid)
+            logger.info(f"Detaching: name={name}, nqn={nqn}, src_eid={src_eid}, resource_uuid={resource_uuid}")
             ubs_engine_ssu.ubs_ssu_space_detach(req)
             logger.info("Detach succeeded")
         except Exception as ex:
@@ -330,19 +359,25 @@ class UbseSsuTestPython(cmd.Cmd):
             self._handle_error(ex)
  
     def do_ssu_detach_linear_space(self, arg):
-        """ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>
+        """ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]
         卸载线性编址存储空间，释放线性聚合的块设备。
+        可选resource_uuid用于脑裂合并后同名多份分配场景: 精确卸载其中一次分配；
+        不传时按name解析(同名多份时拒绝)。
         Example: ssu_detach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear
+        Example: ssu_detach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear 0123456789abcdef0123456789abcdef012
         """
         try:
             parts = shlex.split(arg)
-            if len(parts) != 4:
-                logger.error("Usage: ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>")
+            if len(parts) not in (4, 5):
+                logger.error("Usage: ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]")
                 logger.error("  Example: ssu_detach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear")
                 return
             name, nqn, src_eid, dev_name = parts[0], parts[1], parts[2], parts[3]
-            req = UbsSsuLinearSpaceReq(name=name, nqn=nqn, src_eid=src_eid, dev_name=dev_name)
-            logger.info(f"Detaching linear: name={name}, nqn={nqn}, src_eid={src_eid}, dev_name={dev_name}")
+            resource_uuid = parts[4] if len(parts) == 5 else None
+            req = UbsSsuLinearSpaceReq(name=name, nqn=nqn, src_eid=src_eid, dev_name=dev_name,
+                                       resource_uuid=resource_uuid)
+            logger.info(f"Detaching linear: name={name}, nqn={nqn}, src_eid={src_eid}, dev_name={dev_name}, "
+                         f"resource_uuid={resource_uuid}")
             ubs_engine_ssu.ubs_ssu_linear_space_detach(req)
             logger.info("Detach succeeded")
         except Exception as ex:
@@ -376,14 +411,18 @@ class UbseSsuTestPython(cmd.Cmd):
             self._handle_error(ex)
  
     def do_ssu_detach_striped_space(self, arg):
-        """ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
+        """ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]
         卸载条带化编址存储空间。
+        可选resource_uuid用于脑裂合并后同名多份分配场景: 精确卸载其中一次分配；
+        不传时按name解析(同名多份时拒绝)。
         Example: ssu_detach_striped_space test-space nqn.2024-01.example:host-a 0000000000000001 test-striped 0 64
+        Example: ssu_detach_striped_space test-space nqn.2024-01.example:host-a 0000000000000001 test-striped 0 64 0123456789abcdef0123456789abcdef012
         """
         try:
             parts = shlex.split(arg)
-            if len(parts) != 6:
-                logger.error("Usage: ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>")
+            if len(parts) not in (6, 7):
+                logger.error("Usage: ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> "
+                             "<chunk_size> [resource_uuid]")
                 logger.error("  level: 0(RAID0) or 5(RAID5)")
                 logger.error("  chunk_size(KB): 4/16/32/64/128/256/512")
                 logger.error("  Example: ssu_detach_striped_space test-space nqn.xxx host-a 0000000000000001 test-striped 0 64")
@@ -391,10 +430,13 @@ class UbseSsuTestPython(cmd.Cmd):
             name, nqn, src_eid, dev_name = parts[0], parts[1], parts[2], parts[3]
             level = UbsSsuRaidLevel(int(parts[4]))
             chunk_size = UbsSsuChunkSize(int(parts[5]))
+            resource_uuid = parts[6] if len(parts) == 7 else None
             req = UbsSsuStripedSpaceReq(name=name, nqn=nqn, src_eid=src_eid,
-                                          dev_name=dev_name, level=level, chunk_size=chunk_size)
+                                          dev_name=dev_name, level=level, chunk_size=chunk_size,
+                                          resource_uuid=resource_uuid)
             logger.info(f"Detaching striped: name={name}, nqn={nqn}, src_eid={src_eid}, "
-                         f"dev_name={dev_name}, level={level.value}, chunk_size={chunk_size.value}")
+                         f"dev_name={dev_name}, level={level.value}, chunk_size={chunk_size.value}, "
+                         f"resource_uuid={resource_uuid}")
             ubs_engine_ssu.ubs_ssu_striped_space_detach(req)
             logger.info("Detach succeeded")
         except Exception as ex:

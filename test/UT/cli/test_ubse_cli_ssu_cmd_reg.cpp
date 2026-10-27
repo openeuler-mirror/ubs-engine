@@ -89,6 +89,17 @@ const std::string ERR_NEED_DETACH_BEFORE_FREE =
     "ERROR: The SSU allocation is attached. Detach it before deleting it.";
 const std::string ERR_STRATEGY_MISMATCH =
     "ERROR: The SSU allocation strategy does not match the attach or detach type.";
+const std::string ERR_ATTACHER_MISMATCH = "ERROR: The SSU allocation is attached by another node.";
+const std::string ERR_SPACE_FAULTED =
+    "ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate.";
+const std::string INFO_MASTER_NOT_READY = "INFO: The SSU master ledger is not ready yet. Retry later.";
+const std::string ERR_MOUNT_SUSPECTED =
+    "ERROR: A stale local mount is suspected. Verify and clean up the local device, or delete the allocation.";
+const std::string ERR_INSUFFICIENT_SPACE =
+    "ERROR: Not enough free device space or tenant quota for the SSU allocation.";
+const std::string ERR_NAME_DUPLICATED =
+    "ERROR: Multiple allocations with the same name but different resource UUIDs exist. Specify a resource UUID to "
+    "operate on a specific one.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 const std::string INFO_EMPTY_CONNECT = "INFO: No SSU connect information found.";
 
@@ -290,6 +301,12 @@ TEST_F(TestUbseCliSsuCmdReg, SsuErrorMessageMapsKnownCodesAndPreservesUnknownCod
     EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_SPACE_NOT_FOUND), INFO_SPACE_NOT_FOUND);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE), ERR_NEED_DETACH_BEFORE_FREE);
     EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_STRATEGY_MISMATCH), ERR_STRATEGY_MISMATCH);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_ATTACHER_MISMATCH), ERR_ATTACHER_MISMATCH);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_SPACE_FAULTED), ERR_SPACE_FAULTED);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_MASTER_NOT_READY), INFO_MASTER_NOT_READY);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_MOUNT_SUSPECTED), ERR_MOUNT_SUSPECTED);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_INSUFFICIENT_SPACE), ERR_INSUFFICIENT_SPACE);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_SSU_ERROR_NAME_DUPLICATED), ERR_NAME_DUPLICATED);
     EXPECT_EQ(GetSsuErrorMessage(4321), "ERROR: Internal error with error code 4321.");
 }
 
