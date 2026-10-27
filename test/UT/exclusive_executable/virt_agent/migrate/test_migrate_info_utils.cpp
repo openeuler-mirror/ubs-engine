@@ -12,6 +12,7 @@
 
 #include "test_migrate_info_utils.h"
 #include <ubse_com.h>
+#include <ubse_security.h>
 #include <mockcpp/mockcpp.hpp>
 
 #include "migrate_info_utils.h"
@@ -20,6 +21,7 @@
 
 using namespace vm;
 using namespace ubse::com;
+using namespace ubse::security;
 namespace ubse::vm::ut {
 void TestMigrateInfoUtils::SetUp()
 {
@@ -39,6 +41,7 @@ TEST_F(TestMigrateInfoUtils, GetPidByVmUUID_ShouldReturnError_WhenUuidNotFound)
 
 TEST_F(TestMigrateInfoUtils, GetNumaIdAndPageSizeByPid_ShouldReturnError_WhenNumaInfoNotFound)
 {
+    MOCKER(ChangePtraceCapability).stubs().will(returnValue(VM_OK));
     MigrateInfoBase numaInfo{};
     VmResult result = MigrateInfoUtil::GetNumaIdAndPageSizeByPid(1, numaInfo);
     EXPECT_EQ(result, VM_ERROR);
