@@ -26,6 +26,7 @@
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
 #include <ubse_ras.h>
+#include <ubse_security.h>
 #include <ubse_ut_dir.h>
 // 仅测试用途：临时打开 private 访问控制，以便清空 HamMigrate::clearQueue 和 HamMigrateVmInfoStorage::hamMigrateCache 残留项
 #define private public
@@ -43,6 +44,7 @@
 using namespace vm;
 using namespace ubse::mem::controller;
 using namespace api::server;
+using namespace ubse::security;
 
 namespace ubse::vm::ut {
 static const int PID = 123;
@@ -1569,6 +1571,7 @@ TEST_F(TestHamMigrate, AgentDstInfoHandler_Request)
     uint64_t pid = 123;
     const UbseByteBuffer respData = {.data = (uint8_t*)&pid, .len = sizeof(uint64_t)};
     UbseByteBuffer resp;
+    MOCKER(ChangePtraceCapability).stubs().will(returnValue(VM_OK));
     HamMigrate::AgentDstInfoHandler(respData, resp);
     MOCKER(HamMigrate::PidIsVm).stubs().will(returnValue(VM_OK));
     ResponseInfoMessage responseInfoSimpo(resp.data, resp.len);
@@ -1580,6 +1583,7 @@ TEST_F(TestHamMigrate, AgentDstInfoHandler_Request)
 TEST_F(TestHamMigrate, PidIsVm_NoHugePage)
 {
     uint64_t pid = 456;
+    MOCKER(ChangePtraceCapability).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(HamMigrate::PidIsVm(pid), VM_ERROR);
 }
 

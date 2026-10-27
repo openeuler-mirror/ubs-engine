@@ -26,6 +26,7 @@
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
+#include <ubse_security.h>
 
 #include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
@@ -422,10 +423,17 @@ VmResult HamMigrate::PidIsVm(const uint64_t pid)
     auto path = "/proc/" + std::to_string(pid) + "/numa_maps";
     std::string line;
     std::regex hugePageRegex("^(?=.*file=/dev/hugepages)(?!.*kernelpagesize_kB=2048).+$");
+    // Reading other processes' numa_maps requires CAP_SYS_PTRACE (kernel ptrace access check),
+    // enable it temporarily before reading and disable it immediately after.
+    if (const auto ret = ubse::security::ChangePtraceCapability(true); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to call ChangePtraceCapability.";
+        return VM_ERROR;
+    }
     std::ifstream file(path);
     if (!file.is_open()) {
         std::error_code ec(errno, std::system_category());
         UBSE_LOG_ERROR << "open " << path << " failed, " << ec.message();
+        (void)ubse::security::ChangePtraceCapability(false);
         return VM_ERROR;
     }
     while (std::getline(file, line)) {
@@ -433,11 +441,13 @@ VmResult HamMigrate::PidIsVm(const uint64_t pid)
         if (std::regex_search(line, hugePageRegex)) {
             UBSE_LOG_INFO << "Found a line containing 'file=/dev/hugepages' and without 'kernelpagesize_kB=2048'";
             file.close();
+            (void)ubse::security::ChangePtraceCapability(false);
             return VM_OK;
         }
     }
     UBSE_LOG_ERROR << "pid is not VM or not starting.";
     file.close();
+    (void)ubse::security::ChangePtraceCapability(false);
     return VM_ERROR;
 }
 
