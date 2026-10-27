@@ -76,6 +76,12 @@ public:
     // 从设备列表进行账本构建，用于初始化或重启恢复账本
     void RebuildLedgerFromDevList();
 
+    // 节点回归触发的账本差异收编（仅master，OnNodeUpEvent经executor异步调用）：
+    // 预检硬件资源组与账本托管条目一致时跳过，避免节点闪断回归反复进入60s收敛窗口；
+    // 有差异（如脑裂合并后被收编方在分区期间分配的资源）走增量收编（AbsorbHardwareGroups），
+    // 既有条目挂载视图保留。内部走GetCachedDevList，不触发硬件扫描，可经executor异步调用
+    void AbsorbLedgerDifferences();
+
     // 重启恢复：基于本地挂载记录（attach_records.json）探测/幂等重挂本地挂载，
     // 并按节点角色做账本对账（master=本地对账，agent=向master重报）。
     // 由 MASTER_ONLINE 事件经 executor 异步触发，
@@ -132,6 +138,12 @@ public:
 
     // 设备故障周期增量对账
     void ReconcileSpaceFaultStates(const std::vector<UbseSsuDevInfo> &devList);
+
+    // （name, resourceUuid）复合粒度资源身份对账：每个采集成功周期由collector回调触发。
+    // 与ReconcileSpaceFaultStates互补——name级判空间存亡，本函数判资源身份：
+    // uuid漂移/NS缺失防抖置FAULTED（仅此两处写账本）；硬件孤儿组（free残留/
+    // 脑裂合并遗留）防抖告警转人工，不自动清理/收编
+    void ReconcileLedgerResource(const std::vector<UbseSsuDevInfo> &devList);
 
     // 节点离场处理：master感知NODE_DOWN/NODE_UP事件（仅master收到），
     // 记录首次离线时刻；离线持续超SSU_NODE_OFFLINE_THRESHOLD_SECONDS后由周期对账处理——
@@ -219,6 +231,7 @@ private:
     
     UbseSsuSuspectedMountTable suspectedMountTable_;  // 疑似本地残留挂载集合（master反查探测构建）
     UbseSsuFaultDebouncer faultDebouncer_;           // 设备故障防抖计数（空间名→连续缺失周期数）
+    UbseSsuFaultDebouncer resourceDebouncer_;        // 资源身份对账防抖（复合键/孤儿键→连续异常周期数）
     UbseSsuRemountFailCounter remountFailCounter_;   // 重挂失败计数（恢复流程与本地挂载对账定时器并发）
     UbseSsuNodeOfflineTracker nodeOfflineTracker_;  // 节点离线追踪（首次离线时刻/已处理记录）
     UbseSsuReconcileTimerFlags mountReconcileFlags_; // 运营对账定时器启停/单轮防重入标志

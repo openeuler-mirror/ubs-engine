@@ -39,6 +39,12 @@ inline constexpr int64_t SSU_RECONCILE_WINDOW_SECONDS = 60;
 // 账本key与服务层对账/重建预检共用此定义，格式变更仅需改此一处
 std::string ComposeResourceKey(const std::string &name, const std::string &resourceUuid);
 
+// 复合键反解name/resourceUuid（与ComposeResourceKey分隔约定唯一对应，禁止裸写'\x1f'）。
+// 无分隔符（遗留空uuid键）时name返回整键、uuid返回空串。
+// 防抖表扩展键（如"extra"/"orphan"维度）也经ComposeResourceKey(outer, inner)拼装
+std::string ExtractNameFromResourceKey(const std::string &key);
+std::string ExtractUuidFromResourceKey(const std::string &key);
+
 struct UbseSsuLedgerEntry {
     std::string name;
     std::string devName; // 聚合块设备名称，attach成功时写入；重启暂时无法恢复，待后续可靠性设计补充本地attach持久化功能
@@ -100,6 +106,10 @@ public:
     std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> GetAll() const;
 
     void Rebuild(const std::vector<UbseSsuDevInfo> &devices);
+
+    // NODE_UP差异场景的增量收编：仅对账本缺失的硬件组入账（只插不覆盖），既有条目一律保留；
+    // 收编新条目时刷新收敛窗口起点。与全量Rebuild（主备回切专用）互补，返回新收编条目个数
+    size_t AbsorbHardwareGroups(const std::vector<UbseSsuDevInfo> &devices);
 
     // 账本就绪标志
     // master首次硬件采集成功并完成Rebuild后置位；再次Rebuild（主备回切重选中）期间清位，
