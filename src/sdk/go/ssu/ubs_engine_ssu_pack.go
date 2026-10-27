@@ -169,7 +169,9 @@ func unpackNamespaceInfo(u *pack.BinaryUnpacker) (UbsSsuNamespaceInfo, error) {
 
 // unpackAllocResultImpl 从解包器中读取分配结果(对象级别, 对齐C++ AllocResultPack)。
 //
-// 字段顺序: name(string,48), strategy(u8), listSize(u32), nameSpaceList[](NameSpaceInfo)
+// 字段顺序: name(string,48), strategy(u8), listSize(u32), nameSpaceList[](NameSpaceInfo),
+//
+//	resourceUuid(string,37)（尾部追加字段）
 func unpackAllocResultImpl(u *pack.BinaryUnpacker) (UbsSsuAllocResult, error) {
 	name, err := u.UnpackString(UbsSsuMaxNameLength)
 	if err != nil {
@@ -186,10 +188,15 @@ func unpackAllocResultImpl(u *pack.BinaryUnpacker) (UbsSsuAllocResult, error) {
 	if err != nil {
 		return UbsSsuAllocResult{}, err
 	}
+	resourceUuid, err := u.UnpackString(UbsSsuMaxUuidLength)
+	if err != nil {
+		return UbsSsuAllocResult{}, err
+	}
 	return UbsSsuAllocResult{
-		Name:       name,
-		Strategy:   UbsSsuAllocStrategy(strategyRaw),
-		Namespaces: namespaces,
+		Name:         name,
+		ResourceUuid: resourceUuid,
+		Strategy:     UbsSsuAllocStrategy(strategyRaw),
+		Namespaces:   namespaces,
 	}, nil
 }
 
@@ -358,6 +365,56 @@ func packStripedSpaceReq(req UbsSsuStripedSpaceReq) []byte {
 		PackUint8(uint8(req.Level)).
 		PackUint32(uint32(req.ChunkSize)).
 		Bytes()
+}
+
+// packDetachSpaceReq 将卸载存储空间请求参数打包为字节数组
+//
+// 字段顺序: name(string,48), nqn(string,69), srcEid(string,17), [可选]resourceUuid(string,37)
+// resourceUuid为尾部追加字段, 非空时追加(精确卸载), 空串不追加(服务端兼容旧格式)
+func packDetachSpaceReq(req UbsSsuSpaceReq) []byte {
+	packer := pack.NewBinaryPacker().
+		PackString(req.Name, UbsSsuMaxNameLength).
+		PackString(req.Nqn, UbsSsuMaxNqnLength).
+		PackString(req.SrcEid, UbsSsuMaxEidLength)
+	if req.ResourceUUID != "" {
+		packer.PackString(req.ResourceUUID, UbsSsuMaxUuidLength)
+	}
+	return packer.Bytes()
+}
+
+// packDetachLinearSpaceReq 将卸载线性编址存储空间请求参数打包为字节数组
+//
+// 字段顺序: SpaceReq字段 + devName(string,33) + [可选]resourceUuid(string,37)
+// resourceUuid为尾部追加字段, 非空时追加(精确卸载), 空串不追加(服务端兼容旧格式)
+func packDetachLinearSpaceReq(req UbsSsuLinearSpaceReq) []byte {
+	packer := pack.NewBinaryPacker().
+		PackString(req.Name, UbsSsuMaxNameLength).
+		PackString(req.Nqn, UbsSsuMaxNqnLength).
+		PackString(req.SrcEid, UbsSsuMaxEidLength).
+		PackString(req.DevName, UbsSsuMaxDevNameLength)
+	if req.ResourceUUID != "" {
+		packer.PackString(req.ResourceUUID, UbsSsuMaxUuidLength)
+	}
+	return packer.Bytes()
+}
+
+// packDetachStripedSpaceReq 将卸载条带化编址存储空间请求参数打包为字节数组
+//
+// 字段顺序: LinearSpaceReq字段 + level(u8) + chunkSize(u32)（与原striped卸载报文格式一致，
+// 卸载不使用该值，取req原样携带） + [可选]resourceUuid(string,37)
+// resourceUuid为尾部追加字段, 非空时追加(精确卸载), 空串不追加(服务端兼容旧格式)
+func packDetachStripedSpaceReq(req UbsSsuStripedSpaceReq) []byte {
+	packer := pack.NewBinaryPacker().
+		PackString(req.Name, UbsSsuMaxNameLength).
+		PackString(req.Nqn, UbsSsuMaxNqnLength).
+		PackString(req.SrcEid, UbsSsuMaxEidLength).
+		PackString(req.DevName, UbsSsuMaxDevNameLength).
+		PackUint8(uint8(req.Level)).
+		PackUint32(uint32(req.ChunkSize))
+	if req.ResourceUUID != "" {
+		packer.PackString(req.ResourceUUID, UbsSsuMaxUuidLength)
+	}
+	return packer.Bytes()
 }
 
 // packConnectInfoReq 打包获取连接信息请求参数

@@ -90,6 +90,16 @@ ubs_error_t ubs_ssu_space_alloc_unpack(ubse_api_buffer_t &buffer, ubs_ssu_alloc_
  */
 ubs_error_t ubs_ssu_space_free_pack(const char *name, ubse_api_buffer_t &buffer);
 /**
+ * @brief 按resourceUuid精确释放空间请求打包
+ * 对应服务端 SsuFreeSpaceUnpack: name(string) + resourceUuid(string)
+ * @param name 空间名称
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_space_free_by_resource_uuid_pack(const char *name, const char *resource_uuid,
+                                                     ubse_api_buffer_t &buffer);
+/**
  * @brief 添加访问权限请求打包
  * 对应服务端 SsuAccessPermissionAddUnpack: name(string) + hostNqn(string)
  * @param name 空间名称
@@ -134,6 +144,16 @@ ubs_error_t ubs_ssu_space_attach_unpack(ubse_api_buffer_t &buffer, char ***ns_de
  */
 ubs_error_t ubs_ssu_space_detach_pack(const ubs_ssu_space_req_t *req, ubse_api_buffer_t &buffer);
 /**
+ * @brief 按resourceUuid精确卸载空间请求打包
+ * 对应服务端 SsuDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + resourceUuid(string)
+ * @param req 卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_space_detach_by_resource_uuid_pack(const ubs_ssu_space_req_t *req, const char *resource_uuid,
+                                                       ubse_api_buffer_t &buffer);
+/**
  * @brief 线性挂载空间请求打包
  * 对应服务端 SsuLinearAttachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + devName(string)
  * @param req 线性挂载空间请求参数
@@ -160,6 +180,16 @@ ubs_error_t ubs_ssu_linear_space_attach_unpack(ubse_api_buffer_t &buffer, char *
  * @return ubs_error_t 错误码
  */
 ubs_error_t ubs_ssu_linear_space_detach_pack(const ubs_ssu_linear_space_req_t *req, ubse_api_buffer_t &buffer);
+/**
+ * @brief 按resourceUuid精确卸载线性空间请求打包
+ * 对应服务端 SsuLinearDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + devName(string) + resourceUuid(string)
+ * @param req 线性卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_linear_space_detach_by_resource_uuid_pack(const ubs_ssu_linear_space_req_t *req,
+                                                              const char *resource_uuid, ubse_api_buffer_t &buffer);
 /**
  * @brief 条带化挂载空间请求打包
  * 对应服务端 SsuStripedAttachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string)
@@ -188,6 +218,16 @@ ubs_error_t ubs_ssu_striped_space_attach_unpack(ubse_api_buffer_t &buffer, char 
  * @return ubs_error_t 错误码
  */
 ubs_error_t ubs_ssu_striped_space_detach_pack(const ubs_ssu_striped_space_req_t *req, ubse_api_buffer_t &buffer);
+/**
+ * @brief 按resourceUuid精确卸载条带化空间请求打包
+ * 对应服务端 SsuStripedDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + devName(string) + resourceUuid(string)
+ * @param req 条带化卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_striped_space_detach_by_resource_uuid_pack(const ubs_ssu_striped_space_req_t *req,
+                                                               const char *resource_uuid, ubse_api_buffer_t &buffer);
 /**
  * 解包 FE 设备列表
  * 对应服务端: feListSize(uint32) + [FePack]*feListSize

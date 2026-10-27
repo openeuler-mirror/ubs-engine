@@ -123,7 +123,7 @@ var (
 	ErrSsuMasterNotReady = &StatusCodeError{StatusCode: 1205, ErrName: "UBSE_SSU_ERROR_MASTER_NOT_READY"}
 	ErrSsuMountSuspected = &StatusCodeError{StatusCode: 1206, ErrName: "UBSE_SSU_ERROR_MOUNT_SUSPECTED"}
 	ErrSsuInsufficientSpace = &StatusCodeError{StatusCode: 1207, ErrName: "UBSE_SSU_ERROR_INSUFFICIENT_SPACE"}
-    ErrSsuNameDuplicated       = &StatusCodeError{StatusCode: 1208, ErrName: "UBSE_SSU_ERROR_NAME_DUPLICATED"}
+	ErrSsuNameDuplicated    = &StatusCodeError{StatusCode: 1208, ErrName: "UBSE_SSU_ERROR_NAME_DUPLICATED"}
 
 	// 重复操作错误 (2000-2099)
 	ErrAlreadyAllocated = &StatusCodeError{StatusCode: 2000, ErrName: "UBSE_ERR_ALREADY_ALLOCATED"}
@@ -199,7 +199,7 @@ var errMap = map[uint32]*StatusCodeError{
 	1205: ErrSsuMasterNotReady,
 	1206: ErrSsuMountSuspected,
 	1207: ErrSsuInsufficientSpace,
-    1208: ErrSsuNameDuplicated,
+	1208: ErrSsuNameDuplicated,
 	2000: ErrAlreadyAllocated,
 	2001: ErrAlreadyAttached,
 	2002: ErrNoNeedFree,

@@ -104,9 +104,10 @@ type UbsSsuNamespaceInfo struct {
 
 // UbsSsuAllocResult 分配存储空间结果
 type UbsSsuAllocResult struct {
-	Name       string                // 请求标识, 最大48个字符
-	Strategy   UbsSsuAllocStrategy   // 分配策略
-	Namespaces []UbsSsuNamespaceInfo // 命名空间信息列表
+	Name         string                // 请求标识, 最大48个字符
+	ResourceUuid string                // 分配唯一标识, 每次分配生成一次, 供精确释放等场景使用
+	Strategy     UbsSsuAllocStrategy   // 分配策略
+	Namespaces   []UbsSsuNamespaceInfo // 命名空间信息列表
 }
 
 // UbsSsuAllocSpaceReq 分配存储空间请求参数
@@ -124,6 +125,9 @@ type UbsSsuSpaceReq struct {
 	Name   string // 需挂载|卸载的存储空间标识, 最大48个字符
 	Nqn    string // Host 的 NVMe Qualified Name
 	SrcEid string // 源EID
+	// ResourceUUID 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+	// 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+	ResourceUUID string
 }
 
 // UbsSsuLinearSpaceReq 挂载|卸载线性编址存储空间请求参数
@@ -132,6 +136,9 @@ type UbsSsuLinearSpaceReq struct {
 	Nqn     string // Host 的 NVMe Qualified Name
 	SrcEid  string // 源EID
 	DevName string // 聚合后的块设备名称, 由外部指定
+	// ResourceUUID 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+	// 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+	ResourceUUID string
 }
 
 // UbsSsuStripedSpaceReq 挂载|卸载条带化编址存储空间请求参数
@@ -142,6 +149,9 @@ type UbsSsuStripedSpaceReq struct {
 	DevName   string                     // 聚合后的块设备名称, 由外部指定
 	Level     UbsSsuAggregationRaidLevel // RAID级别(RAID0或RAID5)
 	ChunkSize UbsSsuChunkSize            // 条带化的chunk大小, 单位KB
+	// ResourceUUID 卸载可选: 精确卸载该resourceUuid对应空间(脑裂合并同名多份场景);
+	// 空串按name解析(同名多份时拒绝); 挂载忽略该字段
+	ResourceUUID string
 }
 
 // UbsUbVfe 虚拟功能单元(VFE)信息
@@ -240,6 +250,32 @@ func UbsSsuFreeSpace(name string) error {
 	return err
 }
 
+// UbsSsuFreeSpaceByResourceUuid 按resourceUuid精确释放已分配的存储空间
+//
+// 仅释放name下指定resourceUuid对应的那次分配（同名多次分配/脑裂合并遗留场景）。
+// 可先通过UbsSsuListAllocInfo查询到同名多条分配各自的ResourceUuid后再精确释放。
+//
+// 参数：
+//   - name: 要释放的存储空间标识
+//   - resourceUuid: 分配唯一标识，由UbsSsuAllocSpace返回
+//
+// 返回值：
+//   - error: 错误信息；成功返回 nil
+func UbsSsuFreeSpaceByResourceUuid(name string, resourceUuid string) error {
+	if err := validateName(name); err != nil {
+		return err
+	}
+	if err := validateUuid(resourceUuid); err != nil {
+		return err
+	}
+	request := pack.NewBinaryPacker().
+		PackString(name, UbsSsuMaxNameLength).
+		PackString(resourceUuid, UbsSsuMaxUuidLength).
+		Bytes()
+	_, err := invokeCall(UbseModuleCode, UbseSsuFreeSpaceReq, request)
+	return err
+}
+
 // UbsSsuAddAccessPermission 添加存储空间访问权限
 //
 // 为指定的Host授予对已分配存储空间的访问权限，在Target侧将Host NQN添加到子系统的
@@ -327,6 +363,9 @@ func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
 // 对应NORMAL分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，
 // 仅当最后一个节点卸载后空间才回退为未挂载状态。
 //
+// req.ResourceUUID非空时按(name, resourceUuid)精确卸载（脑裂合并同名多份场景），
+// 空串按name解析（同名多份时拒绝）。
+//
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name和源EID
 //
@@ -336,7 +375,12 @@ func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
 	if err := validateSpaceReq(req); err != nil {
 		return err
 	}
-	request := packSpaceReq(req)
+	if req.ResourceUUID != "" {
+		if err := validateUuid(req.ResourceUUID); err != nil {
+			return err
+		}
+	}
+	request := packDetachSpaceReq(req)
 	_, err := invokeCall(UbseModuleCode, UbseSsuDetachSpaceReq, request)
 	return err
 }
@@ -383,6 +427,9 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error)
 // 对应LINEAR分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载返回
 // errcode.ErrSsuAttacherMismatch。
 //
+// req.ResourceUUID非空时按(name, resourceUuid)精确卸载（脑裂合并同名多份场景），
+// 空串按name解析（同名多份时拒绝）。
+//
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
@@ -392,7 +439,12 @@ func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
 	if err := validateLinearSpaceReq(req); err != nil {
 		return err
 	}
-	request := packLinearSpaceReq(req)
+	if req.ResourceUUID != "" {
+		if err := validateUuid(req.ResourceUUID); err != nil {
+			return err
+		}
+	}
+	request := packDetachLinearSpaceReq(req)
 	_, err := invokeCall(UbseModuleCode, UbseSsuDetachLinearSpaceReq, request)
 	return err
 }
@@ -440,6 +492,9 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, erro
 // 对应STRIPED分配策略，独占挂载：仅attacher节点可卸载，其他节点发起卸载返回
 // errcode.ErrSsuAttacherMismatch。
 //
+// req.ResourceUUID非空时按(name, resourceUuid)精确卸载（脑裂合并同名多份场景），
+// 空串按name解析（同名多份时拒绝）。
+//
 // 参数：
 //   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
@@ -449,7 +504,12 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
 	if err := validateDetachStripedSpaceReq(req); err != nil {
 		return err
 	}
-	request := packStripedSpaceReq(req)
+	if req.ResourceUUID != "" {
+		if err := validateUuid(req.ResourceUUID); err != nil {
+			return err
+		}
+	}
+	request := packDetachStripedSpaceReq(req)
 	_, err := invokeCall(UbseModuleCode, UbseSsuDetachStripedSpaceReq, request)
 	return err
 }
