@@ -23,6 +23,7 @@ type sdkFuncs struct {
 	getFeDeviceList        func() ([]ssu.UbsSsuFe, error)
 	allocSpace             func(ssu.UbsSsuAllocSpaceReq) (ssu.UbsSsuAllocResult, error)
 	freeSpace              func(string) error
+	freeSpaceByUuid        func(string, string) error
 	addAccessPermission    func(string, string) error
 	removeAccessPermission func(string, string) error
 	attachSpace            func(ssu.UbsSsuSpaceReq) ([]string, error)
@@ -35,11 +36,13 @@ type sdkFuncs struct {
 	feDeviceFree           func(uint32, *ssu.UbsUbVfe) error
 }
 
-// command 描述一条 CLI 命令的用法、固定参数数量和执行入口。
+// command 描述一条 CLI 命令的用法、参数数量和执行入口。
+// argc 为必填参数个数; argcMax 为最大参数个数, 二者相减即末尾可选参数个数(如 detach 的 resource_uuid)。
 type command struct {
-	usage string
-	argc  int
-	run   func([]string, io.Writer) error
+	usage   string
+	argc    int
+	argcMax int
+	run     func([]string, io.Writer) error
 }
 
 // commandUsages 是帮助输出和命令注册共用的完整命令清单。
@@ -53,13 +56,14 @@ var commandUsages = []string{
 	"ssu_add_access_permission <name> <nqn>",
 	"ssu_remove_access_permission <name> <nqn>",
 	"ssu_attach_space <name> <nqn> <src_eid>",
-	"ssu_detach_space <name> <nqn> <src_eid>",
+	"ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]",
 	"ssu_attach_linear_space <name> <nqn> <src_eid> <dev_name>",
-	"ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>",
+	"ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]",
 	"ssu_attach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>",
-	"ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>",
+	"ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]",
 	"ssu_fe_device_alloc <upi> <slot_id> <chip_id> <die_id> <pfe_id> <vfe_id> <vfe_guid> <bind_bus_instance_guid> <bus_instance_guid>",
 	"ssu_fe_device_free <upi> <slot_id> <chip_id> <die_id> <pfe_id> <vfe_id> <vfe_guid> <bind_bus_instance_guid>",
+	"ssu_free_space_by_resource_uuid <name> <resource_uuid>",
 }
 
 // runOnce 校验并执行一条完整命令，供单次模式和交互模式复用。
@@ -89,17 +93,21 @@ func runOnce(args []string, output io.Writer, deps sdkFuncs) error {
 	if !ok {
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
-	if len(args)-1 != cmd.argc {
+	if len(args)-1 < cmd.argc || len(args)-1 > cmd.argcMax {
 		return fmt.Errorf("invalid argument count, usage: %s", cmd.usage)
 	}
 	return cmd.run(args[1:], output)
 }
 
-// commands 将 16 条业务命令绑定到对应的 SDK 函数。
+// commands 将 17 条业务命令绑定到对应的 SDK 函数。
 func commands(deps sdkFuncs) map[string]command {
 	result := make(map[string]command, len(commandUsages))
 	add := func(usage string, argc int, run func([]string, io.Writer) error) {
-		result[strings.Fields(usage)[0]] = command{usage, argc, run}
+		result[strings.Fields(usage)[0]] = command{usage, argc, argc, run}
+	}
+	// addOptional 注册支持可选尾随参数的命令, argc 为必填参数个数, 可选参数至多一个
+	addOptional := func(usage string, argc int, run func([]string, io.Writer) error) {
+		result[strings.Fields(usage)[0]] = command{usage, argc, argc + 1, run}
 	}
 	add(commandUsages[0], 0, func(_ []string, out io.Writer) error {
 		value, err := deps.listAllocInfo()
@@ -165,15 +173,23 @@ func commands(deps sdkFuncs) map[string]command {
 		value, err := deps.attachSpace(spaceReq(a))
 		return printOne(out, value, err)
 	})
-	add(commandUsages[9], 3, func(a []string, out io.Writer) error {
-		return printSuccess(out, deps.detachSpace(spaceReq(a)))
+	addOptional(commandUsages[9], 3, func(a []string, out io.Writer) error {
+		req := spaceReq(a)
+		if len(a) > 3 {
+			req.ResourceUUID = a[3]
+		}
+		return printSuccess(out, deps.detachSpace(req))
 	})
 	add(commandUsages[10], 4, func(a []string, out io.Writer) error {
 		first, second, err := deps.attachLinearSpace(linearReq(a))
 		return printTwo(out, first, second, err)
 	})
-	add(commandUsages[11], 4, func(a []string, out io.Writer) error {
-		return printSuccess(out, deps.detachLinearSpace(linearReq(a)))
+	addOptional(commandUsages[11], 4, func(a []string, out io.Writer) error {
+		req := linearReq(a)
+		if len(a) > 4 {
+			req.ResourceUUID = a[4]
+		}
+		return printSuccess(out, deps.detachLinearSpace(req))
 	})
 	add(commandUsages[12], 6, func(a []string, out io.Writer) error {
 		req, err := stripedReq(a)
@@ -183,10 +199,13 @@ func commands(deps sdkFuncs) map[string]command {
 		first, second, callErr := deps.attachStripedSpace(req)
 		return printTwo(out, first, second, callErr)
 	})
-	add(commandUsages[13], 6, func(a []string, out io.Writer) error {
+	addOptional(commandUsages[13], 6, func(a []string, out io.Writer) error {
 		req, err := stripedReq(a)
 		if err != nil {
 			return err
+		}
+		if len(a) > 6 {
+			req.ResourceUUID = a[6]
 		}
 		return printSuccess(out, deps.detachStripedSpace(req))
 	})
@@ -212,6 +231,9 @@ func commands(deps sdkFuncs) map[string]command {
 			return err
 		}
 		return printSuccess(out, deps.feDeviceFree(uint32(upi), vfe))
+	})
+	add(commandUsages[16], 2, func(a []string, out io.Writer) error {
+		return printSuccess(out, deps.freeSpaceByUuid(a[0], a[1]))
 	})
 	return result
 }
@@ -405,12 +427,13 @@ func runInteractive(input io.Reader, output, errorOutput io.Writer, deps sdkFunc
 	}
 }
 
-// defaultSDK 建立生产运行时使用的 16 个 SDK 函数绑定。
+// defaultSDK 建立生产运行时使用的 17 个 SDK 函数绑定。
 func defaultSDK() sdkFuncs {
 	return sdkFuncs{
 		listAllocInfo: ssu.UbsSsuListAllocInfo, getNsStats: ssu.UbsSsuGetNsStats,
 		getConnectInfo: ssu.UbsSsuGetConnectInfo, getFeDeviceList: ssu.UbsSsuGetFeDeviceList,
 		allocSpace: ssu.UbsSsuAllocSpace, freeSpace: ssu.UbsSsuFreeSpace,
+		freeSpaceByUuid:     ssu.UbsSsuFreeSpaceByResourceUuid,
 		addAccessPermission: ssu.UbsSsuAddAccessPermission, removeAccessPermission: ssu.UbsSsuRemoveAccessPermission,
 		attachSpace: ssu.UbsSsuAttachSpace, detachSpace: ssu.UbsSsuDetachSpace,
 		attachLinearSpace: ssu.UbsSsuAttachLinearSpace, detachLinearSpace: ssu.UbsSsuDetachLinearSpace,
