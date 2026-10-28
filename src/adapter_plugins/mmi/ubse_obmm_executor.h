@@ -181,8 +181,8 @@ public:
             CAP_FOWNER,
             CAP_CHOWN,
         };
-        auto ret = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        if (ret != UBSE_OK) {
+        ubse::security::CapabilityGuard capsGuard(caps);
+        if (!capsGuard.IsEnabled()) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Add capabilities failed.";
             return false;
         }
@@ -190,15 +190,12 @@ public:
         // mode为0不修改权限
         if (groupAllowedMode != 0 && chmod(basicString.c_str(), groupAllowedMode) != 0) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "chmod error, errno is " << errno;
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             return false;
         }
         if (chown(basicString.c_str(), uid, gid) != 0) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "chown error, errno is " << errno;
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             return false;
         }
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return true;
     }
 

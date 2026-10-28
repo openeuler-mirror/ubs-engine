@@ -204,7 +204,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrow
     bool success = true;
     // 设置权限
     std::vector<__u32> caps = {CAP_FOWNER, CAP_CHOWN};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    ubse::security::CapabilityGuard capsGuard(caps);
     for (const auto& OBMMDevice : OBMMDevices) {
         if (UbseFileUtil::CheckFileExists(OBMMDevice)) {
             bool res = UbseFileUtil::SetFileAttributes(OBMMDevice, owner.uid, owner.gid, owner.mode);
@@ -218,7 +218,6 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrow
             success = false;
         }
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return success ? UBSE_OK : UBSE_ERROR;
 }
 

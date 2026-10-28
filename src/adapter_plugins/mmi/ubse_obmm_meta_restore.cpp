@@ -463,9 +463,10 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string& path, UbseMemLocalObm
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid OBMM priv_len=" << length;
         return UBSE_ERROR_INVAL;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    ubse::security::CapabilityGuard capsGuard(caps);
     auto fd = open(path2priv.c_str(), O_RDONLY);
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    // 只包住这一次 open：后续 new/read/解析都不需要 CAP_DAC_OVERRIDE，显式收起保持最小权限窗口
+    capsGuard.Disable();
     if (fd == -1) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Open sysfs_priv failed, Path=" << path2priv;
         return UBSE_MMI_OPEN_FAILED;
