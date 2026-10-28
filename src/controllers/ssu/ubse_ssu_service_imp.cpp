@@ -627,6 +627,12 @@ static uint32_t SendFreeRpcRequest(const std::string &name, const std::string &r
     return UBSE_OK;
 }
 
+// detach/free成功或attach失败回退后作废本地记录（记录不存在时幂等成功）
+static void RemoveLocalAttachRecord(const std::string &name)
+{
+    UbseSsuAttachRecordStore::GetInstance().Remove(name);
+}
+
 // agent端释放ns：发送RPC请求到master节点
 static uint32_t FreeSpaceViaRpc(const std::string &name, const std::string &resourceUuid,
                                 const UbseSsuAllocIdentityInfo &identity)
@@ -708,7 +714,19 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const std::string
 
     if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
         // agent无本地账本，直接通过RPC通知master释放
-        return FreeSpaceViaRpc(name, resourceUuid, identity);
+        auto rpcRet = FreeSpaceViaRpc(name, resourceUuid, identity);
+        if (rpcRet == UBSE_OK) {
+            // 与master本地free的记录清理点对齐：free成功后清理本机已释放空间的挂载记录
+            auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
+            auto localRecord = UbseSsuAttachRecordStore::GetInstance().Get(name);
+            if (localRecord.has_value() &&
+                (resourceUuid.empty() || localRecord->resourceUuid == resourceUuid)) {
+                CleanupLocalMount(*localRecord);
+                RemoveLocalAttachRecord(name);
+                suspectedMountTable_.Erase(name);
+            }
+        }
+        return rpcRet;
     }
 
     // master端：账本判空与重复释放检查由ExecuteFree统一处理
@@ -869,12 +887,6 @@ static void UpsertLocalAttachRecordFromDevMap(const LocalAttachRecordCtx &ctx,
         nsVerifyList.emplace_back(std::move(verify));
     }
     UpsertLocalAttachRecord(ctx, nsVerifyList, UbseSsuAttachRecordState::ATTACHED);
-}
-
-// detach/free成功或attach失败回退后作废本地记录（记录不存在时幂等成功）
-static void RemoveLocalAttachRecord(const std::string &name)
-{
-    UbseSsuAttachRecordStore::GetInstance().Remove(name);
 }
 
 // 复合键账本按name解析唯一条目：挂载/卸载/verify/权限/统计等name维度入口的统一前置校验。
@@ -1089,10 +1101,20 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const std::stri
     }
 
     if (firstErr == UBSE_OK) {
-        // 全部条目释放成功：挂载仅允许单uuid（同名多uuid被拒绝），本地记录中name天然唯一，按name清理仍然正确
-        RemoveLocalAttachRecord(name);
-        // free成功：摘除疑似本地残留挂载标记
-        suspectedMountTable_.Erase(name);
+        // 仅当该name在账本已无任何条目时才清理本地记录与疑似标记：状态门禁保证被free条目
+        // 均为CREATED/FAULTED（无活挂载），但脑裂收编同名双条目形态下，按uuid精确free其中
+        // CREATED条目时另一同名条目仍可ATTACHED（本机挂载中）——本地记录按name唯一、归属
+        // 的是仍活着的挂载，按name误删会丢失活挂载记录并解除疑似残留防双挂守卫
+        if (UbseSsuDebtLedger::GetInstance().GetByName(name).empty()) {
+            // 先清理本地挂载（NVMe连接/聚合块设备）再删记录
+            auto localRecord = UbseSsuAttachRecordStore::GetInstance().Get(name);
+            if (localRecord.has_value()) {
+                CleanupLocalMount(*localRecord);
+                RemoveLocalAttachRecord(name);
+            }
+            // free成功：摘除疑似本地残留挂载标记（与记录存在与否无关，有则必除）
+            suspectedMountTable_.Erase(name);
+        }
         UBSE_LOG_INFO << "FreeSpace success: name=" << name;
     }
     return firstErr;
