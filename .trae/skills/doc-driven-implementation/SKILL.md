@@ -1,11 +1,11 @@
 ---
 name: "doc-driven-implementation"
-description: "Generates implementation code and unit tests from requirement/design/test-design documents. Invoke when user asks to implement a module from design docs, convert three-piece docs into code, or perform the code-development stage of end-to-end delivery."
+description: "Generates implementation code and unit tests from requirement/design/test-design documents. Invoke when user asks to implement a module from design docs or convert three-piece docs into code."
 ---
 
 # 文档驱动代码实现 Skill
 
-本 skill 用于在 UBS-Engine 项目中,以**需求分析文档 + 模块设计文档 + 测试设计文档**(三件套)为输入,正向生成符合设计契约与编码规范的实现代码与单元测试。是 full-stack-module-delivery 流水线中"代码开发 + 测试用例开发"阶段的执行 skill。
+本 skill 用于在 UBS-Engine 项目中,以**需求分析文档 + 模块设计文档 + 测试设计文档**(三件套)为输入,正向生成符合设计契约与编码规范的实现代码与单元测试。文档上游为 requirement-analysis-doc / module-design-doc / test-design-doc 三个 skill 生成的三件套。
 
 ## 1. 何时触发
 
@@ -15,7 +15,6 @@ description: "Generates implementation code and unit tests from requirement/desi
 - 用户要求按需求分析文档/设计文档实现模块
 - 用户要求按测试设计文档生成 UT 用例
 - 用户要求从设计文档生成代码骨架(类、接口、handler 框架)
-- 用户在 full-stack-module-delivery 流水线中到达"代码开发"阶段
 - 用户要求"按文档编码"、"按设计实现"、"实现已设计好的模块"
 - 用户描述新模块需求并要求先出文档再实现(此时先调用文档类 skill,再调用本 skill)
 
@@ -43,7 +42,6 @@ description: "Generates implementation code and unit tests from requirement/desi
 | 场景 | skill |
 |------|-------|
 | 文档缺失,需先补全 | requirement-analysis-doc / module-design-doc / test-design-doc |
-| 端到端编排(需求→设计→测试→代码) | full-stack-module-delivery |
 | 代码规范细节(命名/格式/版权) | coding-standards |
 | SSU 控制器专项 | [SSU模块开发指南](../../docs/design/modules/ssu/SSU模块开发指南.md) |
 | **从三件套生成代码** | **doc-driven-implementation(本 skill)** |
@@ -511,13 +509,13 @@ bash build.sh ut -C
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  full-stack-module-delivery(端到端编排)                   │
+│  文档驱动交付链路(需求 → 设计 → 测试 → 代码)               │
 │                                                          │
-│  阶段1:需求分析  → requirement-analysis-doc               │
-│  阶段2:模块设计  → module-design-doc                      │
-│  阶段3:测试设计  → test-design-doc                        │
-│  阶段4:代码开发  → doc-driven-implementation(本 skill)    │
-│  阶段5:测试开发  → doc-driven-implementation(本 skill)    │
+│  需求分析  → requirement-analysis-doc                     │
+│  模块设计  → module-design-doc                            │
+│  测试设计  → test-design-doc                              │
+│  代码开发  → doc-driven-implementation(本 skill)          │
+│  测试开发  → doc-driven-implementation(本 skill)          │
 │                                                          │
 │  代码规范约束    → coding-standards(被本 skill 调用)       │
 └──────────────────────────────────────────────────────────┘
@@ -529,7 +527,6 @@ bash build.sh ut -C
 | module-design-doc | 生成设计文档 | 上游,提供接口/数据模型/流程 |
 | test-design-doc | 生成测试设计文档 | 上游,提供测试场景/用例规划 |
 | coding-standards | 编码规范约束 | 并行,本 skill 调用其 checklist |
-| full-stack-module-delivery | 端到端编排 | 编排器,本 skill 是其阶段 4/5 |
 | [SSU模块开发指南](../../docs/design/modules/ssu/SSU模块开发指南.md) | SSU 专项 | SSU 模块可参考本 skill |
 
 ## 9. 示例
@@ -540,7 +537,7 @@ bash build.sh ut -C
 
 **输入**:
 - [SSU模块需求分析文档.md](../../docs/design/modules/ssu/SSU模块需求分析文档.md)(含 FR-SNAP-01~05)
-- [SSU模块设计文档.md](../../docs/design/modules/ssu/SSU模块设计文档.md)(含 4.1 接口表新增 `SnapshotSpace`、5.X 快照子模块、7.X 快照时序图)
+- [SSU模块特性设计文档.md](../../docs/design/modules/ssu/SSU模块特性设计文档.md)(含 4.1 接口表新增 `SnapshotSpace`、5.X 快照子模块、7.X 快照时序图)
 - [SSU模块测试设计文档.md](../../docs/design/modules/ssu/SSU模块测试设计文档.md)(含 TestUbseSsuSnapshot 用例)
 
 **执行步骤**:
@@ -588,9 +585,8 @@ bash build.sh ut -C
 - [目录规范文档](../../docs/conventions/目录规范文档.md) — 目录归档约束
 - [AGENTS.md](../../AGENTS.md) — 构建/测试命令
 - [coding-standards skill](../coding-standards/SKILL.md) — 编码规范自检清单
-- [full-stack-module-delivery skill](../full-stack-module-delivery/SKILL.md) — 端到端编排
 - [requirement-analysis-doc skill](../requirement-analysis-doc/SKILL.md) — 需求文档生成
 - [module-design-doc skill](../module-design-doc/SKILL.md) — 设计文档生成
 - [test-design-doc skill](../test-design-doc/SKILL.md) — 测试设计文档生成
-- [SSU模块设计文档.md](../../docs/design/modules/ssu/SSU模块设计文档.md) — 设计文档示例
+- [SSU模块特性设计文档.md](../../docs/design/modules/ssu/SSU模块特性设计文档.md) — 设计文档示例
 - [SSU模块测试设计文档.md](../../docs/design/modules/ssu/SSU模块测试设计文档.md) — 测试设计文档示例
