@@ -943,7 +943,7 @@ std::string NumaListToString(const std::vector<uint32_t>& nodes)
     return out.empty() ? "-" : out;
 }
 
-// 读取进程 NUMA 绑定快照: numa_maps 各 VMA 策略 token + cpuset Mems_allowed_list;
+// 读取进程 NUMA 绑定快照: numa_maps 各 VMA 策略 token;
 // 进程不存在/numa_maps 不可读返回 nullopt(纳管流程对读取失败不敏感)
 std::optional<def::NumaBindingInfo> ReadProcessNumaBinding(pid_t pid)
 {
@@ -982,35 +982,12 @@ std::optional<def::NumaBindingInfo> ReadProcessNumaBinding(pid_t pid)
     file.close();
     info.kind = accKind.value_or(def::NumaBindingKind::NONE);
 
-    constexpr size_t kMemsAllowedListPrefixLen = 18;
-    std::ifstream statusFile("/proc/" + std::to_string(pid) + "/status");
-    if (statusFile.is_open()) {
-        std::string statusLine;
-        while (std::getline(statusFile, statusLine)) {
-            if (statusLine.compare(0, kMemsAllowedListPrefixLen, "Mems_allowed_list:") != 0) {
-                continue;
-            }
-            std::string value = statusLine.substr(kMemsAllowedListPrefixLen);
-            size_t valueBegin = value.find_first_not_of(" \t");
-            value = (valueBegin == std::string::npos) ? "" : value.substr(valueBegin);
-            if (value.empty()) {
-                info.memsAllowedKnown = true; // 空列表: 允许集为空(理论不出现)
-            } else if (ParseNumaListString(value, info.memsAllowed)) {
-                info.memsAllowedKnown = true;
-            }
-            break;
-        }
-        statusFile.close();
-    }
-
     if (info.kind != def::NumaBindingKind::NONE) {
         UBSE_LOG_INFO << "[process_mem] pid=" << pid
                       << " numa binding captured: kind=" << NumaBindingKindName(info.kind)
-                      << " policy_nodes=" << NumaListToString(info.policyNodes)
-                      << " mems_allowed=" << (info.memsAllowedKnown ? NumaListToString(info.memsAllowed) : "unknown");
+                      << " policy_nodes=" << NumaListToString(info.policyNodes);
     } else {
-        UBSE_LOG_DEBUG << "[process_mem] pid=" << pid << " numa binding captured: unbound mems_allowed="
-                       << (info.memsAllowedKnown ? NumaListToString(info.memsAllowed) : "unknown");
+        UBSE_LOG_DEBUG << "[process_mem] pid=" << pid << " numa binding captured: unbound";
     }
     return info;
 }

@@ -175,8 +175,6 @@ enum class NumaBindingKind : uint8_t
 struct NumaBindingInfo {
     NumaBindingKind kind{NumaBindingKind::NONE};
     std::vector<uint32_t> policyNodes{};
-    bool memsAllowedKnown{false};
-    std::vector<uint32_t> memsAllowed{};
 };
 
 struct ManagedPidEntry {

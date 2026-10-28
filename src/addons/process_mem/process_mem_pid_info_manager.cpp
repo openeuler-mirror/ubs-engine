@@ -359,7 +359,14 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
     EraseConfigFromCache(isPid, identifier);
 
     RebuildManagedPidCache();
+    // 与 name 删除路径的 HasExplicitPidConfig 检查对称: 删本配置后仍被其余配置(如 name)纳管的 pid
+    // 保持纳管, 不触发 REMOVED 全量迁回归还
+    auto managedAfterRebuild = GetManagedPidCacheSnapshot();
     for (pid_t pid : returnPids) {
+        if (managedAfterRebuild.find(pid) != managedAfterRebuild.end()) {
+            UBSE_LOG_INFO << "RemoveProcMemConfig: pid=" << pid << " still managed by remaining config, keep pooling";
+            continue;
+        }
         std::vector<def::BorrowSlot> slots;
         auto it = returnLedgers.find(pid);
         if (it != returnLedgers.end()) {
@@ -709,7 +716,8 @@ void ProcessMemPidInfoManager::RemovePidSourceFromManagedPid(pid_t pid)
 
 void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidCollectInfoMap& collectInfo)
 {
-    std::vector<pid_t> reusedPids;
+    // 复用 pid 的新 startTime 一并记录: 锁外读完绑定后据此校验回填, 避免期间再次复用/退出时错挂
+    std::vector<std::pair<pid_t, uint64_t>> reusedPids;
     std::map<pid_t, std::vector<def::BorrowSlot>> reusedLedgers;
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
@@ -732,21 +740,35 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
             if (curStart == 0 || curStart == it->second.startTime) {
                 continue;
             }
-            reusedPids.push_back(pid);
+            reusedPids.emplace_back(pid, curStart);
             UBSE_LOG_WARN << "[process_mem] pid=" << pid << " reused (startTime " << it->second.startTime << " -> "
                           << curStart << "), reset stale borrow ledger and re-detect numa binding for new process";
             reusedLedgers[pid] = it->second.borrow.slots;
             it->second.borrow = def::BorrowState{};
             it->second.processStatus = def::ProcessStatus::IDLE;
             it->second.lastMigrateTime = {};
-            // 新进程可能改用不同绑定: 复用分支冷路径, 同 GetExactStartTime 一样在锁内读 /proc
-            it->second.numaBinding = collect::ReadProcessNumaBinding(pid);
             it->second.startTime = curStart;
+            // 旧绑定属于旧进程, 先置未知; 新绑定整读 numa_maps 是重 I/O, 放到锁外检测后回填
+            it->second.numaBinding.reset();
         }
     }
-    for (pid_t pid : reusedPids) {
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(pid, decision::ReturnScene::EXITED,
-                                                                              std::move(reusedLedgers[pid]));
+    std::map<pid_t, std::optional<def::NumaBindingInfo>> reusedBindings;
+    for (const auto& reused : reusedPids) {
+        reusedBindings[reused.first] = collect::ReadProcessNumaBinding(reused.first);
+    }
+    {
+        std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
+        for (const auto& reused : reusedPids) {
+            auto it = managedPidCache_.find(reused.first);
+            if (it == managedPidCache_.end() || it->second.startTime != reused.second) {
+                continue;
+            }
+            it->second.numaBinding = std::move(reusedBindings[reused.first]);
+        }
+    }
+    for (const auto& reused : reusedPids) {
+        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturn(
+            reused.first, decision::ReturnScene::EXITED, std::move(reusedLedgers[reused.first]));
     }
 }
 

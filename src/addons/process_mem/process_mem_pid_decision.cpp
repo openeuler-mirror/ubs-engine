@@ -1025,6 +1025,15 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
     ordered.reserve(ctx.candidates.size());
     for (size_t i = 0; i < ctx.candidates.size(); ++i) {
         const auto& candidate = ctx.candidates[i];
+        // 本轮配额已被先前缺口耗尽: 填充阶段必跳过, 采样前即排除, 避免无效 numa_maps 采样
+        uint64_t canMigrateLeft = candidate.canMigrate;
+        auto roundIt = ctx.borrowedThisRound.find(candidate.pid);
+        if (roundIt != ctx.borrowedThisRound.end()) {
+            canMigrateLeft = (canMigrateLeft > roundIt->second) ? (canMigrateLeft - roundIt->second) : 0;
+        }
+        if (canMigrateLeft == 0) {
+            continue;
+        }
         // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/驻留未知(UINT64_MAX)不设上限
         uint64_t resident =
             EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
