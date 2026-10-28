@@ -61,7 +61,7 @@ UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuAttach
     for (const auto &verify : record.nsVerifyList) {
         serializer << verify;
     }
-    serializer << record.attachedAt;
+    serializer << record.attachedAt << record.resourceUuid;
     return serializer;
 }
 
@@ -129,7 +129,7 @@ UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAttach
         }
         record.nsVerifyList.emplace_back(std::move(verify));
     }
-    deserializer >> record.attachedAt;
+    deserializer >> record.attachedAt >> record.resourceUuid;
     // 字段级校验与JSON持久化路径对齐（devName白名单/nsDevPath前缀白名单等），
     // 该记录将驱动agent本地挂载回放，网络报文不得绕过白名单
     if (deserializer.Check() && !IsRecordFieldsValid(record)) {
@@ -143,14 +143,14 @@ UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAttach
 UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuMountSummaryItem &item)
 {
     const uint32_t recordState = static_cast<uint32_t>(item.recordState);
-    serializer << item.name << recordState << item.devName;
+    serializer << item.name << recordState << item.devName << item.resourceUuid;
     return serializer;
 }
 
 UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuMountSummaryItem &item)
 {
     uint32_t recordState = 0;
-    deserializer >> item.name >> recordState >> item.devName;
+    deserializer >> item.name >> recordState >> item.devName >> item.resourceUuid;
     if (recordState > static_cast<uint32_t>(UbseSsuAttachRecordState::SUSPECT)) {
         UBSE_LOG_ERROR << "Mount summary serde: invalid recordState=" << recordState;
         deserializer.SetFail();
@@ -165,7 +165,7 @@ UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuReconc
 {
     const uint32_t action = static_cast<uint32_t>(item.action);
     const uint32_t hasRecord = static_cast<uint32_t>(item.hasRecord);
-    serializer << item.name << action << hasRecord;
+    serializer << item.name << item.resourceUuid << action << hasRecord;
     if (item.hasRecord) {
         serializer << item.record;
     }
@@ -177,7 +177,7 @@ UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuReconc
 {
     uint32_t action = 0;
     uint32_t hasRecord = 0;
-    deserializer >> item.name >> action >> hasRecord;
+    deserializer >> item.name >> item.resourceUuid >> action >> hasRecord;
     if (action > static_cast<uint32_t>(UbseSsuReconcileAction::REPORT)) {
         UBSE_LOG_ERROR << "Reconcile item serde: invalid action=" << action;
         deserializer.SetFail();

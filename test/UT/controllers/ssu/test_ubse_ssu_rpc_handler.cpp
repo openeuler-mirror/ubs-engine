@@ -1411,6 +1411,48 @@ TEST_F(TestUbseSsuRpcHandler, HandleReconcileReqReceiver_RemountProbeHitConverge
     EXPECT_EQ(ubse::ssu::service::ut::g_lastStatusUpdateState, UbseSsuNsState::ATTACHED);
 }
 
+// REMOUNT：本地旧代记录uuid与item不一致且hasRecord=false（item.record为空壳）→
+// 仅采纳master裁决的uuid，保留本地回放字段；禁止空壳替换（空name/空nsList壳记录
+// Upsert污染记录库且旧记录永不收敛）
+TEST_F(TestUbseSsuRpcHandler, HandleReconcileReqReceiver_RemountNoRecordAdoptsUuidOnly)
+{
+    const std::string uuidV1 = "0198f7a1-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    const std::string uuidV2 = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    SsuExecutorCaptureGuard executorGuard;
+    ubse::ssu::service::ut::SetupAgentRoleAndRpcSuccess();
+    ubse::ssu::service::ut::ResetStatusUpdateMockState();
+    auto &store = ubse::ssu::persist::UbseSsuAttachRecordStore::GetInstance();
+    auto staleRecord = MakeReconcileRecord("sp_remount_norecord", UbseSsuAttachRecordState::ATTACHED);
+    staleRecord.resourceUuid = uuidV1; // 旧代uuid，异于item.uuid
+    ASSERT_EQ(store.Upsert(staleRecord), UBSE_OK);
+    const auto storeSizeBefore = store.GetAll().size();
+
+    UbseSsuReconcileReq req;
+    auto item = MakeReconcileItem("sp_remount_norecord", UbseSsuReconcileAction::REMOUNT);
+    item.resourceUuid = uuidV2;
+    item.hasRecord = false; // 空壳形态（正常下发前会补齐，此为防御路径）
+    req.items.push_back(item);
+    UbseSsuReconcileReqMsg reqMsg(req);
+    SerializedData sd(reqMsg);
+    std::unique_ptr<UbseRpcMessage> resp;
+    HandleReconcileReqReceiver(sd.data.get(), sd.size, resp);
+    auto reconcileResp = dynamic_cast<UbseSsuReconcileRespMsg *>(resp.get());
+    ASSERT_NE(reconcileResp, nullptr);
+    ASSERT_EQ(reconcileResp->GetReconcileResp().items.size(), 1U);
+    EXPECT_EQ(reconcileResp->GetReconcileResp().items[0].result, UBSE_OK);
+
+    ASSERT_EQ(g_capturedReconcileTasks.size(), 1U);
+    RunCapturedReconcileTasks();
+    // 本地记录保留（未被空壳替换）：name/identity等回放字段不变，仅uuid采纳master裁决
+    auto record = FindRecord("sp_remount_norecord");
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->resourceUuid, uuidV2);
+    EXPECT_EQ(record->identity.uid, 100); // 空壳的identity.uid为0，保留即未被替换
+    EXPECT_EQ(store.GetAll().size(), storeSizeBefore); // 无空壳记录写入（无空name记录）
+    EXPECT_EQ(ubse::ssu::service::ut::g_lastStatusUpdateName, "sp_remount_norecord");
+    EXPECT_EQ(ubse::ssu::service::ut::g_lastStatusUpdateState, UbseSsuNsState::ATTACHED);
+}
+
 // CLEANUP：账本无该空间（已free）agent有残留记录 → 受理后异步执行：清理+删记录+上报CREATED
 TEST_F(TestUbseSsuRpcHandler, HandleReconcileReqReceiver_CleanupRemovesResidueRecord)
 {

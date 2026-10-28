@@ -108,7 +108,8 @@ public:
     void Rebuild(const std::vector<UbseSsuDevInfo> &devices);
 
     // NODE_UP差异场景的增量收编：仅对账本缺失的硬件组入账（只插不覆盖），既有条目一律保留；
-    // 收编新条目时刷新收敛窗口起点。与全量Rebuild（主备回切专用）互补，返回新收编条目个数
+    // 收编期间置未就绪（防"未入账"被读侧误判已free/可重名），收编新条目时刷新收敛窗口起点。
+    // 与全量Rebuild（主备回切专用）互补，返回新收编条目个数
     size_t AbsorbHardwareGroups(const std::vector<UbseSsuDevInfo> &devices);
 
     // 账本就绪标志

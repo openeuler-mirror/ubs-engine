@@ -376,13 +376,15 @@ void UbseSsuDebtLedger::Rebuild(const std::vector<UbseSsuDevInfo> &devices)
 // - 账本缺失的硬件组才入账（Put只插不覆盖），既有条目state/attachNodes/devName一律保留——
 //   本master账本持续维护、视图可信，不可像主备回切那样全量清空重置（否则free"需先卸载"
 //   门禁失效可误删挂载中空间，且agent需重报收敛）
-// - 不SetReady(false)：收编是纯新增写（账本mtx_保证原子），不产生半新半旧账本
+// - 收编期间SetReady(false)（模式与Rebuild一致）：
 // - 仅在收编新条目时刷新rebuildTime_开收敛窗口（新条目attachNodes空，防他节点抢挂独占空间）
 // - 真孤儿（同名无任何账本条目，疑free部分失败残留）与脑裂对端新分配的组在硬件面不可区分，
 //   统一收编（脑裂资源agent重报需命中条目），真孤儿额外打LedgerOrphanAbsorbedAlarm留痕转人工
 // 返回本次新收编的条目个数（0表示无新增，供调用方记日志）
 size_t UbseSsuDebtLedger::AbsorbHardwareGroups(const std::vector<UbseSsuDevInfo> &devices)
 {
+    // 收编窗口账本置未就绪（模式与Rebuild一致）
+    SetReady(false);
     auto groups = GroupHardwareDevices(devices);
     size_t absorbedCount = 0;
     for (const auto &[name, uuidGroups] : groups) {
@@ -422,6 +424,7 @@ size_t UbseSsuDebtLedger::AbsorbHardwareGroups(const std::vector<UbseSsuDevInfo>
         std::unique_lock<std::shared_mutex> lock(mtx_);
         rebuildTime_ = std::chrono::steady_clock::now();
     }
+    SetReady(true);
     return absorbedCount;
 }
 

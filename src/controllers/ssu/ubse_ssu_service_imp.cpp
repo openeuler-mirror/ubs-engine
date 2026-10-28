@@ -815,6 +815,7 @@ static uint32_t VerifySpaceNsIdentity(const std::vector<UbseSsuNameSpaceInfo> &n
 // 引用成员仅作调用点透传，生命周期由调用方局部变量保证，不可存储
 struct LocalAttachRecordCtx {
     const std::string &name;
+    const std::string &resourceUuid; // master账本allocResult.resourceUuid（verify响应回填），随记录落盘供精确上报
     UbseSsuAllocStrategy strategy;
     const std::string &devName;
     const std::string &nqn;
@@ -829,6 +830,7 @@ static void UpsertLocalAttachRecord(const LocalAttachRecordCtx &ctx,
 {
     UbseSsuAttachRecord record;
     record.name = ctx.name;
+    record.resourceUuid = ctx.resourceUuid;
     record.strategy = ctx.strategy;
     record.recordState = recordState;
     record.devName = ctx.devName;
@@ -1203,8 +1205,8 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
         UBSE_LOG_ERROR << "UpdateStateOrNotify: get current node id failed, " << FormatRetCode(ret) << ", name=" << name;
         return ret;
     }
-    // agent侧：仅发送状态更新，不维护本地账本
-    return SendStatusUpdate(name, state, devName, nodeId);
+    // agent侧：仅发送状态更新，不维护本地账本（resourceUuid空时master按name维度兼容解析）
+    return SendStatusUpdate(name, state, devName, nodeId, resourceUuid);
 }
 
 // agent端：发送attach/detach前置条件校验请求到master并同步等待响应（attach/detach通用）。
@@ -1410,8 +1412,8 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     }
 
     // 先写PENDING再挂载：进程在挂载中途崩溃时，恢复流程对PENDING记录探测收敛
-    const LocalAttachRecordCtx recordCtx{req.name, option.expectedStrategy, devName, req.nqn, req.identity,
-                                         blockDeviceOptions, nameSpaceList};
+    const LocalAttachRecordCtx recordCtx{req.name, verifyResp.resourceUuid, option.expectedStrategy, devName, req.nqn,
+                                         req.identity, blockDeviceOptions, nameSpaceList};
     UpsertLocalAttachRecord(recordCtx, verifyResp.nsVerifyList, UbseSsuAttachRecordState::PENDING);
 
     nsDevPaths.clear();
@@ -1449,9 +1451,10 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     // 本地挂载成功：记录转ATTACHED（上报master失败不回滚记录，由恢复流程/重试补报收敛）
     UpsertLocalAttachRecord(recordCtx, verifyResp.nsVerifyList, UbseSsuAttachRecordState::ATTACHED);
 
-    // 聚合块设备场景上报devName，master写入账本供重复挂载回填devPath
+    // 聚合块设备场景上报devName，master写入账本供重复挂载回填devPath；
+    // resourceUuid来自verify响应回填，master按复合键精确定位条目
     UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, false,
-                        blockDeviceOptions != nullptr ? devName : "");
+                        blockDeviceOptions != nullptr ? devName : "", verifyResp.resourceUuid);
     UBSE_LOG_INFO << "AgentAttach success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
     return UBSE_OK;
 }
@@ -1528,7 +1531,7 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
         return detachRet;
     }
 
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false, "", verifyResp.resourceUuid);
     // 卸载成功：作废本地挂载记录
     RemoveLocalAttachRecord(req.name);
     UBSE_LOG_INFO << "AgentDetach success: name=" << req.name;
@@ -1578,6 +1581,9 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
     if (idRet != UBSE_OK) {
         return idRet;
     }
+    
+    // 回填账本resourceUuid：agent据此写本地挂载记录并按复合键精确上报状态。置于身份校验之后
+    verifyResp.resourceUuid = entryPtr->allocResult.resourceUuid;
 
     auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.expectedStrategy);
     if (strategyRet != UBSE_OK) {
@@ -1809,7 +1815,9 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
     // 无论全部还是部分失败，均回退到CREATED状态
     // 部分detach失败时，NS处于"部分CREATED、部分ATTACHED"的不一致状态
     // 调用方可重试AttachLinearSpace/AttachStripedSpace，利用AttachSingleNs的幂等性重新attach所有NS
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, isMaster);
+    // agent路径携带verify响应回填的resourceUuid（master复合键精确定位）；master路径按name解析唯一条目
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, isMaster,
+                        "", isMaster ? "" : verifyResp->resourceUuid);
     // attach失败回退：作废本地PENDING记录（agent/master路径共用）
     RemoveLocalAttachRecord(req.name);
     if (ret != UBSE_OK) {
@@ -2272,8 +2280,8 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
     UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true);
 
     // master本地挂载成功：写ATTACHED记录（NORMAL无聚合设备，从collector缓存构造verify回放字段）
-    const LocalAttachRecordCtx recordCtx{req.name, UbseSsuAllocStrategy::NORMAL, "", req.nqn, req.identity,
-                                         nullptr, attachedNsList};
+    const LocalAttachRecordCtx recordCtx{req.name, entryPtr->allocResult.resourceUuid, UbseSsuAllocStrategy::NORMAL,
+                                         "", req.nqn, req.identity, nullptr, attachedNsList};
     UpsertLocalAttachRecordFromDevMap(recordCtx, devMap);
 
     UBSE_LOG_INFO << "AttachSpace success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
@@ -2426,11 +2434,13 @@ struct AttachNsCreateBlockDeviceOutput {
 // master端AttachStripedSpace和AttachLinearSpace通用辅助
 // attach所有NS + 创建/重组聚合块设备 + 账本状态管理（ATTACHING -> ATTACHED / 失败回退）
 // ledgerDevName：账本记录的 devName（可能为空=首次挂载；非空=重挂，需 Probe 判定走 Assemble 或降级 Create）
+// resourceUuid：账本条目uuid，随本地挂载记录落盘（状态上报按复合键精确归属）
 static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
                                              std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                              const UbseCreateBlockDeviceOptions &options,
                                              const std::string &ledgerDevName,
+                                             const std::string &resourceUuid,
                                              AttachNsCreateBlockDeviceOutput &output)
 {
     std::string tag = (options.addressingType == UbseSsuAddressingType::STRIPED) ? "AttachStripedSpace" :
@@ -2466,8 +2476,8 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
     const auto recordStrategy = (options.addressingType == UbseSsuAddressingType::STRIPED) ?
                                     UbseSsuAllocStrategy::STRIPED :
                                     UbseSsuAllocStrategy::LINEAR;
-    const LocalAttachRecordCtx recordCtx{req.name, recordStrategy, req.devName, req.nqn, req.identity, &options,
-                                         attachedNsList};
+    const LocalAttachRecordCtx recordCtx{req.name, resourceUuid, recordStrategy, req.devName, req.nqn, req.identity,
+                                         &options, attachedNsList};
     UpsertLocalAttachRecordFromDevMap(recordCtx, devMap);
     return UBSE_OK;
 }
@@ -2593,7 +2603,7 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     AttachNsCreateBlockDeviceOutput output;
     auto ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
-                                            entryPtr->devName, output);
+                                            entryPtr->devName, entryPtr->allocResult.resourceUuid, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -2739,7 +2749,7 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     AttachNsCreateBlockDeviceOutput output;
     ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
-                                       entryPtr->devName, output);
+                                       entryPtr->devName, entryPtr->allocResult.resourceUuid, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -4441,17 +4451,19 @@ static void ReconcileMasterLedger(const UbseSsuAttachRecord &record)
                        << ", name=" << record.name;
         return;
     }
-    // 复合键账本：本地挂载记录仅按name维度，按name解析唯一条目取resourceUuid；
-    // 同名多resourceUuid（脑裂合并遗留）无法定位唯一归属，WARN跳过待人工处理
-    auto entries = UbseSsuDebtLedger::GetInstance().GetByName(record.name);
-    if (entries.size() > 1) {
-        UBSE_LOG_WARN << "ReconcileMasterLedger: duplicated name in ledger, skip reconcile, name=" << record.name
-                      << ", count=" << entries.size();
-        return;
+    // 复合键账本：本地记录非空时按(name, resourceUuid)精确定位；
+    // 升级前旧记录无uuid，按name解析唯一条目兜底；同名多resourceUuid（脑裂合并遗留）
+    // 无法定位唯一归属，WARN跳过待人工处理
+    std::string resourceUuid = record.resourceUuid;
+    if (resourceUuid.empty()) {
+        auto entries = UbseSsuDebtLedger::GetInstance().GetByName(record.name);
+        if (entries.size() > 1) {
+            UBSE_LOG_WARN << "ReconcileMasterLedger: duplicated name in ledger, skip reconcile, name=" << record.name
+                          << ", count=" << entries.size();
+            return;
+        }
+        resourceUuid = entries.empty() || entries[0] == nullptr ? "" : entries[0]->allocResult.resourceUuid;
     }
-    const std::string resourceUuid = entries.empty() || entries[0] == nullptr ?
-                                         "" :
-                                         entries[0]->allocResult.resourceUuid;
     if (!UbseSsuDebtLedger::GetInstance().Modify(record.name, resourceUuid,
         [&record, &selfNodeId](UbseSsuLedgerEntry &e) {
             // 设备故障拦截：与HandleStatusReceiver拒收FAULTED上报对称，故障期间的对账不
@@ -4486,7 +4498,10 @@ static void ReconcileMasterLedger(const UbseSsuAttachRecord &record)
 }
 
 // agent重报对账：复用既有STATUS_UPDATE RPC通道。
-// MASTER_NOT_READY纯重试；SPACE_NOT_FOUND（账本就绪且查无）=space确已被free，自愈清理本地
+// 一切失败（含SPACE_NOT_FOUND）均纯重试：SPACE_NOT_FOUND可能是账本暂缺该条目而非确已free——
+// NODE_UP差异收编（AbsorbHardwareGroups）即将把硬件组入账，重报若抢在收编前到达会误判
+// 已free而误清在用挂载（真孤儿/脑裂对端资源的收编留痕转人工终态也被破坏）。
+// 重试耗尽保留记录，交由周期对账CLEANUP收敛（与master diff同一权威谓词，清理只延迟不丢失）
 static void ReportToMasterWithRetry(const UbseSsuAttachRecord &record)
 {
     std::string selfNodeId;
@@ -4501,18 +4516,13 @@ static void ReportToMasterWithRetry(const UbseSsuAttachRecord &record)
         if (attempt > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(GetRecoverRetryIntervalMs()));
         }
-        auto ret = SendStatusUpdate(record.name, UbseSsuNsState::ATTACHED, devName, selfNodeId);
+        // 复合键精确重报（record.resourceUuid随记录落盘；升级前旧记录为空由master按name兼容解析）
+        auto ret = SendStatusUpdate(record.name, UbseSsuNsState::ATTACHED, devName, selfNodeId, record.resourceUuid);
         if (ret == UBSE_OK) {
             UBSE_LOG_INFO << "ReportToMasterWithRetry: report success, name=" << record.name;
             return;
         }
-        if (ret == UBSE_SSU_ERROR_SPACE_NOT_FOUND) {
-            UBSE_LOG_WARN << "ReportToMasterWithRetry: space freed on master, cleanup local, name=" << record.name;
-            CleanupLocalMount(record);
-            UbseSsuAttachRecordStore::GetInstance().Remove(record.name);
-            return;
-        }
-        // MASTER_NOT_READY（账本未就绪）及其他瞬时错误（网络/超时）：纯重试
+        // MASTER_NOT_READY/SPACE_NOT_FOUND（账本未就绪或条目待收编）及其他瞬时错误（网络/超时）：纯重试
         UBSE_LOG_WARN << "ReportToMasterWithRetry: report failed, name=" << record.name << ", attempt=" << attempt
                       << ", ret=" << FormatRetCode(ret);
     }

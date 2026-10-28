@@ -122,7 +122,7 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Serialize(std::unique_ptr<uint8_t[]> 
     for (const auto &nsInfo : resp_.nameSpaceList) {
         out << nsInfo;
     }
-    out << resp_.devName;
+    out << resp_.devName << resp_.resourceUuid;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp serialize failed.";
         return UBSE_ERROR;
@@ -174,7 +174,7 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Deserialize(const uint8_t *data, uint
         }
         resp_.nameSpaceList.emplace_back(std::move(nsInfo));
     }
-    in >> resp_.devName;
+    in >> resp_.devName >> resp_.resourceUuid;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp deserialize failed.";
         return UBSE_ERROR;
