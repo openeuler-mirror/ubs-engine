@@ -370,6 +370,8 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
     auto managedAfterRebuild = GetManagedPidCacheSnapshot();
     for (pid_t pid : returnPids) {
         if (managedAfterRebuild.find(pid) != managedAfterRebuild.end()) {
+            // 未触发归还: 撤销上面的接管标记, 否则该标记再无归还流程负责清除
+            decision::ProcessMemPidDecision::GetInstance().ClearPidReturnPending(pid);
             UBSE_LOG_INFO << "RemoveProcMemConfig: pid=" << pid << " still managed by remaining config, keep pooling";
             continue;
         }
@@ -378,9 +380,9 @@ uint32_t ProcessMemPidInfoManager::RemoveProcMemConfig(bool isPid, const std::st
         if (it != returnLedgers.end()) {
             slots = it->second;
         }
-        // 入队失败不能吞: 标记已置、对账已让路, 必须退避重试入队
-        (void)decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturnGuaranteed(
-            pid, decision::ReturnScene::REMOVED, std::move(slots));
+        // 入队失败不能吞: 标记已置、对账已让路; 但不阻塞配置删除线程, 失败由决策轮重投
+        decision::ProcessMemPidDecision::GetInstance().EnqueuePidReturnDeferred(pid, decision::ReturnScene::REMOVED,
+                                                                                std::move(slots));
     }
     return UBSE_OK;
 }

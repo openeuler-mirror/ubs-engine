@@ -145,11 +145,14 @@ public:
     bool EnqueuePidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
     // 配置删除(REMOVED)流程: 删缓存前标记, 标记期间对账不对该 pid 的账本债务做孤儿强还
-    // (迁回未收敛前强还即丢页), 归还统一由本流程负责; 归还成功终结时自动清除
+    // (迁回未收敛前强还即丢页), 归还统一由本流程负责; 归还成功终结时自动清除;
+    // 未触发归还(pid 仍被其余配置纳管)时由调用方撤销标记
     void MarkPidReturnPending(pid_t pid);
+    void ClearPidReturnPending(pid_t pid);
 
-    // REMOVED 专用入队: 入队失败不能吞(标记已置、对账已让路), 需退避重试入队
-    bool EnqueuePidReturnGuaranteed(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
+    // REMOVED 专用入队: 入队失败不能吞(标记已置、对账已让路), 但不能阻塞调用线程(配置删除路径),
+    // 失败记账到决策轮重投; 同 pid 后到的请求覆盖先前待重投账本
+    void EnqueuePidReturnDeferred(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
     uint32_t HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots);
 
@@ -236,6 +239,13 @@ private:
     // 本地各 numa (MemFree, MemTotal) 明细读取: 未注册 reader 时返回 nullopt(与借用判缺同一模式切换点)
     std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ReadLocalNumaMemMap();
 
+    // 入队失败待决策轮重投的 pid 归还(账本随缓存条目一并删除, 槽位数据只能在此暂存)
+    struct DeferredPidReturn {
+        ReturnScene scene{ReturnScene::REMOVED};
+        std::vector<def::BorrowSlot> slots{};
+        uint32_t attempts{0};
+    };
+
     bool EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
 
     // 归还执行流去重: 同债务/同 pid 只允许一个归还流在飞(lender 重播/重试/主动扫描可能重复入队)
@@ -246,8 +256,8 @@ private:
     bool IsPidReturnInFlight(pid_t pid);
 
     // REMOVED 归还接管标记: 只在归还成功终结时清除; 重试耗尽保留(债务按滞留告警, 不丢页)
-    void ClearPidReturnPending(pid_t pid);
     bool IsPidReturnPending(pid_t pid);
+    bool IsPidReturnDeferred(pid_t pid);
 
     void RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene);
 
@@ -306,7 +316,8 @@ private:
 
     void RunOrphanReturn(const std::string& debtName);
 
-    void RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue);
+    // 有界自旋退避入队; 返回是否最终入队成功(false = 放弃本次, 留待兜底扫描)
+    bool RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue);
 
     uint32_t NextReturnRetryCount(const std::string& key);
 
@@ -332,6 +343,8 @@ private:
     }
     void RunBorrowRound(uint64_t roundNum);
     void RedriveStrandedReturns(uint64_t roundNum);
+    // 重投入队失败的 pid 归还(每决策轮一次, 成功即清除; 期间标记保持, 对账继续让路)
+    void RedriveDeferredPidReturns(uint64_t roundNum);
     void LogBorrowCandidates(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates);
 
     void RemoveSlotFinalize(pid_t pid, const std::string& debtId);
@@ -408,6 +421,10 @@ private:
     // (覆盖"已入队未执行/失败重试退避"间隙), 需归还成功终结才清除
     std::set<pid_t> pidReturnPending_{};
     std::mutex inFlightReturnsMutex_{};
+
+    // 入队失败的 pid 归还待重投(配置删除线程只记账不阻塞, 决策轮重投)
+    std::map<pid_t, DeferredPidReturn> deferredPidReturns_{};
+    std::mutex deferredPidReturnsMutex_{};
 
     // 借用轮整轮串行: 定时轮与 OOM 紧急轮并发会重复消费同一 pid 的 canMigrate(瞬态双倍超借)
     std::mutex borrowRoundMutex_{};

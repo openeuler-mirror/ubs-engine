@@ -757,6 +757,7 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
 
     CheckTimeouts(roundNum);
     RedriveStrandedReturns(roundNum);
+    RedriveDeferredPidReturns(roundNum);
 
     // 采样缓存整轮共用: 判缺准入估计与在途落地观测每 pid 一轮至多采样一次
     ResidenceCache residenceCache;
@@ -832,6 +833,15 @@ void ProcessMemPidDecision::RedriveStrandedReturns(uint64_t roundNum)
     lastStrandedSweep_ = now;
     auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
     for (const auto& [pid, entry] : snapshot) {
+        // 接管标记兜底清理: 标记覆盖的归还或已终结或由待重投接管; 缓存条目无任何槽且无在飞/待重投
+        // = 标记已无接管对象(删除后仍被其余配置纳管的跳过分支/重投已成功的残留), 遗留会长期阻断
+        // 该 pid 后续的孤儿强还对账
+        if (IsPidReturnPending(pid) && entry.borrow.slots.empty() && !IsPidReturnInFlight(pid) &&
+            !IsPidReturnDeferred(pid)) {
+            ClearPidReturnPending(pid);
+            UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " pending_cleanup pid=" << pid
+                          << " stale mark cleared (no borrow slots)";
+        }
         std::vector<def::ReturnRequestItem> stranded;
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status != def::BorrowSlotStatus::RETURNING || slot.debtId.empty()) {
@@ -854,6 +864,44 @@ void ProcessMemPidDecision::RedriveStrandedReturns(uint64_t roundNum)
                               << " debt_id=" << item.name << " enqueue failed, wait next sweep";
             }
         }
+    }
+}
+
+// 配置删除路径的归还入队失败(队列满/执行器未就绪)不阻塞调用线程, 账本槽位暂存在决策轮重投;
+// 成功前接管标记保持, 对账继续让路, 避免迁回窗口内被孤儿强还丢页
+void ProcessMemPidDecision::RedriveDeferredPidReturns(uint64_t roundNum)
+{
+    std::map<pid_t, DeferredPidReturn> pending;
+    {
+        std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+        pending.swap(deferredPidReturns_);
+    }
+    if (pending.empty()) {
+        return;
+    }
+    for (auto& [pid, deferredReturn] : pending) {
+        if (IsPidReturnInFlight(pid)) {
+            // 同 pid 批量归还在飞: 此时入队会被去重跳过且账本丢失, 保留到下一轮
+            std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+            deferredPidReturns_.try_emplace(pid, std::move(deferredReturn));
+            continue;
+        }
+        if (EnqueuePidReturn(pid, deferredReturn.scene, deferredReturn.slots)) {
+            UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " deferred_return pid=" << pid
+                          << " scene=" << ReturnSceneToString(deferredReturn.scene)
+                          << " attempts=" << deferredReturn.attempts << " enqueued";
+            continue;
+        }
+        ++deferredReturn.attempts;
+        // 首次与每 12 轮(约 1 分钟)留痕, 持续失败不刷屏
+        if (deferredReturn.attempts == 1 || deferredReturn.attempts % 12 == 0) {
+            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " deferred_return pid=" << pid
+                          << " scene=" << ReturnSceneToString(deferredReturn.scene)
+                          << " enqueue failed, attempts=" << deferredReturn.attempts << ", keep deferred";
+        }
+        std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+        // 重投期间同 pid 新的删除请求已落账本时保留更新者
+        deferredPidReturns_.try_emplace(pid, std::move(deferredReturn));
     }
 }
 
@@ -1223,8 +1271,9 @@ bool ProcessMemPidDecision::CollectObservedUnlanded(const PidDestSrcDeclaredMap&
 // per-src 未落地在途量: BORROWING 槽无 dest(远端 numa 在迁移完成回填时才确定), 按源全额记在途;
 // COMPLETED 槽处于异步迁移窗口(migrate_out 响应仅代表受理), 优先按进程视角采样观测(该 pid 在该
 // dest 的声明量 − 实测占用)逐 (pid,dest) 建池, 未落地量全额归该池当前声明源(borrowTime 最新,
-// 门控串行下老源必已收敛); 暂无可信观测退回远端明细口径, 明细亦不可用则本轮弃权(原节点级兜底
-// 口径生产不可达, 已删除); 供判缺/紧急轮扣减, 防在途数据被下轮重复下发借用
+// 门控串行下老源必已收敛); 任一对无有效观测即整轮回退远端明细口径, 明细读取失败亦本轮弃权
+// (COMPLETED 异步窗口暂不扣减, 宁可少扣不多扣; 节点级兜底口径已删除); 供判缺/紧急轮扣减,
+// 防在途数据被下轮重复下发借用
 std::unordered_map<int, uint64_t> ProcessMemPidDecision::BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache)
 {
     // 门控源集每轮重建: 空声明/观测回退/采样失败时为空 = 不门控(与在途口径同源同原子性),
@@ -2302,6 +2351,12 @@ bool ProcessMemPidDecision::IsPidReturnPending(pid_t pid)
     return pidReturnPending_.count(pid) > 0;
 }
 
+bool ProcessMemPidDecision::IsPidReturnDeferred(pid_t pid)
+{
+    std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+    return deferredPidReturns_.count(pid) > 0;
+}
+
 bool ProcessMemPidDecision::EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene)
 {
     if (!ReturnExecutorReady()) {
@@ -2472,17 +2527,19 @@ bool ProcessMemPidDecision::EnqueuePidReturn(pid_t pid, ReturnScene scene, const
     return returnExecutor_->Execute([this, pid, scene, slots]() { RunPidReturn(pid, scene, slots); });
 }
 
-bool ProcessMemPidDecision::EnqueuePidReturnGuaranteed(pid_t pid, ReturnScene scene,
-                                                       const std::vector<def::BorrowSlot>& slots)
+void ProcessMemPidDecision::EnqueuePidReturnDeferred(pid_t pid, ReturnScene scene,
+                                                     const std::vector<def::BorrowSlot>& slots)
 {
     if (EnqueuePidReturn(pid, scene, slots)) {
-        return true;
+        // 本次已入队: 清除更早的待重投账本(其内容已被本次覆盖)
+        std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+        deferredPidReturns_.erase(pid);
+        return;
     }
     UBSE_LOG_WARN << "[process_mem] return " << ReturnSceneToString(scene) << " pid=" << pid
-                  << " enqueue failed, retry later";
-    RetryReturnEnqueue(NextReturnRetryCount("pid:" + std::to_string(pid)),
-                       [this, pid, scene, slots]() { return EnqueuePidReturn(pid, scene, slots); });
-    return false;
+                  << " enqueue failed, deferred to next round";
+    std::lock_guard<std::mutex> lock(deferredPidReturnsMutex_);
+    deferredPidReturns_[pid] = DeferredPidReturn{scene, slots, 0};
 }
 
 uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots,
@@ -2688,23 +2745,24 @@ void ProcessMemPidDecision::RunOrphanReturn(const std::string& debtName)
     RetryReturnEnqueue(NextReturnRetryCount(debtName), [this, debtName]() { return EnqueueOrphanReturn(debtName); });
 }
 
-void ProcessMemPidDecision::RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue)
+bool ProcessMemPidDecision::RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue)
 {
     if (retryCount > kMaxReturnRetry) {
         UBSE_LOG_WARN << "[process_mem] return retry exhausted (retries=" << retryCount
                       << "), give up, leave to stranded sweep";
-        return;
+        return false;
     }
     // 有界自旋: worker 不能无限阻塞等自己队列的空间(4 个归还 worker 全卡住会无人消费队列, 形成活锁);
     // 耗尽后放弃本次入队, 槽保持 RETURNING, 由决策轮 RedriveStrandedReturns 兜底重新驱动
     for (uint32_t i = 0; i < kMaxEnqueueSpinAttempts && !stopping_.load(); ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(returnRetryIntervalMs_));
         if (enqueue()) {
-            return;
+            return true;
         }
     }
     UBSE_LOG_WARN << "[process_mem] return enqueue spin exhausted (retries=" << retryCount
                   << "), leave to stranded sweep";
+    return false;
 }
 
 uint32_t ProcessMemPidDecision::NextReturnRetryCount(const std::string& key)
