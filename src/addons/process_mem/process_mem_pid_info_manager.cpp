@@ -719,8 +719,13 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
     // 复用 pid 的新 startTime 一并记录: 锁外读完绑定后据此校验回填, 避免期间再次复用/退出时错挂
     std::vector<std::pair<pid_t, uint64_t>> reusedPids;
     std::map<pid_t, std::vector<def::BorrowSlot>> reusedLedgers;
+    // 绑定快照周期刷新: 借用硬准入依赖该快照排除绑定集外的 numa, 运行期改绑(尤其解除绑定)若不同步,
+    // 该进程的驻留源会被永久排除; 每 kNumBindingRefreshRounds 轮整批重读一次, 平常轮不做重 I/O
+    constexpr uint32_t kNumBindingRefreshRounds = 12;
+    std::vector<std::pair<pid_t, uint64_t>> refreshPids;
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
+        bool refreshRound = (++numaBindingRefreshRound_ % kNumBindingRefreshRounds == 0);
         for (const auto& [pid, entry] : collectInfo.entries) {
             auto it = managedPidCache_.find(pid);
             if (it == managedPidCache_.end()) {
@@ -751,10 +756,24 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
             // 旧绑定属于旧进程, 先置未知; 新绑定整读 numa_maps 是重 I/O, 放到锁外检测后回填
             it->second.numaBinding.reset();
         }
+        if (refreshRound) {
+            for (const auto& [pid, entry] : collectInfo.entries) {
+                auto it = managedPidCache_.find(pid);
+                if (it == managedPidCache_.end() || !it->second.numaBinding.has_value() ||
+                    it->second.numaBinding->policyNodes.empty()) {
+                    continue;
+                }
+                refreshPids.emplace_back(pid, it->second.startTime);
+            }
+        }
     }
     std::map<pid_t, std::optional<def::NumaBindingInfo>> reusedBindings;
     for (const auto& reused : reusedPids) {
         reusedBindings[reused.first] = collect::ReadProcessNumaBinding(reused.first);
+    }
+    std::map<pid_t, std::optional<def::NumaBindingInfo>> refreshBindings;
+    for (const auto& refresh : refreshPids) {
+        refreshBindings[refresh.first] = collect::ReadProcessNumaBinding(refresh.first);
     }
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
@@ -764,6 +783,21 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
                 continue;
             }
             it->second.numaBinding = std::move(reusedBindings[reused.first]);
+        }
+        for (const auto& refresh : refreshPids) {
+            auto it = managedPidCache_.find(refresh.first);
+            auto& freshBinding = refreshBindings[refresh.first];
+            // 读失败(进程退出中/瞬态)保留旧快照, 避免抖动回退到"未知"而无从排除
+            if (it == managedPidCache_.end() || it->second.startTime != refresh.second || !freshBinding.has_value()) {
+                continue;
+            }
+            if (it->second.numaBinding->kind != freshBinding->kind ||
+                it->second.numaBinding->policyNodes != freshBinding->policyNodes) {
+                UBSE_LOG_INFO << "[process_mem] pid=" << refresh.first
+                              << " numa binding refreshed: kind=" << static_cast<uint32_t>(freshBinding->kind)
+                              << " policy_nodes=" << freshBinding->policyNodes.size();
+            }
+            it->second.numaBinding = std::move(freshBinding);
         }
     }
     for (const auto& reused : reusedPids) {

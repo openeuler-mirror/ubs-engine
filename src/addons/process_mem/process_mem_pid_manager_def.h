@@ -170,8 +170,8 @@ enum class ProcessStatus
     BORROWED,
 };
 
-// 纳管时一次性检测的 NUMA 绑定信息(numactl --membind/--interleave/--preferred 等 + cpuset 约束),
-// 不随运行期改绑刷新
+// NUMA 绑定信息(numactl --membind/--interleave/--preferred 等 + cpuset 约束),
+// 纳管/pid 复用/周期刷新时检测
 enum class NumaBindingKind : uint8_t
 {
     NONE,       // 无显式策略(default/local)
@@ -200,7 +200,8 @@ struct ManagedPidEntry {
     // 进程启动时刻（/proc/<pid>/stat 第22字段），用于识别退出后 pid 被复用
     uint64_t startTime{0};
 
-    // 纳管时检测的 NUMA 绑定快照(pid 复用时重检); nullopt = 读取失败/进程已不在
+    // NUMA 绑定快照: 纳管时检测, pid 复用与运行期按轮周期刷新(借用硬准入依赖);
+    // nullopt = 读取失败/进程已不在
     std::optional<NumaBindingInfo> numaBinding{};
 
     std::chrono::steady_clock::time_point lastMigrateTime{};

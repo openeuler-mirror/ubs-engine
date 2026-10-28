@@ -278,22 +278,25 @@ uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes
         // 分布值为字节数, 字节×字节中间积≈VmRSS², 须用 128 位中间量防 uint64 回绕
         residentBytes = static_cast<uint64_t>(static_cast<__uint128_t>(vmRssBytes) * srcBytes / totalBytes);
     }
-    std::vector<std::pair<uint32_t, size_t>> distSorted(dist.begin(), dist.end());
-    std::sort(distSorted.begin(), distSorted.end());
-    std::ostringstream distText;
-    bool firstEntry = true;
-    for (const auto& [numaId, bytes] : distSorted) {
-        if (!firstEntry) {
-            distText << ' ';
+    // 分布明细仅 DEBUG 日志消费: 排序与字符串拼接开销不能常开
+    if (ubse::log::UbseIsLog(ubse::log::UbseLogLevel::DEBUG)) {
+        std::vector<std::pair<uint32_t, size_t>> distSorted(dist.begin(), dist.end());
+        std::sort(distSorted.begin(), distSorted.end());
+        std::ostringstream distText;
+        bool firstEntry = true;
+        for (const auto& [numaId, bytes] : distSorted) {
+            if (!firstEntry) {
+                distText << ' ';
+            }
+            firstEntry = false;
+            // 千分比整数拼接一位小数(直接除 10.0 会触发整数除法进浮点上下文的检查告警)
+            uint64_t permille = bytes * 1000 / totalBytes;
+            distText << numaId << ':' << permille / 10 << '.' << permille % 10 << '%';
         }
-        firstEntry = false;
-        // 千分比整数拼接一位小数(直接除 10.0 会触发整数除法进浮点上下文的检查告警)
-        uint64_t permille = bytes * 1000 / totalBytes;
-        distText << numaId << ':' << permille / 10 << '.' << permille % 10 << '%';
+        UBSE_LOG_DEBUG << "[process_mem] borrow sample pid=" << pid << " src_numa=" << srcNumaId
+                       << " estimate_gb=" << BytesToGbDouble(residentBytes) << " valid=" << totalBytes
+                       << " dist=" << distText.str();
     }
-    UBSE_LOG_DEBUG << "[process_mem] borrow sample pid=" << pid << " src_numa=" << srcNumaId
-                   << " estimate_gb=" << BytesToGbDouble(residentBytes) << " valid=" << totalBytes
-                   << " dist=" << distText.str();
     return residentBytes;
 }
 
