@@ -14,11 +14,17 @@
 
 #include <dirent.h>
 #include <securec.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <algorithm>
+#include <cerrno>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "ubse_conf.h"
 #include "ubse_error.h"
@@ -83,6 +89,17 @@ std::optional<uint64_t> ReadNumaMemUsedKb(uint32_t numaId)
         return std::nullopt;
     }
     return *totalKb - *freeKb;
+}
+
+// 单本地 numa 的 (MemFree, MemTotal)KB; 任一字段缺失或异常按整轮失败处理
+std::optional<NumaMemKbInfo> ReadLocalNumaMemKb(uint32_t numaId)
+{
+    auto freeKb = ReadNumaMemFreeKb(numaId);
+    auto totalKb = ReadNumaMemKbField(numaId, "MemTotal");
+    if (!freeKb.has_value() || !totalKb.has_value() || *totalKb < *freeKb) {
+        return std::nullopt;
+    }
+    return NumaMemKbInfo{*freeKb, *totalKb};
 }
 } // namespace
 
@@ -639,6 +656,7 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
     uint64_t localFreeKb = 0;
     uint64_t remoteUsedKb = 0;
     bool foundAny = false;
+    std::unordered_map<uint32_t, NumaMemKbInfo> localNumaMap;
     for (uint32_t numaId = 0; numaId < kMaxNumaNum; ++numaId) {
         auto isRemote = ReadNumaRemoteAttr(numaId);
         if (!isRemote.has_value()) {
@@ -652,32 +670,37 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
                 std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
                 localNumaFreeKbSnapshot_ = std::nullopt;
                 remoteNumaUsedKbSnapshot_ = std::nullopt;
+                localNumaMemMapSnapshot_ = std::nullopt;
                 return;
             }
             remoteUsedKb += *usedKb;
             continue;
         }
-        auto freeKb = ReadNumaMemFreeKb(numaId);
-        if (!freeKb.has_value()) {
+        auto memInfo = ReadLocalNumaMemKb(numaId);
+        if (!memInfo.has_value()) {
             UBSE_LOG_WARN << "[process_mem] collect round=" << roundNum << " read local numa=" << numaId
-                          << " MemFree failed, clear snapshot";
+                          << " MemFree/MemTotal failed, clear snapshot";
             std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
             localNumaFreeKbSnapshot_ = std::nullopt;
             remoteNumaUsedKbSnapshot_ = std::nullopt;
+            localNumaMemMapSnapshot_ = std::nullopt;
             return;
         }
-        localFreeKb += *freeKb;
+        localNumaMap.emplace(numaId, *memInfo);
+        localFreeKb += memInfo->freeKb;
         foundAny = true;
     }
     if (!foundAny) {
         std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
         localNumaFreeKbSnapshot_ = std::nullopt;
         remoteNumaUsedKbSnapshot_ = std::nullopt;
+        localNumaMemMapSnapshot_ = std::nullopt;
         return;
     }
     std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
     localNumaFreeKbSnapshot_ = localFreeKb;
     remoteNumaUsedKbSnapshot_ = remoteUsedKb;
+    localNumaMemMapSnapshot_ = std::move(localNumaMap);
     UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " local numa free=" << localFreeKb
                    << "kB remote numa used=" << remoteUsedKb << "kB";
 }
@@ -692,6 +715,12 @@ std::optional<uint64_t> ProcessMemPidCollect::GetRemoteNumaUsedKb()
 {
     std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
     return remoteNumaUsedKbSnapshot_;
+}
+
+std::optional<std::unordered_map<uint32_t, NumaMemKbInfo>> ProcessMemPidCollect::GetLocalNumaMemMap()
+{
+    std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
+    return localNumaMemMapSnapshot_;
 }
 
 uint32_t ProcessMemPidCollect::RegisterVmRssCollectHandler(const std::string& name, VmRssCollectHandler handler)
@@ -786,6 +815,136 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistribution(
     file.close();
     (void)ubse::security::ChangePtraceCapability(false);
 
+    return UBSE_OK;
+}
+
+namespace {
+struct ProcVmaRange {
+    uint64_t start{0};
+    uint64_t end{0};
+};
+
+constexpr size_t kMinSamplePages = 16;
+constexpr size_t kMaxSamplePages = 4096;
+
+bool ParseSampleableProcMaps(pid_t pid, std::vector<ProcVmaRange>& vmas)
+{
+    std::ifstream file("/proc/" + std::to_string(pid) + "/maps");
+    if (!file.is_open()) {
+        return false;
+    }
+    std::string line;
+    while (std::getline(file, line)) {
+        size_t dashPos = line.find('-');
+        if (dashPos == std::string::npos) {
+            continue;
+        }
+        size_t spacePos = line.find(' ', dashPos);
+        if (spacePos == std::string::npos) {
+            continue;
+        }
+        // PROT_NONE (---) 区域不可能驻留页, 采样只会产出 -ENOENT, 跳过
+        if (line.compare(spacePos + 1, 3, "---") == 0) {
+            continue;
+        }
+        uint64_t start = strtoull(line.substr(0, dashPos).c_str(), nullptr, 16);
+        uint64_t end = strtoull(line.substr(dashPos + 1, spacePos - dashPos - 1).c_str(), nullptr, 16);
+        if (end > start) {
+            vmas.push_back({start, end});
+        }
+    }
+    return !vmas.empty();
+}
+
+// 按 VMA 长度加权均匀抽取 samplePages 个页对齐地址; THP 大页按 4K 槽位计数,
+// 大页字节占比与槽位数成正比, 采样占比天然按字节加权, 无 numa_maps 大页按 1 页计的低估问题
+void DrawSampleAddresses(const std::vector<ProcVmaRange>& vmas, const std::vector<uint64_t>& cumPages,
+                         uint64_t totalPages, size_t samplePages, size_t pageSize, std::vector<void*>& pages)
+{
+    pages.resize(samplePages);
+    if (totalPages == 0) {
+        return;
+    }
+    std::mt19937_64 rng(std::random_device{}());
+    for (size_t i = 0; i < samplePages; ++i) {
+        uint64_t target = rng() % totalPages;
+        size_t idx = 0;
+        while (idx + 1 < vmas.size() && cumPages[idx + 1] <= target) {
+            ++idx;
+        }
+        pages[i] = reinterpret_cast<void*>(vmas[idx].start + (target - cumPages[idx]) * pageSize);
+    }
+}
+} // namespace
+
+uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistributionBySample(
+    pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution, size_t samplePages)
+{
+    numaMemDistribution.clear();
+
+    std::vector<ProcVmaRange> vmas;
+    if (!ParseSampleableProcMaps(pid, vmas)) {
+        UBSE_LOG_WARN << "pid=" << pid << " sample: parse /proc maps failed (exited?)";
+        return UBSE_ERROR;
+    }
+
+    size_t pageSize = GetPageSize();
+    if (pageSize == 0) {
+        return UBSE_ERROR;
+    }
+    std::vector<uint64_t> cumPages;
+    cumPages.reserve(vmas.size());
+    uint64_t totalPages = 0;
+    for (const auto& vma : vmas) {
+        cumPages.push_back(totalPages);
+        totalPages += (vma.end - vma.start) / pageSize;
+    }
+    if (totalPages == 0) {
+        return UBSE_ERROR;
+    }
+    samplePages = std::min(std::max(samplePages, kMinSamplePages), kMaxSamplePages);
+
+    std::vector<void*> pages;
+    DrawSampleAddresses(vmas, cumPages, totalPages, samplePages, pageSize, pages);
+
+    // 查询模式 (nodes=NULL): 只返回每页所在节点, 不迁移任何页面, 可安全周期性调用
+    std::vector<int> status(samplePages, 0);
+    auto ret = syscall(SYS_move_pages, pid, samplePages, pages.data(), nullptr, status.data(), 0);
+    if (ret != 0) {
+        UBSE_LOG_WARN << "pid=" << pid << " sample: move_pages failed errno=" << errno;
+        return UBSE_ERROR;
+    }
+
+    std::unordered_map<uint32_t, size_t> nodeCounts;
+    uint64_t validTotal = 0;
+    for (auto node : status) {
+        if (node >= 0) {
+            ++nodeCounts[static_cast<uint32_t>(node)];
+            ++validTotal;
+        }
+    }
+    if (validTotal == 0) {
+        UBSE_LOG_DEBUG << "pid=" << pid << " sample: no resident page among " << samplePages << " samples";
+        return UBSE_ERROR;
+    }
+
+    // 按"驻留样本占比 × VmRSS"估计各节点字节数, 与 numa_maps 语义一致(分布总和≈实际驻留量)
+    uint64_t vmRssKb = 0;
+    uint32_t uid = 0;
+    if (!ReadProcStatusVmRss(pid, vmRssKb, uid)) {
+        UBSE_LOG_WARN << "pid=" << pid << " sample: read VmRSS failed (exited?)";
+        return UBSE_ERROR;
+    }
+    uint64_t rssBytes = vmRssKb * 1024;
+    for (const auto& [numaId, count] : nodeCounts) {
+        uint64_t bytes = rssBytes * count / validTotal;
+        if (bytes > 0) {
+            numaMemDistribution[numaId] = bytes;
+        }
+    }
+
+    UBSE_LOG_DEBUG << "pid=" << pid << " sample: issued=" << samplePages << " valid=" << validTotal
+                   << " vmas=" << vmas.size() << " rss_kb=" << vmRssKb;
     return UBSE_OK;
 }
 

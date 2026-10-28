@@ -48,8 +48,10 @@ public:
 
     static uint32_t MemoryReturn(const std::string& name);
 
+    // srcNumaId: 本次迁出拉页源本地 numa, -1 表示不指定(rmrs/smap 自行选择); 单 payload 为
+    // (pid, src) 组, 声明带源的前提是 pid 本次全量目标可归因单一本地 numa(决策层归因后传入)
     static int MigrateOutToNumas(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargetsBytes,
-                                 const std::string& logCtx = {});
+                                 int srcNumaId = -1, const std::string& logCtx = {});
 
     static uint32_t SendReturnRequestToNode(const std::string& nodeId,
                                             const std::vector<def::ReturnRequestItem>& items);
