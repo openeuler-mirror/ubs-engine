@@ -21,6 +21,10 @@
 extern "C" {
 #endif
 
+/* runtime initialize拒绝码(finalize进行中): 中立码, 由SDK层(ubs_engine.c)映射为对外错误码,
+ * 避免框架错误码表与SDK错误码表产生数值耦合 */
+#define UBSE_SDK_RUNTIME_INIT_REJECTED 1
+
 typedef struct {
     uint8_t* buffer;
     uint32_t length;
@@ -32,6 +36,33 @@ typedef struct {
  * @param socket_path The file path where the socket will be located.
  */
 void ubse_socket_path_set(const char* socket_path);
+
+/**
+ * @brief Initializes the SDK client runtime state machine.
+ *
+ * Transitions the runtime state from FINALIZED to READY (fork child re-init
+ * path). Rejected with UBSE_SDK_RUNTIME_INIT_REJECTED if a finalize is still
+ * in progress (FINALIZING). Calling on an already-READY runtime is a no-op
+ * success. Also registers the pthread_atfork guard on first call.
+ *
+ * @return uint32_t UBSE_OK on success, UBSE_SDK_RUNTIME_INIT_REJECTED if finalize is in progress.
+ */
+uint32_t ubse_sdk_runtime_initialize(void);
+
+/**
+ * @brief Finalizes the SDK client runtime: drains in-flight calls, stops the
+ * long-link worker threads and clears registered fault handlers.
+ *
+ * Contract: void-returning and idempotent; concurrent calls are NOT supported
+ * and callers must serialize calls externally (the SDK provides no internal
+ * concurrency synchronization; a second call during FINALIZING returns
+ * immediately with an error log as defensive detection only, not a
+ * concurrency-support guarantee). Calls originating from inside an SDK
+ * callback are rejected (detected via thread-local flag) to prevent
+ * self-deadlock. Blocks until all in-flight SDK business calls complete
+ * (drain wait).
+ */
+void ubse_sdk_runtime_finalize(void);
 
 /**
  * @brief Invokes a remote API interface

@@ -23,6 +23,12 @@ int32_t ubs_engine_client_initialize(const char* ubs_engine_uds_path)
     if (ubs_engine_uds_path != NULL && strlen(ubs_engine_uds_path) > UBSE_SOCKET_PATH_LEN) {
         return UBS_ENGINE_ERR_OUT_OF_RANGE;
     }
+    // 拉起SDK runtime状态机: fork子进程继承FINALIZED态, 此处迁移回READY
+    int32_t ret = (int32_t)ubse_sdk_runtime_initialize();
+    if (ret != UBS_SUCCESS) {
+        // 框架返回码显式映射为SDK对外码, 切断框架/SDK两套错误码表的数值耦合
+        return (ret == UBSE_SDK_RUNTIME_INIT_REJECTED) ? UBS_ENGINE_ERR_RESOURCE : UBS_ENGINE_ERR_INTERNAL;
+    }
     // 设置uds路径
     ubse_socket_path_set(ubs_engine_uds_path);
     return UBS_SUCCESS;
@@ -30,5 +36,10 @@ int32_t ubs_engine_client_initialize(const char* ubs_engine_uds_path)
 
 /* *
  * @brief   销毁ubse客户端
+ * @note    排空in-flight调用并停长连接线程, 支持fork前调用;
+ *          void幂等、不支持并发调用、SDK回调上下文内调用会被拒绝
  */
-void ubs_engine_client_finalize(void) {}
+void ubs_engine_client_finalize(void)
+{
+    ubse_sdk_runtime_finalize();
+}

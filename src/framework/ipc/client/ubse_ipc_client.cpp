@@ -12,7 +12,10 @@
 
 #include "ubse_ipc_client.h"
 
+#include <pthread.h>
 #include <securec.h>
+#include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -68,6 +71,199 @@ static ubse::ipc::UbseUDSClient& GetLongLinkClient()
     return ubse::ipc::UbseUDSClient::GetInstance();
 }
 
+/* ================== SDK runtime 状态机(支持fork前finalize/子进程initialize) ================== */
+// 排空上限(秒): 对齐默认业务总超时(ubse::ipc::DEFAULT_TOTAL_TIMEOUT=1800s)并留60秒余量,
+// 避免正常在途调用(等慢服务端响应)误触发超时。定义为非static可写全局, UT可extern声明后
+// 直接改写以覆盖drain超时分支, 无需等待默认上限
+uint32_t g_sdkDrainTimeoutSec = ubse::ipc::DEFAULT_TOTAL_TIMEOUT / 1000 + 60;
+
+namespace {
+enum class UbseSdkRuntimeState : uint32_t
+{
+    READY,      // 运行中, 业务调用放行
+    FINALIZING, // finalize 排空/拆除中, 新业务调用拒绝
+    FINALIZED   // finalize 完成, 等待 initialize 重新拉起
+};
+
+std::mutex g_sdkRuntimeMtx;           // 保护状态字与活跃调用计数
+std::condition_variable g_sdkDrainCv; // finalize 排空 in-flight 调用
+UbseSdkRuntimeState g_sdkRuntimeState = UbseSdkRuntimeState::READY;
+uint32_t g_sdkActiveCalls = 0;                // in-flight 业务调用计数(活跃引用)
+thread_local uint32_t g_tlsInSdkCallback = 0; // SDK回调上下文标记, 拦截回调内finalize防自死锁
+
+// 回调上下文RAII守卫: HandleRequest派发用户回调期间置TLS标记
+class UbseSdkCallbackScope {
+public:
+    UbseSdkCallbackScope()
+    {
+        ++g_tlsInSdkCallback;
+    }
+    ~UbseSdkCallbackScope()
+    {
+        --g_tlsInSdkCallback;
+    }
+};
+
+// 尝试进入finalize: READY则迁移到FINALIZING并返回true; FINALIZING/FINALIZED下立即返回false
+bool SdkRuntimeTryBeginFinalize()
+{
+    std::lock_guard<std::mutex> lock(g_sdkRuntimeMtx);
+    if (g_sdkRuntimeState == UbseSdkRuntimeState::FINALIZING) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] finalize rejected: another finalize in progress, return immediately";
+        return false;
+    }
+    if (g_sdkRuntimeState == UbseSdkRuntimeState::FINALIZED) {
+        IPC_LOG_INFO << "[SDK_RUNTIME] finalize: already finalized, ignore";
+        return false;
+    }
+    g_sdkRuntimeState = UbseSdkRuntimeState::FINALIZING;
+    return true;
+}
+
+// 排空活跃调用: 等待所有 in-flight 业务调用完成(fork前提, 保证子进程不继承半途调用);
+// 超时上限与最长业务总超时对齐, 超时放弃等待并告警, 防finalize调用方(常为退出路径)无限挂起
+void SdkRuntimeDrainCalls()
+{
+    std::unique_lock<std::mutex> lock(g_sdkRuntimeMtx);
+    bool drained =
+        g_sdkDrainCv.wait_for(lock, std::chrono::seconds(g_sdkDrainTimeoutSec), []() { return g_sdkActiveCalls == 0; });
+    if (drained) {
+        IPC_LOG_INFO << "[SDK_RUNTIME] in-flight calls drained";
+        return;
+    }
+    // 超时不清零计数: UbseSdkRuntimeExit已有下溢保护, 无需此处防下溢;
+    // 保留残余计数可保证"超时→重拉→新调用"序列下, 旧调用的Exit不会误扣新调用的活跃计数
+    IPC_LOG_ERROR << "[SDK_RUNTIME] drain timeout(" << g_sdkDrainTimeoutSec
+                  << "s), residual activeCalls=" << g_sdkActiveCalls << ", continue teardown";
+}
+
+// 拆除: 停长连接(join事件循环/重连/任务执行线程, 含 in-flight回调), 清理已注册handler
+void SdkRuntimeTeardown()
+{
+    GetLongLinkClient().Stop();
+    {
+        std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
+        clientIpcHandlerMap.clear();
+    }
+}
+} // namespace
+
+// 占用一个活跃引用, READY状态下返回true(业务调用放行), 否则返回false(拒绝)
+bool UbseSdkRuntimeEnter()
+{
+    std::lock_guard<std::mutex> lock(g_sdkRuntimeMtx);
+    if (g_sdkRuntimeState != UbseSdkRuntimeState::READY) {
+        return false;
+    }
+    ++g_sdkActiveCalls;
+    return true;
+}
+
+// 释放活跃引用并唤醒排空等待者
+void UbseSdkRuntimeExit()
+{
+    {
+        std::lock_guard<std::mutex> lock(g_sdkRuntimeMtx);
+        if (g_sdkActiveCalls > 0) {
+            --g_sdkActiveCalls;
+        }
+    }
+    g_sdkDrainCv.notify_all();
+}
+
+namespace {
+// 活跃引用RAII守卫: 构造时过闸计数, 析构时释放并唤醒finalize排空等待
+class UbseSdkCallGate {
+public:
+    UbseSdkCallGate() : entered_(UbseSdkRuntimeEnter()) {}
+    ~UbseSdkCallGate()
+    {
+        if (entered_) {
+            UbseSdkRuntimeExit();
+        }
+    }
+    bool Entered() const
+    {
+        return entered_;
+    }
+
+private:
+    bool entered_;
+};
+
+// fork防御(S3-02): 使用方违约(未先finalize)fork时, prepare持锁穿越fork保证子进程获得
+// 干净锁(否则子进程SDK全接口在持锁处死锁); 子进程仅剩fork调用线程, 未完finalize视同完成。
+// 锁覆盖范围: runtime状态锁(g_sdkRuntimeMtx)与handler表锁(clientIpcHandlerMutex)两把,
+// 加锁顺序与业务路径一致(先runtime锁后handler表锁), 长连接客户端内部锁不在此承诺范围
+void SdkRuntimeAtforkPrepare()
+{
+    g_sdkRuntimeMtx.lock();       // 先runtime锁
+    clientIpcHandlerMutex.lock(); // 后handler表锁
+}
+
+void SdkRuntimeAtforkParent()
+{
+    clientIpcHandlerMutex.unlock(); // 解锁顺序与加锁相反
+    g_sdkRuntimeMtx.unlock();
+}
+
+void SdkRuntimeAtforkChild()
+{
+    g_sdkActiveCalls = 0; // 其余在途线程未被fork复制, 计数归零
+    if (g_sdkRuntimeState == UbseSdkRuntimeState::FINALIZING) {
+        g_sdkRuntimeState = UbseSdkRuntimeState::FINALIZED; // 供子进程initialize重拉
+    }
+    clientIpcHandlerMutex.unlock();
+    g_sdkRuntimeMtx.unlock();
+}
+
+std::once_flag g_atforkOnce;
+
+void SdkRuntimeRegisterAtfork()
+{
+    std::call_once(g_atforkOnce, []() {
+        int rc = pthread_atfork(SdkRuntimeAtforkPrepare, SdkRuntimeAtforkParent, SdkRuntimeAtforkChild);
+        if (rc != 0) {
+            IPC_LOG_ERROR << "[SDK_RUNTIME] pthread_atfork register failed, rc=" << rc;
+        }
+    });
+}
+} // namespace
+
+uint32_t ubse_sdk_runtime_initialize(void)
+{
+    SdkRuntimeRegisterAtfork();
+    std::lock_guard<std::mutex> lock(g_sdkRuntimeMtx);
+    if (g_sdkRuntimeState == UbseSdkRuntimeState::FINALIZING) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] initialize rejected: finalize in progress";
+        return UBSE_SDK_RUNTIME_INIT_REJECTED;
+    }
+    if (g_sdkRuntimeState == UbseSdkRuntimeState::FINALIZED) {
+        g_sdkRuntimeState = UbseSdkRuntimeState::READY;
+        IPC_LOG_INFO << "[SDK_RUNTIME] runtime re-initialized after finalize";
+    }
+    return UBSE_OK;
+}
+
+void ubse_sdk_runtime_finalize(void)
+{
+    // TLS护栏先行: 回调上下文内调用finalize会与Stop()的线程join形成自死锁, 直接拒绝
+    if (g_tlsInSdkCallback > 0) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] finalize rejected: called inside sdk callback";
+        return;
+    }
+    if (!SdkRuntimeTryBeginFinalize()) {
+        return; // 并发调用违反契约, 防御性软失败; FINALIZED下幂等返回
+    }
+    SdkRuntimeDrainCalls();
+    SdkRuntimeTeardown();
+    {
+        std::lock_guard<std::mutex> lock(g_sdkRuntimeMtx);
+        g_sdkRuntimeState = UbseSdkRuntimeState::FINALIZED;
+    }
+    IPC_LOG_INFO << "[SDK_RUNTIME] finalize completed";
+}
+
 static uint32_t CopyResponseBody(const UbseResponseMessage& src, ubse_api_buffer_t* dest)
 {
     dest->buffer = nullptr;
@@ -116,6 +312,12 @@ static uint32_t InvokeCallInternal(uint16_t module_code, uint16_t op_code, const
     if (totalTimeout == 0) {
         IPC_LOG_ERROR << "Invalid totalTimeout=0, expect a positive value in milliseconds";
         return UBSE_ERROR_INVAL;
+    }
+    // 过闸: finalize进行中/完成后拒绝新业务调用
+    UbseSdkCallGate gate;
+    if (!gate.Entered()) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] invoke rejected, module_code=" << module_code << ", op_code=" << op_code;
+        return UBSE_ERR_RESOURCE_BUSY;
     }
     response_data->buffer = nullptr;
     response_data->length = 0;
@@ -195,6 +397,12 @@ void ubse_api_buffer_delete(ubse_api_buffer_t* apiBuffer)
 
 uint32_t ubse_long_link_connect(void)
 {
+    // 过闸: finalize进行中/完成后拒绝新业务调用
+    UbseSdkCallGate gate;
+    if (!gate.Entered()) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] long link connect rejected";
+        return UBSE_ERR_RESOURCE_BUSY;
+    }
     GetLongLinkClient().SetSocketPath(ubseSocketPath);
     auto ret = GetLongLinkClient().PerSistentConnect();
     if (ret != UBSE_OK) {
@@ -226,8 +434,12 @@ void HandleRequest(const UbseRequestMessage& request, UbseResponseMessage& resp)
         handler = it->second;
     }
 
-    // 调用handler
-    auto handlerRet = handler(request);
+    // 调用handler: 置TLS回调标记, 拦截回调上下文内的finalize调用(防Stop join自死锁)
+    uint32_t handlerRet = UBSE_ERR_DAEMON_UNREACHABLE;
+    {
+        UbseSdkCallbackScope callbackScope;
+        handlerRet = handler(request);
+    }
     IPC_LOG_INFO << "Complete handling API request, moduleCode= " << request.header.moduleCode
                  << ", opCode= " << request.header.opCode << ", handlerRet= " << handlerRet
                  << " reqId=" << request.header.clientRequestId;
@@ -253,6 +465,12 @@ uint32_t ubse_register_listen_event(uint16_t moduleCode, uint16_t opCode)
 
 uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
 {
+    // 过闸: finalize进行中/完成后拒绝新业务调用
+    UbseSdkCallGate gate;
+    if (!gate.Entered()) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] shm fault register rejected";
+        return UBSE_ERR_RESOURCE_BUSY;
+    }
     // 向服务端注册故障监听事件
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM);
     if (ret != UBSE_OK) {
@@ -276,6 +494,12 @@ uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
 
 uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler)
 {
+    // 过闸: finalize进行中/完成后拒绝新业务调用
+    UbseSdkCallGate gate;
+    if (!gate.Entered()) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] fd fault register rejected";
+        return UBSE_ERR_RESOURCE_BUSY;
+    }
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD);
     if (ret != UBSE_OK) {
         GetLongLinkClient().Stop();
@@ -298,6 +522,12 @@ uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler)
 
 uint32_t ubse_numa_fault_register(ubs_mem_numa_fault_handler handler)
 {
+    // 过闸: finalize进行中/完成后拒绝新业务调用
+    UbseSdkCallGate gate;
+    if (!gate.Entered()) {
+        IPC_LOG_ERROR << "[SDK_RUNTIME] numa fault register rejected";
+        return UBSE_ERR_RESOURCE_BUSY;
+    }
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA);
     if (ret != UBSE_OK) {
         GetLongLinkClient().Stop();
