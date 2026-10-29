@@ -222,24 +222,6 @@ void ProcessMemPidMigrateLedger::UnInit()
     PersistLocked();
 }
 
-void ProcessMemPidMigrateLedger::SetRow(pid_t pid, int32_t srcNumaId, int32_t destNumaId, uint64_t bytes)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (bytes == 0) {
-        auto pidIt = rows_.find(pid);
-        if (pidIt == rows_.end()) {
-            return;
-        }
-        pidIt->second.erase(EncodePairKey(srcNumaId, destNumaId));
-        if (pidIt->second.empty()) {
-            rows_.erase(pidIt);
-        }
-    } else {
-        rows_[pid][EncodePairKey(srcNumaId, destNumaId)] = bytes;
-    }
-    PersistLocked();
-}
-
 void ProcessMemPidMigrateLedger::ReplacePidRows(pid_t pid, int32_t srcNumaId,
                                                 const std::vector<std::pair<int32_t, uint64_t>>& destRows)
 {
@@ -261,18 +243,31 @@ void ProcessMemPidMigrateLedger::MoveRowBytes(pid_t pid, int32_t srcNumaId, int3
         return;
     }
     std::lock_guard<std::mutex> lock(mutex_);
+    int32_t rowSrc = srcNumaId;
     auto pidIt = rows_.find(pid);
     if (pidIt != rows_.end()) {
-        auto oldIt = pidIt->second.find(EncodePairKey(srcNumaId, oldDestNumaId));
+        auto oldIt = pidIt->second.find(EncodePairKey(rowSrc, oldDestNumaId));
+        if (oldIt == pidIt->second.end() && rowSrc != 0) {
+            // pid 行键按 migrate_out 声明源统一: 混源/旧账声明源退化 0, 与债务 usrInfo.srcNuma
+            // 可不同, 按 0 兜底再找; 命中则新行沿用 0 键保持行键统一, 避免旧行残留造成双记
+            auto fallbackIt = pidIt->second.find(EncodePairKey(0, oldDestNumaId));
+            if (fallbackIt != pidIt->second.end()) {
+                oldIt = fallbackIt;
+                rowSrc = 0;
+            }
+        }
         if (oldIt != pidIt->second.end()) {
             if (oldIt->second > bytes) {
                 oldIt->second -= bytes;
             } else {
                 pidIt->second.erase(oldIt);
             }
+        } else {
+            UBSE_LOG_WARN << "[process_mem] migrate ledger: move row not found pid=" << pid << " src=" << srcNumaId
+                          << " old_dest=" << oldDestNumaId << " new_dest=" << newDestNumaId << " bytes=" << bytes;
         }
     }
-    rows_[pid][EncodePairKey(srcNumaId, newDestNumaId)] += bytes;
+    rows_[pid][EncodePairKey(rowSrc, newDestNumaId)] += bytes;
     PersistLocked();
 }
 
@@ -284,91 +279,6 @@ void ProcessMemPidMigrateLedger::ClearPid(pid_t pid)
     }
 }
 
-uint64_t ProcessMemPidMigrateLedger::GetRowBytes(pid_t pid, int32_t srcNumaId, int32_t destNumaId) const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto pidIt = rows_.find(pid);
-    if (pidIt == rows_.end()) {
-        return 0;
-    }
-    const auto keyIt = pidIt->second.find(EncodePairKey(srcNumaId, destNumaId));
-    return keyIt == pidIt->second.end() ? 0 : keyIt->second;
-}
-
-uint64_t ProcessMemPidMigrateLedger::GetPidSrcTotal(pid_t pid, int32_t srcNumaId) const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto pidIt = rows_.find(pid);
-    if (pidIt == rows_.end()) {
-        return 0;
-    }
-    uint64_t total = 0;
-    for (const auto& [key, bytes] : pidIt->second) {
-        if (DecodeKeySrc(key) == srcNumaId) {
-            total += bytes;
-        }
-    }
-    return total;
-}
-
-uint64_t ProcessMemPidMigrateLedger::GetPidTotal(pid_t pid) const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto pidIt = rows_.find(pid);
-    if (pidIt == rows_.end()) {
-        return 0;
-    }
-    uint64_t total = 0;
-    for (const auto& [key, bytes] : pidIt->second) {
-        total += bytes;
-    }
-    return total;
-}
-
-uint64_t ProcessMemPidMigrateLedger::GetNodeSrcTotal(int32_t srcNumaId) const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    uint64_t total = 0;
-    for (const auto& [pid, inner] : rows_) {
-        for (const auto& [key, bytes] : inner) {
-            if (DecodeKeySrc(key) == srcNumaId) {
-                total += bytes;
-            }
-        }
-    }
-    return total;
-}
-
-void ProcessMemPidMigrateLedger::GetPidRows(pid_t pid, std::vector<PidMigrateRow>& rows) const
-{
-    rows.clear();
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto pidIt = rows_.find(pid);
-    if (pidIt == rows_.end()) {
-        return;
-    }
-    for (const auto& [key, bytes] : pidIt->second) {
-        PidMigrateRow row;
-        row.pid = pid;
-        row.srcNumaId = DecodeKeySrc(key);
-        row.destNumaId = DecodeKeyDest(key);
-        row.bytes = bytes;
-        rows.push_back(row);
-    }
-    std::sort(rows.begin(), rows.end(), [](const PidMigrateRow& a, const PidMigrateRow& b) {
-        if (a.srcNumaId != b.srcNumaId) {
-            return a.srcNumaId < b.srcNumaId;
-        }
-        return a.destNumaId < b.destNumaId;
-    });
-}
-
-size_t ProcessMemPidMigrateLedger::RowCount() const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    return CountRowsLocked();
-}
-
 size_t ProcessMemPidMigrateLedger::CountRowsLocked() const
 {
     size_t count = 0;
@@ -376,12 +286,6 @@ size_t ProcessMemPidMigrateLedger::CountRowsLocked() const
         count += inner.size();
     }
     return count;
-}
-
-uint32_t ProcessMemPidMigrateLedger::Persist()
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    return PersistLocked();
 }
 
 uint32_t ProcessMemPidMigrateLedger::PersistLocked()

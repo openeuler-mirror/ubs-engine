@@ -149,6 +149,9 @@ struct BorrowCandidate {
     double remoteRatio{0.0};
     uint64_t currentRemote{0};
     uint64_t canMigrate{0};
+    // 显式绑定(bind/interleave)的 numa 位图: 分配集受限, 其缺口的余量空出后仍会被持续占用,
+    // 迁出时优先于未绑定进程(未绑定进程缺时可由内核分配到其它 numa 自然外溢)
+    uint64_t boundNumaMask{0};
 };
 
 enum class ProcessStatus
@@ -156,6 +159,22 @@ enum class ProcessStatus
     IDLE,
     BORROWING,
     BORROWED,
+};
+
+// 纳管时一次性检测的 NUMA 绑定信息(numactl --membind/--interleave/--preferred 等 + cpuset 约束),
+// 不随运行期改绑刷新
+enum class NumaBindingKind : uint8_t
+{
+    NONE,       // 无显式策略(default/local)
+    BIND,       // bind:N,M —— 页面限制在节点集内
+    INTERLEAVE, // interleave:N,M —— 集合内轮转
+    PREFER,     // prefer:N —— 软偏好, 可落到集合外
+    MIXED,      // 多 VMA 策略不一致(保守按未知)
+};
+
+struct NumaBindingInfo {
+    NumaBindingKind kind{NumaBindingKind::NONE};
+    std::vector<uint32_t> policyNodes{};
 };
 
 struct ManagedPidEntry {
@@ -171,6 +190,9 @@ struct ManagedPidEntry {
 
     // 进程启动时刻（/proc/<pid>/stat 第22字段），用于识别退出后 pid 被复用
     uint64_t startTime{0};
+
+    // 纳管时检测的 NUMA 绑定快照(pid 复用时重检); nullopt = 读取失败/进程已不在
+    std::optional<NumaBindingInfo> numaBinding{};
 
     std::chrono::steady_clock::time_point lastMigrateTime{};
 

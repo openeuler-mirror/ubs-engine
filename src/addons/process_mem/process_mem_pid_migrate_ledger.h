@@ -49,38 +49,18 @@ public:
 
     void UnInit();
 
-    // 覆盖式更新 (srcNumaId/destNumaId 传 -1 表示无源/无目标); bytes == 0 删除该行;
-    // 每次变更持锁整表原子落盘 (写 .tmp 后 rename), 调用成功后内存与文件一致
-    void SetRow(pid_t pid, int32_t srcNumaId, int32_t destNumaId, uint64_t bytes);
-
     // 全量覆盖 pid: 清除该 pid 全部旧行后按 destRows 重建 (每项 destNumaId->bytes,
     // bytes 为 0 的项忽略), 一次持锁完成并单次原子落盘; 供 migrate_out 全量声明成功后的
     // 命令镜像覆盖 (当前声明不带源, srcNumaId 由调用方给定, 暂无源信息时传 0)
     void ReplacePidRows(pid_t pid, int32_t srcNumaId, const std::vector<std::pair<int32_t, uint64_t>>& destRows);
 
     // r2r 同步迁移完成记账: 旧 dest 行减 bytes, 不足或减至 0 时删行; 新 dest 行加 bytes;
-    // 一次持锁 + 单次原子落盘, 不落中间态; old==new 或 bytes==0 时不动
+    // 一次持锁 + 单次原子落盘, 不落中间态; old==new 或 bytes==0 时不动;
+    // 混源 pid 声明源退化为 0 时行键与 srcNumaId 不同, 按 (0, oldDest) 兜底, 仍找不到告警并新建
     void MoveRowBytes(pid_t pid, int32_t srcNumaId, int32_t oldDestNumaId, int32_t newDestNumaId, uint64_t bytes);
 
     // 删除该 pid 全部行 (归还完成/进程退出/取消纳管时调用)
     void ClearPid(pid_t pid);
-
-    // 以下查询接口无记录时返回 0
-    uint64_t GetRowBytes(pid_t pid, int32_t srcNumaId, int32_t destNumaId) const;
-
-    uint64_t GetPidSrcTotal(pid_t pid, int32_t srcNumaId) const;
-
-    uint64_t GetPidTotal(pid_t pid) const;
-
-    // 某本地源节点向所有远端迁出总量 (本地空闲恢复判定用)
-    uint64_t GetNodeSrcTotal(int32_t srcNumaId) const;
-
-    void GetPidRows(pid_t pid, std::vector<PidMigrateRow>& rows) const;
-
-    size_t RowCount() const;
-
-    // 立即把内存台账整表原子落盘; SetRow/ClearPid 已自动落盘, 一般无需显式调用
-    uint32_t Persist();
 
 private:
     uint32_t PersistLocked();

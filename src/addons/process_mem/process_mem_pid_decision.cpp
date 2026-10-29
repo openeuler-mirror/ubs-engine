@@ -153,6 +153,8 @@ const char* ReturnSceneToString(ReturnScene scene)
             return "exited";
         case ReturnScene::PASSIVE:
             return "passive";
+        case ReturnScene::REMOVED:
+            return "removed";
     }
     return "unknown";
 }
@@ -242,7 +244,7 @@ uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes
         auto queryRet =
             collect::ProcessMemPidCollect::GetInstance().CollectProcessNumaMemDistributionBySample(pid, dist);
         if (queryRet != UBSE_OK) {
-            UBSE_LOG_DEBUG << "[process_mem] borrow sample numa_maps failed pid=" << pid;
+            UBSE_LOG_DEBUG << "[process_mem] borrow sample numa distribution failed pid=" << pid << " ret=" << queryRet;
         }
         cacheIt = residenceCache.emplace(pid, std::move(dist)).first;
     }
@@ -871,6 +873,24 @@ uint64_t ProcessMemPidDecision::GetUbseBlockSizeBytes()
 // 候选排序: 最近 kCandidateStaleIntervalSec 秒内未成功迁移的进程优先(迁移负载摊开)
 constexpr int64_t kCandidateStaleIntervalSec = 60;
 
+// 显式绑定(bind/interleave, 分配集受限)的 numa 位图; 未绑定/软偏好(可落到集合外)返回 0,
+// 64 以上 numa 编号不参与(位图放不下, 保守视为未绑定)
+uint64_t MakeBoundNumaMask(const std::optional<def::NumaBindingInfo>& binding)
+{
+    constexpr uint32_t kMaskBits = 64;
+    if (!binding.has_value() ||
+        (binding->kind != def::NumaBindingKind::BIND && binding->kind != def::NumaBindingKind::INTERLEAVE)) {
+        return 0;
+    }
+    uint64_t mask = 0;
+    for (uint32_t numaId : binding->policyNodes) {
+        if (numaId < kMaskBits) {
+            mask |= (1ULL << numaId);
+        }
+    }
+    return mask;
+}
+
 CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry,
                                     std::vector<def::BorrowCandidate>& candidates, uint64_t blockSizeBytes)
 {
@@ -914,6 +934,7 @@ CandidateSkip AppendBorrowCandidate(pid_t pid, const def::ManagedPidEntry& entry
     candidate.remoteRatio = entry.remoteRatio;
     candidate.currentRemote = entry.borrow.currentRemote;
     candidate.canMigrate = canMigrate;
+    candidate.boundNumaMask = MakeBoundNumaMask(entry.numaBinding);
     candidates.push_back(candidate);
     return CandidateSkip::NONE;
 }
@@ -991,11 +1012,20 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         UBSE_LOG_WARN << "[process_mem] borrow round=" << ctx.roundNum << " abort: borrow executor not ready";
         return 0;
     }
-    uint64_t filled = 0;
-    for (const auto& candidate : ctx.candidates) {
-        if (shortage.bytes == 0) {
-            break;
-        }
+    // 按缺口 numa 重排候选: 在该 numa 驻留量大者先(单次迁移填更多缺口); 其次显式绑定该 numa 的进程
+    // 优先(分配集受限, 空出的余量仍会被其持续占用); 再取久未迁移的(stale, 公平防饿死); 其余沿用全局序
+    struct OrderedCandidate {
+        size_t index;
+        uint64_t resident;
+        bool bound;
+        bool stale;
+    };
+    auto now = std::chrono::steady_clock::now();
+    std::vector<OrderedCandidate> ordered;
+    ordered.reserve(ctx.candidates.size());
+    for (size_t i = 0; i < ctx.candidates.size(); ++i) {
+        const auto& candidate = ctx.candidates[i];
+        // 本轮配额已被先前缺口耗尽: 填充阶段必跳过, 采样前即排除, 避免无效 numa_maps 采样
         uint64_t canMigrateLeft = candidate.canMigrate;
         auto roundIt = ctx.borrowedThisRound.find(candidate.pid);
         if (roundIt != ctx.borrowedThisRound.end()) {
@@ -1004,13 +1034,50 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
         if (canMigrateLeft == 0) {
             continue;
         }
-        // 候选需在该缺口 numa 有驻留, 借用额按驻留量封顶(块对齐后最多超出不足一个 blockSize);
-        // 无 numa 限定(src<0)不设驻留上限
+        // 候选需在该缺口 numa 有驻留(宁欠借不空借); 无 numa 限定(src<0)/驻留未知(UINT64_MAX)不设上限
         uint64_t resident =
             EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
         if (resident == 0) {
             continue;
         }
+        bool bound = shortage.srcNumaId >= 0 && shortage.srcNumaId < 64 &&
+                     (candidate.boundNumaMask & (1ULL << shortage.srcNumaId)) != 0;
+        bool stale = (candidate.lastMigrateTime.time_since_epoch().count() == 0) ||
+                     (now - candidate.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
+        ordered.push_back({i, resident, bound, stale});
+    }
+    std::stable_sort(ordered.begin(), ordered.end(), [](const OrderedCandidate& a, const OrderedCandidate& b) {
+        // 驻留未知(UINT64_MAX)无从归因, 排序垫底但仍可参与填充(不设上限)
+        uint64_t aRank = (a.resident == UINT64_MAX) ? 0 : a.resident;
+        uint64_t bRank = (b.resident == UINT64_MAX) ? 0 : b.resident;
+        if (aRank != bRank) {
+            return aRank > bRank;
+        }
+        if (a.bound != b.bound) {
+            return a.bound;
+        }
+        if (a.stale != b.stale) {
+            return a.stale;
+        }
+        return false;
+    });
+
+    uint64_t filled = 0;
+    for (const auto& entry : ordered) {
+        if (shortage.bytes == 0) {
+            break;
+        }
+        const auto& candidate = ctx.candidates[entry.index];
+        uint64_t canMigrateLeft = candidate.canMigrate;
+        auto roundIt = ctx.borrowedThisRound.find(candidate.pid);
+        if (roundIt != ctx.borrowedThisRound.end()) {
+            canMigrateLeft = (canMigrateLeft > roundIt->second) ? (canMigrateLeft - roundIt->second) : 0;
+        }
+        if (canMigrateLeft == 0) {
+            continue;
+        }
+        // 驻留量已在候选重排时按同一 numa/同一轮缓存算过, 此处直接复用
+        uint64_t resident = entry.resident;
         uint64_t cap = std::min(canMigrateLeft, shortage.bytes);
         cap = std::min(cap, resident);
         uint64_t amount = CeilAlignBlock(cap, ctx.blockSizeBytes);
@@ -1093,6 +1160,7 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
     // rmrs 并发冲突(同 numa 其他操作在飞)时本次账本未变更, 放锁等待后重跑整个原子段
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
     def::AtomicMigrateResult result = def::AtomicMigrateResult::kFail;
+    int declSrcNumaOut = -1;
     for (int attempt = 0; attempt <= kMaxConflictRetry; ++attempt) {
         bool conflict = false;
         {
@@ -1121,7 +1189,8 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                     if (declSlotIt != newBorrow.slots.end() && declSlotIt->status == def::BorrowSlotStatus::BORROWING) {
                         declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, declSlotIt->srcNumaId);
                     }
-                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma);
+                    declSrcNumaOut = declSrcNuma;
+                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma, false);
                     if (migrateRet != 0) {
                         if (IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
                             // 并发冲突: 同 numa 迁移/归还操作在飞, 账本未变更, 放锁等待后重试
@@ -1151,6 +1220,10 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                     result = def::AtomicMigrateResult::kOk;
                 },
                 "borrow_commit");
+            // 台账镜像回填挪出缓存锁(仍持 pid 锁): 台账无进程内读方, 缓存提交后补记语义不变
+            if (result == def::AtomicMigrateResult::kOk) {
+                UpdateMigrateLedgerMirror(pid, declSrcNumaOut, numaTargets);
+            }
         }
         if (!conflict) {
             return result;
@@ -1504,23 +1577,32 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
 }
 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId)
+                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId,
+                                              bool updateLedger)
 {
     int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, srcNumaId,
                                                                   debtId.empty() ? "" : "debt_id=" + debtId);
     if (ret != 0) {
         return ret;
     }
-    // migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
-    // 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
-    // 空声明(清残留配置)清空该 pid
+    if (updateLedger) {
+        UpdateMigrateLedgerMirror(pid, srcNumaId, numaTargets);
+    }
+    return ret;
+}
+
+// migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
+// 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
+// 空声明(清残留配置)清空该 pid
+void ProcessMemPidDecision::UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId,
+                                                      const std::vector<std::pair<int, uint64_t>>& numaTargets)
+{
     auto& migrateLedger = process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance();
     if (numaTargets.empty()) {
         migrateLedger.ClearPid(pid);
     } else {
         migrateLedger.ReplacePidRows(pid, srcNumaId >= 0 ? srcNumaId : 0, numaTargets);
     }
-    return ret;
 }
 
 void ProcessMemPidDecision::CheckTimeouts(uint64_t roundNum)
@@ -1922,6 +2004,28 @@ uint32_t ProcessMemPidDecision::DoPidReturnOnce(pid_t pid, ReturnScene scene, co
 {
     if (slots.empty()) {
         return UBSE_OK;
+    }
+
+    // 取消纳管(进程仍存活): 归还前先全量迁回本地 —— 空目标声明默认清零该 pid 所有远端 numa
+    // 的迁出目标, 页面全部回迁; 未收敛整批失败, 由上层退避重试(重发幂等); 进程已退出则无页面可迁
+    if (scene == ReturnScene::REMOVED && ProcessMemPidConfigManager::GetExactStartTime(pid) != 0) {
+        int migrateRet = UBSE_ERROR;
+        {
+            std::lock_guard<std::mutex> pidLock(pid::bridge::ProcessMemPidBridge::GetPidOpMutex(pid));
+            migrateRet = RmrsMigrateToNumas(pid, "", {});
+        }
+        if (migrateRet != 0) {
+            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid
+                          << " migrate back dispatch failed ret=" << migrateRet;
+            failedSlots = slots;
+            return UBSE_ERROR;
+        }
+        def::ReturnRequestItem removeItem{"remove", 0};
+        if (!WaitMigrateBackConverged(pid, removeItem, {})) {
+            UBSE_LOG_WARN << "[process_mem] return removed pid=" << pid << " migrate back not converged, retry later";
+            failedSlots = slots;
+            return UBSE_ERROR;
+        }
     }
 
     // remove/exited 归还: 账本缓存已先行删除, 不操作缓存, 全量 RPC 锁外执行(各债务相互独立)
@@ -3041,7 +3145,9 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
             def::BorrowSlot newSlot{};
             newSlot.debtId = out.debtId;
             newSlot.remoteNumaId = out.remoteNuma;
-            newSlot.srcNumaId = ledgerSrcNuma;
+            // 槽保留原始归属(未知源维持 -1, 与新债 usrInfo 同源): -1 使归还落点判定回退整机口径、
+            // OOM 主动归还跳过等 lender 被动; ledgerSrcNuma 兜底 0 仅为台账行键占位, 不可复用到槽
+            newSlot.srcNumaId = ctx.srcNuma;
             newSlot.capacity = item.size;
             newSlot.migratedBytes = migrateBytes;
             newSlot.status = def::BorrowSlotStatus::COMPLETED;
@@ -3549,24 +3655,36 @@ void ProcessMemPidDecision::OomActiveReturnPerNuma(uint64_t roundNum)
         pid_t pid;
         def::ReturnRequestItem item;
         int srcNumaId;
+        std::chrono::steady_clock::time_point borrowTime;
+        bool boundToSrc;
     };
     std::vector<ActiveDebt> debts;
     uint64_t totalRemote = 0;
     for (const auto& [pid, entry] : snapshot) {
+        uint64_t boundMask = MakeBoundNumaMask(entry.numaBinding);
         for (const auto& slot : entry.borrow.slots) {
             if (slot.status != def::BorrowSlotStatus::COMPLETED) {
                 continue;
             }
+            bool boundToSrc = slot.srcNumaId >= 0 && slot.srcNumaId < 64 && (boundMask & (1ULL << slot.srcNumaId)) != 0;
             // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
             // 用容量找缺口会错误跳过这类零成本债务
-            debts.push_back(ActiveDebt{pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes}, slot.srcNumaId});
+            debts.push_back(ActiveDebt{pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes}, slot.srcNumaId,
+                                       slot.borrowTime, boundToSrc});
             totalRemote += slot.migratedBytes;
         }
     }
-    // 归属 numa 内大额优先, 归属未知(src<0)排最后
+    // 归属未知(src<0)排最后(无预算可匹配); 其余滞留久者先还(防饥饿, borrowTime 早先), 绑定归属 numa 的
+    // 次优先(其分配集受限, 归位即缓解该 numa 压力), 再按大额优先(预算内单笔可容纳更大债务)
     std::sort(debts.begin(), debts.end(), [](const ActiveDebt& a, const ActiveDebt& b) {
-        if (a.srcNumaId != b.srcNumaId) {
-            return a.srcNumaId > b.srcNumaId;
+        if ((a.srcNumaId < 0) != (b.srcNumaId < 0)) {
+            return b.srcNumaId < 0;
+        }
+        if (a.borrowTime != b.borrowTime) {
+            return a.borrowTime < b.borrowTime;
+        }
+        if (a.boundToSrc != b.boundToSrc) {
+            return a.boundToSrc;
         }
         return a.item.size > b.item.size;
     });
