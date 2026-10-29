@@ -37,6 +37,13 @@ static UbseMtiGuid MakeGuid(uint8_t tag)
     return g;
 }
 
+static UbseMtiEid MakeEid(uint8_t tag)
+{
+    UbseMtiEid e{};
+    e[0] = tag;
+    return e;
+}
+
 static const uint8_t NPU_COUNT = 8;
 static const uint8_t NIC_COUNT = 8;
 static const uint8_t NIC_CHIPS[] = {11, 11, 12, 12, 13, 13, 14, 14};
@@ -58,6 +65,7 @@ public:
             pfe.ubController = UbseMtiUbController(1, i);
             pfe.pfeId = 0;
             pfe.guid = MakeGuid(0x10 + i);
+            pfe.eid = MakeEid(0x10 + i);
             pfe.vfeList = {vfe};
 
             feList.push_back(pfe);

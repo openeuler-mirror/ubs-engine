@@ -126,7 +126,8 @@ class UbsUbDevicesTypeT(ctypes.Structure):
         ("chip_id", ctypes.c_uint8),
         ("die_id", ctypes.c_uint8),
         ("pf_id", ctypes.c_uint16),
-        ("vf_id", ctypes.c_uint16)
+        ("vf_id", ctypes.c_uint16),
+        ("eid", ctypes.c_uint32)
     ]
 
     def __str__(self):
@@ -138,6 +139,7 @@ class UbsUbDevicesTypeT(ctypes.Structure):
             f"  die id={self.die_id}\n"
             f"  pf id={self.pf_id}\n"
             f"  vf id={self.vf_id}\n"
+            f"  eid={self.eid}\n"
             f")"
         )
 
@@ -372,6 +374,20 @@ class UbctrlInfo(DeviceInfo):
         }
 
 
+class PfeIdevInfo(DeviceInfo):
+    """P_IDEV设备信息类"""
+
+    def __init__(self, device_id):
+        super().__init__("P_IDEV")
+        self.device_id = device_id
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "device_id": self.device_id
+        }
+
+
 class DeviceFactory:
     """设备信息工厂类"""
 
@@ -387,5 +403,7 @@ class DeviceFactory:
             return BusInstanceInfo(**kwargs)
         elif device_type == "UBCTRL":
             return UbctrlInfo(**kwargs)
+        elif device_type == "P_IDEV":
+            return PfeIdevInfo(**kwargs)
         else:
             raise ValueError(f"Unknown device type: {device_type}")

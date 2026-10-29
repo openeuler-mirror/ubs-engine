@@ -411,8 +411,8 @@ TEST_F(TestUbseNpuMsgExecute, UbseAllocRequestUnpack_WithDevices_Success)
 {
     // Build a valid buffer with one device in the list
     UbsePackUtil packUtil(nullptr, 0);
-    // First compute required size: UPI(4) + GUID(32) + devListSize(1) + 1 device(1+1+1+1+2+2=8)
-    std::vector<uint8_t> buf(UBSE_UB_UPI_STR_SIZE + UBSE_UB_DEVICE_GUID_SIZE + 1 + 8, 0);
+    // First compute required size: UPI(4) + GUID(32) + devListSize(1) + 1 device(1+1+1+1+2+2+4=12)
+    std::vector<uint8_t> buf(UBSE_UB_UPI_STR_SIZE + UBSE_UB_DEVICE_GUID_SIZE + 1 + 12, 0);
     UbsePackUtil writer(buf.data(), buf.size());
     // UPI str
     for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
@@ -424,13 +424,14 @@ TEST_F(TestUbseNpuMsgExecute, UbseAllocRequestUnpack_WithDevices_Success)
     }
     // devListSize = 1
     writer.UbsePackUint8(1);
-    // device: type(uchar) + slotId + chipId + dieId + pfId(uint16) + vfId(uint16)
+    // device: type(uchar) + slotId + chipId + dieId + pfId(uint16) + vfId(uint16) + eid(uint32)
     writer.UbsePackUChar(static_cast<unsigned char>(ResourceType::NPU));
     writer.UbsePackUint8(1);
     writer.UbsePackUint8(2);
     writer.UbsePackUint8(3);
     writer.UbsePackUint16(4);
     writer.UbsePackUint16(5);
+    writer.UbsePackUint32(0x2A);
 
     TransReqMsg req{buf.data(), static_cast<uint32_t>(buf.size())};
     UbseAllocRequest requestInfo{};
@@ -438,6 +439,7 @@ TEST_F(TestUbseNpuMsgExecute, UbseAllocRequestUnpack_WithDevices_Success)
     EXPECT_EQ(UbseAllocRequestUnpack(req, requestInfo, false), UBSE_OK);
     EXPECT_EQ(requestInfo.ubDevList.size(), 1);
     EXPECT_EQ(requestInfo.ubDevList[0].slotId, 1);
+    EXPECT_EQ(requestInfo.ubDevList[0].eid, 0x2A);
 }
 
 TEST_F(TestUbseNpuMsgExecute, UbseAllocRequestUnpack_InsufficientBuffer_Failed)

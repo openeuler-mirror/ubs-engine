@@ -90,7 +90,7 @@ static ubs_error_t InnerUnpackNpuDeviceId(UnpackCtx& ctx, npu_attr_t* attr)
 }
 
 static constexpr size_t UB_DEVICES_TYPE_PACKED_SIZE =
-    8; // ubs_ub_devices_type_t（device_type:1 + slot_id:1 + chip_id:1 + die_id:1 + pf_id:2 + vf_id:2）
+    12; // ubs_ub_devices_type_t（device_type:1 + slot_id:1 + chip_id:1 + die_id:1 + pf_id:2 + vf_id:2 + eid:4）
 static_assert(sizeof(ubs_ub_devices_type_t) >= UB_DEVICES_TYPE_PACKED_SIZE,
               "struct size must not be smaller than packed size");
 
@@ -176,6 +176,9 @@ static ubs_error_t InnerUnpackUbDeviceType(UnpackCtx& ctx, ubs_ub_devices_type_t
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     if (UnpackValue(ctx, devType.vf_id) != UBS_SUCCESS) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    if (UnpackValue(ctx, devType.eid) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     return UBS_SUCCESS;
@@ -569,6 +572,9 @@ static ubs_error_t PackUbDeviceType(PackCtx& ctx, const ubs_ub_devices_type_t& d
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     if (PackValue(ctx, devType.vf_id) != UBS_SUCCESS) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    if (PackValue(ctx, devType.eid) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     return UBS_SUCCESS;

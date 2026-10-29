@@ -126,6 +126,39 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceIdevNull)
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
+TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithPfeIdevEidZero)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevPfeLoc;
+    idevPfeLoc.chipId = 2;
+    idevPfeLoc.dieId = 0;
+    idevPfeLoc.pfeId = 1;
+    idevPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    idevPfeLoc.eid = {};
+    // eid全0，模拟guid反查未命中的场景
+
+    CollectDeviceLoc ubctlLoc;
+    ubctlLoc.chipId = 2;
+    ubctlLoc.dieId = 0;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
+    auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
+    auto npuRes = std::make_shared<NpuResource>();
+
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevPfe));
+    idevPfe->SetParentUbCtl(ubctl);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNpuToResource(npu, npuRes);
+    EXPECT_EQ(result, UBSE_OK);
+    // eid为0时不应添加无效的P_IDEV亲和设备
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 1);
+    EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
+}
+
 TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithPfeIdev)
 {
     CollectDeviceLoc npuLoc;
@@ -137,6 +170,7 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithPfeIdev)
     idevPfeLoc.dieId = 0;
     idevPfeLoc.pfeId = 1;
     idevPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    idevPfeLoc.eid = {0x2A, 0x00, 0x00, 0x00};
 
     CollectDeviceLoc ubctlLoc;
     ubctlLoc.chipId = 2;
@@ -155,10 +189,12 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithPfeIdev)
     EXPECT_EQ(npuRes->slotId_, npuLoc.slotId);
     EXPECT_EQ(npuRes->chipId_, npuLoc.chipId);
     EXPECT_EQ(npuRes->busInstanceGuid_, "");
-    EXPECT_EQ(npuRes->affinityDevices_.size(), 1);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 2);
     EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
     EXPECT_EQ(npuRes->affinityDevices_[0].chipId, ubctlLoc.chipId);
     EXPECT_EQ(npuRes->affinityDevices_[0].dieId, ubctlLoc.dieId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::P_IDEV);
+    EXPECT_EQ(npuRes->affinityDevices_[1].eid, 0x2A);
 }
 
 TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceUbctlNull)
@@ -200,6 +236,7 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithVfeIdevAndBusi)
     idevPfeLoc.chipId = 2;
     idevPfeLoc.dieId = 0;
     idevPfeLoc.pfeId = 1;
+    idevPfeLoc.eid = {0x2A, 0x00, 0x00, 0x00};
 
     CollectDeviceLoc ubctlLoc;
     ubctlLoc.chipId = 2;
@@ -229,10 +266,12 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithVfeIdevAndBusi)
     EXPECT_EQ(npuRes->chipId_, npuLoc.chipId);
     EXPECT_EQ(npuRes->busInstanceGuid_, busiLoc.guid);
     EXPECT_EQ(npuRes->guid_, idevVfeLoc.guid);
-    EXPECT_EQ(npuRes->affinityDevices_.size(), 1);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 2);
     EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
     EXPECT_EQ(npuRes->affinityDevices_[0].chipId, ubctlLoc.chipId);
     EXPECT_EQ(npuRes->affinityDevices_[0].dieId, ubctlLoc.dieId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::P_IDEV);
+    EXPECT_EQ(npuRes->affinityDevices_[1].eid, 0x2A);
 }
 
 TEST_F(TestUbseNpuControllerProcess, DeviceNicPfeToResourceSuccess)
@@ -588,6 +627,7 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithAffinityNicPfeAndNic
     idevPfeLoc.chipId = 2;
     idevPfeLoc.dieId = 0;
     idevPfeLoc.pfeId = 1;
+    idevPfeLoc.eid = {0x2A, 0x00, 0x00, 0x00};
 
     CollectDeviceLoc busiLoc;
     busiLoc.guid = "busi-guid-12345678901234567890123456";
@@ -632,17 +672,19 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithAffinityNicPfeAndNic
     EXPECT_EQ(npuRes->chipId_, npuLoc.chipId);
     EXPECT_EQ(npuRes->busInstanceGuid_, busiLoc.guid);
     EXPECT_EQ(npuRes->guid_, idevVfeLoc.guid);
-    EXPECT_EQ(npuRes->affinityDevices_.size(), 3);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 4);
     EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
-    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::NIC_PFE);
-    EXPECT_EQ(npuRes->affinityDevices_[1].slotId, nicPfeLoc.slotId);
-    EXPECT_EQ(npuRes->affinityDevices_[1].chipId, nicPfeLoc.chipId);
-    EXPECT_EQ(npuRes->affinityDevices_[1].pfId, nicPfeLoc.pfeId);
-    EXPECT_EQ(npuRes->affinityDevices_[2].type, ResourceType::NIC_VFE);
-    EXPECT_EQ(npuRes->affinityDevices_[2].slotId, nicVfeLoc.slotId);
-    EXPECT_EQ(npuRes->affinityDevices_[2].chipId, nicVfeLoc.chipId);
-    EXPECT_EQ(npuRes->affinityDevices_[2].pfId, nicVfeLoc.pfeId);
-    EXPECT_EQ(npuRes->affinityDevices_[2].vfId, nicVfeLoc.vfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::P_IDEV);
+    EXPECT_EQ(npuRes->affinityDevices_[1].eid, 0x2A);
+    EXPECT_EQ(npuRes->affinityDevices_[2].type, ResourceType::NIC_PFE);
+    EXPECT_EQ(npuRes->affinityDevices_[2].slotId, nicPfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].chipId, nicPfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].pfId, nicPfeLoc.pfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[3].type, ResourceType::NIC_VFE);
+    EXPECT_EQ(npuRes->affinityDevices_[3].slotId, nicVfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[3].chipId, nicVfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[3].pfId, nicVfeLoc.pfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[3].vfId, nicVfeLoc.vfeId);
 }
 
 TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithOnlyAffinityNicPfe)
@@ -656,6 +698,7 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithOnlyAffinityNicPfe)
     idevPfeLoc.dieId = 0;
     idevPfeLoc.pfeId = 1;
     idevPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    idevPfeLoc.eid = {0x2A, 0x00, 0x00, 0x00};
 
     CollectDeviceLoc ubctlLoc;
     ubctlLoc.chipId = 2;
@@ -678,12 +721,14 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithOnlyAffinityNicPfe)
 
     UbseResult result = UbseNpuControllerProcess::DeviceNpuToResource(npu, npuRes);
     EXPECT_EQ(result, UBSE_OK);
-    EXPECT_EQ(npuRes->affinityDevices_.size(), 2);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 3);
     EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
-    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::NIC_PFE);
-    EXPECT_EQ(npuRes->affinityDevices_[1].slotId, nicPfeLoc.slotId);
-    EXPECT_EQ(npuRes->affinityDevices_[1].chipId, nicPfeLoc.chipId);
-    EXPECT_EQ(npuRes->affinityDevices_[1].pfId, nicPfeLoc.pfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::P_IDEV);
+    EXPECT_EQ(npuRes->affinityDevices_[1].eid, 0x2A);
+    EXPECT_EQ(npuRes->affinityDevices_[2].type, ResourceType::NIC_PFE);
+    EXPECT_EQ(npuRes->affinityDevices_[2].slotId, nicPfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].chipId, nicPfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].pfId, nicPfeLoc.pfeId);
 }
 
 TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithIdevVfeNoBondingDavid)

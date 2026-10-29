@@ -675,6 +675,7 @@ std::shared_ptr<CollectionDeviceIdevPfe> ConstructIdevPfe(const UbseMtiIdevPfe& 
     devLoc.chipId = idevPfe.ubController.chipId;
     devLoc.dieId = idevPfe.ubController.dieId;
     devLoc.pfeId = idevPfe.pfeId;
+    devLoc.eid = idevPfe.eid; // pfe idevice的eid，由guid反查获得
     devLoc.guid = CollectionStringUtil::GuidToStr(idevPfe.guid);
     return std::make_shared<CollectionDeviceIdevPfe>(devLoc);
 }

@@ -1080,11 +1080,13 @@ TEST_F(TestUbseNpuResourceCollection, ConstructIdevPfeTest)
     idevPfe.ubController.dieId = 2;
     idevPfe.pfeId = 3;
     idevPfe.guid[0] = 0xAB;
+    idevPfe.eid[0] = 0x2A;
     auto dev = ConstructIdevPfe(idevPfe);
     EXPECT_NE(dev, nullptr);
     EXPECT_EQ(dev->GetType(), CollectionDeviceType::P_IDEV);
     EXPECT_EQ(dev->GetDeviceLoc().chipId, 1);
     EXPECT_EQ(dev->GetDeviceLoc().dieId, 2);
+    EXPECT_EQ(dev->GetEid()[0], 0x2A);
 }
 
 TEST_F(TestUbseNpuResourceCollection, ConstructIdevVfeTest)

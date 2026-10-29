@@ -16,6 +16,7 @@
 #include "ubse_npu_resource_collection.h"
 #include "ubse_npu_resource_collection_def.h"
 #include "ubse_npu_source_def.h"
+#include "securec.h"
 
 namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -168,6 +169,21 @@ UbseResult UbseNpuControllerProcess::DeviceNpuToResource(const std::shared_ptr<C
     npuRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slotId, ubctl.chipId, ubctl.dieId});
     UBSE_LOG_DEBUG << "DeviceNpuToResource UBctrl " << ubctl.slotId << "-" << ubctl.chipId << "-" << ubctl.dieId
                    << " added to npuRes.affinityDevices";
+
+    // 添加亲和的pfe idevice，device_id为pfe的eid（取16字节EID的前4字节）
+    UbseMtiEid pfeEidArr = pfe->GetEid();
+    uint32_t pfeEid = 0;
+    if (memcpy_s(&pfeEid, sizeof(pfeEid), pfeEidArr.data(), sizeof(pfeEid)) != EOK) {
+        UBSE_LOG_ERROR << "DeviceNpuToResource failed to get pfe eid, npu " << npu->GetIdStr();
+        return UBSE_ERROR;
+    }
+    if (pfeEid == 0) {
+        // eid为0说明guid反查未命中，该pfe idevice不可定位，跳过添加无效的P_IDEV亲和设备
+        UBSE_LOG_WARN << "DeviceNpuToResource pfe eid is 0, skip adding pfe idev affinity, npu " << npu->GetIdStr();
+    } else {
+        npuRes->AddAffinityDevice({.type = ResourceType::P_IDEV, .eid = pfeEid});
+        UBSE_LOG_DEBUG << "DeviceNpuToResource pfe idev eid " << pfeEid << " added to npuRes.affinityDevices";
+    }
 
     std::shared_ptr<CollectionDeviceNicPfe> affinityDevNicPfe = npu->GetAffinityDevNicPfe();
     if (!affinityDevNicPfe) {

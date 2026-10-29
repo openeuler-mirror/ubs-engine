@@ -31,8 +31,9 @@ size_t NpuResource::CalculateSize() const
 {
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) * NPU_DEVICE_ID_SIZE +
                      sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
-    size_t flexibleArraySize = affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
-                                                          sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
+    size_t flexibleArraySize =
+        affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 +
+                                   sizeof(uint32_t)); // 3:slotId/chipId/dieId;2:pfId/vfId;1:eid
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
@@ -69,6 +70,8 @@ UbseResult NpuResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
+        if (!packUtil.UbsePackUint32(device.eid))
+            return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -104,8 +107,9 @@ ResourceType BusiResource::GetType() const
 size_t BusiResource::CalculateSize() const
 {
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
-    size_t flexibleArraySize = subDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
-                                                     sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
+    size_t flexibleArraySize =
+        subDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 +
+                              sizeof(uint32_t)); // 3:slotId/chipId/dieId;2:pfId/vfId;1:eid
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
@@ -134,6 +138,8 @@ UbseResult BusiResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
+        if (!packUtil.UbsePackUint32(device.eid))
+            return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -158,8 +164,9 @@ size_t NicPfeResource::CalculateSize() const
 {
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) +
                      sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
-    size_t flexibleArraySize = affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
-                                                          sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
+    size_t flexibleArraySize =
+        affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 +
+                                   sizeof(uint32_t)); // 3:slotId/chipId/dieId;2:pfId/vfId;1:eid
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
@@ -198,6 +205,8 @@ UbseResult NicPfeResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
+        if (!packUtil.UbsePackUint32(device.eid))
+            return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -233,8 +242,9 @@ size_t NicVfeResource::CalculateSize() const
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) +
                      sizeof(uint16_t) + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE +
                      sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
-    size_t flexibleArraySize = affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
-                                                          sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
+    size_t flexibleArraySize =
+        affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 +
+                                   sizeof(uint32_t)); // 3:slotId/chipId/dieId;2:pfId/vfId;1:eid
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
@@ -274,6 +284,8 @@ UbseResult NicVfeResource::Pack(UbsePackUtil& packUtil)
         if (!packUtil.UbsePackUint16(device.pfId))
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint16(device.vfId))
+            return UBSE_ERROR;
+        if (!packUtil.UbsePackUint32(device.eid))
             return UBSE_ERROR;
     }
     return UBSE_OK;

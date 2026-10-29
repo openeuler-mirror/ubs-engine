@@ -285,6 +285,10 @@ uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice>& devL
             UBSE_LOG_ERROR << "Failed to unpack vfId";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
+        if (!unpackUtil.UnpackUint32(tmpDev.eid)) {
+            UBSE_LOG_ERROR << "Failed to unpack eid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
         devList.emplace_back(tmpDev);
     }
     return UBSE_OK;

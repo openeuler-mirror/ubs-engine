@@ -28,7 +28,8 @@ typedef enum
     UBS_NPU = 2,
     UBS_NIC_PFE = 3,
     UBS_NIC_VFE = 4,
-    UBS_UBCTRL = 5
+    UBS_UBCTRL = 5,
+    UBS_P_IDEV = 6
 } ubs_device_type;
 
 typedef enum
@@ -45,6 +46,7 @@ typedef struct {
     uint8_t die_id;
     uint16_t pf_id;
     uint16_t vf_id;
+    uint32_t eid; // P_IDEV设备的eid，取16字节EID的前4字节
 } ubs_ub_devices_type_t;
 
 typedef struct {

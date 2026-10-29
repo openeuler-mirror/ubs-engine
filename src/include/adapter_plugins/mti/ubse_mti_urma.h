@@ -39,6 +39,7 @@ struct UbseMtiIdevPfe {
     UbseMtiUbController ubController{};
     uint8_t pfeId{0xFF};
     UbseMtiGuid guid{0xFF};
+    UbseMtiEid eid{}; // pfe对应UB设备的eid，由guid从/sys/bus/ub/devices/反查得到
     std::vector<UbseMtiIdevVfe> vfeList{};
 
     UbseMtiIdevPfe() = default;
