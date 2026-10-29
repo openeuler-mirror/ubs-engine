@@ -1,4 +1,4 @@
-name: ubs-engine_MR
+name: ubs-engine_build
 
 on:
   pull_request:
@@ -22,16 +22,17 @@ defaults:
 
 concurrency:
   enable: true
-  max: 3
+  max: 5
   exceed-action: QUEUE
 
 permissions:
+  project: read
   repository: read
   pr: write
 
 stages:
-  build_stage:
-    name: Compile
+  codecheck:
+    name: CodeCheck
     jobs:
       CodeCheck_pre_commit:
         name: CodeCheck_pre_commit
@@ -43,6 +44,7 @@ stages:
             uses: checkout
             with:
               ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
           - name: Checkout Platform Code
             run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
           - name: Install System pre-commit
@@ -58,16 +60,7 @@ stages:
                 cd ${ATOMGIT_WORKSPACE}
                 pip3 install pre-commit==4.3.0 pre-commit-hooks && pre-commit install --install-hooks
           - name: RPM Build ubs-comm
-            run: | 
-                set -eux
-                dnf install -y 'dnf-command(builddep)'
-                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
-                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
-                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
-                dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
-                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
-                dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
-                dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
+            run: bash scripts/ci_prepare_ubs-comm.sh
           - name: install gitleaks 
             run: | 
                 cd ${ATOMGIT_WORKSPACE} 
@@ -75,29 +68,47 @@ stages:
                 cd -
           - name: pre-commit
             uses: openlibing-pre-commit-action
-
-      ubs-engine_build:
-        name: ubs-engine_build
+  compile:
+    name: Compile and DT
+    jobs:
+      ubs-engine_compile:
+        name: ubs-engine_compile
         runs-on: [self-hosted, openeuler, x86, cpu=16]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: Checkout Platform Code
             run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
-          - name: RPM Build ubs-comm
-            run: | 
-                set -eux
-                mkdir -p ~/rpmbuild/SPECS ~/rpmbuild/SOURCES/
-                cp /tmp/src/ubs-comm/ubs-comm.spec ~/rpmbuild/SPECS/
-                cp -rf /tmp/src/ubs-comm/ubs-comm-*.tar.gz ~/rpmbuild/SOURCES/
-                sudo dnf builddep -y ~/rpmbuild/SPECS/ubs-comm.spec
-                rpmbuild -ba ~/rpmbuild/SPECS/ubs-comm.spec
-                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-lib-*.rpm
-                sudo dnf install -y ~/rpmbuild/RPMS/x86_64/ubs-comm-devel-*.rpm
           - name: Checkout Source Code
             uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: RPM Build ubs-comm
+            run: bash scripts/ci_prepare_ubs-comm.sh
           - name: Build ubs-engine
             run: | 
                 set -eux
                 ls -al
                 bash build.sh
+      ubs-engine_ut:
+        name: ubs-engine_ut
+        runs-on: [self-hosted, openeuler, x86, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+        steps:
+          - name: Checkout Platform Code
+            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: RPM Build ubs-comm
+            run: bash scripts/ci_prepare_ubs-comm.sh
+          - name: UT ubs-engine
+            run: | 
+                set -eux
+                sudo dnf install -y gmock-devel
+                ls -al
+                bash build.sh ut -j 3
