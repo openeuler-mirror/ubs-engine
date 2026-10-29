@@ -1,0 +1,66 @@
+name: ubs-engine_securitycheck
+
+on:
+  pull_request_target:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+  pull_request_comment:
+    types: [created]
+    comments: [ '^reccheck$' ]
+    branches:
+      - master
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 5
+  exceed-action: QUEUE
+
+permissions:
+  project: read
+  repository: read
+  id-token: write
+
+stages:
+  codecheck:
+    name: Security Scanning
+    jobs:
+      SCA:
+        name: SCA
+        runs-on: [self-hosted, openeuler, x86, cpu=4]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: sca-action
+            uses: openlibing/sca-action/sca-pr-action@680d3e1d0424788ae6e807f7a4fcc660b378b66e
+            with: 
+              project-name: openEuler
+      Antipoison:
+        name: Antipoison
+        runs-on: [self-hosted, openeuler, x86, cpu=4]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: malicious-code-scan-action
+            uses: openlibing/malicious-code-scan-action/malicious-code-pr-scan-action@c91c261f5d87f691d781e07d8c13b6ce82b6007b
+            with: 
+              project-name: openEuler
