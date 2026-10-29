@@ -138,8 +138,13 @@ base_ptr_type* UbseSerialization::GetBuffer(bool bGetCtrl)
 
 UbseSerialization& UbseSerialization::operator=(UbseSerialization&& other) noexcept
 {
+    if (this == &other) {
+        return *this;
+    }
+    delete[] mBuf_;
     mBuf_ = other.mBuf_;
     other.mBuf_ = nullptr;
+    mAlignOffset_ = other.mAlignOffset_;
     mCap_ = other.mCap_;
     mLen_ = other.mLen_;
     other.mLen_ = 0;

@@ -35,11 +35,16 @@ constexpr size_t ODD_CHECK_INTERVAL = 2;
 namespace {
 void SignalHandler(int signum)
 {
+    // 信号处理函数内仅允许异步信号安全(async-signal-safe)操作：
+    // std::cout与exit均非信号安全，exit执行静态对象析构时等待指示器线程可能持有io_mutex_导致死锁，
+    // 此处使用write直接输出并以_Exit终止（不执行析构与atexit）
     if (signum == SIGALRM) {
-        UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-            std::string("ERROR: Timeout " + std::to_string(TIMEOUT_SECONDS) + "s.\n"));
+        // 文案中的超时秒数需与TIMEOUT_SECONDS保持一致
+        constexpr char msg[] = "ERROR: Timeout 30s.\n";
+        auto unused = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        (void)unused;
     }
-    exit(signum);
+    _Exit(signum);
 }
 } // namespace
 

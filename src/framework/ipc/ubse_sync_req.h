@@ -50,6 +50,12 @@ public:
     bool IsReqIdRegister(uint64_t reqId);
 
     /**
+     * 注销等待响应的消息（发送失败等不再等待响应的场景），并清理可能残留的响应
+     * @param reqId
+     */
+    void UnregisterRequest(uint64_t reqId);
+
+    /**
      * 同步等待请求响应
      * @param reqId 监听同步请求id
      * @param timeout 监听超时时间

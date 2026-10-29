@@ -231,38 +231,44 @@ uint32_t UbseLoggerFilesink::RenameCompressedFile(std::vector<std::string>& comp
 
 void UbseLoggerFilesink::ManageFileRotation(const std::string& fileName)
 {
-    // 存储匹配到的文件
-    std::vector<std::string> compressedFiles;
-    fs::path filePath = fs::path(basePath_ + "/" + fileName);
-    fs::path dir = filePath.parent_path();
+    // 日志目录可能被删除或权限变化，filesystem操作可抛filesystem_error，
+    // 日志线程调用链上无异常处理会导致std::terminate，此处捕获并降级返回
+    try {
+        // 存储匹配到的文件
+        std::vector<std::string> compressedFiles;
+        fs::path filePath = fs::path(basePath_ + "/" + fileName);
+        fs::path dir = filePath.parent_path();
 
-    std::regex filenamePattern(filePath.string() + filenameSuffixPattern_);
+        std::regex filenamePattern(filePath.string() + filenameSuffixPattern_);
 
-    for (const auto& entry : fs::directory_iterator(dir)) {
-        if (fs::is_regular_file(entry) && std::regex_match(entry.path().string(), filenamePattern)) {
-            compressedFiles.push_back(entry.path().string());
+        for (const auto& entry : fs::directory_iterator(dir)) {
+            if (fs::is_regular_file(entry) && std::regex_match(entry.path().string(), filenamePattern)) {
+                compressedFiles.push_back(entry.path().string());
+            }
         }
+
+        // 按照文件名中的序号进行排序
+        std::sort(compressedFiles.begin(), compressedFiles.end());
+
+        fileMap_[fileName].fileIndex = RenameCompressedFile(compressedFiles) + 1;
+
+        if (compressedFiles.size() < maxFileCount_) {
+            return;
+        }
+        uint32_t currentFilecount = compressedFiles.size();
+        for (uint32_t i = 0; i < currentFilecount - maxFileCount_ + 1; i++) {
+            std::string oldestFile = compressedFiles.front();
+            fs::remove(oldestFile);
+            compressedFiles.erase(compressedFiles.begin());
+        }
+
+        // 重新命名剩余的文件
+        RenameCompressedFile(compressedFiles);
+
+        // 将新文件的索引设置为最大
+        fileMap_[fileName].fileIndex = maxFileCount_;
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Manage file rotation fail, file=" << fileName << " error: " << e.what() << std::endl;
     }
-
-    // 按照文件名中的序号进行排序
-    std::sort(compressedFiles.begin(), compressedFiles.end());
-
-    fileMap_[fileName].fileIndex = RenameCompressedFile(compressedFiles) + 1;
-
-    if (compressedFiles.size() < maxFileCount_) {
-        return;
-    }
-    uint32_t currentFilecount = compressedFiles.size();
-    for (uint32_t i = 0; i < currentFilecount - maxFileCount_ + 1; i++) {
-        std::string oldestFile = compressedFiles.front();
-        fs::remove(oldestFile);
-        compressedFiles.erase(compressedFiles.begin());
-    }
-
-    // 重新命名剩余的文件
-    RenameCompressedFile(compressedFiles);
-
-    // 将新文件的索引设置为最大
-    fileMap_[fileName].fileIndex = maxFileCount_;
 }
 } // namespace ubse::log

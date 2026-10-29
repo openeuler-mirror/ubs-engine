@@ -800,10 +800,14 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     }
 
     auto finalResponse = response;
-    // 获取请求ID
+    // 获取请求ID，同时清理映射，避免clientReqId_无界增长导致内存耗尽
     {
         std::lock_guard<std::mutex> lock(clientReqIdMutex_); // 构造时自动加锁
-        finalResponse.header.clientRequestId = clientReqId_[requestId];
+        auto it = clientReqId_.find(requestId);
+        if (it != clientReqId_.end()) {
+            finalResponse.header.clientRequestId = it->second;
+            clientReqId_.erase(it);
+        }
     }
 
     // 检查响应大小

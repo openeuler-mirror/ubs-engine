@@ -510,7 +510,7 @@ private:
                 }
                 UbseComMessageCtx msgCtx(message.GetEngineName(), message.GetRspCtx(), message.GetChannelId(),
                                          message.GetDstId());
-                msgCtx.SetChannelPtr(msgCtx.GetChannelPtr());
+                msgCtx.SetChannelPtr(ctx->GetChannelPtr());
                 if (ctx->IsRemoteCall()) {
                     msgCtx.SetRemoteCall();
                 }

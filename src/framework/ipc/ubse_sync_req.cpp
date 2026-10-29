@@ -42,6 +42,20 @@ bool UbseSyncReq::IsReqIdRegister(uint64_t reqId)
     return waitList_.find(reqId) != waitList_.end();
 }
 
+void UbseSyncReq::UnregisterRequest(uint64_t reqId)
+{
+    std::unique_lock<std::mutex> lock(mtx_);
+    waitList_.erase(reqId);
+    auto respIter = responses_.find(reqId);
+    if (respIter != responses_.end()) {
+        if (respIter->second.body != nullptr) {
+            delete[] respIter->second.body;
+            respIter->second.body = nullptr;
+        }
+        responses_.erase(respIter);
+    }
+}
+
 uint32_t UbseSyncReq::WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage& msg)
 {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);

@@ -1677,10 +1677,17 @@ ubs_mem_shm_desc_t* ubse_mem_shm_desc_alloc(uint8_t* buffer, uint32_t length)
     unpack_ctx_t ctx = {buffer, length};
     // 读取 import_desc_cnt
     uint32_t import_desc_cnt{};
-    unpack_uint32(&ctx, &import_desc_cnt);
+    if (unpack_uint32(&ctx, &import_desc_cnt) != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack import desc cnt";
+        return nullptr;
+    }
 
     if (import_desc_cnt == 0) {
         return static_cast<ubs_mem_shm_desc_t*>(malloc(sizeof(ubs_mem_shm_desc_t)));
+    }
+    if (import_desc_cnt > UBS_TOPO_MAX_NODE_NUM) {
+        IPC_LOG_ERROR << "Invalid import desc count value: " << import_desc_cnt;
+        return nullptr;
     }
     ubs_mem_shm_desc_t* shm_desc = static_cast<ubs_mem_shm_desc_t*>(
         malloc(sizeof(ubs_mem_shm_desc_t) + import_desc_cnt * sizeof(ubs_mem_shm_import_desc_t)));
@@ -2002,6 +2009,17 @@ ubs_error_t ubse_urma_dev_unpack(const uint8_t* buffer, uint32_t len, ubs_urma_d
         *urma_devices = NULL;
         *urma_cnt = 0;
         return UBS_SUCCESS;
+    }
+
+    // 校验count与剩余长度匹配，防止异常响应中的超大count触发巨额内存分配：
+    // 每个设备在线数据至少包含：名称长度前缀(uint32)+healthy(uint32)+hw_res_id(uint64)，
+    // 声明的count超出剩余长度可支撑的设备数即视为数据损坏，直接拒绝
+    constexpr uint32_t UBS_URMA_DEV_MIN_WIRE_SIZE = sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint64_t);
+    if (ctx.remaining / UBS_URMA_DEV_MIN_WIRE_SIZE < *urma_cnt) {
+        IPC_LOG_ERROR << "Invalid urma cnt value: " << *urma_cnt << ", remaining: " << ctx.remaining;
+        *urma_devices = NULL;
+        *urma_cnt = 0;
+        return UBS_ERR_OUT_OF_RANGE;
     }
 
     *urma_devices = (ubs_urma_dev_t*)calloc(*urma_cnt, sizeof(ubs_urma_dev_t));

@@ -135,6 +135,13 @@ void UbseNetUtil::ParseIpRangeToList(const std::string& range, std::vector<std::
     if (startIntIp > endIntIp) {
         return;
     }
+    // 限制单个范围可展开的IP数量上限，防止错误配置（如全网段）导致启动期卡死与内存耗尽
+    const uint64_t expandCount = static_cast<uint64_t>(endIntIp) - startIntIp + 1;
+    if (expandCount > UBSE_CLOS_MAX_NODE_NUM) {
+        UBSE_LOG_ERROR << "IP range " << range << " expands to more than " << UBSE_CLOS_MAX_NODE_NUM
+                       << " addresses, rejected";
+        return;
+    }
     for (uint32_t ip = startIntIp; ip <= endIntIp; ip++) {
         ips.emplace_back(IntToIpV4(ip));
         if (ip == UINT32_MAX) {
