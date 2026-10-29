@@ -45,6 +45,7 @@ const std::string SRC_EID_OPT = "src_eid";
 const std::string DEV_NAME_OPT = "dev_name";
 const std::string LEVEL_OPT = "level";
 const std::string CHUNK_SIZE_OPT = "chunk_size";
+const std::string RESOURCE_UUID_OPT = "resource_uuid";
 
 // display ssu 的 -t 取值，区分摘要、详情、连接信息三类子命令。
 // connect_info 为 VM 模式新增,查询已直通的 namespace 连接参数。
@@ -134,6 +135,9 @@ const std::string ERR_INVALID_CHUNK_SIZE =
 const std::string ERR_STRIPED_NS_NUM_REQUIRED = "ERROR: Striped strategy requires ns_num to be at least 2.";
 const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
+const std::string ERR_INVALID_RESOURCE_UUID =
+    "ERROR: Invalid resource_uuid. The value must be 1-" + std::to_string(SSU_CLI_MAX_UUID_LENGTH) +
+    " characters and contain only lowercase hexadecimal digits (0-9, a-f) or '-'.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 const std::string INFO_EMPTY_CONNECT = "INFO: No SSU connect information found.";
 
@@ -179,7 +183,9 @@ uint64_t SumNameSpaceSize(const UbseCliSsuAllocResult &allocation)
 
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response);
 std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response);
+void AppendDetailTable(UbseCliResBuilder &builder, const UbseCliSsuAllocResult &response);
 std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult &response);
+std::shared_ptr<UbseCliResultEcho> BuildDetailListOutput(const UbseCliSsuAllocListRsp &response);
 std::shared_ptr<UbseCliResultEcho> BuildConnectInfoOutput(const UbseCliSsuConnectInfoRsp &response);
 bool IsValidName(const std::string &name);
 bool ParseSize(const std::string &value, uint64_t &sizeBytes);
@@ -189,6 +195,7 @@ bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy);
 bool IsValidLengthIfPresent(const std::map<std::string, std::string> &params, const std::string &key,
                             uint32_t maxLength);
 bool IsValidDevName(const std::string &devName);
+bool IsValidResourceUuid(const std::string &resourceUuid);
 bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level);
 bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize);
 std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key);
@@ -455,6 +462,7 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachSpace(const std::map<std::string,
     UbseCliSsuDetachSpaceReq request;
     request.name = params.at(NAME_OPT);
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.resourceUuid = GetOptionalValue(params, RESOURCE_UUID_OPT);
     return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_SPACE, request);
 }
 
@@ -475,6 +483,7 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::st
         request.name = params.at(NAME_OPT);
         request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
         request.devName = devName->second;
+        request.resourceUuid = GetOptionalValue(params, RESOURCE_UUID_OPT);
         return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_LINEAR_SPACE, request);
     }
 
@@ -482,6 +491,7 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::st
     request.name = params.at(NAME_OPT);
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
     request.devName = devName->second;
+    request.resourceUuid = GetOptionalValue(params, RESOURCE_UUID_OPT);
     return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_STRIPED_SPACE, request);
 }
 } // namespace
@@ -586,7 +596,8 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliAttachSsu()
     return builder.UbseCliBuild();
 }
 
-// detach ssu：仅注册卸载所需的四个选项；src_eid/level/chunk_size 由框架作为未注册参数拒绝。
+// detach ssu：仅注册卸载所需的选项；src_eid/level/chunk_size 由框架作为未注册参数拒绝。
+// resource_uuid 可选：同名多份分配（脑裂合并遗留）时精确卸载其中一份，省略时按name解析（同名多份时拒绝）。
 UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDetachSsu()
 {
     UbseCliRegBuilder builder;
@@ -594,6 +605,9 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDetachSsu()
         .UbseCliSetType("ssu")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
+        .UbseCliAddOption("u", RESOURCE_UUID_OPT,
+                          "SSU allocation resource uuid: detach only the space matching this uuid; "
+                          "when omitted, the name must resolve to a single allocation.")
         .UbseCliAddOption("t", TYPE_OPT,
                           "SSU detach type: explicitly set Linear or Striped; when omitted, performs the ordinary "
                           "Normal space operation.")
@@ -618,13 +632,17 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliCreateSsu()
     return builder.UbseCliBuild();
 }
 
-// delete ssu：仅需分配名称，成功时服务端不返回响应体。
+// delete ssu：分配名称必填；resource_uuid 可选（同 name 存在多份分配时精确清理其中一份），
+// 省略时服务端删除该 name 下全部空间。
 UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDeleteSsu()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("delete")
         .UbseCliSetType("ssu")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliAddOption("u", RESOURCE_UUID_OPT,
+                          "SSU allocation resource uuid: free only the space matching this uuid; "
+                          "when omitted, all spaces under the name are freed.")
         .UbseCliSetFunc(UbseCliDeleteSsuFunc);
     return builder.UbseCliBuild();
 }
@@ -684,8 +702,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocDetail(
 
     UbseCliSsuAllocDetailReq request;
     request.name = name->second;
-    return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME,
-                                                                         request, BuildDetailOutput);
+    // 服务端对同名多 resourceUuid（脑裂合并遗留）按列表应答，响应须按列表格式解包
+    return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocListRsp>(UBSE_SSU, UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME,
+                                                                         request, BuildDetailListOutput);
 }
 
 // 连接信息查询:VM 模式新增,查询已直通 namespace 的连接参数(nqn/eid/connection id 等)。
@@ -748,7 +767,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
                                                                          BuildDetailOutput);
 }
 
-// delete ssu 入口：复用分配名称校验，序列化后调用无响应体的释放 IPC。
+// delete ssu 入口：复用分配名称校验，resource_uuid 可选（同 name 存在多份分配时精确清理其中一份），
+// 空串=删 name 下全部；序列化后调用无响应体的释放 IPC。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDeleteSsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
 {
@@ -759,9 +779,14 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDeleteSsuFunc(
     if (!IsValidName(name->second)) {
         return UbseCliStringPromptReply(ERR_INVALID_NAME);
     }
+    auto resourceUuid = params.find(RESOURCE_UUID_OPT);
+    if (resourceUuid != params.end() && !IsValidResourceUuid(resourceUuid->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_RESOURCE_UUID);
+    }
 
     UbseCliSsuFreeSpaceReq request;
     request.name = name->second;
+    request.resourceUuid = GetOptionalValue(params, RESOURCE_UUID_OPT);
     return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_FREE_SPACE, request);
 }
 
@@ -810,6 +835,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDetachSsuFunc(
     if (!IsValidLengthIfPresent(params, HOST_NQN_OPT, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
         return UbseCliStringPromptReply(ERR_INVALID_HOST_NQN);
     }
+    auto resourceUuid = params.find(RESOURCE_UUID_OPT);
+    if (resourceUuid != params.end() && !IsValidResourceUuid(resourceUuid->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_RESOURCE_UUID);
+    }
 
     auto type = params.find(TYPE_OPT);
     if (type == params.end()) {
@@ -831,35 +860,58 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult
     return BuildDetailTable(response);
 }
 
-// 摘要表：3 列（name/size/strategy），列宽按 UBSE_CLI_NUM_8*10 固定，与 ubse_cli_ssu.md 示例输出对齐。
+// alloc_detail 展示：服务端 GetAllocInfoByName 按列表应答（count + N×AllocResult），
+// 同名多 resourceUuid（脑裂合并遗留）时逐条渲染详情表。
+// 空列表、或唯一分配无命名空间时提示无数据（与旧单结果格式行为一致）。
+std::shared_ptr<UbseCliResultEcho> BuildDetailListOutput(const UbseCliSsuAllocListRsp &response)
+{
+    if (response.allocations.empty() ||
+        (response.allocations.size() == 1 && response.allocations.front().nameSpaceList.empty())) {
+        return UbseCliRegModule::UbseCliStringPromptReply(INFO_EMPTY);
+    }
+    if (response.allocations.size() == 1) {
+        return BuildDetailTable(response.allocations.front());
+    }
+    UbseCliResBuilder builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
+    for (const auto &allocation : response.allocations) {
+        AppendDetailTable(builder, allocation);
+    }
+    return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
+}
+
+// 摘要表：4 列（name/size/strategy/resource_uuid），列宽按 UBSE_CLI_NUM_8*10 固定，与 ubse_cli_ssu.md 示例输出对齐。
+// resource_uuid 用于区分同名多份分配（脑裂合并遗留），可作为 detach/free -u 的入参。
 // size 由每个分配下 nameSpaceList[*].nsSize 求和得出，并直接展示原始字节值。
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response)
 {
-    UbseCliResBuilder builder(UBSE_CLI_NUM_3, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
+    UbseCliResBuilder builder(UBSE_CLI_NUM_4, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
     size_t row = builder.UbseCliAddRow();
     builder.UbseCliAddlineSeparate(row);
     builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "name");
     builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "size");
     builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "strategy");
+    builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "resource_uuid");
     builder.UbseCliAddBottomlineSeparate();
     for (const auto &allocation : response.allocations) {
         row = builder.UbseCliAddRow();
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, allocation.name);
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(SumNameSpaceSize(allocation)));
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, StrategyToString(allocation.strategy));
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, allocation.resourceUuid);
     }
     builder.UbseCliAddBottomlineSeparate();
     return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
 }
 
-// 详情表：7 列命名空间信息 + 表头合并行（Name/Strategy），列顺序与 ubse_cli_ssu.md 输出信息说明一致；
+// 详情表：7 列命名空间信息 + 表头合并行（Name/ResourceUuid/Strategy），列顺序与 ubse_cli_ssu.md 输出信息说明一致；
+// 向builder追加一张详情表：标题合并行（Name/ResourceUuid/Strategy）+ 7列表头 + ns数据行。
 // alloc/create 两类命令共用此布局。字段对齐服务层 UbseSsuNameSpaceInfo，不再展示 using_type 与 SrcNqnList。
 // ns_size 直接展示应答中的原始字节值，不做 GiB 换算或取整。
-std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response)
+void AppendDetailTable(UbseCliResBuilder &builder, const UbseCliSsuAllocResult &response)
 {
-    UbseCliResBuilder builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
     std::map<size_t, std::string> title{
-        {UBSE_CLI_NUM_7, "Name: " + response.name + "  Strategy:" + StrategyToString(response.strategy)}};
+        {UBSE_CLI_NUM_7, "Name: " + response.name + "  ResourceUuid:" + response.resourceUuid +
+                             "  Strategy:" + StrategyToString(response.strategy)}};
     builder.UbseCliAddlineSeparate(UBSE_CLI_NUM_1);
     builder.UbseCliAddMergeRow(title);
     builder.UbseCliAddBottomlineSeparate();
@@ -885,6 +937,12 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult 
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, LbaToString(nameSpace.lbaFormat));
     }
     builder.UbseCliAddBottomlineSeparate();
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response)
+{
+    UbseCliResBuilder builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
+    AppendDetailTable(builder, response);
     return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
 }
 
@@ -1036,6 +1094,21 @@ bool IsValidDevName(const std::string &devName)
     }
     for (unsigned char ch : devName) {
         if (std::isalnum(ch) || ch == '_' || ch == '-' || ch == '.') {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+// resource_uuid 与服务端 GenerateUuid 输出格式对齐：仅允许小写十六进制与连字符
+bool IsValidResourceUuid(const std::string &resourceUuid)
+{
+    if (resourceUuid.empty() || resourceUuid.size() > SSU_CLI_MAX_UUID_LENGTH) {
+        return false;
+    }
+    for (char ch : resourceUuid) {
+        if ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || ch == '-') {
             continue;
         }
         return false;

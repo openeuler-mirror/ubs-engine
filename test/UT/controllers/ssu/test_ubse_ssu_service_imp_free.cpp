@@ -208,7 +208,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_Master_Success)
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
     SetupFreeEnv({ns1, ns2}, UbseSsuNsState::CREATED, "free_master_direct");
 
-    auto ret = service_.FreeSpace("free_master_direct", MakeIdentity());
+    auto ret = service_.FreeSpace("free_master_direct", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_FALSE(LedgerEntryExists("free_master_direct"));
@@ -231,7 +231,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_AgentViaRpc)
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
 
-    auto ret = service_.FreeSpace("free_agent_rpc", MakeIdentity());
+    auto ret = service_.FreeSpace("free_agent_rpc", "", MakeIdentity());
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
@@ -252,7 +252,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_StandbyViaRpc)
     MOCKER_CPP(&UbseGetMasterInfo).reset();
     MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
 
-    EXPECT_EQ(service_.FreeSpace("free_standby_rpc", MakeIdentity()), UBSE_ERROR);
+    EXPECT_EQ(service_.FreeSpace("free_standby_rpc", "", MakeIdentity()), UBSE_ERROR);
 }
 
 /*
@@ -283,7 +283,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_StandbyViaRpc_Success_KeepLedger)
     entry->state = UbseSsuNsState::CREATED;
     UbseSsuDebtLedger::GetInstance().Put(entry->name, entry);
 
-    auto ret = service_.FreeSpace("free_standby_success", MakeIdentity());
+    auto ret = service_.FreeSpace("free_standby_success", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
     // 账本删除由 master 端 ExecuteFree 负责，standby 本地账本应保留
@@ -301,7 +301,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_StandbyViaRpc_Success_KeepLedger)
  */
 TEST_F(TestUbseSsuServiceImpFree, FreeSpace_NotExist)
 {
-    EXPECT_EQ(service_.FreeSpace("free_not_exist", MakeIdentity()), UBSE_ERR_NO_NEED_FREE);
+    EXPECT_EQ(service_.FreeSpace("free_not_exist", "", MakeIdentity()), UBSE_ERR_NO_NEED_FREE);
 }
 
 /*
@@ -325,7 +325,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_UnsupportedRole)
     entry->state = UbseSsuNsState::CREATED;
     UbseSsuDebtLedger::GetInstance().Put("free_unsupported", entry);
 
-    EXPECT_EQ(service_.FreeSpace("free_unsupported", MakeIdentity()), UBSE_SSU_ERROR_ROLE_INVALID);
+    EXPECT_EQ(service_.FreeSpace("free_unsupported", "", MakeIdentity()), UBSE_SSU_ERROR_ROLE_INVALID);
 }
 
 /*
@@ -341,7 +341,7 @@ TEST_F(TestUbseSsuServiceImpFree, FreeSpace_GetRoleFailed)
 {
     MOCKER_CPP(&UbseGetRole).reset();
     MOCKER_CPP(&UbseGetRole).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(service_.FreeSpace("free_role_failed", MakeIdentity()), UBSE_ERROR);
+    EXPECT_EQ(service_.FreeSpace("free_role_failed", "", MakeIdentity()), UBSE_ERROR);
 }
 
 // --------------------------------------------------------------------------
@@ -366,7 +366,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_Normal)
     auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
     SetupFreeEnv({ns1, ns2}, UbseSsuNsState::CREATED, "exec_free_normal");
 
-    auto ret = service_.FreeSpace("exec_free_normal", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_normal", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_FALSE(LedgerEntryExists("exec_free_normal"));
@@ -387,7 +387,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_StateNotCreated)
     auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     SetupFreeEnv({ns1}, UbseSsuNsState::ATTACHED, "exec_free_state_invalid");
 
-    auto ret = service_.FreeSpace("exec_free_state_invalid", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_state_invalid", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE);
     EXPECT_TRUE(LedgerEntryExists("exec_free_state_invalid"));
@@ -419,7 +419,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_NsAlreadyDeleted)
     result.nameSpaceList.push_back(nsInfo);
     PutLedgerEntry("exec_free_ns_missing", UbseSsuNsState::CREATED, result);
 
-    auto ret = service_.FreeSpace("exec_free_ns_missing", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_ns_missing", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_FALSE(LedgerEntryExists("exec_free_ns_missing"));
@@ -454,7 +454,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_AllNsAlreadyDeleted)
     result.nameSpaceList.push_back(ns2);
     PutLedgerEntry("exec_free_all_missing", UbseSsuNsState::CREATED, result);
 
-    auto ret = service_.FreeSpace("exec_free_all_missing", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_all_missing", "", MakeIdentity());
 
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_FALSE(LedgerEntryExists("exec_free_all_missing"));
@@ -482,7 +482,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_IdentityNotMatch)
     PutLedgerEntry("exec_free_id_mismatch", UbseSsuNsState::CREATED, result);
 
     // identity has uid=100 (default from MakeIdentity)
-    auto ret = service_.FreeSpace("exec_free_id_mismatch", MakeIdentity(/*userName=*/"test_user", /*uid=*/100));
+    auto ret = service_.FreeSpace("exec_free_id_mismatch", "", MakeIdentity(/*userName=*/"test_user", /*uid=*/100));
 
     EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
     EXPECT_TRUE(LedgerEntryExists("exec_free_id_mismatch"));
@@ -504,7 +504,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_IdentityCheckBeforeStateProbe)
     auto ns = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
     SetupFreeEnv({ns}, UbseSsuNsState::ATTACHED, "exec_free_state_probe");
 
-    auto ret = service_.FreeSpace("exec_free_state_probe", MakeIdentity("intruder", 200));
+    auto ret = service_.FreeSpace("exec_free_state_probe", "", MakeIdentity("intruder", 200));
 
     EXPECT_EQ(ret, UBSE_ERR_ACCESS_DENIED);
     EXPECT_TRUE(LedgerEntryExists("exec_free_state_probe"));
@@ -532,7 +532,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_PartialSuccess)
     // Make the 2nd delete fail (callIndex >= 1 → fail)
     g_freeDeleteFailAfter.store(1);
 
-    auto ret = service_.FreeSpace("exec_free_partial", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_partial", "", MakeIdentity());
 
     EXPECT_NE(ret, UBSE_OK);
     auto entry = UbseSsuDebtLedger::GetInstance().Get("exec_free_partial");
@@ -563,7 +563,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_PartialSuccess_VerifyLedgerContent
     // 1st call succeeds, 2nd and 3rd fail
     g_freeDeleteFailAfter.store(1);
 
-    auto ret = service_.FreeSpace("exec_free_partial_verify", MakeIdentity());
+    auto ret = service_.FreeSpace("exec_free_partial_verify", "", MakeIdentity());
 
     EXPECT_NE(ret, UBSE_OK);
     auto entry = UbseSsuDebtLedger::GetInstance().Get("exec_free_partial_verify");
@@ -599,9 +599,9 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_Concurrent)
     PutLedgerEntry("exec_free_concurrent_2", UbseSsuNsState::CREATED, result2);
 
     auto future1 = std::async(std::launch::async,
-                              [this]() { return service_.FreeSpace("exec_free_concurrent_1", MakeIdentity()); });
+                              [this]() { return service_.FreeSpace("exec_free_concurrent_1", "", MakeIdentity()); });
     auto future2 = std::async(std::launch::async,
-                              [this]() { return service_.FreeSpace("exec_free_concurrent_2", MakeIdentity()); });
+                              [this]() { return service_.FreeSpace("exec_free_concurrent_2", "", MakeIdentity()); });
 
     EXPECT_EQ(future1.get(), UBSE_OK);
     EXPECT_EQ(future2.get(), UBSE_OK);
@@ -630,7 +630,7 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_DeviceReleasedToOtherTenantImmedia
     std::strncpy(ns1.customData.tenant, "tenant-a", sizeof(ns1.customData.tenant) - 1);
     SetupFreeEnv({ns1}, UbseSsuNsState::CREATED, "free_tenant_release");
 
-    EXPECT_EQ(service_.FreeSpace("free_tenant_release", MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(service_.FreeSpace("free_tenant_release", "", MakeIdentity()), UBSE_OK);
     EXPECT_FALSE(LedgerEntryExists("free_tenant_release"));
 
     MOCKER_CPP(&GenerateHostNqn)
@@ -642,6 +642,72 @@ TEST_F(TestUbseSsuServiceImpFree, ExecuteFree_DeviceReleasedToOtherTenantImmedia
                              UbseSsuAllocStrategy::LINEAR, "tenant-b");
     UbseSsuAllocResult resultB;
     EXPECT_EQ(service_.AllocSpace(reqB, MakeIdentity(), resultB), UBSE_OK);
+}
+
+/*
+ * 用例描述：
+ * 脑裂合并遗留同名双条目（不同 resourceUuid）的精确卸载+精确释放闭环。
+ * 回归背景：free 被 ATTACHED 门禁拒绝需先 detach，name 维度 detach 在同名多 uuid 时
+ * 被 NAME_DUPLICATED 拒绝形成清理死锁；detach 携带 resourceUuid 精确定位解锁。
+ * 曾有缺陷：detach 成功后 UpdateStateOrNotify 按 name 维度回退账本，同名多 uuid 时
+ * 误报 NAME_DUPLICATED 导致精确卸载失败，本用例同时回归该缺陷。
+ * 测试步骤：
+ * 1、预置同名双 ATTACHED 条目（uuidA/uuidB，各 1 个独立 NS）
+ * 2、name 维度 detach → 期望 NAME_DUPLICATED
+ * 3、带 uuidA 精确 detach → 期望成功且仅 uuidA 条目回 CREATED
+ * 4、带错误 uuid 精确 detach → 期望 SPACE_NOT_FOUND
+ * 5、带 uuidA 精确 free → 期望移除 uuidA 条目，uuidB 条目保留
+ * 预期结果：见各步骤，uuidB 条目全程不受影响
+ */
+TEST_F(TestUbseSsuServiceImpFree, SplitBrainMultiUuid_PreciseDetachThenFree_ClosedLoop)
+{
+    const std::string name = "exec_free_multi_uuid";
+    const std::string uuidA = "11111111-1111-1111-1111-111111111111";
+    const std::string uuidB = "22222222-2222-2222-2222-222222222222";
+
+    auto ns1 = MakeNsForCache(std::string(16, 'A'), "nqn.test.1", 1);
+    auto ns2 = MakeNsForCache(std::string(16, 'B'), "nqn.test.2", 1);
+    AddNsToBothCaches(ns1);
+    AddNsToBothCaches(ns2);
+
+    UbseSsuAllocResult resultA;
+    resultA.name = name;
+    resultA.strategy = UbseSsuAllocStrategy::NORMAL;
+    resultA.resourceUuid = uuidA;
+    resultA.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns1));
+    UbseSsuAllocResult resultB;
+    resultB.name = name;
+    resultB.strategy = UbseSsuAllocStrategy::NORMAL;
+    resultB.resourceUuid = uuidB;
+    resultB.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns2));
+    PutLedgerEntry(name, UbseSsuNsState::ATTACHED, resultA, {"master_node_1"});
+    PutLedgerEntry(name, UbseSsuNsState::ATTACHED, resultB, {"master_node_1"});
+
+    // 1. name 维度 detach：同名多 uuid 歧义拒绝（清理死锁入口）
+    EXPECT_EQ(service_.DetachSpace(MakeSpaceReq(name)), UBSE_SSU_ERROR_NAME_DUPLICATED);
+
+    // 2. 带 uuidA 精确 detach：跳过歧义拒绝，仅该条目回退 CREATED
+    auto detachReq = MakeSpaceReq(name, "", MakeIdentity());
+    detachReq.resourceUuid = uuidA;
+    EXPECT_EQ(service_.DetachSpace(detachReq), UBSE_OK);
+    auto entryA = UbseSsuDebtLedger::GetInstance().Get(name, uuidA);
+    ASSERT_NE(entryA, nullptr);
+    EXPECT_EQ(entryA->state, UbseSsuNsState::CREATED);
+    auto entryB = UbseSsuDebtLedger::GetInstance().Get(name, uuidB);
+    ASSERT_NE(entryB, nullptr);
+    EXPECT_EQ(entryB->state, UbseSsuNsState::ATTACHED);
+
+    // 3. 未知 uuid 精确 detach：空间不存在
+    auto detachReqMiss = MakeSpaceReq(name, "", MakeIdentity());
+    detachReqMiss.resourceUuid = "33333333-3333-3333-3333-333333333333";
+    EXPECT_EQ(service_.DetachSpace(detachReqMiss), UBSE_SSU_ERROR_SPACE_NOT_FOUND);
+
+    // 4. 带 uuidA 精确 free：移除该条目，uuidB 条目保留
+    EXPECT_EQ(service_.FreeSpace(name, uuidA, MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get(name, uuidA), nullptr);
+    entryB = UbseSsuDebtLedger::GetInstance().Get(name, uuidB);
+    ASSERT_NE(entryB, nullptr);
+    EXPECT_EQ(entryB->state, UbseSsuNsState::ATTACHED);
 }
 
 } // namespace ubse::ssu::service::ut

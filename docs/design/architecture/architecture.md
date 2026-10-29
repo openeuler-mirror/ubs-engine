@@ -1,8 +1,8 @@
-# UBS Engine架构
+﻿# UBS Engine架构
 
 ## 1 软件定位
 
-![image-20250929114548044](images/image-20250929114548044.png)
+![image-20250929114548044](../images/architecture/image-20250929114548044.png)
 
 **① 池化资源管理：** 提供基于负载的池化资源调度能力
 
@@ -40,7 +40,7 @@
 
 内部动态选主，数据平滑，资源请求由主节点负责资源调度决策
 
-![image-20251009094729817](images/image-20251009094729817.png)
+![image-20251009094729817](../images/architecture/image-20251009094729817.png)
 
 ### 2.2 智算场景部署
 
@@ -50,11 +50,11 @@
 
 与带外UBFM交互，操控UB资源
 
-![image-20251009095349142](images/image-20251009095349142.png)
+![image-20251009095349142](../images/architecture/image-20251009095349142.png)
 
 ## 3 软件模块
 
-![image-20251009104000186](images/image-20251009104000186.png)
+![image-20251009104000186](../images/architecture/image-20251009104000186.png)
 
 - **libubse：**以动态库的方式，提供ubse的资源管理接口，供外部系统对接UBSE
 - **libubse-ssu-client：**SSU 客户端 SDK 动态库，独立于 `libubse` 单独发布，提供 SSU 存储资源的分配/释放/挂载/卸载等接口。第三方仅需使用 SSU 能力时，无需部署 UBSE 服务端主程序包，只需安装 SSU 客户端包（`ubs-engine-ssu-client-libs` / `ubs-engine-ssu-client-devel`）及其依赖的主 SDK 客户端包（`ubs-engine-client-libs` / `ubs-engine-client-devel`）即可
@@ -80,7 +80,7 @@ UBS Engine做为集群/节点UB资源管理系统，依赖系统中的UB功能�
 
 UBS Engine的依赖关系如下：
 
-![image-20251009113411823](images/image-20251009113411823.png)
+![image-20251009113411823](../images/architecture/image-20251009113411823.png)
 
 ## 5 关键业务流程
 
@@ -90,7 +90,7 @@ numa借用、确定性归属借用（FD借用）、Addr借用流程，外部调�
 
 共享内存借用流程差异点：需要外部调用多次调用接口；第一次调用，执行借出；第二次开始的调用，都是执行借入
 
-![image-20251009120006057](images/image-20251009120006057.png)
+![image-20251009120006057](../images/architecture/image-20251009120006057.png)
 
 ## 6 可靠性能力
 
@@ -112,7 +112,7 @@ numa借用、确定性归属借用（FD借用）、Addr借用流程，外部调�
 
   实现对Panic命令劫持。该命令劫持时，借出方的用户态业务已经全部被停止，内核进入Panic流程，中断已经被停止并且无法进行内存的申请和释放，此时即使迁移失败，也需要继续执行Panic操作。
 
-  ![image-20251009142607945](images/image-20251009142607945.png)
+  ![image-20251009142607945](../images/architecture/image-20251009142607945.png)
 
 OS Panic故障的处理流程：
 
@@ -124,11 +124,11 @@ OS Panic故障的处理流程：
 
 **④ 内核页迁移：** 使用“CPU多核”快速迁移数据（8GB/s，3-4核）；支持核数可配；支持绑定到管理核，消减对应用的影响；
 
-![image-20251009142755414](images/image-20251009142755414.png)
+![image-20251009142755414](../images/architecture/image-20251009142755414.png)
 
 ### 6.2 软件可靠性
 
-![image-20251009143120189](images/image-20251009143120189.png)
+![image-20251009143120189](../images/architecture/image-20251009143120189.png)
 
 **① 自动拓扑发现：** 通过UBM的拓扑发现机制，获取全量节点连接信息
 
@@ -150,7 +150,7 @@ UBSE在MatrixServer内形成一个分布式系统，考虑到系统故障的在�
 
 如下图，表示UBSE分布式选举的完整状态转换流程：
 
-![image-20251009163754583](images/image-20251009163754583.png)
+![image-20251009163754583](../images/architecture/image-20251009163754583.png)
 
 #### 6.2.2 内存数据对账
 
@@ -161,10 +161,10 @@ UBSE在MatrixServer内形成一个分布式系统，考虑到系统故障的在�
 
 - **对账的处理原则：** 内存借入方数据以agent（obmm）为准，内存借出方数据以借入方为准。
 
-  ![image-20251009172609485](images/image-20251009172609485.png)
+  ![image-20251009172609485](../images/architecture/image-20251009172609485.png)
 
 共享内存借用，详细对账逻辑如下：
 
 - **对账的处理原则：** 内存借入/借出都以agent（obmm）为准；单边数据不处理，导出节点故障，保留导入信息；导入节点重启，自动删除导入信息，需要节点上重新import才能使用；要求逐个删除导入，才能最终完成集群ShareMem删除（即导入N次，就要删除N次），才能使用同名，重新创建共享内存
 
-  ![image-20251009172853654](images/image-20251009172853654.png)
+  ![image-20251009172853654](../images/architecture/image-20251009172853654.png)

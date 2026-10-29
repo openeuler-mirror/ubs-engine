@@ -70,32 +70,6 @@ UbseResult SsuGetAllocInfoByNameUnpack(const api::server::UbseIpcMessage &buffer
     return StringUnpack(unpackUtil, name, MAX_NAME_LEN);
 }
 
-UbseResult SsuGetAllocInfoByNamePack(const UbseSsuAllocResult &result, api::server::UbseIpcMessage &response)
-{
-    const size_t requiredLength = AllocResultCalcSize(result);
-    if (requiredLength > UINT32_MAX) {
-        UBSE_LOG_ERROR << "requiredLength overflow, requiredLength=" << requiredLength;
-        return UBSE_ERROR_SERIALIZE_FAILED;
-    }
-
-    response.length = static_cast<uint32_t>(requiredLength);
-    response.buffer = new (std::nothrow) uint8_t[requiredLength];
-    if (response.buffer == nullptr) {
-        UBSE_LOG_ERROR << "allocate response buffer failed, requiredLength=" << requiredLength;
-        response.length = 0;
-        return UBSE_ERROR_SERIALIZE_FAILED;
-    }
-
-    ubse::utils::UbsePackUtil packUtil(response.buffer, response.length);
-    if (AllocResultPack(packUtil, result) != UBSE_OK) {
-        delete[] response.buffer;
-        response.buffer = nullptr;
-        response.length = 0;
-        return UBSE_ERROR_SERIALIZE_FAILED;
-    }
-    return UBSE_OK;
-}
-
 UbseResult SsuGetNsStatsUnpack(const api::server::UbseIpcMessage &buffer, std::string &name)
 {
     if (buffer.buffer == nullptr || buffer.length == 0) {
@@ -275,14 +249,22 @@ UbseResult SsuAllocSpacePack(const UbseSsuAllocResult &result, api::server::Ubse
     return UBSE_OK;
 }
 
-UbseResult SsuFreeSpaceUnpack(const api::server::UbseIpcMessage &buffer, std::string &name)
+UbseResult SsuFreeSpaceUnpack(const api::server::UbseIpcMessage &buffer, std::string &name, std::string &resourceUuid)
 {
     if (buffer.buffer == nullptr || buffer.length == 0) {
         UBSE_LOG_ERROR << "invalid buffer";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     ubse::utils::UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
-    return StringUnpack(unpackUtil, name, MAX_NAME_LEN);
+    if (StringUnpack(unpackUtil, name, MAX_NAME_LEN) != UBSE_OK) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    // resourceUuid为尾部追加字段：旧版本SDK（ubs_ssu_free_space）不携带，缓冲区耗尽时按空串处理（删name下全部）
+    resourceUuid.clear();
+    if (StringUnpack(unpackUtil, resourceUuid, MAX_UUID_LEN) != UBSE_OK) {
+        resourceUuid.clear();
+    }
+    return UBSE_OK;
 }
 
 UbseResult SsuAddAccessPermissionUnpack(const api::server::UbseIpcMessage &buffer, std::string &name, std::string &nqn)
@@ -355,7 +337,16 @@ UbseResult SsuDetachSpaceUnpack(const api::server::UbseIpcMessage &buffer, UbseS
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     ubse::utils::UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
-    return SpaceReqUnpack(unpackUtil, req);
+    if (SpaceReqUnpack(unpackUtil, req) != UBSE_OK) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    // resourceUuid为可选字段：detach不带uuid变体（ubs_ssu_*_space_detach_pack）不携带，
+    // 解包失败按空串处理（按name解析）
+    req.resourceUuid.clear();
+    if (StringUnpack(unpackUtil, req.resourceUuid, MAX_UUID_LEN) != UBSE_OK) {
+        req.resourceUuid.clear();
+    }
+    return UBSE_OK;
 }
 
 UbseResult SsuAttachLinearSpaceUnpack(const api::server::UbseIpcMessage &buffer, UbseSsuLinearSpaceReq &req)
@@ -409,7 +400,16 @@ UbseResult SsuDetachLinearSpaceUnpack(const api::server::UbseIpcMessage &buffer,
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     ubse::utils::UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
-    return LinearSpaceReqUnpack(unpackUtil, req);
+    if (LinearSpaceReqUnpack(unpackUtil, req) != UBSE_OK) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    // resourceUuid为可选字段：detach不带uuid变体（ubs_ssu_*_space_detach_pack）不携带，
+    // 解包失败按空串处理（按name解析）
+    req.resourceUuid.clear();
+    if (StringUnpack(unpackUtil, req.resourceUuid, MAX_UUID_LEN) != UBSE_OK) {
+        req.resourceUuid.clear();
+    }
+    return UBSE_OK;
 }
 
 UbseResult SsuAttachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer, UbseSsuStripedSpaceReq &req)
@@ -463,8 +463,26 @@ UbseResult SsuDetachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     ubse::utils::UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
-    // 卸载操作无需 level/chunkSize，仅反序列化线性空间基本字段
-    return LinearSpaceReqUnpack(unpackUtil, req);
+    // detach与attach同构：线性字段 + level/chunkSize（历史格式必带，卸载不使用，读取但不校验——
+    // CLI/SDK卸载入口不向用户暴露这两个参数，取值可能为0，不能复用带校验的StripedSpaceReqUnpack）
+    if (LinearSpaceReqUnpack(unpackUtil, req) != UBSE_OK) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    uint8_t level = 0;
+    if (!unpackUtil.UnpackUint8(level)) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    uint32_t chunkSize = 0;
+    if (!unpackUtil.UnpackUint32(chunkSize)) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    // resourceUuid为可选字段：detach不带uuid变体（ubs_ssu_*_space_detach_pack）不携带，
+    // 解包失败按空串处理（按name解析）
+    req.resourceUuid.clear();
+    if (StringUnpack(unpackUtil, req.resourceUuid, MAX_UUID_LEN) != UBSE_OK) {
+        req.resourceUuid.clear();
+    }
+    return UBSE_OK;
 }
 
 UbseResult SsuGetFeDeviceListPack(const std::vector<UbseSsuFe> &feList, api::server::UbseIpcMessage &response)

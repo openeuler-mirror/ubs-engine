@@ -33,8 +33,9 @@ public:
     void TearDown() override;
 
 protected:
-    // 构造一个带自定义数据的命名空间
-    static UbseSsuDevNameSpace MakeNs(const std::string& name, const std::string& eid, uint32_t nsId, uint64_t nsze);
+    // 构造一个带自定义数据的命名空间；resourceUuid 缺省为空串（遗留数据形态）
+    static UbseSsuDevNameSpace MakeNs(const std::string& name, const std::string& eid, uint32_t nsId, uint64_t nsze,
+                                      const std::string& resourceUuid = "");
 
     // 构造一个设备，包含多个命名空间
     static UbseSsuDevInfo MakeDev(const std::string& eid, const std::vector<UbseSsuDevNameSpace>& nsList,

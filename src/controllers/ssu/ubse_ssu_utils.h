@@ -27,6 +27,10 @@ UbseTaskExecutorPtr GetSsuExecutor();
 // 输入长度不是16字节时返回空串
 std::string StrToUuid(const std::string &id);
 
+// 生成标准连字符格式UUID字符串（36字符），优先使用libuuid，加载失败时退化为随机数回退实现。
+// 生成失败（内部缓冲异常）返回空串，调用方须判空
+std::string GenerateUuid();
+
 // 生成SSU主机NQN，格式：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
 // uuid函数内生成，HostNqn用于创建namespace时customDate持久化
 std::string GenerateHostNqn();

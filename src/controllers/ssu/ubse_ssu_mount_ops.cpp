@@ -248,7 +248,8 @@ void CleanupLocalMount(const UbseSsuAttachRecord &record)
 
 // agent端发送SSU状态更新RPC请求到master节点
 uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state,
-                          const std::string &devName, const std::string &nodeId)
+                          const std::string &devName, const std::string &nodeId,
+                          const std::string &resourceUuid)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -264,7 +265,7 @@ uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state,
         return UBSE_SSU_ERROR_RPC_SEND_FAILED;
     }
 
-    UbseSsuStatusReqMsg reqMsg(requestName, state, devName, nodeId);
+    UbseSsuStatusReqMsg reqMsg(requestName, state, devName, nodeId, resourceUuid);
     UbseSsuSyncRespMsg rspMsg; // 占位，后续通过异步线程返回真正结果
     res = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, rspMsg);
     if (res != UBSE_OK) {
@@ -286,6 +287,7 @@ bool BuildRecordFromLedger(const UbseSsuLedgerEntry &entry,
 {
     record = UbseSsuAttachRecord{};
     record.name = entry.name;
+    record.resourceUuid = entry.allocResult.resourceUuid;
     record.strategy = entry.allocReq.strategy;
     record.recordState = UbseSsuAttachRecordState::ATTACHED;
     record.devName = entry.devName;
@@ -336,49 +338,68 @@ void DiffNodeMountSummary(const std::string &nodeId, const UbseSsuMountSummaryRe
                           std::vector<UbseSsuReconcileItem> &items)
 {
     auto &ledger = UbseSsuDebtLedger::GetInstance();
-    std::unordered_map<std::string, const UbseSsuMountSummaryItem *> agentRecords;
+    std::unordered_map<std::string, std::vector<const UbseSsuMountSummaryItem *>> agentRecords;
     for (const auto &item : summary.items) {
-        agentRecords[item.name] = &item;
+        agentRecords[item.name].push_back(&item);
     }
+    // 复合键匹配agent记录：resourceUuid精确命中优先；兼容旧记录无uuid，
+    // 仅在同名唯一记录时兜底；同名多uuid且有记录uuid不匹配视为无该条目的记录
+    auto findAgentRecord = [&agentRecords](const std::string &name,
+                                           const std::string &resourceUuid) -> const UbseSsuMountSummaryItem * {
+        auto it = agentRecords.find(name);
+        if (it == agentRecords.end()) {
+            return nullptr;
+        }
+        const auto &records = it->second;
+        for (const auto *rec : records) {
+            if (rec->resourceUuid == resourceUuid) {
+                return rec;
+            }
+        }
+        if (records.size() == 1 && records[0]->resourceUuid.empty()) {
+            return records[0];
+        }
+        return nullptr;
+    };
     for (const auto &entry : ledger.GetAll()) {
         if (entry->state == UbseSsuNsState::FAULTED) {
             continue;
         }
         const bool expected = entry->attachNodes.count(nodeId) > 0;
-        auto agentIt = agentRecords.find(entry->name);
+        const auto *agentItem = findAgentRecord(entry->name, entry->allocResult.resourceUuid);
         if (expected) {
-            if (agentIt == agentRecords.end()) {
-                // 账本有、agent记录缺失/未挂载：REMOUNT
+            if (agentItem == nullptr) {
+                // 账本有、agent记录缺失/uuid不匹配（旧代残留）/未挂载：REMOUNT
                 UbseSsuReconcileItem item;
                 item.name = entry->name;
+                item.resourceUuid = entry->allocResult.resourceUuid;
                 item.action = UbseSsuReconcileAction::REMOUNT;
                 items.push_back(std::move(item));
                 continue;
             }
-            const auto &agentItem = *agentIt->second;
-            if (agentItem.recordState == UbseSsuAttachRecordState::PENDING) {
+            if (agentItem->recordState == UbseSsuAttachRecordState::PENDING) {
                 continue; // 在途挂载，主流程收敛
             }
-            if (agentItem.recordState == UbseSsuAttachRecordState::SUSPECT) {
+            if (agentItem->recordState == UbseSsuAttachRecordState::SUSPECT) {
                 UBSE_LOG_WARN << "MountReconcile: suspect record needs manual check, name=" << entry->name
                               << ", nodeId=" << nodeId;
                 continue;
             }
             // 一致；独占空间devName属性级比对（属性级漂移告警，master账本为准）
-            if (entry->allocReq.strategy != UbseSsuAllocStrategy::NORMAL && !agentItem.devName.empty() &&
-                agentItem.devName != entry->devName) {
+            if (entry->allocReq.strategy != UbseSsuAllocStrategy::NORMAL && !agentItem->devName.empty() &&
+                agentItem->devName != entry->devName) {
                 UBSE_LOG_WARN << "MountReconcile: devName mismatch between ledger and agent, name=" << entry->name
-                              << ", ledgerDev=" << entry->devName << ", agentDev=" << agentItem.devName;
+                              << ", ledgerDev=" << entry->devName << ", agentDev=" << agentItem->devName;
             }
             continue;
         }
-        if (agentIt != agentRecords.end()) {
-            const auto &agentItem = *agentIt->second;
-            if (agentItem.recordState != UbseSsuAttachRecordState::ATTACHED) {
+        if (agentItem != nullptr) {
+            if (agentItem->recordState != UbseSsuAttachRecordState::ATTACHED) {
                 continue; // PENDING在途/SUSPECT人工介入
             }
             UbseSsuReconcileItem item;
             item.name = entry->name;
+            item.resourceUuid = entry->allocResult.resourceUuid;
             if (entry->allocReq.strategy != UbseSsuAllocStrategy::NORMAL && !entry->attachNodes.empty()) {
                 // 独占空间归属明确为他节点：账本已权威裁决attacher，本节点ATTACHED记录必为
                 // stale残留（或已发生的双挂异常），REPORT会被attacher校验拒收形成死循环、
@@ -393,16 +414,56 @@ void DiffNodeMountSummary(const std::string &nodeId, const UbseSsuMountSummaryRe
                 item.action = UbseSsuReconcileAction::REPORT;
             }
             items.push_back(std::move(item));
-        }
-    }
-    // agent有记录而账本无该空间（已free）：CLEANUP
-    for (const auto &[name, agentItem] : agentRecords) {
-        if (agentItem->recordState == UbseSsuAttachRecordState::PENDING) {
             continue;
         }
-        if (ledger.Get(name) == nullptr) {
+        // uuid不匹配（同名free后重分配旧代残留等形态）：不做自动CLEANUP，仅告警人工介入。
+        // 自动清理在账本同名多代并存场景（如脑裂合并收编出第二条目）存在误清活挂载风险
+        // ——agent记录uuid可能仍被同名其他账本条目正常跟踪，不满足"旧代已free"前提。
+        // 告警前先核验归属：记录uuid仍被任一同名账本条目跟踪（含FAULTED，其可观测性由
+        // SpaceFaultAlarm覆盖）则属合法活挂载，静默跳过由归属条目自身diff分流；
+        // 仅uuid不属于账本任何条目（真旧代已free）才告警人工介入
+        auto it = agentRecords.find(entry->name);
+        if (it == agentRecords.end() || it->second.size() != 1 ||
+            it->second[0]->recordState != UbseSsuAttachRecordState::ATTACHED ||
+            it->second[0]->resourceUuid.empty() ||
+            it->second[0]->resourceUuid == entry->allocResult.resourceUuid) {
+            continue;
+        }
+        bool uuidTracked = false;
+        for (const auto &sameNameEntry : ledger.GetByName(entry->name)) {
+            if (sameNameEntry->allocResult.resourceUuid == it->second[0]->resourceUuid) {
+                uuidTracked = true;
+                break;
+            }
+        }
+        if (uuidTracked) {
+            continue;
+        }
+        UBSE_LOG_ERROR << "StaleGenerationAlarm: agent mount uuid mismatch with ledger, manual check required, name="
+                       << entry->name << ", nodeId=" << nodeId << ", recordUuid=" << it->second[0]->resourceUuid
+                       << ", ledgerUuid=" << entry->allocResult.resourceUuid;
+    }
+    // agent有记录而账本无该空间（已free）：CLEANUP
+    for (const auto &[name, records] : agentRecords) {
+        for (const auto *agentItem : records) {
+            if (agentItem->recordState == UbseSsuAttachRecordState::PENDING) {
+                continue;
+            }
+            // 复合键账本按name维度判断：该name下任意resourceUuid条目仍存在则不清理
+            if (!ledger.GetByName(name).empty()) {
+                continue;
+            }
+            // 收敛窗口内保守跳过：账本无记录还可能是脑裂分区期间对端分配的空间尚未收编
+            // （Absorb与对账存在时序竞争），此时CLEANUP会拆掉agent合法挂载；REPORT同样会因
+            // SPACE_NOT_FOUND诱发agent自愈误清。窗口过后（Absorb已收编）下轮对账再正确分流
+            if (ledger.IsInReconcileWindow()) {
+                UBSE_LOG_WARN << "MountReconcile: ledger in reconcile window, defer cleanup-or-report decision, name="
+                              << name << ", nodeId=" << nodeId;
+                continue;
+            }
             UbseSsuReconcileItem item;
             item.name = name;
+            item.resourceUuid = agentItem->resourceUuid;
             item.action = UbseSsuReconcileAction::CLEANUP;
             items.push_back(std::move(item));
         }

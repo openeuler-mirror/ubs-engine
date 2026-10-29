@@ -80,6 +80,8 @@ static void PackAllocResult(PackCtx &ctx, const char *name, uint8_t strategy)
     packValue(ctx, nsListSize);
     PackNamespaceInfo(ctx, "tgt_eid", "nqn.tgt", "uuid-ns-001", 1, "/dev/ns1", 1ULL * 1024 * 1024 * 1024,
                       static_cast<uint32_t>(UBS_SSU_LBA_FORMAT_4K), "nqn.host1");
+    // 尾部追加字段: resourceUuid, 与服务端 AllocResultPack 顺序对应
+    packString(ctx, "resource-uuid-001", UBS_SSU_MAX_UUID_LENGTH - 1);
 }
 
 /** 构造 ubs_ssu_alloc_info_list 的响应: allocResultListSize(uint32) + [AllocResultPack]*size */
@@ -555,7 +557,8 @@ TEST_F(TestUbsEngineSsu, SpaceAllocWhenSuccess)
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     auto ret = ubs_ssu_space_alloc(&req, &result);
     EXPECT_EQ(ret, UBS_SUCCESS);
-    EXPECT_NE(result, nullptr);
+    // 用ASSERT防止result为空时后续解引用段错误（段错误会触发逐帧addr2line，极慢）
+    ASSERT_NE(result, nullptr);
     EXPECT_EQ(result->namespace_cnt, 1U);
     ubs_ssu_alloc_info_free(&result);
     EXPECT_EQ(result, nullptr);

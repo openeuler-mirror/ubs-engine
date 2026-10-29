@@ -78,6 +78,25 @@ func validateNqn(nqn string) error {
 	return validateOptionalString(nqn, UbsSsuMaxNqnLength, "nqn")
 }
 
+// validateUuid 校验UUID参数是否合法: 不允许为空, 长度不超过 UbsSsuMaxUuidLength-1, 仅允许[0-9a-f-]
+func validateUuid(uuid string) error {
+	if uuid == "" {
+		return fmt.Errorf("uuid is empty")
+	}
+	if len(uuid) >= UbsSsuMaxUuidLength {
+		return fmt.Errorf("uuid length %d exceeds maximum %d (buffer size %d)",
+			len(uuid), UbsSsuMaxUuidLength-1, UbsSsuMaxUuidLength)
+	}
+	// 与服务端 GenerateUuid 输出格式对齐：仅允许小写十六进制与连字符
+	for i := 0; i < len(uuid); i++ {
+		c := uuid[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || c == '-') {
+			return fmt.Errorf("uuid contains invalid character %q, only [0-9a-f-] allowed", c)
+		}
+	}
+	return nil
+}
+
 // validateNqnNotEmpty 校验NQN参数是否合法: 不允许为空, 非空时长度不超过 UbsSsuMaxNqnLength-1
 func validateNqnNotEmpty(nqn string) error {
 	if nqn == "" {

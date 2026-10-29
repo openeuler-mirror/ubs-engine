@@ -363,7 +363,8 @@ TEST_F(TestUbseSsuServiceImpRecover, MasterLedgerEntryGoneSelfHeal)
     unlink(devPath.c_str());
 }
 
-// UT12：agent重报收到SPACE_NOT_FOUND → 本地清理+记录删除
+// UT12：agent重报收到SPACE_NOT_FOUND → 纯重试不自愈清理（SPACE_NOT_FOUND可能是条目待收编
+// 而非确已free，误清会拆掉在用挂载；清理交由周期对账CLEANUP收敛，重试耗尽保留记录）
 TEST_F(TestUbseSsuServiceImpRecover, AgentReportSpaceNotFoundSelfHeal)
 {
     const std::string devPath = "/tmp/ubse_ssut_recover_agent_gone_dev";
@@ -375,9 +376,9 @@ TEST_F(TestUbseSsuServiceImpRecover, AgentReportSpaceNotFoundSelfHeal)
     g_mockStatusUpdateResult = UBSE_SSU_ERROR_SPACE_NOT_FOUND;
 
     EXPECT_EQ(service_.RecoverLocalAttachments(), UBSE_OK);
-    EXPECT_EQ(g_statusUpdateCallCount, 1u);
-    EXPECT_EQ(GetRecords().size(), 0u); // 记录删除
-    EXPECT_EQ(g_detachCallCount.load(), 1); // 本地NS清理
+    EXPECT_EQ(g_statusUpdateCallCount, 5u); // 与MASTER_NOT_READY同款纯重试
+    EXPECT_EQ(GetRecords().size(), 1u); // 记录保留，交由对账CLEANUP收敛
+    EXPECT_EQ(g_detachCallCount.load(), 0); // 不自愈清理
     unlink(devPath.c_str());
 }
 
@@ -664,7 +665,7 @@ TEST_F(TestUbseSsuServiceImpRecover, LedgerNotReadyGateBlocksVerifyAllocFree)
     EXPECT_EQ(service_.ExecuteAlloc(MakeAllocReq("space_gate", 4096, 2), MakeIdentity(), result),
               UBSE_SSU_ERROR_MASTER_NOT_READY);
 
-    EXPECT_EQ(service_.ExecuteFree("space_gate", MakeIdentity()), UBSE_SSU_ERROR_MASTER_NOT_READY);
+    EXPECT_EQ(service_.ExecuteFree("space_gate", "", MakeIdentity()), UBSE_SSU_ERROR_MASTER_NOT_READY);
 }
 
 // UT19-2：恢复收敛窗口守卫——Rebuild硬件恢复的独占空间在窗口内拒绝其他节点首个attach；
@@ -889,7 +890,7 @@ TEST_F(TestUbseSsuServiceImpRecover, FaultedSpaceBlocksVerifyButFreeAllowed)
               UBSE_SSU_ERROR_SPACE_FAULTED);
 
     // free保留：FAULTED下允许止损（不要求先detach），账本条目移除
-    EXPECT_EQ(service_.ExecuteFree("space_fault_op", MakeIdentity()), UBSE_OK);
+    EXPECT_EQ(service_.ExecuteFree("space_fault_op", "", MakeIdentity()), UBSE_OK);
     EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_fault_op"), nullptr);
 }
 
@@ -1071,14 +1072,15 @@ TEST_F(TestUbseSsuServiceImpRecover, NodeUpClearsOfflineRecordAndDownIdempotent)
 
 namespace {
 
-// 摘要项（{name, recordState, devName}，不含nsList明细）
+// 摘要项（{name, recordState, devName, resourceUuid}，不含nsList明细）
 UbseSsuMountSummaryItem MakeSummaryItem(const std::string &name, UbseSsuAttachRecordState state,
-                                        const std::string &devName = "")
+                                        const std::string &devName = "", const std::string &resourceUuid = "")
 {
     UbseSsuMountSummaryItem item;
     item.name = name;
     item.recordState = state;
     item.devName = devName;
+    item.resourceUuid = resourceUuid;
     return item;
 }
 
@@ -1166,6 +1168,161 @@ TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffRules)
     EXPECT_EQ(FindReconcileItem(items, "sp_suspect"), nullptr);
     EXPECT_EQ(FindReconcileItem(items, "sp_faulted"), nullptr);
     EXPECT_EQ(FindReconcileItem(items, "sp_devdrift"), nullptr);
+}
+
+// UT24-9：diff复合键精确匹配——
+// agent记录uuid与账本一致→无平账项；uuid不一致（同名free后重分配旧代残留）→REMOUNT且携带账本新代uuid；
+// 同名双条目（脑裂合并遗留）按uuid各自精确归属不跨条目误配；CLEANUP项携带agent记录uuid（回报精确归属）；
+// 不期望挂载方向+记录uuid异于账本uuid→不自动清理（防同名多代并存误清活挂载），仅告警人工介入，无平账项；
+// 同名双条目收编后形态+记录uuid被另一条目跟踪→归属核验静默跳过，不告警不清理，无平账项
+TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffCompoundKeyMatch)
+{
+    const std::string nodeId = "nodeA";
+    const std::string uuidV1 = "0198f7a1-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    const std::string uuidV2 = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+
+    // 一致：期望挂载且agent记录uuid与账本一致 → 无平账项
+    auto sameEntry = MakeAttachedEntry("sp_ck_same", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    sameEntry.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_same", std::make_shared<const UbseSsuLedgerEntry>(sameEntry));
+
+    // 旧代残留：期望挂载但agent记录uuid与账本不一致 → REMOUNT（携带账本新代uuid）
+    auto staleEntry = MakeAttachedEntry("sp_ck_stale", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    staleEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_stale", std::make_shared<const UbseSsuLedgerEntry>(staleEntry));
+
+    // 同名双条目（脑裂合并遗留）：U1期望本节点、U2归属未知；agent记录uuid=U2
+    // → U1按uuid无匹配记录REMOUNT、U2精确命中走REPORT，不跨条目误配
+    auto dupEntry1 = MakeAttachedEntry("sp_ck_dup", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    dupEntry1.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_dup", std::make_shared<const UbseSsuLedgerEntry>(dupEntry1));
+    auto dupEntry2 = MakeAttachedEntry("sp_ck_dup", UbseSsuAllocStrategy::NORMAL, {});
+    dupEntry2.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_dup", std::make_shared<const UbseSsuLedgerEntry>(dupEntry2));
+    // 前提保护：账本为(name,uuid)复合键，同名两次Put必须各自成条（若退化为name单键覆盖，
+    // 此断言即红，避免双条目场景空转误报覆盖）
+    ASSERT_EQ(UbseSsuDebtLedger::GetInstance().GetByName("sp_ck_dup").size(), 2U);
+
+    // 旧代残留·不期望挂载方向：账本新代条目attachNodes不含本节点，agent持有旧代uuid挂载
+    // → 不自动清理（同名多代并存场景存在误清活挂载风险，如本用例sp_ck_dup双条目形态），
+    // 仅输出StaleGenerationAlarm告警人工介入，不产生平账项
+    auto staleUnexpEntry = MakeAttachedEntry("sp_ck_stale_unexp", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    staleUnexpEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_stale_unexp",
+                                         std::make_shared<const UbseSsuLedgerEntry>(staleUnexpEntry));
+
+    // 同名双条目+记录uuid被另一条目跟踪（收编后形态）：U1期望本节点、U2归属他节点，
+    // agent持有U1活挂载 → U1自身diff视为一致，U2条目不告警不清理（uuid被U1条目跟踪，
+    // 不满足"真旧代已free"前提）
+    auto trackedEntry1 = MakeAttachedEntry("sp_ck_tracked", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    trackedEntry1.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_tracked",
+                                         std::make_shared<const UbseSsuLedgerEntry>(trackedEntry1));
+    auto trackedEntry2 = MakeAttachedEntry("sp_ck_tracked", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    trackedEntry2.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_ck_tracked",
+                                         std::make_shared<const UbseSsuLedgerEntry>(trackedEntry2));
+    // 前提保护：同上，双条目必须各自成条
+    ASSERT_EQ(UbseSsuDebtLedger::GetInstance().GetByName("sp_ck_tracked").size(), 2U);
+
+    UbseSsuMountSummaryResp summary;
+    summary.items.push_back(MakeSummaryItem("sp_ck_same", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_stale", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_dup", UbseSsuAttachRecordState::ATTACHED, "", uuidV2));
+    summary.items.push_back(MakeSummaryItem("sp_ck_stale_unexp", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_ck_tracked", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    // 账本无（已free）+记录带uuid：CLEANUP项携带agent记录uuid
+    summary.items.push_back(MakeSummaryItem("sp_ck_freed", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+
+    std::vector<UbseSsuReconcileItem> items;
+    DiffNodeMountSummary(nodeId, summary, items);
+
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_same"), nullptr);
+
+    auto *staleItem = FindReconcileItem(items, "sp_ck_stale");
+    ASSERT_NE(staleItem, nullptr);
+    EXPECT_EQ(staleItem->action, UbseSsuReconcileAction::REMOUNT);
+    EXPECT_EQ(staleItem->resourceUuid, uuidV2);
+
+    std::vector<const UbseSsuReconcileItem *> dupItems;
+    for (const auto &item : items) {
+        if (item.name == "sp_ck_dup") {
+            dupItems.push_back(&item);
+        }
+    }
+    ASSERT_EQ(dupItems.size(), 2U);
+    bool foundRemountU1 = false;
+    bool foundReportU2 = false;
+    for (const auto *item : dupItems) {
+        if (item->action == UbseSsuReconcileAction::REMOUNT && item->resourceUuid == uuidV1) {
+            foundRemountU1 = true;
+        }
+        if (item->action == UbseSsuReconcileAction::REPORT && item->resourceUuid == uuidV2) {
+            foundReportU2 = true;
+        }
+    }
+    EXPECT_TRUE(foundRemountU1);
+    EXPECT_TRUE(foundReportU2);
+
+    auto *freedItem = FindReconcileItem(items, "sp_ck_freed");
+    ASSERT_NE(freedItem, nullptr);
+    EXPECT_EQ(freedItem->action, UbseSsuReconcileAction::CLEANUP);
+    EXPECT_EQ(freedItem->resourceUuid, uuidV1);
+
+    // 旧代残留·不期望挂载方向：不自动清理，无平账项（uuid不匹配交由人工介入）
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_stale_unexp"), nullptr);
+
+    // 同名双条目收编后形态：记录uuid被另一同名条目跟踪，不告警不清理，无平账项
+    EXPECT_EQ(FindReconcileItem(items, "sp_ck_tracked"), nullptr);
+}
+
+// UT24-10：diff空uuid兼容语义（升级期混合形态锁定）——
+// 账本uuid非空+同名唯一记录uuid为空（升级前落盘旧记录）→ 回落name匹配不误判漂移（无REMOUNT风暴）；
+// 账本uuid为空+记录uuid非空 → 不与新代记录强配，走幂等REMOUNT保活（空uuid账本条目升级期遗留）；
+// 不期望挂载方向+记录uuid为空 → 走REPORT而非旧代兜底CLEANUP（升级期活挂载不被误清）
+TEST_F(TestUbseSsuServiceImpRecover, MountReconcileDiffEmptyUuidCompat)
+{
+    const std::string nodeId = "nodeA";
+    const std::string uuidV1 = "0198f7a1-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+    const std::string uuidV2 = "0198f7a2-3b4c-7c5e-9f01-2a3b4c5d6e7f";
+
+    // 方向1：账本uuid非空 + 记录uuid为空（升级前旧记录）→ 回落name匹配，无平账项
+    auto hitEntry = MakeAttachedEntry("sp_upg_hit", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    hitEntry.allocResult.resourceUuid = uuidV1;
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_hit", std::make_shared<const UbseSsuLedgerEntry>(hitEntry));
+
+    // 方向2：账本uuid为空（升级期遗留条目）+ 记录uuid非空 → 不强配，REMOUNT幂等保活
+    auto revEntry = MakeAttachedEntry("sp_upg_rev", UbseSsuAllocStrategy::NORMAL, {nodeId});
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_rev", std::make_shared<const UbseSsuLedgerEntry>(revEntry));
+
+    // 方向3：账本uuid非空且不期望本节点 + 记录uuid为空 → REPORT兜底而非CLEANUP
+    auto unexpEntry = MakeAttachedEntry("sp_upg_unexp", UbseSsuAllocStrategy::NORMAL, {"nodeB"});
+    unexpEntry.allocResult.resourceUuid = uuidV2;
+    UbseSsuDebtLedger::GetInstance().Put("sp_upg_unexp",
+                                         std::make_shared<const UbseSsuLedgerEntry>(unexpEntry));
+
+    UbseSsuMountSummaryResp summary;
+    summary.items.push_back(MakeSummaryItem("sp_upg_hit", UbseSsuAttachRecordState::ATTACHED, ""));
+    summary.items.push_back(MakeSummaryItem("sp_upg_rev", UbseSsuAttachRecordState::ATTACHED, "", uuidV1));
+    summary.items.push_back(MakeSummaryItem("sp_upg_unexp", UbseSsuAttachRecordState::ATTACHED, ""));
+
+    std::vector<UbseSsuReconcileItem> items;
+    DiffNodeMountSummary(nodeId, summary, items);
+
+    // 方向1：回落name匹配视为一致，不产生REMOUNT
+    EXPECT_EQ(FindReconcileItem(items, "sp_upg_hit"), nullptr);
+
+    // 方向2：空uuid账本条目与记录非空uuid不强配，REMOUNT且项uuid为空（与账本一致）
+    auto *revItem = FindReconcileItem(items, "sp_upg_rev");
+    ASSERT_NE(revItem, nullptr);
+    EXPECT_EQ(revItem->action, UbseSsuReconcileAction::REMOUNT);
+    EXPECT_TRUE(revItem->resourceUuid.empty());
+
+    // 方向3：空uuid记录走REPORT非破坏性补报，不触发旧代兜底CLEANUP
+    auto *unexpItem = FindReconcileItem(items, "sp_upg_unexp");
+    ASSERT_NE(unexpItem, nullptr);
+    EXPECT_EQ(unexpItem->action, UbseSsuReconcileAction::REPORT);
+    EXPECT_EQ(unexpItem->resourceUuid, uuidV2);
 }
 
 // UT24-2：BuildRecordFromLedger——以账本allocResult+collector缓存补齐完整记录
@@ -1940,6 +2097,277 @@ TEST_F(TestUbseSsuServiceImpRecover, LocalReconcileMasterPathAttacherConflictSki
     EXPECT_EQ(after->attachNodes.count("node_agent_b"), 1u);
     EXPECT_EQ(after->attachNodes.count("master_node_1"), 0u); // 对账未抢占
     EXPECT_EQ(after->devName, "agg_dev_holder_b");
+}
+
+// ====== （name, resourceUuid）资源身份对账（ReconcileLedgerResource UT28） ======
+
+namespace {
+
+// 构造带customData身份（name+resourceUuid+nsNum）的NS：devList扫描与账本构造同源，
+// uuid字节各NS须不同（默认MakeNsForCache所有NS同uuid，集合去重后会误判NS缺失）
+UbseSsuDevNameSpace MakeNsWithIdentity(const std::string &eid, uint32_t nsId, const std::string &spaceName,
+                                       const std::string &resourceUuid, uint8_t nsNum, uint8_t uuidByte)
+{
+    auto ns = UbseSsuServiceImpTestBase::MakeNsForCache(eid, "nqn.identity", nsId, 4096,
+                                                        std::string(GUID_SIZE, '\xAB'),
+                                                        std::string(UUID_SIZE, static_cast<char>(uuidByte)));
+    std::strncpy(ns.customData.name, spaceName.c_str(), sizeof(ns.customData.name) - 1);
+    ns.customData.name[sizeof(ns.customData.name) - 1] = '\0';
+    // MakeNsForCache默认初始化不清零customData，resourceUuid须先清零再拷贝，
+    // 否则strnlen会读到尾部垃圾字节导致复合键错位
+    std::memset(ns.customData.resourceUuid, 0, sizeof(ns.customData.resourceUuid));
+    std::strncpy(ns.customData.resourceUuid, resourceUuid.c_str(), sizeof(ns.customData.resourceUuid) - 1);
+    ns.customData.nsNum = nsNum;
+    ns.customData.totalBytes = 4096;
+    return ns;
+}
+
+// 每NS独立设备（对齐一NS一盘的分配约束）
+std::vector<UbseSsuDevInfo> MakeIdentityDevList(const std::vector<UbseSsuDevNameSpace> &nss)
+{
+    std::vector<UbseSsuDevInfo> devList;
+    for (const auto &ns : nss) {
+        UbseSsuDevInfo dev{};
+        dev.subSystem = ns.subSystem;
+        dev.nameSpaces.push_back(ns);
+        devList.push_back(dev);
+    }
+    return devList;
+}
+
+// 账本托管条目：与硬件NS同源构造（allocResult.nsUuid经MakeNameSpaceInfo/StrToUuid，
+// 与扫描侧集合口径一致）
+UbseSsuLedgerEntry MakeIdentityEntry(const std::string &spaceName, const std::string &resourceUuid,
+                                     const std::vector<UbseSsuDevNameSpace> &nss)
+{
+    auto entry = MakeExclusiveEntry(spaceName, false);
+    entry.allocReq.nsNum = static_cast<uint32_t>(nss.size());
+    entry.allocResult.resourceUuid = resourceUuid;
+    for (const auto &ns : nss) {
+        entry.allocResult.nameSpaceList.push_back(UbseSsuServiceImpTestBase::MakeNameSpaceInfo(ns));
+    }
+    return entry;
+}
+
+} // namespace
+
+// UT28-1：2a uuid漂移——同名硬件组换了resourceUuid（资源被替换），连续
+// SSU_FAULT_DEBOUNCE_CYCLES(3)周期账本uuid组缺失才置FAULTED；组回归即清零并回正，
+// 再次漂移需重新计满
+TEST_F(TestUbseSsuServiceImpRecover, UuidDriftDebounceMarksFaulted)
+{
+    const std::string uuidA = "11111111-1111-1111-1111-111111111111";
+    const std::string uuidB = "22222222-2222-2222-2222-222222222222";
+    auto nsLedger = MakeNsWithIdentity("eid_drift_a_0001", 1, "space_drift_a", uuidA, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_drift_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_drift_a", uuidA, {nsLedger})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    // 硬件同名但uuid换成B（漂移态）
+    auto drifted = MakeIdentityDevList({MakeNsWithIdentity("eid_drift_a_0002", 1, "space_drift_a", uuidB, 1, 0x22)});
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED); // 防抖不足不置障
+
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::FAULTED); // 计满置障
+
+    // 组回归（漂移清零 + FAULTED回正CREATED）；再次漂移重新计满，单周期不置障
+    service_.ReconcileLedgerResource(MakeIdentityDevList({nsLedger}));
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_drift_a")->state, UbseSsuNsState::CREATED);
+}
+
+// UT28-2：2b NS缺失与回正——多设备空间单盘故障丢NS，防抖满置FAULTED；
+// 设备回归补齐后回正CREATED（无attacher），且计数已清零（再次缺失需重新计满）
+TEST_F(TestUbseSsuServiceImpRecover, NsMissingDebounceAndRecover)
+{
+    const std::string uuid = "33333333-3333-3333-3333-333333333333";
+    auto ns1 = MakeNsWithIdentity("eid_miss_a_0001", 1, "space_miss_a", uuid, 2, 0x11);
+    auto ns2 = MakeNsWithIdentity("eid_miss_a_0002", 2, "space_miss_a", uuid, 2, 0x22);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_miss_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_miss_a", uuid, {ns1, ns2})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    auto partial = MakeIdentityDevList({ns1});
+    service_.ReconcileLedgerResource(partial);
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 防抖不足
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::FAULTED); // 计满置障
+
+    auto full = MakeIdentityDevList({ns1, ns2});
+    service_.ReconcileLedgerResource(full);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 补齐回正
+    service_.ReconcileLedgerResource(partial);
+    EXPECT_EQ(ledger.Get("space_miss_a")->state, UbseSsuNsState::CREATED); // 计数已清零
+}
+
+// UT28-3：2b回正按attachNodes分支——attacher仍在挂载则回ATTACHED
+TEST_F(TestUbseSsuServiceImpRecover, NsMissingRecoverToAttachedWhenAttacherHeld)
+{
+    const std::string uuid = "44444444-4444-4444-4444-444444444444";
+    auto ns1 = MakeNsWithIdentity("eid_miss_b_0001", 1, "space_miss_b", uuid, 2, 0x11);
+    auto ns2 = MakeNsWithIdentity("eid_miss_b_0002", 2, "space_miss_b", uuid, 2, 0x22);
+    auto entry = MakeIdentityEntry("space_miss_b", uuid, {ns1, ns2});
+    entry.state = UbseSsuNsState::FAULTED;
+    entry.attachNodes.insert("node_attacher");
+    UbseSsuDebtLedger::GetInstance().Put("space_miss_b", std::make_shared<const UbseSsuLedgerEntry>(entry));
+
+    service_.ReconcileLedgerResource(MakeIdentityDevList({ns1, ns2}));
+    EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_miss_b")->state, UbseSsuNsState::ATTACHED);
+}
+
+// UT28-4：孤儿组不写账本——3a同名不同uuid残留组（free残留后同名重分配）与3b真孤儿组
+// （无同名条目）防抖计满后仅告警：属主条目不受影响，孤儿组不入账
+TEST_F(TestUbseSsuServiceImpRecover, OrphanGroupsAlarmButLedgerUntouched)
+{
+    const std::string uuidHold = "55555555-5555-5555-5555-555555555555";
+    const std::string uuidOrphan = "66666666-6666-6666-6666-666666666666";
+    auto nsHold = MakeNsWithIdentity("eid_orphan_a_0001", 1, "space_orphan_a", uuidHold, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_orphan_a",
+        std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_orphan_a", uuidHold, {nsHold})));
+
+    auto devList = MakeIdentityDevList({nsHold,
+                                        MakeNsWithIdentity("eid_orphan_a_0002", 1, "space_orphan_a", uuidOrphan, 1,
+                                                           0x22),
+                                        MakeNsWithIdentity("eid_orphan_b_0001", 1, "space_orphan_b", uuidOrphan, 1,
+                                                           0x22)});
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES; ++i) {
+        service_.ReconcileLedgerResource(devList);
+    }
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    // 3a：属主条目保持CREATED、uuid不被孤儿组影响（自身组完整不误判漂移/缺失）
+    const auto *holder = ledger.Get("space_orphan_a").get();
+    ASSERT_NE(holder, nullptr);
+    EXPECT_EQ(holder->state, UbseSsuNsState::CREATED);
+    EXPECT_EQ(holder->allocResult.resourceUuid, uuidHold);
+    // 3b：真孤儿不入账
+    EXPECT_EQ(ledger.Get("space_orphan_b"), nullptr);
+}
+
+// UT28-5：CREATING在途跳过——free残留后同名重分配的分配窗口期（账本CREATING、
+// 硬件有旧uuid残留组），孤儿判定静默跳过，条目保持CREATING
+TEST_F(TestUbseSsuServiceImpRecover, OrphanSkippedWhileCreatingInFlight)
+{
+    const std::string uuidNew = "77777777-7777-7777-7777-777777777777";
+    const std::string uuidResidue = "88888888-8888-8888-8888-888888888888";
+    auto nsNew = MakeNsWithIdentity("eid_orphan_c_0001", 1, "space_orphan_c", uuidNew, 1, 0x11);
+    auto entry = MakeIdentityEntry("space_orphan_c", uuidNew, {nsNew});
+    entry.state = UbseSsuNsState::CREATING;
+    UbseSsuDebtLedger::GetInstance().Put("space_orphan_c", std::make_shared<const UbseSsuLedgerEntry>(entry));
+
+    auto devList =
+        MakeIdentityDevList({MakeNsWithIdentity("eid_orphan_c_0002", 1, "space_orphan_c", uuidResidue, 1, 0x22)});
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES + 1; ++i) {
+        service_.ReconcileLedgerResource(devList);
+    }
+    EXPECT_EQ(UbseSsuDebtLedger::GetInstance().Get("space_orphan_c")->state, UbseSsuNsState::CREATING);
+}
+
+// UT28-6：name级让路与未就绪门禁——name整体消失时本对账不判身份（防抖不前进，
+// 交给ReconcileSpaceFaultStates）；账本未就绪时no-op
+TEST_F(TestUbseSsuServiceImpRecover, IdentityReconcileDefersNameLevelAndNotReady)
+{
+    const std::string uuid = "99999999-9999-9999-9999-999999999999";
+    auto ns1 = MakeNsWithIdentity("eid_defer_a_0001", 1, "space_defer_a", uuid, 1, 0x11);
+    UbseSsuDebtLedger::GetInstance().Put(
+        "space_defer_a", std::make_shared<const UbseSsuLedgerEntry>(MakeIdentityEntry("space_defer_a", uuid, {ns1})));
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+
+    const std::vector<UbseSsuDevInfo> emptyList{};
+    for (int i = 0; i < SSU_FAULT_DEBOUNCE_CYCLES + 1; ++i) {
+        service_.ReconcileLedgerResource(emptyList);
+    }
+    EXPECT_EQ(ledger.Get("space_defer_a")->state, UbseSsuNsState::CREATED);
+
+    ledger.SetReady(false);
+    service_.ReconcileLedgerResource(MakeIdentityDevList({ns1}));
+    ledger.SetReady(true);
+    EXPECT_EQ(ledger.Get("space_defer_a")->state, UbseSsuNsState::CREATED);
+}
+
+// UT28-7：NODE_UP差异收编——硬件清单与账本无差异时跳过（已收敛的ATTACHED/attachNodes
+// 不被覆盖、不进收敛窗口）；硬件新增资源（脑裂收编模拟）时增量收编新组入账
+// （restoredFromHardware、state=CREATED），且既有条目挂载视图保留、收敛窗口重开
+TEST_F(TestUbseSsuServiceImpRecover, DiffRebuildSkipsWhenInventoryUnchanged)
+{
+    const std::string uuidA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    auto ns1 = MakeNsWithIdentity("eid_diff_a_0001", 1, "space_diff_a", uuidA, 1, 0x11);
+    AddNsToCollectorCache(ns1);
+    service_.RebuildLedgerFromDevList();
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    ASSERT_NE(ledger.Get("space_diff_a"), nullptr);
+
+    // 模拟agent重报收敛后的挂载视图
+    ledger.Modify("space_diff_a", uuidA, [](UbseSsuLedgerEntry &e) {
+        e.state = UbseSsuNsState::ATTACHED;
+        e.attachNodes.insert("node_a");
+    });
+
+    // 无差异：跳过收编，挂载视图不被覆盖，也不重开收敛窗口
+    ledger.ResetRebuildTime();
+    service_.AbsorbLedgerDifferences();
+    auto after = ledger.Get("space_diff_a");
+    ASSERT_NE(after, nullptr);
+    EXPECT_EQ(after->state, UbseSsuNsState::ATTACHED);
+    EXPECT_EQ(after->attachNodes.size(), 1u);
+    EXPECT_FALSE(ledger.IsInReconcileWindow());
+
+    // 硬件新增同名空间的另一uuid组（脑裂期间被收编方分配）→ 增量收编新组入账
+    const std::string uuidB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    AddNsToCollectorCache(MakeNsWithIdentity("eid_diff_b_0001", 1, "space_diff_b", uuidB, 1, 0x22));
+    service_.AbsorbLedgerDifferences();
+    auto merged = ledger.Get("space_diff_b");
+    ASSERT_NE(merged, nullptr);
+    EXPECT_TRUE(merged->restoredFromHardware);
+    EXPECT_EQ(merged->state, UbseSsuNsState::CREATED);
+    EXPECT_EQ(merged->allocResult.resourceUuid, uuidB);
+    // 既有条目挂载视图不被重置（不进全量Rebuild）+ 收编新条目重开收敛窗口
+    auto kept = ledger.Get("space_diff_a");
+    ASSERT_NE(kept, nullptr);
+    EXPECT_EQ(kept->state, UbseSsuNsState::ATTACHED);
+    EXPECT_EQ(kept->attachNodes.size(), 1u);
+    EXPECT_TRUE(ledger.IsInReconcileWindow());
+}
+
+// UT28-8：回正权责分离——身份级FAULTED（uuid漂移）期间name在硬件在线集合中属预期，
+// 同周期串行的name级对账（ReconcileSpaceFaultStates先执行）不得回正身份级FAULTED，
+// 否则两对账对同一FAULTED周期性置障/回正振荡（告警刷屏、FAULTED拦截保护间歇失效）；
+// 身份故障恢复（组匹配清计数）后回正路径恢复正常
+TEST_F(TestUbseSsuServiceImpRecover, NameLevelReconcileKeepsIdentityFaulted)
+{
+    const std::string uuidA = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+    auto nsLedger = MakeNsWithIdentity("eid_idt_0001", 1, "space_idt", uuidA, 1, 0x33);
+    AddNsToCollectorCache(nsLedger);
+    service_.RebuildLedgerFromDevList();
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    ASSERT_NE(ledger.Get("space_idt"), nullptr);
+
+    // 硬件切换为同名不同uuid组（漂移），防抖计满置FAULTED
+    const std::string uuidB = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    auto drifted = MakeIdentityDevList({MakeNsWithIdentity("eid_idt_0002", 1, "space_idt", uuidB, 1, 0x34)});
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    ASSERT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::FAULTED);
+
+    // 同周期串行（与采集回调顺序一致：name级先、身份级后）：FAULTED不被name级回正打断
+    service_.ReconcileSpaceFaultStates(drifted);
+    service_.ReconcileLedgerResource(drifted);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::FAULTED);
+
+    // 身份故障恢复（换回原uuid组）：身份对账清计数并回正，随后name级对账不产生异常状态
+    auto restored = MakeIdentityDevList({nsLedger});
+    service_.ReconcileSpaceFaultStates(restored);
+    service_.ReconcileLedgerResource(restored);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::CREATED);
+    service_.ReconcileSpaceFaultStates(restored);
+    EXPECT_EQ(ledger.Get("space_idt")->state, UbseSsuNsState::CREATED);
 }
 
 } // namespace ubse::ssu::service::ut

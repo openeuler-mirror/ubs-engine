@@ -84,7 +84,8 @@ uint32_t NameSpaceSize(const UbseCliSsuNameSpaceInfo& value)
 
 uint32_t AllocationSize(const UbseCliSsuAllocResult& value)
 {
-    uint32_t size = StringSize(value.name) + static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
+    uint32_t size = StringSize(value.name) + StringSize(value.resourceUuid) +
+                    static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
     for (const auto& nameSpace : value.nameSpaceList) {
         size += NameSpaceSize(nameSpace);
     }
@@ -123,7 +124,8 @@ bool PackAllocation(UbsePackUtil& pack, const UbseCliSsuAllocResult& value)
             return false;
         }
     }
-    return true;
+    // 服务端 AllocResultPack 在 namespace 列表尾部追加 resourceUuid。
+    return PackString(pack, value.resourceUuid);
 }
 
 template <typename Pack>
@@ -215,6 +217,7 @@ UbseCliSsuAllocResult BuildSsuAllocResult()
 {
     UbseCliSsuAllocResult result;
     result.name = "alloc-space-1";
+    result.resourceUuid = "resource-uuid-1";
     result.strategy = UbseSsuAllocStrategy::LINEAR;
     result.nameSpaceList = {
         {"e2",
@@ -299,6 +302,13 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
         g_ssuMockLastRequestDeserialized = unpack.UnpackString(g_ssuMockLastDetailReq.name, SSU_CLI_MAX_NAME_LENGTH);
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_FREE_SPACE)) {
         g_ssuMockLastRequestDeserialized = unpack.UnpackString(g_ssuMockLastFreeSpaceReq.name, SSU_CLI_MAX_NAME_LENGTH);
+        // resourceUuid 为可选尾部字段：缺失时保持空串（删 name 下全部语义）。
+        if (g_ssuMockLastRequestDeserialized) {
+            std::string resourceUuid;
+            if (unpack.UnpackString(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
+                g_ssuMockLastFreeSpaceReq.resourceUuid = resourceUuid;
+            }
+        }
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ALLOC_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackCreate(unpack, g_ssuMockLastCreateReq);
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE)) {
@@ -320,17 +330,36 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastDetachSpaceReq.name,
                                                        g_ssuMockLastDetachSpaceReq.hostNqn,
                                                        g_ssuMockLastDetachSpaceReq.srcEid);
+        // resourceUuid 为可选尾部字段：缺失时保持空串（按 name 解析语义）。
+        if (g_ssuMockLastRequestDeserialized) {
+            std::string resourceUuid;
+            if (unpack.UnpackString(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
+                g_ssuMockLastDetachSpaceReq.resourceUuid = resourceUuid;
+            }
+        }
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_DETACH_LINEAR_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastDetachLinearReq.name,
                                                        g_ssuMockLastDetachLinearReq.hostNqn,
                                                        g_ssuMockLastDetachLinearReq.srcEid) &&
                                            unpack.UnpackString(g_ssuMockLastDetachLinearReq.devName, SSU_CLI_MAX_DEV_NAME_LENGTH);
+        if (g_ssuMockLastRequestDeserialized) {
+            std::string resourceUuid;
+            if (unpack.UnpackString(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
+                g_ssuMockLastDetachLinearReq.resourceUuid = resourceUuid;
+            }
+        }
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_DETACH_STRIPED_SPACE)) {
         g_ssuMockLastRequestDeserialized =
             UnpackSpace(unpack, g_ssuMockLastDetachStripedReq.name, g_ssuMockLastDetachStripedReq.hostNqn,
                         g_ssuMockLastDetachStripedReq.srcEid) &&
             unpack.UnpackString(g_ssuMockLastDetachStripedReq.devName, SSU_CLI_MAX_DEV_NAME_LENGTH) &&
             UnpackStripedTail(unpack, g_ssuMockLastDetachStripedReq.level, g_ssuMockLastDetachStripedReq.chunkSize);
+        if (g_ssuMockLastRequestDeserialized) {
+            std::string resourceUuid;
+            if (unpack.UnpackString(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
+                g_ssuMockLastDetachStripedReq.resourceUuid = resourceUuid;
+            }
+        }
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_GET_CONNECT_INFO)) {
         // CLI 侧 connect_info 请求固定携带 hasVfe=0（无 VFE 过滤），与服务端 SsuGetConnectInfoUnpack 对齐
         uint8_t hasVfe = 1;
@@ -423,7 +452,8 @@ uint32_t mock_ssu_alloc_detail_invoke_call_empty(uint16_t moduleCode, uint16_t o
     UbseCliSsuAllocResult response;
     response.name = "alloc-space-1";
     response.strategy = UbseSsuAllocStrategy::LINEAR;
-    return BuildAllocationResponse(response, responseData);
+    // 服务端 GetAllocInfoByName 按列表应答（count + N×AllocResult）
+    return BuildAllocationListResponse({response}, responseData);
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_bad_response(uint16_t moduleCode, uint16_t opCode,
@@ -439,7 +469,7 @@ uint32_t mock_ssu_alloc_detail_invoke_call_normal(uint16_t moduleCode, uint16_t 
                                                   const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
-    return BuildAllocationResponse(BuildSsuAllocResult(), responseData);
+    return BuildAllocationListResponse({BuildSsuAllocResult()}, responseData);
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_normal_strategy(uint16_t moduleCode, uint16_t opCode,
@@ -449,7 +479,7 @@ uint32_t mock_ssu_alloc_detail_invoke_call_normal_strategy(uint16_t moduleCode, 
     CaptureSsuRequest(moduleCode, opCode, requestData);
     auto allocation = BuildSsuAllocResult();
     allocation.strategy = UbseSsuAllocStrategy::NORMAL;
-    return BuildAllocationResponse(allocation, responseData);
+    return BuildAllocationListResponse({allocation}, responseData);
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_subgib(uint16_t moduleCode, uint16_t opCode,
@@ -459,7 +489,7 @@ uint32_t mock_ssu_alloc_detail_invoke_call_subgib(uint16_t moduleCode, uint16_t 
     auto response = BuildSsuAllocResult();
     response.nameSpaceList.resize(1);
     response.nameSpaceList[0].nsSize = 512ULL * 1024ULL * 1024ULL;
-    return BuildAllocationResponse(response, responseData);
+    return BuildAllocationListResponse({response}, responseData);
 }
 
 uint32_t mock_ssu_alloc_create_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,

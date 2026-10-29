@@ -28,8 +28,9 @@ UbseSsuAttachDetachVerifyReqMsg::UbseSsuAttachDetachVerifyReqMsg(const std::stri
                                                                  const std::string &requestNodeId,
                                                                  const std::string &name,
                                                                  const UbseSsuAllocIdentityInfo &identity,
-                                                                 const UbseSsuAttachDetachVerifyOption &option)
-    : req_{requestId, requestNodeId, name, identity, option}
+                                                                 const UbseSsuAttachDetachVerifyOption &option,
+                                                                 const std::string &resourceUuid)
+    : req_{requestId, requestNodeId, name, resourceUuid, identity, option}
 {
 }
 
@@ -64,6 +65,8 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Serialize(std::unique_ptr<uint8_t[]> &
     uint32_t expectedStrategy = static_cast<uint32_t>(req_.option.expectedStrategy);
     out << isAttach << expectedStrategy;
     out << req_.option.raidLevel << req_.option.chunkSize;
+    // 尾部追加字段（现有惯例）：resourceUuid，detach精确卸载路径非空，attach为空串
+    out << req_.resourceUuid;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req serialize failed.";
         return UBSE_ERROR;
@@ -88,6 +91,8 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Deserialize(const uint8_t *data, uint3
         return UBSE_ERROR;
     }
     req_.option.expectedStrategy = static_cast<UbseSsuAllocStrategy>(expectedStrategy);
+    // 尾部追加字段：resourceUuid，与序列化顺序对应
+    in >> req_.resourceUuid;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req deserialize failed.";
         return UBSE_ERROR;
@@ -117,7 +122,7 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Serialize(std::unique_ptr<uint8_t[]> 
     for (const auto &nsInfo : resp_.nameSpaceList) {
         out << nsInfo;
     }
-    out << resp_.devName;
+    out << resp_.devName << resp_.resourceUuid;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp serialize failed.";
         return UBSE_ERROR;
@@ -169,7 +174,7 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Deserialize(const uint8_t *data, uint
         }
         resp_.nameSpaceList.emplace_back(std::move(nsInfo));
     }
-    in >> resp_.devName;
+    in >> resp_.devName >> resp_.resourceUuid;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp deserialize failed.";
         return UBSE_ERROR;

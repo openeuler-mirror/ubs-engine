@@ -10,7 +10,8 @@ ubse_ssu_test_c> help ssu_alloc_space
 ubse_ssu_test_c> ssu_list_alloc_info
 ```
 
-尖括号表示有序位置参数。不存在方括号或可选参数；命令列出的每个参数都必须输入。所有枚举值均填写
+尖括号表示有序位置参数。方括号表示可选尾随参数，目前仅三个 detach 命令支持 `[resource_uuid]`；
+除可选参数外，命令列出的每个参数都必须输入。所有枚举值均填写
 SDK 底层十进制数值。需要空字符串时输入 `""`，需要数值零时输入 `0`。
 
 ## 2. 查询命令
@@ -44,6 +45,7 @@ ssu_get_connect_info test-space 1 1 0 0 0 2 \
 ```text
 ssu_alloc_space <name> <ns_size> <ns_num> <lba_format> <strategy> <tenant>
 ssu_free_space <name>
+ssu_free_space_by_resource_uuid <name> <resource_uuid>
 ssu_add_access_permission <name> <nqn>
 ssu_remove_access_permission <name> <nqn>
 ```
@@ -62,7 +64,7 @@ ssu_free_space test-space
 
 ```text
 ssu_attach_space <name> <nqn> <src_eid>
-ssu_detach_space <name> <nqn> <src_eid>
+ssu_detach_space <name> <nqn> <src_eid> [resource_uuid]
 ```
 
 示例：
@@ -70,13 +72,15 @@ ssu_detach_space <name> <nqn> <src_eid>
 ```text
 ssu_attach_space test-space nqn.2024-01.example:host-a 0000000000000001
 ssu_detach_space test-space nqn.2024-01.example:host-a 0000000000000001
+# 精确卸载name下指定resource_uuid对应的那次分配（同名多次分配/脑裂合并遗留场景）
+ssu_detach_space test-space nqn.2024-01.example:host-a 0000000000000001 0123456789abcdef0123456789abcdef012
 ```
 
 ## 5. 线性空间挂卸载
 
 ```text
 ssu_attach_linear_space <name> <nqn> <src_eid> <dev_name>
-ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>
+ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name> [resource_uuid]
 ```
 
 示例：
@@ -84,13 +88,16 @@ ssu_detach_linear_space <name> <nqn> <src_eid> <dev_name>
 ```text
 ssu_attach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear
 ssu_detach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear
+# 精确卸载其中一次分配
+ssu_detach_linear_space test-space nqn.2024-01.example:host-a 0000000000000001 test-linear \
+  0123456789abcdef0123456789abcdef012
 ```
 
 ## 6. 条带空间挂卸载
 
 ```text
 ssu_attach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
-ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
+ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]
 ```
 
 示例：
@@ -99,7 +106,18 @@ ssu_detach_striped_space <name> <nqn> <src_eid> <dev_name> <level> <chunk_size>
 # level=0，chunk_size=64；CLI 直接强制转换为 SDK 枚举类型
 ssu_attach_striped_space test-space nqn.2024-01.example:host-a 0000000000000001 test-striped 0 64
 ssu_detach_striped_space test-space nqn.2024-01.example:host-a 0000000000000001 test-striped 0 64
+# 精确卸载其中一次分配
+ssu_detach_striped_space test-space nqn.2024-01.example:host-a 0000000000000001 test-striped 0 64 \
+  0123456789abcdef0123456789abcdef012
 ```
+
+### 精确卸载说明
+
+detach 命令末尾的 `[resource_uuid]` 为可选参数：脑裂合并后同名多份分配时，先通过
+`ssu_list_alloc_info` 查询各次分配的 `ResourceUuid`，再带该参数精确卸载其中一份（未命中报空间
+不存在）。不传或传 `""` 时按 name 解析，同名多份会被歧义拒绝，行为与从前一致。
+resource_uuid 长度 1~36、仅允许 `[0-9a-f-]`，工具本地校验，非法时直接报错；
+卸载后可用 `ssu_free_space_by_resource_uuid` 按同一 resource_uuid 精确释放对应分配。
 
 ## 7. FE 设备
 
@@ -128,6 +146,7 @@ ssu_fe_device_free 1 1 0 0 10 20 00112233445566778899aabbccddeeff \
 - CLI 不判断这些数值是否属于 SDK 支持集合；SDK 决定调用成功或失败。
 - shell 引号只用于把包含空格的文本组成一个参数，去除引号后的字符串内容传给 SDK。
 - 命令不接受参数省略；空值必须使用 `""` 或相应数值类型的 `0` 显式占位。
+- 例外：三个 detach 命令末尾的 `[resource_uuid]` 可省略；省略或传 `""` 时按 name 解析（同名多份时被歧义拒绝）。
 
 ## 9. 应答示意
 

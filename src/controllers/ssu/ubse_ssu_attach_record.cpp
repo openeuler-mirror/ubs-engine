@@ -68,6 +68,22 @@ bool IsLbaFormatValid(uint32_t lbaFormat)
            lbaFormat == static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_4K);
 }
 
+// resourceUuid系列白名单口径：非空、长度1~36、仅允许[0-9a-f-]，与服务端GenerateUuid输出格式
+// 及CLI/C/Go/Python SDK四端校验对齐；非法uuid不得参与(name, resourceUuid)复合键语义
+bool IsResourceUuidValid(const std::string &resourceUuid)
+{
+    if (resourceUuid.empty() || resourceUuid.size() > 36) {
+        return false;
+    }
+    for (char ch : resourceUuid) {
+        if ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || ch == '-') {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 bool IsBlockDeviceOptionsValid(const UbseSsuAttachRecord &record)
 {
     if (!record.blockDeviceOptions.has_value()) {
@@ -233,6 +249,12 @@ bool IsRecordFieldsValid(const UbseSsuAttachRecord &record)
     if (record.name.empty() || record.name.size() >= UBSE_SSU_MAX_NAME_LENGTH) {
         return false;
     }
+    // resourceUuid允许为空（兼容旧记录）；非空时校验系列白名单口径[0-9a-f-]且1~36，
+    // 与服务端GenerateUuid/CLI/SDK四端对齐：非法uuid不参与复合键语义（整条记录无效，
+    // 网络路径SetFail、JSON路径拒绝加载），保证"空=旧记录兼容解析、非空=必然可精确归属"
+    if (!record.resourceUuid.empty() && !IsResourceUuidValid(record.resourceUuid)) {
+        return false;
+    }
     if (static_cast<uint32_t>(record.strategy) > static_cast<uint32_t>(UbseSsuAllocStrategy::NORMAL)) {
         return false;
     }
@@ -289,6 +311,7 @@ void SerializeRecord(const UbseSsuAttachRecord &record, rapidjson::Value &value,
 {
     value.SetObject();
     value.AddMember("name", rapidjson::Value(record.name.c_str(), allocator), allocator);
+    value.AddMember("resourceUuid", rapidjson::Value(record.resourceUuid.c_str(), allocator), allocator);
     value.AddMember("strategy", static_cast<uint32_t>(record.strategy), allocator);
     value.AddMember("recordState", static_cast<uint32_t>(record.recordState), allocator);
     value.AddMember("devName", rapidjson::Value(record.devName.c_str(), allocator), allocator);
@@ -368,6 +391,16 @@ bool DeserializeRecord(const rapidjson::Value &value, UbseSsuAttachRecord &recor
             return false;
         }
         record.nsVerifyList.emplace_back(std::move(verify));
+    }
+
+    // resourceUuid（缺省按空串处理，向后兼容旧记录）
+    if (value.HasMember("resourceUuid")) {
+        if (!value["resourceUuid"].IsString()) {
+            return false;
+        }
+        record.resourceUuid = value["resourceUuid"].GetString();
+    } else {
+        record.resourceUuid.clear();
     }
 
     // attachedAt（缺省按0处理，向后兼容）

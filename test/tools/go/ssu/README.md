@@ -1,7 +1,7 @@
 # SSU Go SDK 测试器
 
 `ubse_ssu_test_go` 是 `src/sdk/go/ssu` 的人工测试入口。运行 `make build` 或 `./build.sh` 使用当前环境构建；无参数启动交互模式，带参数时执行一次命令，例如 `bin/ubse_ssu_test_go ssu_list_alloc_info`。
-所有参数均为必填位置参数。字符串空值写作 `""`，数值零写作 `0`；枚举只接受底层十进制数值，不接受名称或业务别名。
+除三个 detach 命令末尾的可选 `[resource_uuid]` 外，所有参数均为必填位置参数。字符串空值写作 `""`，数值零写作 `0`；枚举只接受底层十进制数值，不接受名称或业务别名。
 本目录通过 `go.mod` 的相对 `replace` 将 SDK 模块映射到仓库根目录 `../../../..`，直接使用本地 `src/sdk/go/ssu`。Makefile 关闭 workspace、模块代理和校验数据库，防止覆盖映射或回退网络。
 
 ## 文档说明
@@ -10,7 +10,7 @@
 
 - `README.md`：本文件，工具总览与快速上手——用途、编译方式、命令使用要点和离线验证入口。
 - `BUILD.md`：编译说明——本机编译、x86_64/ARM64 交叉编译、指定输出文件、产物架构验证以及 `make clean` 清理。
-- `command-examples.md`：命令示例——16 条 SDK 命令的完整用法示例，包括参数顺序、占位符约定（`""`、`0`）与 VFE 特殊场景。
+- `command-examples.md`：命令示例——17 条 SDK 命令的完整用法示例，包括参数顺序、占位符约定（`""`、`0`）与 VFE 特殊场景。
 
 ## 编译
 
@@ -20,8 +20,12 @@
 
 ## 命令
 
-运行 `bin/ubse_ssu_test_go help` 查看全部 16 条 SDK 命令，使用 `help <command>` 查看参数顺序；各命令的详细参数说明与完整示例参见 [command-examples.md](command-examples.md)。
+运行 `bin/ubse_ssu_test_go help` 查看全部 17 条 SDK 命令，使用 `help <command>` 查看参数顺序；各命令的详细参数说明与完整示例参见 [command-examples.md](command-examples.md)。
 `ssu_get_connect_info` 的 `vfe_present=0` 传入 nil，`1` 使用随后七个字段构造 VFE；占位字段仍必须写全。
+三个 detach 命令支持可选尾随参数 `[resource_uuid]`：先用 `ssu_list_alloc_info` 查询各次分配的
+`ResourceUuid`，再带该参数精确卸载同名多份分配之一；不传时按 name 解析，同名多份会被拒绝，
+行为与从前一致。resource_uuid 由 SDK 校验（长度 1~36、仅允许 `[0-9a-f-]`），
+卸载后可用 `ssu_free_space_by_resource_uuid` 按同一 resource_uuid 精确释放对应分配。
 交互模式在单行内按 shell 的引用与反斜线规则拆词，但不支持续行，也不执行任何展开。
 交互模式还支持 `help`、`?`、`quit` 和 `exit`，SDK 错误会原样显示并继续循环。
 SDK 成功应答统一打印为 `{"response":...}`，多返回值按 SDK 顺序放入 `response` 数组；

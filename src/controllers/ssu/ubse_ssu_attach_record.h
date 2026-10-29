@@ -50,6 +50,7 @@ enum class UbseSsuAttachRecordState : uint8_t {
 // 重挂不依赖 verify RPC（账本可能尚未恢复，且 alreadyAttached 分支会短路）
 struct UbseSsuAttachRecord {
     std::string name;
+    std::string resourceUuid; // 空间资源uuid（master账本allocResult.resourceUuid），状态上报按复合键精确归属；
     UbseSsuAllocStrategy strategy{UbseSsuAllocStrategy::NORMAL};
     UbseSsuAttachRecordState recordState{UbseSsuAttachRecordState::PENDING};
     std::string devName;      // 聚合块设备名（NORMAL 为空）

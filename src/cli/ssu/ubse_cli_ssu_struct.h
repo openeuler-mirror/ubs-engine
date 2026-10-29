@@ -35,9 +35,11 @@ struct UbseCliSsuAllocDetailReq {
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
-// 空间释放请求：仅携带待释放的分配名称。
+// 空间释放请求：携带待释放的分配名称；resourceUuid 为可选字段，
+// 非空时仅释放该 resourceUuid 对应空间，为空时释放该 name 下全部空间（服务端可选解包兼容）。
 struct UbseCliSsuFreeSpaceReq {
     std::string name;
+    std::string resourceUuid;
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
@@ -101,6 +103,7 @@ struct UbseCliSsuDetachSpaceReq {
     std::string name;
     std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
     std::string srcEid = SSU_CLI_DETACH_SRC_EID;
+    std::string resourceUuid; // 可选：精确卸载该resourceUuid对应空间（脑裂合并同名多份场景），空串按name解析
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
@@ -109,6 +112,7 @@ struct UbseCliSsuDetachLinearReq {
     std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
     std::string srcEid = SSU_CLI_DETACH_SRC_EID;
     std::string devName;
+    std::string resourceUuid; // 可选：精确卸载该resourceUuid对应空间（脑裂合并同名多份场景），空串按name解析
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
@@ -119,6 +123,7 @@ struct UbseCliSsuDetachStripedReq {
     std::string devName;
     UbseSsuAggregationRaidLevel level = SSU_CLI_DETACH_LEVEL;
     UbseSsuChunkSize chunkSize = SSU_CLI_DETACH_CHUNK_SIZE;
+    std::string resourceUuid; // 可选：精确卸载该resourceUuid对应空间（脑裂合并同名多份场景），空串按name解析
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
@@ -137,6 +142,7 @@ struct UbseCliSsuNameSpaceInfo {
 // 分配结果：详情查询与创建成功后共用此响应，nameSpaceList 为空时 CLI 输出 INFO 提示。
 struct UbseCliSsuAllocResult {
     std::string name;
+    std::string resourceUuid; // 分配唯一标识，脑裂合并场景下区分同名分配
     UbseSsuAllocStrategy strategy = UbseSsuAllocStrategy::LINEAR;
     std::vector<UbseCliSsuNameSpaceInfo> nameSpaceList;
     bool Deserialize(const uint8_t *buffer, uint32_t length);

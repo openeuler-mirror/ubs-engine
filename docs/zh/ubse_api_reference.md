@@ -4987,6 +4987,7 @@ typedef struct {
 // 分配存储空间结果
 typedef struct {
     char name[UBS_SSU_MAX_NAME_LENGTH];     // 请求标识，最大48个字符
+    char resource_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 分配唯一标识，每次分配生成一次，供精确释放等场景使用
     ubs_ssu_alloc_strategy_t strategy;      // 分配策略
     uint32_t namespace_cnt;                 // 命名空间信息数量
     ubs_ssu_namespace_info_t *namespaces;    // 命名空间信息列表，由 SDK 内部动态分配，需通过释放接口回收
@@ -5614,6 +5615,66 @@ int32_t ubs_ssu_space_free(const char *name);
 
 暂无。
 
+### ubs\_ssu\_space\_free\_by\_resource\_uuid
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_free_by_resource_uuid(const char *name, const char *resource_uuid);
+```
+
+**描述 DESCRIPTION**
+
+按 resourceUuid 精确释放已分配的存储空间。仅释放 name 下指定 resource_uuid 对应的那一次分配，适用于同名多次分配（如脑裂合并遗留）场景。resource_uuid 可先通过 `ubs_ssu_alloc_info_list` 查询获得。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                          |
+| ---- | ------ | ------------------------------------ |
+| name | IN     | 要释放的存储空间标识，与分配时的 name 参数一致 |
+| resource_uuid | IN     | 分配唯一标识，由 `ubs_ssu_space_alloc` 返回的 resource_uuid |
+
+**参数校验限制 VALIDATION**
+
+- `name`：不能为 NULL；长度 1~47（< UBS_SSU_MAX_NAME_LENGTH=48）；仅允许字符 [a-zA-Z0-9_-.:]
+- `resource_uuid`：不能为 NULL；长度 1~36（< UBS_SSU_MAX_UUID_LENGTH=37）；仅允许字符 [0-9a-f-]（与服务端 GenerateUuid 输出格式对齐）
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description                  |
+| ------------------------------------ | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER              | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE             | name 或 resource_uuid 参数超出范围 |
+| UBS\_ERR\_INVALID\_ARG               | resource_uuid 包含非法字符，仅允许 [0-9a-f-] |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_MASTER\_NOT\_READY | master账本未就绪（首次采集/重建未完成），可重试 |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_FREE     | 存储空间不存在或已释放（含 resource_uuid 未命中），无需释放报错 |
+| UBS\_ENGINE\_ERR\_SSU\_NEED\_DETACH\_BEFORE\_FREE | 该次分配的空间已挂载，需先卸载再释放 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- `name` 长度不能超过 `UBS_SSU_MAX_NAME_LENGTH - 1` 个字符。
+- `resource_uuid` 长度不能超过 `UBS_SSU_MAX_UUID_LENGTH - 1` 个字符。
+- 释放操作不再幂等，释放不存在的空间将报错 (`UBS_ENGINE_ERR_NO_NEED_FREE`)。
+
+**附注 NOTES**
+
+- 与 `ubs_ssu_space_free` 的语义差异：`ubs_ssu_space_free(name)` 释放该 name 下全部分配（含同名多份）；本接口仅精确释放指定 resource_uuid 对应的那一次分配。
+- 同名存在多条分配（疑似脑裂残留）时，attach/detach 等 name 维度操作会因歧义被拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`），需先通过 `ubs_ssu_alloc_info_list` 查询各次分配的 resource_uuid，对已挂载的那份先用 `ubs_ssu_space_detach_by_resource_uuid`（Linear/Striped 空间用对应 `ubs_ssu_linear_space_detach_by_resource_uuid`、`ubs_ssu_striped_space_detach_by_resource_uuid`）精确卸载解锁，再用本接口逐份释放消歧。
+- Go SDK 对应接口为 `UbsSsuFreeSpaceByResourceUuid(name, resourceUuid string)`；Python SDK 未提供独立接口，`ubs_ssu_space_free(name, resource_uuid=None)` 的 `resource_uuid` 为可选参数，指定时等价于本接口。
+
 ### ubs\_ssu\_access\_permission\_add
 
 **库 LIBRARY**
@@ -5881,7 +5942,71 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 
 **附注 NOTES**
 
-暂无。
+同名存在多条分配（疑似脑裂残留）导致按 name 卸载被歧义拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）时，可改用 `ubs_ssu_space_detach_by_resource_uuid` 精确卸载其中一份。
+
+### ubs\_ssu\_space\_detach\_by\_resource\_uuid
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_space_detach_by_resource_uuid(const ubs_ssu_space_req_t *req, const char *resource_uuid);
+```
+
+**描述 DESCRIPTION**
+
+按 resourceUuid 精确卸载已挂载的存储空间。按 (name, resource_uuid) 复合键精确定位账本条目卸载，跳过同名多 resourceUuid 的歧义拒绝，适用于同名多次分配（如脑裂合并遗留）场景。resource_uuid 可先通过 `ubs_ssu_alloc_info_list` 查询获得；未命中报 `UBS_ENGINE_ERR_SSU_SPACE_NOT_FOUND`。
+
+对应 NORMAL 分配策略：多节点共享挂载，本节点卸载不影响其他节点的挂载，仅当最后一个节点卸载后空间才回退为未挂载状态。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                |
+| ---- | ------ | ---------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源 EID |
+| resource\_uuid | IN     | 分配唯一标识，由 `ubs_ssu_space_alloc` 返回的 resource_uuid |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `resource_uuid`：不能为 NULL；长度 1~36（< UBS_SSU_MAX_UUID_LENGTH=37）；仅允许字符 [0-9a-f-]（与服务端 GenerateUuid 输出格式对齐）
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name 或 resource\_uuid 参数超出范围 |
+| UBS\_ERR\_INVALID\_ARG                 | resource\_uuid 包含非法字符，仅允许 [0-9a-f-] |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_SSU\_SPACE\_NOT\_FOUND | name 下不存在该 resourceUuid |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- 卸载前需确保没有进程正在使用该存储空间。
+- `resource_uuid` 长度不能超过 `UBS_SSU_MAX_UUID_LENGTH - 1` 个字符。
+
+**附注 NOTES**
+
+- 与 `ubs_ssu_space_detach` 的语义差异：`ubs_ssu_space_detach(req)` 按 name 解析，同名多 resourceUuid（脑裂合并遗留）时被拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）；本接口按 (name, resource_uuid) 复合键精确定位，跳过歧义拒绝。
+- 精确卸载解锁后即可调用 `ubs_ssu_space_free_by_resource_uuid(name, resource_uuid)` 逐份释放清理。
+- Go SDK 通过 `UbsSsuSpaceReq.ResourceUUID` 可选字段、Python SDK 通过 `UbsSsuSpaceReq.resource_uuid` 可选字段、CLI 通过 `ubsectl-ssu detach -u` 提供同等能力（空值按 name 解析）。
 
 ### ubs\_ssu\_linear\_space\_attach
 
@@ -6008,7 +6133,73 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
 
 **附注 NOTES**
 
-暂无。
+同名存在多条分配（疑似脑裂残留）导致按 name 卸载被歧义拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）时，可改用 `ubs_ssu_linear_space_detach_by_resource_uuid` 精确卸载其中一份。
+
+### ubs\_ssu\_linear\_space\_detach\_by\_resource\_uuid
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_linear_space_detach_by_resource_uuid(const ubs_ssu_linear_space_req_t *req,
+                                                     const char *resource_uuid);
+```
+
+**描述 DESCRIPTION**
+
+按 resourceUuid 精确卸载已挂载的线性聚合块设备。按 (name, resource_uuid) 复合键精确定位账本条目卸载，跳过同名多 resourceUuid 的歧义拒绝，适用于同名多次分配（如脑裂合并遗留）场景。resource_uuid 可先通过 `ubs_ssu_alloc_info_list` 查询获得；未命中报 `UBS_ENGINE_ERR_SSU_SPACE_NOT_FOUND`。
+
+对应 LINEAR 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                                 |
+| ---- | ------ | --------------------------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID 和聚合后的块设备名称 |
+| resource\_uuid | IN     | 分配唯一标识，由 `ubs_ssu_space_alloc` 返回的 resource_uuid |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `resource_uuid`：不能为 NULL；长度 1~36（< UBS_SSU_MAX_UUID_LENGTH=37）；仅允许字符 [0-9a-f-]（与服务端 GenerateUuid 输出格式对齐）
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name、dev\_name 或 resource\_uuid 参数超出范围 |
+| UBS\_ERR\_INVALID\_ARG                 | resource\_uuid 包含非法字符，仅允许 [0-9a-f-] |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_SSU\_SPACE\_NOT\_FOUND | name 下不存在该 resourceUuid |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间由其他节点挂载，仅 attacher 节点可卸载 |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- `resource_uuid` 长度不能超过 `UBS_SSU_MAX_UUID_LENGTH - 1` 个字符。
+
+**附注 NOTES**
+
+- 与 `ubs_ssu_linear_space_detach` 的语义差异：`ubs_ssu_linear_space_detach(req)` 按 name 解析，同名多 resourceUuid（脑裂合并遗留）时被拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）；本接口按 (name, resource_uuid) 复合键精确定位，跳过歧义拒绝。
+- 精确卸载解锁后即可调用 `ubs_ssu_space_free_by_resource_uuid(name, resource_uuid)` 逐份释放清理。
+- Go SDK 通过 `UbsSsuLinearSpaceReq.ResourceUUID` 可选字段、Python SDK 通过 `UbsSsuLinearSpaceReq.resource_uuid` 可选字段、CLI 通过 `ubsectl-ssu detach -u` 提供同等能力（空值按 name 解析）。
 
 ### ubs\_ssu\_striped\_space\_attach
 
@@ -6138,7 +6329,73 @@ int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
 
 **附注 NOTES**
 
-暂无。
+同名存在多条分配（疑似脑裂残留）导致按 name 卸载被歧义拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）时，可改用 `ubs_ssu_striped_space_detach_by_resource_uuid` 精确卸载其中一份。
+
+### ubs\_ssu\_striped\_space\_detach\_by\_resource\_uuid
+
+**库 LIBRARY**
+
+ubse-ssu-client库 (/usr/lib64/libubse-ssu-client.so),运行时依赖 libubse-client.so
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_ssu.h>
+int32_t ubs_ssu_striped_space_detach_by_resource_uuid(const ubs_ssu_striped_space_req_t *req,
+                                                      const char *resource_uuid);
+```
+
+**描述 DESCRIPTION**
+
+按 resourceUuid 精确卸载已挂载的条带化聚合块设备。按 (name, resource_uuid) 复合键精确定位账本条目卸载，跳过同名多 resourceUuid 的歧义拒绝，适用于同名多次分配（如脑裂合并遗留）场景。resource_uuid 可先通过 `ubs_ssu_alloc_info_list` 查询获得；未命中报 `UBS_ENGINE_ERR_SSU_SPACE_NOT_FOUND`。
+
+对应 STRIPED 分配策略，独占挂载：仅 attacher 节点可卸载，其他节点发起卸载返回 `UBS_ENGINE_ERR_SSU_ATTACHER_MISMATCH`。
+
+**参数 PARAMETERS**
+
+| name | IN/OUT | description                                                                 |
+| ---- | ------ | --------------------------------------------------------------------------- |
+| req  | IN     | 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源 EID、聚合后的块设备名称、RAID 级别和 chunk 大小 |
+| resource\_uuid | IN     | 分配唯一标识，由 `ubs_ssu_space_alloc` 返回的 resource_uuid |
+
+**参数校验限制 VALIDATION**
+
+- `req`：不能为 NULL
+- `req->name`：长度 1~47；仅允许字符 [a-zA-Z0-9_-.:]
+- `req->dev_name`：长度 1~32；仅允许字符 [a-zA-Z0-9/.-]
+- `req->nqn`：可选；非空时长度 < UBS_SSU_MAX_NQN_LENGTH(69)
+- `req->src_eid`：可选；非空时长度 < UBS_SSU_MAX_EID_LENGTH(17)
+- `resource_uuid`：不能为 NULL；长度 1~36（< UBS_SSU_MAX_UUID_LENGTH=37）；仅允许字符 [0-9a-f-]（与服务端 GenerateUuid 输出格式对齐）
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                  | Description                  |
+| -------------------------------------- | ---------------------------- |
+| UBS\_ERR\_NULL\_POINTER                | 空指针                        |
+| UBS\_ERR\_OUT\_OF\_RANGE               | name、dev\_name 或 resource\_uuid 参数超出范围 |
+| UBS\_ERR\_INVALID\_ARG                 | resource\_uuid 包含非法字符，仅允许 [0-9a-f-] |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED   | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED         | UBSE服务端鉴权不通过          |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST           | 存储空间不存在                |
+| UBS\_ENGINE\_ERR\_SSU\_SPACE\_NOT\_FOUND | name 下不存在该 resourceUuid |
+| UBS\_ENGINE\_ERR\_NO\_NEED\_DETACH     | 本节点未挂载，无需卸载报错     |
+| UBS\_ENGINE\_ERR\_SSU\_ATTACHER\_MISMATCH | 空间由其他节点挂载，仅 attacher 节点可卸载 |
+| UBS\_ENGINE\_ERR\_TIMEOUT              | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL             | UBSE服务端内部错误            |
+
+**约束 CONSTRAINTS**
+
+- `resource_uuid` 长度不能超过 `UBS_SSU_MAX_UUID_LENGTH - 1` 个字符。
+
+**附注 NOTES**
+
+- 与 `ubs_ssu_striped_space_detach` 的语义差异：`ubs_ssu_striped_space_detach(req)` 按 name 解析，同名多 resourceUuid（脑裂合并遗留）时被拒绝（`UBS_ENGINE_ERR_SSU_NAME_DUPLICATED`）；本接口按 (name, resource_uuid) 复合键精确定位，跳过歧义拒绝。
+- 精确卸载解锁后即可调用 `ubs_ssu_space_free_by_resource_uuid(name, resource_uuid)` 逐份释放清理。
+- Go SDK 通过 `UbsSsuStripedSpaceReq.ResourceUUID` 可选字段、Python SDK 通过 `UbsSsuStripedSpaceReq.resource_uuid` 可选字段、CLI 通过 `ubsectl-ssu detach -u` 提供同等能力（空值按 name 解析）。
 
 ### ubs\_ssu\_fe\_device\_list
 

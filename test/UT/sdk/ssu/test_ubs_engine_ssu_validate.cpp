@@ -61,6 +61,47 @@ TEST(SsuNameValidate, InvalidChar_ReturnsInvalidArg)
     EXPECT_EQ(ubs_ssu_name_is_valid("test/name"), UBS_ERR_INVALID_ARG);
 }
 
+// ==================== ubs_ssu_uuid_is_valid ====================
+
+TEST(SsuUuidValidate, ValidStandardUuid_ReturnsSuccess)
+{
+    EXPECT_EQ(ubs_ssu_uuid_is_valid("550e8400-e29b-41d4-a716-446655440000"), UBS_SUCCESS);
+}
+
+TEST(SsuUuidValidate, ValidShortHexWithHyphen_ReturnsSuccess)
+{
+    EXPECT_EQ(ubs_ssu_uuid_is_valid("abc-123"), UBS_SUCCESS);
+}
+
+TEST(SsuUuidValidate, ValidMaxLength_ReturnsSuccess)
+{
+    std::string uuid(36, 'a'); // 36 chars (max valid)
+    EXPECT_EQ(ubs_ssu_uuid_is_valid(uuid.c_str()), UBS_SUCCESS);
+}
+
+TEST(SsuUuidValidate, NullUuid_ReturnsNullPointer)
+{
+    EXPECT_EQ(ubs_ssu_uuid_is_valid(nullptr), UBS_ERR_NULL_POINTER);
+}
+
+TEST(SsuUuidValidate, EmptyUuid_ReturnsOutOfRange)
+{
+    EXPECT_EQ(ubs_ssu_uuid_is_valid(""), UBS_ERR_OUT_OF_RANGE);
+}
+
+TEST(SsuUuidValidate, TooLongUuid_ReturnsOutOfRange)
+{
+    std::string uuid(37, 'a'); // 37 chars (exceeds max 36)
+    EXPECT_EQ(ubs_ssu_uuid_is_valid(uuid.c_str()), UBS_ERR_OUT_OF_RANGE);
+}
+
+TEST(SsuUuidValidate, InvalidChar_ReturnsInvalidArg)
+{
+    EXPECT_EQ(ubs_ssu_uuid_is_valid("resource-uuid-1"), UBS_ERR_INVALID_ARG);
+    EXPECT_EQ(ubs_ssu_uuid_is_valid("ABC-123"), UBS_ERR_INVALID_ARG);   // 大写十六进制不允许
+    EXPECT_EQ(ubs_ssu_uuid_is_valid("uuid gggg"), UBS_ERR_INVALID_ARG); // 空格不允许
+}
+
 // ==================== ubs_ssu_alloc_space_req_validate ====================
 
 TEST(SsuAllocSpaceReqValidate, ValidStriped_ReturnsSuccess)

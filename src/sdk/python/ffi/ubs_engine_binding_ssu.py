@@ -72,6 +72,27 @@ def validate_name(name: str) -> None:
             raise UbsErrInvalidArg(f"name contains invalid character '{ch}'")
 
 
+def validate_uuid(uuid: str) -> None:
+    """校验UUID参数是否合法: 不允许为空, 长度不超过 UBS_SSU_MAX_UUID_LENGTH-1（含结尾'\\0'）,
+    仅允许[0-9a-f-]（与服务端 GenerateUuid 输出格式对齐）。
+
+    Args:
+        uuid: 待校验的UUID
+
+    Raises:
+        UbsErrInvalidArg: uuid为空、长度超出限制或包含非法字符
+    """
+    if not uuid:
+        logger.error("uuid is empty")
+        raise UbsErrInvalidArg("uuid is empty")
+    if len(uuid) >= UBS_SSU_MAX_UUID_LENGTH:
+        logger.error("uuid length exceeds maximum allowed")
+        raise UbsErrInvalidArg("uuid length exceeds maximum allowed")
+    if not all(c in "0123456789abcdef-" for c in uuid):
+        logger.error("uuid contains invalid characters, only [0-9a-f-] allowed")
+        raise UbsErrInvalidArg("uuid contains invalid characters")
+
+
 def _validate_optional_string(s: str, max_len: int, field_name: str) -> None:
     """校验可选字符串: 允许为空, 非空时长度不超过 max_len-1（含结尾'\0'）。
 
@@ -430,6 +451,58 @@ def pack_striped_space_req(req: UbsSsuStripedSpaceReq) -> bytes:
             .result())
 
 
+def pack_detach_space_req(req: UbsSsuSpaceReq) -> bytes:
+    """将卸载存储空间请求参数打包为字节数组。
+
+    resource_uuid为尾部追加字段: 非None时追加(精确卸载), None时不追加(服务端兼容旧格式)。
+
+    Args:
+        req: 请求参数
+
+    Returns:
+        打包后的字节数组
+    """
+    buf = pack_space_req(req)
+    if req.resource_uuid is not None:
+        buf += pack_string(req.resource_uuid, UBS_SSU_MAX_UUID_LENGTH)
+    return buf
+
+
+def pack_detach_linear_space_req(req: UbsSsuLinearSpaceReq) -> bytes:
+    """将卸载线性编址存储空间请求参数打包为字节数组。
+
+    resource_uuid为尾部追加字段: 非None时追加(精确卸载), None时不追加(服务端兼容旧格式)。
+
+    Args:
+        req: 请求参数
+
+    Returns:
+        打包后的字节数组
+    """
+    buf = pack_linear_space_req(req)
+    if req.resource_uuid is not None:
+        buf += pack_string(req.resource_uuid, UBS_SSU_MAX_UUID_LENGTH)
+    return buf
+
+
+def pack_detach_striped_space_req(req: UbsSsuStripedSpaceReq) -> bytes:
+    """将卸载条带化编址存储空间请求参数打包为字节数组。
+
+    与原striped挂载|卸载报文格式保持一致: 线性字段 + level + chunk_size(卸载不使用, 原样携带);
+    resource_uuid为尾部追加字段: 非None时追加(精确卸载), None时不追加(服务端兼容旧格式)。
+
+    Args:
+        req: 请求参数
+
+    Returns:
+        打包后的字节数组
+    """
+    buf = pack_striped_space_req(req)
+    if req.resource_uuid is not None:
+        buf += pack_string(req.resource_uuid, UBS_SSU_MAX_UUID_LENGTH)
+    return buf
+
+
 def pack_vfe(vfe: UbsUbVfe) -> bytes:
     """将VFE信息打包为字节数组（仅结构体字段，与C++ ``VfePack`` 对齐）。
 
@@ -550,8 +623,12 @@ def unpack_alloc_result_impl(u: BinaryUnpacker) -> UbsSsuAllocResult:
 
     namespaces = [unpack_namespace_info(u) for _ in range(namespace_cnt)]
 
+    # 尾部追加字段：resourceUuid（分配唯一标识），与服务端 AllocResultPack 顺序对应
+    resource_uuid = u.unpack_string(UBS_SSU_MAX_UUID_LENGTH)
+
     return UbsSsuAllocResult(
         name=name,
+        resource_uuid=resource_uuid,
         strategy=strategy,
         namespaces=namespaces,
     )

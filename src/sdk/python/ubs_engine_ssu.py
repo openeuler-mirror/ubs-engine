@@ -19,6 +19,7 @@ from typing import List, Optional, Tuple
 from ubse.ffi.ubs_engine_binding_ssu import (
     pack_string, pack_connect_info_req,
     pack_alloc_space_req, pack_space_req,
+    pack_detach_space_req, pack_detach_linear_space_req, pack_detach_striped_space_req,
     pack_linear_space_req, pack_striped_space_req,
     pack_fe_device_req, pack_fe_device_free_req,
     unpack_alloc_result, unpack_alloc_result_list,
@@ -29,7 +30,7 @@ from ubse.ffi.ubs_engine_binding_ssu import (
     validate_name, validate_alloc_space_req,
     validate_nqn, validate_space_req, validate_access_permission,
     validate_linear_space_req, validate_striped_space_req, validate_detach_striped_space_req,
-    validate_fe_device_alloc_params, validate_fe_device_free_params
+    validate_fe_device_alloc_params, validate_fe_device_free_params, validate_uuid
 )
 from ubse.ffi.ubs_engine_exceptions import (
     UbsEngineInternalError, UbsEngineAlreadyAttachedError, UbsEngineAttacherMismatchError,
@@ -47,7 +48,7 @@ from ubse.ipc.ubs_engine_ipc_codes import (
     OP_GET_FE_DEVICE_LIST_REQ, OP_FE_DEVICE_ALLOC_REQ, OP_FE_DEVICE_FREE_REQ,
 )
 from ubse.models.ubs_engine_model_ssu import (
-    UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
+    UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_MAX_UUID_LENGTH, UBS_SSU_GUID_LENGTH,
     UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
     UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
     UbsUbVfe, UbsUbFe,
@@ -108,19 +109,22 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
     return unpack_alloc_result(response)
 
 
-def ubs_ssu_space_free(name: str) -> None:
+def ubs_ssu_space_free(name: str, resource_uuid: Optional[str] = None) -> None:
     """释放已分配的存储空间
 
     释放之前通过ubs_ssu_space_alloc分配的存储空间及其关联的所有命名空间。
+    同名多次分配（脑裂合并遗留）时，指定resource_uuid可精确释放对应那次分配；
+    未指定时释放name下全部分配。
 
     Args:
         name: 要释放的存储空间标识
+        resource_uuid: 分配唯一标识（可选），由ubs_ssu_space_alloc返回的resource_uuid
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在或已释放, 无需释放报错
+        UbsEngineNotExistError: 存储空间不存在或已释放(含name下不存在该resource_uuid), 无需释放报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
@@ -128,7 +132,12 @@ def ubs_ssu_space_free(name: str) -> None:
         释放操作不再幂等, 释放不存在的空间将报错
     """
     validate_name(name)
-    request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
+    if resource_uuid is None:
+        request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
+    else:
+        validate_uuid(resource_uuid)
+        request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + \
+            pack_string(resource_uuid, UBS_SSU_MAX_UUID_LENGTH)
     status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_FREE_REQ, request)
     raise_for_status(status_code)
 
@@ -242,7 +251,9 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
         卸载前需确保没有进程正在使用该存储空间
     """
     validate_space_req(req)
-    request = pack_space_req(req)
+    if req.resource_uuid is not None:
+        validate_uuid(req.resource_uuid)
+    request = pack_detach_space_req(req)
     status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
     raise_for_status(status_code)
 
@@ -310,7 +321,9 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
         已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
     validate_linear_space_req(req)
-    request = pack_linear_space_req(req)
+    if req.resource_uuid is not None:
+        validate_uuid(req.resource_uuid)
+    request = pack_detach_linear_space_req(req)
     status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
     raise_for_status(status_code)
 
@@ -378,7 +391,9 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
         已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
     validate_detach_striped_space_req(req)
-    request = pack_striped_space_req(req)
+    if req.resource_uuid is not None:
+        validate_uuid(req.resource_uuid)
+    request = pack_detach_striped_space_req(req)
     status_code, _ = invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
     raise_for_status(status_code)
 

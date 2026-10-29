@@ -15,6 +15,7 @@
 
 namespace ubs::ssu {
 uint32_t ubs_ssu_name_is_valid(const char *name);
+uint32_t ubs_ssu_uuid_is_valid(const char *uuid);
 uint32_t ubs_ssu_alloc_space_req_validate(const ubs_ssu_alloc_space_req_t *req);
 uint32_t ubs_ssu_access_permission_add_req_validate(const char *name, const char *nqn);
 uint32_t ubs_ssu_access_permission_remove_req_validate(const char *name, const char *nqn);

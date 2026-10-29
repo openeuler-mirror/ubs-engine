@@ -56,6 +56,8 @@ public:
 
     // 递增连续缺失计数，返回递增后的值
     uint32_t Increment(const std::string &name);
+    // 查询当前计数（无记录返回0），供跨对账权责判断（如name级回正前检查身份级故障是否在途）
+    uint32_t GetCount(const std::string &name) const;
     // 空间恢复在线：计数清零
     void Reset(const std::string &name);
     // 清理已不在账本管理集合中的空间的残留计数（free/Remove后防抖表不泄漏）

@@ -126,11 +126,15 @@ uint32_t UbseSsuServiceImp::StartCollecting()
         }
         executor->Execute([]() { UbseSsuServiceImp::GetInstance().RecoverLocalAttachments(); });
     });
-    // 周期采集成功回调：设备故障增量对账（FAULTED防抖/回正）
-    // 与离线节点离场处理，collector仅master启动，回调天然master-only
+    // 周期采集成功回调：
+    // 1.设备故障增量对账（FAULTED防抖/回正）
+    // 2.与离线节点离场处理
+    // 3.（name, resourceUuid）复合粒度资源身份对账（uuid漂移/NS缺失置障，硬件孤儿组告警）
+    // collector仅master启动，回调master-only
     collector_.SetOnCollectSuccess([this](const std::vector<UbseSsuDevInfo> &devList) {
         ReconcileSpaceFaultStates(devList);
         ReconcileOfflineNodes();
+        ReconcileLedgerResource(devList);
     });
 
     ret = collector_.Start();
@@ -258,8 +262,8 @@ static uint32_t AllocSpaceViaRpc(const UbseSsuAllocSpaceReq &req, const UbseSsuA
 
     if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) != std::future_status::ready) {
         UBSE_LOG_ERROR << "AllocSpaceViaRpc: timeout waiting for response, requestId=" << requestId;
-        // 超时后通知master清理，本地无账本无需删除
-        UbseSsuServiceImp::GetInstance().FreeSpace(req.name, identity);
+        // 超时后通知master清理（空resourceUuid=释放name下全部，含master侧预置CREATING条目），本地无账本无需删除
+        UbseSsuServiceImp::GetInstance().FreeSpace(req.name, "", identity);
         return UBSE_ERR_TIMED_OUT;
     }
 
@@ -367,9 +371,10 @@ static uint32_t BuildEidToSubNqnMap(const std::vector<std::pair<std::string, uin
     return UBSE_OK;
 }
 
-// 填充命名空间自定义数据：名称、用户、租户、默认NQN
+// 填充命名空间自定义数据：名称、用户、租户、默认NQN、resourceUuid
 static uint32_t FillNsCustomData(UbseSsuDevNameSpace &ns, const UbseSsuAllocSpaceReq &req,
-                                 const UbseSsuAllocIdentityInfo &identity, const std::string &hostNqn)
+                                 const UbseSsuAllocIdentityInfo &identity, const std::string &hostNqn,
+                                 const std::string &resourceUuid)
 {
     memset_s(ns.customData.name, sizeof(ns.customData.name), 0, sizeof(ns.customData.name));
     if (strncpy_s(ns.customData.name, sizeof(ns.customData.name), req.name.c_str(), req.name.size()) != EOK) {
@@ -395,6 +400,13 @@ static uint32_t FillNsCustomData(UbseSsuDevNameSpace &ns, const UbseSsuAllocSpac
         UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to copy defaultNqn, defaultNqn=" << MaskNqn(hostNqn);
         return UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID;
     }
+    // resourceUuid持久化到每个NS，脑裂合并后Rebuild按(name, resourceUuid)分组还原分配边界
+    memset_s(ns.customData.resourceUuid, sizeof(ns.customData.resourceUuid), 0, sizeof(ns.customData.resourceUuid));
+    if (strncpy_s(ns.customData.resourceUuid, sizeof(ns.customData.resourceUuid), resourceUuid.c_str(),
+                  resourceUuid.size()) != EOK) {
+        UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to copy resourceUuid, name=" << req.name;
+        return UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID;
+    }
     return UBSE_OK;
 }
 
@@ -410,8 +422,9 @@ static void RollbackCreatedNameSpaces(const std::vector<UbseSsuDevNameSpace> &cr
 }
 
 // 创建命名空间：根据设备ID和保留容量，创建对应命名空间
+// resourceUuid由调用方在请求入口生成/复用（RPC预置路径复用预置条目中的uuid），写入每个NS的customData
 // createdNsList为出参，返回实际创建成功的namespace列表（含tenant信息），供调用方回写设备缓存
-static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
+static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req, const std::string &resourceUuid,
                                     const std::vector<std::pair<std::string, uint64_t>> &eidNsSizeList,
                                     const UbseSsuAllocIdentityInfo &identity,
                                     const std::unordered_map<std::string, std::string> &eidToSubNqn,
@@ -439,7 +452,7 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
                          .nsNum = static_cast<uint8_t>(req.nsNum),
                          .totalBytes = req.nsSize};
         // hostNqn同时写入customData.defaultNqn(持久化到硬件)与nsInfo.allowHostNqnList(API响应)
-        if (FillNsCustomData(ns, req, identity, hostNqn) != UBSE_OK) {
+        if (FillNsCustomData(ns, req, identity, hostNqn, resourceUuid) != UBSE_OK) {
             UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to fill custom data, eid=" << eid;
             RollbackCreatedNameSpaces(createdNsList);
             return UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID;
@@ -502,15 +515,30 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
     UBSE_LOG_INFO << "ExecuteAlloc: name=" << req.name << ", nsSize=" << req.nsSize << ", nsNum=" << req.nsNum;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
-    auto existingEntry = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    // 已存在非CREATING状态条目（CREATED/ATTACHING/ATTACHED等）时，说明该name已被占用
-    // CREATED为已分配待挂载、ATTACHING为挂载进行中、ATTACHED为已挂载，此时再收到alloc请求即属于重复分配，一律拒绝
-    // CREATING是agent RPC路径预置的在途分配标记，需放行由本函数继续完成分配
-    if (existingEntry != nullptr && existingEntry->state != UbseSsuNsState::CREATING) {
-        UBSE_LOG_WARN << "ExecuteAlloc: ledger entry already exists, name=" << req.name
-                      << ", state=" << static_cast<int>(existingEntry->state);
-        // 重复分配一律报错
-        return UBSE_ERR_ALREADY_ALLOCATED;
+    // 复合键账本：同名可能存在多条（脑裂合并遗留），任一非CREATING条目即视为重复分配
+    auto existingEntries = UbseSsuDebtLedger::GetInstance().GetByName(req.name);
+    for (const auto &existingEntry : existingEntries) {
+        // 已存在非CREATING状态条目（CREATED/ATTACHING/ATTACHED等）时，说明该name已被占用
+        // CREATED为已分配待挂载、ATTACHING为挂载进行中、ATTACHED为已挂载，此时再收到alloc请求即属于重复分配，一律拒绝
+        // CREATING是agent RPC路径预置的在途分配标记，需放行由本函数继续完成分配
+        if (existingEntry->state != UbseSsuNsState::CREATING) {
+            UBSE_LOG_WARN << "ExecuteAlloc: ledger entry already exists, name=" << req.name
+                          << ", state=" << static_cast<int>(existingEntry->state);
+            // 重复分配一律报错
+            return UBSE_ERR_ALREADY_ALLOCATED;
+        }
+    }
+
+    // resourceUuid获取：RPC预置路径复用预置CREATING条目中的uuid；本机直调路径入口新生成
+    std::string resourceUuid;
+    if (!existingEntries.empty()) {
+        resourceUuid = existingEntries[0]->allocResult.resourceUuid;
+    } else {
+        resourceUuid = GenerateUuid();
+        if (resourceUuid.empty()) {
+            UBSE_LOG_ERROR << "ExecuteAlloc: generate resourceUuid failed, name=" << req.name;
+            return UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID;
+        }
     }
 
     // 标记预留操作开始，防止CollectDeviceList 在AddReserveSpace ~ CreateDevNameSpaces之间清理预留
@@ -535,7 +563,7 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
         return buildRet;
     }
     std::vector<UbseSsuDevNameSpace> createdNsList;
-    ret = CreateDevNameSpaces(req, eidNsSizeList, identity, eidToSubNqn, result, createdNsList);
+    ret = CreateDevNameSpaces(req, resourceUuid, eidNsSizeList, identity, eidToSubNqn, result, createdNsList);
     if (ret != UBSE_OK) {
         collector_.ReleaseReservation(eidNsSizeList);
         collector_.OnReserveEnd();
@@ -550,15 +578,18 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
     // 刷新后预留容量由hardware usedBytes 自动反映，
     collector_.OnReserveEnd();
     result.name = req.name;
+    result.resourceUuid = resourceUuid;
     result.strategy = req.strategy;
-    // existingEntry为nullptr代表master端本地发起的分配请求，由ExecuteAlloc在成功时直接Put(CREATED)
-    if (existingEntry == nullptr) {
+    // 账本中无同名条目代表master端本地发起的分配请求，由ExecuteAlloc在成功时直接Put(CREATED)；
+    // RPC预置路径（存在CREATING条目）由rpc_processor回填，此处不重复入账
+    if (existingEntries.empty()) {
         UbseSsuLedgerEntry entry;
         entry.name = req.name;
         entry.allocReq = req;
         entry.state = UbseSsuNsState::CREATED;
         entry.allocResult = result;
-        if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
+        if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, resourceUuid,
+                                                  std::make_shared<const UbseSsuLedgerEntry>(entry))) {
             UBSE_LOG_ERROR << "ExecuteAlloc: ledger Put failed after alloc success: name=" << req.name;
         }
     }
@@ -567,7 +598,8 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
 }
 
 // agent端发送SSU释放RPC请求到master节点
-static uint32_t SendFreeRpcRequest(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
+static uint32_t SendFreeRpcRequest(const std::string &name, const std::string &resourceUuid,
+                                   const UbseSsuAllocIdentityInfo &identity,
                                    const std::string &requestNodeId, const std::string &masterNodeId,
                                    const std::string &requestId)
 {
@@ -578,7 +610,7 @@ static uint32_t SendFreeRpcRequest(const std::string &name, const UbseSsuAllocId
         return UBSE_SSU_ERROR_RPC_SEND_FAILED;
     }
 
-    UbseSsuFreeReqMsg reqMsg(requestId, requestNodeId, name, identity);
+    UbseSsuFreeReqMsg reqMsg(requestId, requestNodeId, name, resourceUuid, identity);
 
     UbseSsuSyncRespMsg syncResp; // 占位，后续通过异步线程返回真正结果
     auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, syncResp);
@@ -595,8 +627,15 @@ static uint32_t SendFreeRpcRequest(const std::string &name, const UbseSsuAllocId
     return UBSE_OK;
 }
 
+// detach/free成功或attach失败回退后作废本地记录（记录不存在时幂等成功）
+static void RemoveLocalAttachRecord(const std::string &name)
+{
+    UbseSsuAttachRecordStore::GetInstance().Remove(name);
+}
+
 // agent端释放ns：发送RPC请求到master节点
-static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+static uint32_t FreeSpaceViaRpc(const std::string &name, const std::string &resourceUuid,
+                                const UbseSsuAllocIdentityInfo &identity)
 {
     UbseRoleInfo roleInfo{};
     auto ret = UbseGetCurrentNodeInfo(roleInfo);
@@ -624,7 +663,7 @@ static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdent
         }
         auto respFuture = respMgr->GetFuture<UbseSsuFreeResp>();
 
-        ret = SendFreeRpcRequest(name, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
+        ret = SendFreeRpcRequest(name, resourceUuid, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "FreeSpaceViaRpc: send rpc failed, requestId=" << requestId << ", ret=" << ret;
             return ret;
@@ -651,7 +690,9 @@ static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdent
 }
 
 // 释放主入口：根据节点角色选择不同释放方式
-uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+// resourceUuid非空时精确释放对应空间，空串时释放name下全部空间
+uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const std::string &resourceUuid,
+                                      const UbseSsuAllocIdentityInfo &identity)
 {
     if (name.empty()) {
         UBSE_LOG_ERROR << "FreeSpace: name is empty";
@@ -673,12 +714,24 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllo
 
     if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
         // agent无本地账本，直接通过RPC通知master释放
-        return FreeSpaceViaRpc(name, identity);
+        auto rpcRet = FreeSpaceViaRpc(name, resourceUuid, identity);
+        if (rpcRet == UBSE_OK) {
+            // 与master本地free的记录清理点对齐：free成功后清理本机已释放空间的挂载记录
+            auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
+            auto localRecord = UbseSsuAttachRecordStore::GetInstance().Get(name);
+            if (localRecord.has_value() &&
+                (resourceUuid.empty() || localRecord->resourceUuid == resourceUuid)) {
+                CleanupLocalMount(*localRecord);
+                RemoveLocalAttachRecord(name);
+                suspectedMountTable_.Erase(name);
+            }
+        }
+        return rpcRet;
     }
 
     // master端：账本判空与重复释放检查由ExecuteFree统一处理
     if (role == ELECTION_ROLE_MASTER) {
-        return ExecuteFree(name, identity);
+        return ExecuteFree(name, resourceUuid, identity);
     }
 
     UBSE_LOG_ERROR << "FreeSpace: unsupported node role=" << role;
@@ -780,6 +833,7 @@ static uint32_t VerifySpaceNsIdentity(const std::vector<UbseSsuNameSpaceInfo> &n
 // 引用成员仅作调用点透传，生命周期由调用方局部变量保证，不可存储
 struct LocalAttachRecordCtx {
     const std::string &name;
+    const std::string &resourceUuid; // master账本allocResult.resourceUuid（verify响应回填），随记录落盘供精确上报
     UbseSsuAllocStrategy strategy;
     const std::string &devName;
     const std::string &nqn;
@@ -794,6 +848,7 @@ static void UpsertLocalAttachRecord(const LocalAttachRecordCtx &ctx,
 {
     UbseSsuAttachRecord record;
     record.name = ctx.name;
+    record.resourceUuid = ctx.resourceUuid;
     record.strategy = ctx.strategy;
     record.recordState = recordState;
     record.devName = ctx.devName;
@@ -834,67 +889,70 @@ static void UpsertLocalAttachRecordFromDevMap(const LocalAttachRecordCtx &ctx,
     UpsertLocalAttachRecord(ctx, nsVerifyList, UbseSsuAttachRecordState::ATTACHED);
 }
 
-// detach/free成功或attach失败回退后作废本地记录（记录不存在时幂等成功）
-static void RemoveLocalAttachRecord(const std::string &name)
+// 复合键账本按name解析唯一条目：挂载/卸载/verify/权限/统计等name维度入口的统一前置校验。
+// 同名多resourceUuid（脑裂合并遗留）时操作存在歧义，一律拒绝（NAME_DUPLICATED），
+// 调用方需先经free(name, resourceUuid)或查询接口消歧。
+// detach精确卸载路径：resourceUuid非空时按(name, resourceUuid)精确定位（跳过多uuid歧义拒绝），
+// 未命中报SPACE_NOT_FOUND（语义同"空间不存在"）
+static uint32_t ResolveUniqueEntryByName(const std::string &name, const std::string &caller,
+                                         std::shared_ptr<const UbseSsuLedgerEntry> &entryOut,
+                                         const std::string &resourceUuid = "")
 {
-    UbseSsuAttachRecordStore::GetInstance().Remove(name);
+    if (!resourceUuid.empty()) {
+        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name, resourceUuid);
+        if (entryPtr == nullptr) {
+            UBSE_LOG_ERROR << caller << ": record not found, name=" << name
+                           << ", resourceUuid=" << resourceUuid;
+            return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+        }
+        entryOut = std::move(entryPtr);
+        return UBSE_OK;
+    }
+    auto entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+    if (entries.empty()) {
+        UBSE_LOG_ERROR << caller << ": record not found, name=" << name;
+        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    }
+    if (entries.size() > 1) {
+        UBSE_LOG_ERROR << caller << ": duplicated name with multiple resourceUuid (suspected split-brain residue), "
+                       << "reject, name=" << name << ", count=" << entries.size();
+        // 逐条输出候选条目身份（uuid/state/挂载节点），供运维直接取uuid消歧，无需再查alloc_detail
+        for (const auto &entry : entries) {
+            std::string attachNodesStr;
+            for (const auto &nodeId : entry->attachNodes) {
+                if (!attachNodesStr.empty()) {
+                    attachNodesStr += ",";
+                }
+                attachNodesStr += nodeId;
+            }
+            UBSE_LOG_ERROR << caller << ": candidate, name=" << name
+                           << ", resourceUuid=" << entry->allocResult.resourceUuid
+                           << ", state=" << static_cast<int>(entry->state)
+                           << ", attachNodes=[" << attachNodesStr << "]";
+        }
+        UBSE_LOG_ERROR << caller << ": hint: detach/free with resourceUuid to disambiguate";
+        return UBSE_SSU_ERROR_NAME_DUPLICATED;
+    }
+    entryOut = entries[0];
+    return UBSE_OK;
 }
 
-// 执行释放操作：校验命名空间身份并删除命名空间
-uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+// 对单个账本条目执行NS删除（身份校验+逐NS删除+缓存回写），供ExecuteFree单条目/多条目路径复用。
+// 返回firstErr；remainingNsOut为未删成功的NS（空表示全部成功），由调用方回写账本
+static uint32_t FreeEntryNameSpaces(UbseSsuCollector &collector,
+                                    const std::vector<UbseSsuNameSpaceInfo> &nsList,
+                                    const UbseSsuAllocIdentityInfo &identity,
+                                    std::vector<UbseSsuNameSpaceInfo> &remainingNsOut)
 {
-    if (name.empty()) {
-        UBSE_LOG_ERROR << "ExecuteFree: name is empty";
-        return UBSE_ERR_INVALID_ARG;
-    }
-    // 账本未就绪门禁：避免恢复窗口内Get落空被误报
-    // "空间不存在"（NO_NEED_FREE），误导调用方认为已释放
-    if (!UbseSsuDebtLedger::GetInstance().IsReady()) {
-        UBSE_LOG_WARN << "ExecuteFree: ledger not ready, name=" << name;
-        return UBSE_SSU_ERROR_MASTER_NOT_READY;
-    }
-    UBSE_LOG_INFO << "ExecuteFree: name=" << name;
-    auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
-
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "ExecuteFree: record not found, name=" << name;
-        // 释放不存在的空间，重复释放一律报错
-        return UBSE_ERR_NO_NEED_FREE;
-    }
-
-    // 身份校验先于state判断（与attach/detach路径对齐）：非属主不得借state错误码
-    // 探测空间挂载状态；可见NS逐一校验，NS不可见维持止损跳过语义（不阻断FAULTED止损free）
-    auto devMap = collector_.GetCachedDevMap();
-    auto idRet = VerifySpaceNsIdentity(entryPtr->allocResult.nameSpaceList, identity, devMap,
-                                       NsIdentityVerifyPolicy::SKIP_INVISIBLE);
-    if (idRet != UBSE_OK) {
-        return idRet;
-    }
-
-    if (entryPtr->state != UbseSsuNsState::CREATED) {
-        if (entryPtr->state == UbseSsuNsState::ATTACHED) {
-            UBSE_LOG_WARN << "ExecuteFree: namespace is attached, need detach first, name=" << name;
-            return UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE;
-        }
-        // 设备故障止损出口：FAULTED空间允许free——硬件缺失时
-        // detach本就无法执行，"需先卸载"约束跳过；不在线的NS在下方按已释放跳过
-        if (entryPtr->state == UbseSsuNsState::FAULTED) {
-            UBSE_LOG_WARN << "ExecuteFree: space faulted, free as mitigation, name=" << name;
-        } else {
-            UBSE_LOG_WARN << "ExecuteFree: invalid state, name=" << name
-                          << ", state=" << static_cast<int>(entryPtr->state);
-            return UBSE_SSU_ERROR_STATE_INVALID;
-        }
-    }
-
+    auto devMap = collector.GetCachedDevMap();
     uint32_t firstErr = UBSE_OK;
     std::vector<UbseSsuNameSpaceInfo> remainingNs; // 未删成功的namespace，保留在账本中便于上层重试
     std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
     std::vector<std::pair<std::string, std::string>> removedNs; // 已从硬件删除/确认不存在的(eid, uuid)，用于回写缓存
     std::unordered_set<std::string> refreshedEids;
 
-    for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+    for (size_t i = 0; i < nsList.size(); ++i) {
+        const auto &nsInfo = nsList[i];
         // 按 uuid 匹配：缓存可能滞后于硬件（nsid 复用重建时 guid/uuid 已变化），
         // uuid 一致才命中，避免拿过期缓存条目的 guid 去执行删除
         const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.nsUuid);
@@ -915,7 +973,13 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
         if (!IsNsIdentityMatch(*targetNs, identity)) {
             UBSE_LOG_ERROR << "ExecuteFree: namespace identity not match, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
-            return UBSE_ERR_ACCESS_DENIED;
+            // 当前及后续NS均未删除，必须全部保留回账本：
+            // remainingNsOut为空会被调用方误判为"全部删除成功"而误删账本条目
+            for (size_t j = i; j < nsList.size(); ++j) {
+                remainingNs.push_back(nsList[j]);
+            }
+            firstErr = UBSE_ERR_ACCESS_DENIED;
+            break;
         }
 
         auto ret = UbseSsuAdapterInterface::GetInstance().DeleteDevNameSpace(*targetNs);
@@ -934,29 +998,125 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
 
     // 预增加已删成功namespace的释放容量，等下一次collector刷新时再清除
     if (!releasedCapacity.empty()) {
-        collector_.AddReleasedSpace(releasedCapacity);
+        collector.AddReleasedSpace(releasedCapacity);
     }
 
     // 立即从设备缓存移除已删除的NS：租户隔离依赖缓存中的NS租户信息，
     // 若等待30s周期采集，窗口期内设备仍被旧租户占用，其他租户/无租户请求会被误拒
     if (!removedNs.empty()) {
-        collector_.RemoveDevNameSpaces(removedNs);
+        collector.RemoveDevNameSpaces(removedNs);
     }
 
-    // 没有失败的namespace，删除账本条目
-    if (remainingNs.empty()) {
-        UbseSsuDebtLedger::GetInstance().Remove(name);
-        // free成功：作废本地挂载记录（仅当本机有该记录，幂等）
-        RemoveLocalAttachRecord(name);
-        // free成功：摘除疑似本地残留挂载标记
-        suspectedMountTable_.Erase(name);
+    remainingNsOut = std::move(remainingNs);
+    return firstErr;
+}
+
+// 执行释放操作：校验命名空间身份并删除命名空间
+// resourceUuid非空：精确释放该resourceUuid对应条目（未命中报NO_NEED_FREE，
+// 语义为该空间不存在或已释放）；
+// 空串：释放该name下全部条目（含脑裂合并遗留的同名多份分配）
+uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const std::string &resourceUuid,
+                                        const UbseSsuAllocIdentityInfo &identity)
+{
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "ExecuteFree: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+    // 账本未就绪门禁：避免恢复窗口内Get落空被误报
+    // "空间不存在"（NO_NEED_FREE），误导调用方认为已释放
+    if (!UbseSsuDebtLedger::GetInstance().IsReady()) {
+        UBSE_LOG_WARN << "ExecuteFree: ledger not ready, name=" << name;
+        return UBSE_SSU_ERROR_MASTER_NOT_READY;
+    }
+    UBSE_LOG_INFO << "ExecuteFree: name=" << name << ", resourceUuid=" << resourceUuid;
+    auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
+
+    // 定位待释放条目：指定uuid精确命中；未指定取name下全部条目逐条释放
+    std::vector<std::shared_ptr<const UbseSsuLedgerEntry>> entries;
+    if (!resourceUuid.empty()) {
+        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name, resourceUuid);
+        if (entryPtr == nullptr) {
+            UBSE_LOG_ERROR << "ExecuteFree: resourceUuid not found, name=" << name
+                           << ", resourceUuid=" << resourceUuid;
+            // (name, resourceUuid)即空间标识，未命中语义同"空间不存在或已释放"
+            return UBSE_ERR_NO_NEED_FREE;
+        }
+        entries.push_back(std::move(entryPtr));
+    } else {
+        entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+        if (entries.empty()) {
+            UBSE_LOG_ERROR << "ExecuteFree: record not found, name=" << name;
+            // 释放不存在的空间，重复释放一律报错
+            return UBSE_ERR_NO_NEED_FREE;
+        }
+    }
+
+    // ---- 前置校验阶段：身份校验与状态门禁对全部条目先行通过，再进入删除循环 ----
+    // 逐条目"边校验边删除"会在多条目场景（如脑裂遗留同名多uuid）产生部分删除后的
+    // 失败误语义：前面的条目已不可逆删除，后面条目校验失败却整体返回失败，调用方
+    // 重试只会得到NO_NEED_FREE，对资源存在性误判。校验只读账本快照，无副作用
+    auto devMap = collector_.GetCachedDevMap();
+    for (const auto &entry : entries) {
+        // 身份校验先于state判断（与attach/detach路径对齐）：非属主不得借state错误码
+        // 探测空间挂载状态；可见NS逐一校验，NS不可见维持止损跳过语义（不阻断FAULTED止损free）
+        auto idRet = VerifySpaceNsIdentity(entry->allocResult.nameSpaceList, identity, devMap,
+                                           NsIdentityVerifyPolicy::SKIP_INVISIBLE);
+        if (idRet != UBSE_OK) {
+            return idRet;
+        }
+        // 状态门禁逐条目判断
+        if (entry->state != UbseSsuNsState::CREATED) {
+            if (entry->state == UbseSsuNsState::ATTACHED) {
+                UBSE_LOG_WARN << "ExecuteFree: namespace is attached, need detach first, name=" << name;
+                return UBSE_SSU_ERROR_NEED_DETACH_BEFORE_FREE;
+            }
+            // 设备故障止损出口：FAULTED空间允许free——硬件缺失时
+            // detach本就无法执行，"需先卸载"约束跳过；不在线的NS在下方按已释放跳过
+            if (entry->state != UbseSsuNsState::FAULTED) {
+                UBSE_LOG_WARN << "ExecuteFree: invalid state, name=" << name
+                              << ", state=" << static_cast<int>(entry->state);
+                return UBSE_SSU_ERROR_STATE_INVALID;
+            }
+            UBSE_LOG_WARN << "ExecuteFree: space faulted, free as mitigation, name=" << name;
+        }
+    }
+
+    // ---- 删除阶段：此时全部条目均已通过前置校验；仅剩硬件删除的部分失败
+    // （FreeEntryNameSpaces返回remainingNs非空）属可重试范畴，账本保留残条便于重试 ----
+    uint32_t firstErr = UBSE_OK;
+    for (const auto &entry : entries) {
+        const std::string &entryUuid = entry->allocResult.resourceUuid;
+        std::vector<UbseSsuNameSpaceInfo> remainingNs;
+        auto ret = FreeEntryNameSpaces(collector_, entry->allocResult.nameSpaceList, identity, remainingNs);
+        if (remainingNs.empty()) {
+            UbseSsuDebtLedger::GetInstance().Remove(name, entryUuid);
+        } else {
+            // 部分失败：账本条目只保留未删成功的NS，便于上层重试
+            UbseSsuDebtLedger::GetInstance().Modify(name, entryUuid,
+                [&remainingNs](UbseSsuLedgerEntry &e) { e.allocResult.nameSpaceList = std::move(remainingNs); });
+        }
+        if (ret != UBSE_OK && firstErr == UBSE_OK) {
+            firstErr = ret;
+        }
+    }
+
+    if (firstErr == UBSE_OK) {
+        // 仅当该name在账本已无任何条目时才清理本地记录与疑似标记：状态门禁保证被free条目
+        // 均为CREATED/FAULTED（无活挂载），但脑裂收编同名双条目形态下，按uuid精确free其中
+        // CREATED条目时另一同名条目仍可ATTACHED（本机挂载中）——本地记录按name唯一、归属
+        // 的是仍活着的挂载，按name误删会丢失活挂载记录并解除疑似残留防双挂守卫
+        if (UbseSsuDebtLedger::GetInstance().GetByName(name).empty()) {
+            // 先清理本地挂载（NVMe连接/聚合块设备）再删记录
+            auto localRecord = UbseSsuAttachRecordStore::GetInstance().Get(name);
+            if (localRecord.has_value()) {
+                CleanupLocalMount(*localRecord);
+                RemoveLocalAttachRecord(name);
+            }
+            // free成功：摘除疑似本地残留挂载标记（与记录存在与否无关，有则必除）
+            suspectedMountTable_.Erase(name);
+        }
         UBSE_LOG_INFO << "FreeSpace success: name=" << name;
-        return UBSE_OK;
     }
-
-    // 部分失败：账本只保留未删成功的条目，便于上层重试
-    UbseSsuDebtLedger::GetInstance().Modify(
-        name, [&remainingNs](UbseSsuLedgerEntry &e) { e.allocResult.nameSpaceList = std::move(remainingNs); });
     return firstErr;
 }
 
@@ -1011,10 +1171,12 @@ static void ApplyAggDevLedgerState(UbseSsuLedgerEntry &entry, UbseSsuNsState sta
 
 // 更改空间状态：master端更新本地账本状态，agent端仅发送状态通知给master
 // devName：聚合块设备名称（Linear/Striped场景），attach成功时携带，master端写入账本；Normal场景为空
+// resourceUuid：detach精确卸载路径非空，master端按(name, resourceUuid)复合键定位条目，
+// 跳过name维度唯一性解析（脑裂合并遗留同名多uuid时name维度会误报NAME_DUPLICATED）
 // NORMAL策略多节点共挂：master端按本机nodeId维护attachNodes，agent端自动携带本机nodeId上报，
 // master侧HandleStatusReceiver按节点对账；空间级state保持聚合语义（任一节点挂载=ATTACHED）
 static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState state, bool isMaster,
-                                    const std::string &devName = "")
+                                    const std::string &devName = "", const std::string &resourceUuid = "")
 {
     if (isMaster) {
         // NORMAL多节点场景需本机nodeId维护attachNodes，获取失败直接透传
@@ -1025,8 +1187,25 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
                            << ", name=" << name;
             return nodeIdRet;
         }
-        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &devName, &selfNodeId,
-                                                            &name](UbseSsuLedgerEntry& e) {
+        std::string targetUuid = resourceUuid;
+        if (targetUuid.empty()) {
+            // 复合键账本：按name解析唯一条目取resourceUuid（挂载入口已通过ResolveUniqueEntryByName
+            // 拒绝同名多resourceUuid空间，此处>1为异常防御场景）
+            auto entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+            if (entries.empty()) {
+                UBSE_LOG_ERROR << "UpdateStateOrNotify: ledger entry not found, name=" << name
+                               << ", state=" << static_cast<int>(state);
+                return UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED;
+            }
+            if (entries.size() > 1) {
+                UBSE_LOG_ERROR << "UpdateStateOrNotify: duplicated name in ledger, name=" << name
+                               << ", count=" << entries.size();
+                return UBSE_SSU_ERROR_NAME_DUPLICATED;
+            }
+            targetUuid = entries[0]->allocResult.resourceUuid;
+        }
+        if (!UbseSsuDebtLedger::GetInstance().Modify(name, targetUuid,
+            [&state, &devName, &selfNodeId, &name](UbseSsuLedgerEntry& e) {
                 // NORMAL多节点共挂：按本机nodeId维护attachNodes，空间级state保持聚合语义（任一节点挂载=ATTACHED）
                 if (e.allocReq.strategy == UbseSsuAllocStrategy::NORMAL) {
                     ApplyNormalNodeAttachState(e, state, selfNodeId, name);
@@ -1048,17 +1227,19 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
         UBSE_LOG_ERROR << "UpdateStateOrNotify: get current node id failed, " << FormatRetCode(ret) << ", name=" << name;
         return ret;
     }
-    // agent侧：仅发送状态更新，不维护本地账本
-    return SendStatusUpdate(name, state, devName, nodeId);
+    // agent侧：仅发送状态更新，不维护本地账本（resourceUuid空时master按name维度兼容解析）
+    return SendStatusUpdate(name, state, devName, nodeId, resourceUuid);
 }
 
 // agent端：发送attach/detach前置条件校验请求到master并同步等待响应（attach/detach通用）。
 // 校验内容包括identity、账本state、条带化参数，master端为纯内存读取，通过sync resp直接返回结果
-// option携带attach/detach意图与条带化参数（master端据此校验state与条带化配置）
+// option携带attach/detach意图与条带化参数（master端据此校验state与条带化配置）。
+// resourceUuid：detach精确卸载路径非空，透传至master端按(name, resourceUuid)定位条目
 static uint32_t VerifyAttachDetachPreconditionViaRpc(const std::string &name,
                                                      const UbseSsuAllocIdentityInfo &identity,
                                                      const UbseSsuAttachDetachVerifyOption &option,
-                                                     UbseSsuAttachDetachVerifyResp &verifyResp)
+                                                     UbseSsuAttachDetachVerifyResp &verifyResp,
+                                                     const std::string &resourceUuid = "")
 {
     UbseRoleInfo roleInfo{};
     auto ret = UbseGetCurrentNodeInfo(roleInfo);
@@ -1083,7 +1264,9 @@ static uint32_t VerifyAttachDetachPreconditionViaRpc(const std::string &name,
         return UBSE_SSU_ERROR_RPC_SEND_FAILED;
     }
 
-    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity, option);
+    // resourceUuid必须透传：detach精确卸载按(name, resourceUuid)复合键校验，
+    // 漏传则master按name解析，错误uuid被静默放过（任意uuid均可卸载成功）
+    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity, option, resourceUuid);
     UbseSsuAttachDetachVerifyRespMsg syncResp;
     ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
     if (ret != UBSE_OK) {
@@ -1251,8 +1434,8 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     }
 
     // 先写PENDING再挂载：进程在挂载中途崩溃时，恢复流程对PENDING记录探测收敛
-    const LocalAttachRecordCtx recordCtx{req.name, option.expectedStrategy, devName, req.nqn, req.identity,
-                                         blockDeviceOptions, nameSpaceList};
+    const LocalAttachRecordCtx recordCtx{req.name, verifyResp.resourceUuid, option.expectedStrategy, devName, req.nqn,
+                                         req.identity, blockDeviceOptions, nameSpaceList};
     UpsertLocalAttachRecord(recordCtx, verifyResp.nsVerifyList, UbseSsuAttachRecordState::PENDING);
 
     nsDevPaths.clear();
@@ -1290,9 +1473,10 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
     // 本地挂载成功：记录转ATTACHED（上报master失败不回滚记录，由恢复流程/重试补报收敛）
     UpsertLocalAttachRecord(recordCtx, verifyResp.nsVerifyList, UbseSsuAttachRecordState::ATTACHED);
 
-    // 聚合块设备场景上报devName，master写入账本供重复挂载回填devPath
+    // 聚合块设备场景上报devName，master写入账本供重复挂载回填devPath；
+    // resourceUuid来自verify响应回填，master按复合键精确定位条目
     UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, false,
-                        blockDeviceOptions != nullptr ? devName : "");
+                        blockDeviceOptions != nullptr ? devName : "", verifyResp.resourceUuid);
     UBSE_LOG_INFO << "AgentAttach success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
     return UBSE_OK;
 }
@@ -1311,7 +1495,7 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
                                   (isStriped ? UbseSsuAllocStrategy::STRIPED : UbseSsuAllocStrategy::LINEAR) :
                                   UbseSsuAllocStrategy::NORMAL;
     UbseSsuAttachDetachVerifyResp verifyResp{};
-    auto ret = VerifyAttachDetachPreconditionViaRpc(req.name, req.identity, option, verifyResp);
+    auto ret = VerifyAttachDetachPreconditionViaRpc(req.name, req.identity, option, verifyResp, req.resourceUuid);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AgentDetach: VerifyAttachDetachPreconditionViaRpc failed, ret=" << ret << ", name="
                        << req.name;
@@ -1369,7 +1553,7 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
         return detachRet;
     }
 
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false, "", verifyResp.resourceUuid);
     // 卸载成功：作废本地挂载记录
     RemoveLocalAttachRecord(req.name);
     UBSE_LOG_INFO << "AgentDetach success: name=" << req.name;
@@ -1378,12 +1562,14 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
 
 // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回构造AttachDevNameSpace所需字段。
 // identity校验为账本Get后的第一道门（先于策略/FAULTED/幂等/state判断，见VerifySpaceNsIdentity注释），
-// requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断幂等
+// requestNodeId：发起节点ID，NORMAL策略多节点共挂场景下按节点维度判断幂等。
+// resourceUuid：detach精确卸载路径非空，按(name, resourceUuid)定位条目（跳过多uuid歧义拒绝）
 uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& name,
                                                            const UbseSsuAllocIdentityInfo& identity,
                                                            const std::string& requestNodeId,
                                                            const UbseSsuAttachDetachVerifyOption& option,
-                                                           UbseSsuAttachDetachVerifyResp& verifyResp)
+                                                           UbseSsuAttachDetachVerifyResp& verifyResp,
+                                                           const std::string& resourceUuid)
 {
     if (name.empty()) {
         UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: name is empty";
@@ -1403,10 +1589,10 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
         return UBSE_SSU_ERROR_MASTER_NOT_READY;
     }
 
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: record not found, name=" << name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(name, "VerifyAttachDetachPrecondition", entryPtr, resourceUuid);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验为账本Get后的第一道门（与本地attach/detach路径对齐）：先于策略/FAULTED/幂等/state判断，
@@ -1417,6 +1603,9 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& na
     if (idRet != UBSE_OK) {
         return idRet;
     }
+    
+    // 回填账本resourceUuid：agent据此写本地挂载记录并按复合键精确上报状态。置于身份校验之后
+    verifyResp.resourceUuid = entryPtr->allocResult.resourceUuid;
 
     auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.expectedStrategy);
     if (strategyRet != UBSE_OK) {
@@ -1648,7 +1837,9 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
     // 无论全部还是部分失败，均回退到CREATED状态
     // 部分detach失败时，NS处于"部分CREATED、部分ATTACHED"的不一致状态
     // 调用方可重试AttachLinearSpace/AttachStripedSpace，利用AttachSingleNs的幂等性重新attach所有NS
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, isMaster);
+    // agent路径携带verify响应回填的resourceUuid（master复合键精确定位）；master路径按name解析唯一条目
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, isMaster,
+                        "", isMaster ? "" : verifyResp->resourceUuid);
     // attach失败回退：作废本地PENDING记录（agent/master路径共用）
     RemoveLocalAttachRecord(req.name);
     if (ret != UBSE_OK) {
@@ -2037,10 +2228,10 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         UBSE_LOG_WARN << "AttachSpace: ledger not ready, name=" << req.name;
         return UBSE_SSU_ERROR_MASTER_NOT_READY;
     }
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "AttachSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "AttachSpace", entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
@@ -2111,8 +2302,8 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
     UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true);
 
     // master本地挂载成功：写ATTACHED记录（NORMAL无聚合设备，从collector缓存构造verify回放字段）
-    const LocalAttachRecordCtx recordCtx{req.name, UbseSsuAllocStrategy::NORMAL, "", req.nqn, req.identity,
-                                         nullptr, attachedNsList};
+    const LocalAttachRecordCtx recordCtx{req.name, entryPtr->allocResult.resourceUuid, UbseSsuAllocStrategy::NORMAL,
+                                         "", req.nqn, req.identity, nullptr, attachedNsList};
     UpsertLocalAttachRecordFromDevMap(recordCtx, devMap);
 
     UBSE_LOG_INFO << "AttachSpace success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
@@ -2160,10 +2351,10 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
     }
 
     // Master: 检查本地账本后执行
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "DetachSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "DetachSpace", entryPtr, req.resourceUuid);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验先于幂等/state判断（与attach路径及verify路径对齐）：
@@ -2226,8 +2417,8 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return detachRet;
     }
 
-    // 更新本地账本
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, true);
+    // 更新本地账本（精确卸载路径携带条目resourceUuid，避免同名多uuid时name维度误报歧义）
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, true, "", entryPtr->allocResult.resourceUuid);
     // 卸载成功：作废本地挂载记录
     RemoveLocalAttachRecord(req.name);
 
@@ -2265,11 +2456,13 @@ struct AttachNsCreateBlockDeviceOutput {
 // master端AttachStripedSpace和AttachLinearSpace通用辅助
 // attach所有NS + 创建/重组聚合块设备 + 账本状态管理（ATTACHING -> ATTACHED / 失败回退）
 // ledgerDevName：账本记录的 devName（可能为空=首次挂载；非空=重挂，需 Probe 判定走 Assemble 或降级 Create）
+// resourceUuid：账本条目uuid，随本地挂载记录落盘（状态上报按复合键精确归属）
 static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
                                              std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                              const UbseCreateBlockDeviceOptions &options,
                                              const std::string &ledgerDevName,
+                                             const std::string &resourceUuid,
                                              AttachNsCreateBlockDeviceOutput &output)
 {
     std::string tag = (options.addressingType == UbseSsuAddressingType::STRIPED) ? "AttachStripedSpace" :
@@ -2305,8 +2498,8 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
     const auto recordStrategy = (options.addressingType == UbseSsuAddressingType::STRIPED) ?
                                     UbseSsuAllocStrategy::STRIPED :
                                     UbseSsuAllocStrategy::LINEAR;
-    const LocalAttachRecordCtx recordCtx{req.name, recordStrategy, req.devName, req.nqn, req.identity, &options,
-                                         attachedNsList};
+    const LocalAttachRecordCtx recordCtx{req.name, resourceUuid, recordStrategy, req.devName, req.nqn, req.identity,
+                                         &options, attachedNsList};
     UpsertLocalAttachRecordFromDevMap(recordCtx, devMap);
     return UBSE_OK;
 }
@@ -2360,10 +2553,10 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         UBSE_LOG_WARN << "AttachLinearSpace: ledger not ready, name=" << req.name;
         return UBSE_SSU_ERROR_MASTER_NOT_READY;
     }
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "AttachLinearSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "AttachLinearSpace", entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
@@ -2432,7 +2625,7 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     AttachNsCreateBlockDeviceOutput output;
     auto ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
-                                            entryPtr->devName, output);
+                                            entryPtr->devName, entryPtr->allocResult.resourceUuid, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -2499,10 +2692,10 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         UBSE_LOG_WARN << "AttachStripedSpace: ledger not ready, name=" << req.name;
         return UBSE_SSU_ERROR_MASTER_NOT_READY;
     }
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "AttachStripedSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "AttachStripedSpace", entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验为账本Get后的第一道门（与detach路径对齐）：先于策略/FAULTED/幂等/状态判断，
@@ -2578,7 +2771,7 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     AttachNsCreateBlockDeviceOutput output;
     ret = AttachNsAndCreateBlockDevice(req, entryPtr->allocResult.nameSpaceList, devMap, options,
-                                       entryPtr->devName, output);
+                                       entryPtr->devName, entryPtr->allocResult.resourceUuid, output);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: AttachNsAndCreateBlockDevice failed, name=" << req.name
                        << ", ret=" << ret;
@@ -2594,10 +2787,11 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
 
 // master端DetachLinearSpace和DetachStripedSpace通用辅助
 // 停止聚合块设备运行态(保留元数据) + detach所有NS + 账本状态回退（ATTACHED -> CREATED）
+// resourceUuid：调用方解析出的条目uuid，精确回退账本（同名多uuid时name维度会误报歧义）
 static uint32_t DetachNsAndStopBlockDevice(const std::string& tag, const UbseSsuLinearSpaceReq& req,
                                            const std::vector<UbseSsuNameSpaceInfo>& nameSpaceList,
                                            std::unordered_map<std::string, UbseSsuDevInfoPtr>& devMap,
-                                           const std::string& expectedDevName)
+                                           const std::string& expectedDevName, const std::string& resourceUuid)
 {
     // 停止前校验请求的devName与账本记录一致（账本为attach时写入的权威值），防止误停他人/无关聚合块设备；
     if (!expectedDevName.empty() && req.devName != expectedDevName) {
@@ -2643,7 +2837,7 @@ static uint32_t DetachNsAndStopBlockDevice(const std::string& tag, const UbseSsu
         UBSE_LOG_ERROR << tag << ": failed to get node role for status update, ret=" << roleRet;
         return roleRet;
     }
-    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, role == ELECTION_ROLE_MASTER);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, role == ELECTION_ROLE_MASTER, "", resourceUuid);
     // 卸载成功：作废本地挂载记录
     RemoveLocalAttachRecord(req.name);
     return UBSE_OK;
@@ -2687,10 +2881,10 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     }
 
     // Master: 检查本地账本后执行
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "DetachLinearSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "DetachLinearSpace", entryPtr, req.resourceUuid);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验先于幂等/state判断与设备操作（StopBlockDevice）：与attach路径对齐，
@@ -2729,7 +2923,7 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     }
 
     auto ret = DetachNsAndStopBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
-                                           entryPtr->devName);
+                                           entryPtr->devName, entryPtr->allocResult.resourceUuid);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -2776,10 +2970,10 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     }
 
     // Master: 检查本地账本后执行
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "DetachStripedSpace: record not found, name=" << req.name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(req.name, "DetachStripedSpace", entryPtr, req.resourceUuid);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验先于幂等/state判断与设备操作（StopBlockDevice）：与attach路径对齐，
@@ -2818,7 +3012,7 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     }
 
     auto ret = DetachNsAndStopBlockDevice("DetachStripedSpace", req, entryPtr->allocResult.nameSpaceList, devMap,
-                                          entryPtr->devName);
+                                          entryPtr->devName, entryPtr->allocResult.resourceUuid);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -2962,10 +3156,10 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
     UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << MaskNqn(nqn);
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
 
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << funcName << ": record not found, name=" << name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(name, funcName, entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     // 身份校验先于state判断（与attach/detach路径对齐）：非属主不得借state错误码
@@ -3197,10 +3391,10 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
     }
 
     UBSE_LOG_INFO << "ExecuteGetNsStats: name=" << name;
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "ExecuteGetNsStats: record not found, name=" << name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(name, "ExecuteGetNsStats", entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -3315,7 +3509,7 @@ static uint32_t ListAllocInfoViaRpc(std::vector<UbseSsuAllocResult> &result, con
 }
 
 // agent端通过RPC根据名称查询分配信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待
-static uint32_t GetAllocInfoByNameViaRpc(const std::string &name, UbseSsuAllocResult &result,
+static uint32_t GetAllocInfoByNameViaRpc(const std::string &name, std::vector<UbseSsuAllocResult> &results,
                                          const UbseSsuAllocIdentityInfo &identity)
 {
     UbseRoleInfo roleInfo{};
@@ -3357,9 +3551,9 @@ static uint32_t GetAllocInfoByNameViaRpc(const std::string &name, UbseSsuAllocRe
         return resp.errorCode;
     }
 
-    // master端直接返回完整的分配结果，无需本地账本
-    result = resp.result;
-    UBSE_LOG_INFO << "GetAllocInfoByNameViaRpc success: name=" << name;
+    // master端直接返回完整的分配结果列表（同名多resourceUuid逐条返回），无需本地账本
+    results = resp.results;
+    UBSE_LOG_INFO << "GetAllocInfoByNameViaRpc success: name=" << name << ", count=" << results.size();
     return UBSE_OK;
 }
 
@@ -3409,23 +3603,32 @@ static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, 
 
     verifiedNames.clear();
 
-    // name非空：只验证指定name的identity
+    // name非空：只验证指定name的identity（同名多resourceUuid时任一匹配即放行）
     if (!name.empty()) {
-        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-        if (entryPtr == nullptr) {
+        auto entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+        if (entries.empty()) {
             UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record not found, name=" << name;
             return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
         }
         // CREATING/IDLE状态的条目allocResult为空，不返回
-        if (entryPtr->state == UbseSsuNsState::CREATING) {
-            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: still creating, name=" << name;
-            return UBSE_ERR_CREATING;
+        bool identityMatched = false;
+        for (const auto &entryPtr : entries) {
+            if (entryPtr == nullptr) {
+                continue;
+            }
+            if (entryPtr->state == UbseSsuNsState::CREATING) {
+                UBSE_LOG_ERROR << "VerifyGetInfoIdentity: still creating, name=" << name;
+                return UBSE_ERR_CREATING;
+            }
+            if (entryPtr->state == UbseSsuNsState::IDLE) {
+                UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record idle, name=" << name;
+                return UBSE_ERR_NOT_EXIST;
+            }
+            if (IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+                identityMatched = true;
+            }
         }
-        if (entryPtr->state == UbseSsuNsState::IDLE) {
-            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record idle, name=" << name;
-            return UBSE_ERR_NOT_EXIST;
-        }
-        if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+        if (!identityMatched) {
             UBSE_LOG_ERROR << "VerifyGetInfoIdentity: identity not match, name=" << name;
             return UBSE_ERR_ACCESS_DENIED;
         }
@@ -3435,6 +3638,10 @@ static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, 
     }
 
     // name为空：返回所有匹配identity的name列表
+    // 复合键下同名多resourceUuid（脑裂合并遗留）为多条目：此处按name去重——调用方
+    // ListAllocInfo会对每个name再GetByName展开全部条目，不去重会使同名多份按条目数
+    // 成倍重复输出（同名2个uuid时4条、3个uuid时9条）
+    std::unordered_set<std::string> seenNames;
     auto entries = UbseSsuDebtLedger::GetInstance().GetAll();
     for (const auto &entryPtr : entries) {
         if (entryPtr == nullptr) {
@@ -3447,7 +3654,9 @@ static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, 
         if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
             continue;
         }
-        verifiedNames.push_back(entryPtr->name);
+        if (seenNames.insert(entryPtr->name).second) {
+            verifiedNames.push_back(entryPtr->name);
+        }
     }
     UBSE_LOG_INFO << "VerifyGetInfoIdentity success: count=" << verifiedNames.size();
     return UBSE_OK;
@@ -3541,12 +3750,19 @@ uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &resul
         }
         result.clear();
         for (const auto &name : verifiedNames) {
-            auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-            if (entryPtr == nullptr) {
-                UBSE_LOG_WARN << "ListAllocInfo: local ledger entry not found, name=" << name;
-                continue;
+            // 同名多resourceUuid（脑裂合并遗留）：逐条目identity过滤，防止混合归属条目泄漏
+            auto entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+            for (const auto &entryPtr : entries) {
+                if (entryPtr == nullptr) {
+                    UBSE_LOG_WARN << "ListAllocInfo: local ledger entry is null, name=" << name;
+                    continue;
+                }
+                if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+                    UBSE_LOG_WARN << "ListAllocInfo: local ledger entry identity not match, name=" << name;
+                    continue;
+                }
+                result.push_back(entryPtr->allocResult);
             }
-            result.push_back(entryPtr->allocResult);
         }
         // 从硬件实时获取每个ns的allowHostNqnList，账本中的快照不承载可变权限状态
         for (auto &allocResult : result) {
@@ -3564,7 +3780,8 @@ uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &resul
 }
 
 // GetAllocInfoByName主入口：根据节点角色选择查询方式
-uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+// 同名多个resourceUuid（脑裂合并遗留）时逐条返回，调用方可据resourceUuid精确清理
+uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, std::vector<UbseSsuAllocResult> &results,
                                                const UbseSsuAllocIdentityInfo &identity)
 {
     if (name.empty()) {
@@ -3572,6 +3789,7 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
         return UBSE_ERR_INVALID_ARG;
     }
     UBSE_LOG_INFO << "GetAllocInfoByName: name=" << name;
+    results.clear();
 
     // VM 模式走本地缓存
     // 缓存中不存在返回 UBSE_SSU_ERROR_SPACE_NOT_FOUND
@@ -3582,6 +3800,7 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
             UBSE_LOG_ERROR << "GetAllocInfoByName: vmCache_ is null";
             return UBSE_ERROR_NULLPTR;
         }
+        UbseSsuAllocResult result;
         auto cacheRet = vmCache_->GetAllocInfo(name, result);
         if (cacheRet != UBSE_OK) {
             UBSE_LOG_WARN << "GetAllocInfoByName: not found in vm cache, name=" << name;
@@ -3592,6 +3811,7 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
             UBSE_LOG_WARN << "GetAllocInfoByName: VM mode, identity not match, name=" << name;
             return UBSE_ERR_ACCESS_DENIED;
         }
+        results.push_back(std::move(result));
         return UBSE_OK;
     }
 
@@ -3603,7 +3823,7 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
     }
 
     if (role == ELECTION_ROLE_MASTER) {
-        // master端：先校验identity，验证成功后从本地账本读取完整数据
+        // master端：先校验identity，验证成功后从本地账本逐条目读取（identity过滤防混合归属泄漏）
         std::vector<std::string> verifiedNames;
         auto devMap = collector_.GetCachedDevMap();
         ret = VerifyGetInfoIdentity(identity, name, verifiedNames, devMap);
@@ -3611,19 +3831,34 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
             UBSE_LOG_ERROR << "GetAllocInfoByName: identity verify failed, name=" << name << ", ret=" << ret;
             return ret;
         }
-        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-        if (entryPtr == nullptr) {
+        auto entries = UbseSsuDebtLedger::GetInstance().GetByName(name);
+        if (entries.empty()) {
             UBSE_LOG_ERROR << "GetAllocInfoByName: local ledger entry not found, name=" << name;
             return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
         }
-        result = entryPtr->allocResult;
+        for (const auto &entryPtr : entries) {
+            if (entryPtr == nullptr) {
+                continue;
+            }
+            if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+                UBSE_LOG_WARN << "GetAllocInfoByName: local ledger entry identity not match, name=" << name;
+                continue;
+            }
+            results.push_back(entryPtr->allocResult);
+        }
+        if (results.empty()) {
+            UBSE_LOG_ERROR << "GetAllocInfoByName: no entry matched identity, name=" << name;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
         // 从硬件实时获取每个ns的allowHostNqnList，账本中的快照不承载可变权限状态
-        FillAllowHostNqnList(result, devMap);
+        for (auto &allocResult : results) {
+            FillAllowHostNqnList(allocResult, devMap);
+        }
         return UBSE_OK;
     }
 
     if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
-        return GetAllocInfoByNameViaRpc(name, result, identity);
+        return GetAllocInfoByNameViaRpc(name, results, identity);
     }
 
     UBSE_LOG_ERROR << "GetAllocInfoByName: unsupported node role=" << role;
@@ -3708,10 +3943,10 @@ uint32_t UbseSsuServiceImp::ExecuteGetConnectInfo(const std::string &name, const
     }
 
     UBSE_LOG_INFO << "ExecuteGetConnectInfo: name=" << name;
-    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
-    if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "ExecuteGetConnectInfo: record not found, name=" << name;
-        return UBSE_SSU_ERROR_SPACE_NOT_FOUND;
+    std::shared_ptr<const UbseSsuLedgerEntry> entryPtr;
+    auto entryRet = ResolveUniqueEntryByName(name, "ExecuteGetConnectInfo", entryPtr);
+    if (entryRet != UBSE_OK) {
+        return entryRet;
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -3878,10 +4113,15 @@ void UbseSsuServiceImp::ReconcileSpaceFaultStates(const std::vector<UbseSsuDevIn
         }
         managedNames.insert(name);
         if (onlineNames.count(name) > 0) {
-            // 恢复即清零；已FAULTED的回正（attachNodes非空=attacher仍在挂载→ATTACHED，否则CREATED）
+            // 恢复即清零；已FAULTED的回正（attachNodes非空=attacher仍在挂载→ATTACHED，否则CREATED）。
+            // 身份级故障在途时name在线属预期（uuid漂移/NS缺失都是name在硬件可见），不得由name级
+            // 对账回正身份级FAULTED，否则两对账对同一FAULTED周期性置障/回正振荡（告警刷屏、
+            // FAULTED拦截保护间歇失效）；身份故障恢复由ReconcileLedgerResource清计数后放行回正
             faultDebouncer_.Reset(name);
-            if (entry->state == UbseSsuNsState::FAULTED) {
-                ledger.Modify(name, [](UbseSsuLedgerEntry &e) {
+            if (entry->state == UbseSsuNsState::FAULTED &&
+                resourceDebouncer_.GetCount(ComposeResourceKey(name, entry->allocResult.resourceUuid)) <
+                    SSU_FAULT_DEBOUNCE_CYCLES) {
+                ledger.Modify(name, entry->allocResult.resourceUuid, [](UbseSsuLedgerEntry &e) {
                     e.state = e.attachNodes.empty() ? UbseSsuNsState::CREATED : UbseSsuNsState::ATTACHED;
                 });
                 UBSE_LOG_INFO << "SpaceFaultRecover: space back online, state restored, name=" << name;
@@ -3890,7 +4130,8 @@ void UbseSsuServiceImp::ReconcileSpaceFaultStates(const std::vector<UbseSsuDevIn
         }
         uint32_t count = faultDebouncer_.Increment(name);
         if (count >= SSU_FAULT_DEBOUNCE_CYCLES && entry->state != UbseSsuNsState::FAULTED) {
-            ledger.Modify(name, [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
+            ledger.Modify(name, entry->allocResult.resourceUuid,
+                          [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
             // RAS告警：关键字SpaceFaultAlarm供运维检索（设备故障告警接入xalarm留作后续）
             UBSE_LOG_ERROR << "SpaceFaultAlarm: space missing from hardware for " << count
                            << " consecutive collect cycles, mark FAULTED, name=" << name
@@ -3918,6 +4159,15 @@ void UbseSsuServiceImp::OnNodeUpEvent(const std::string &nodeId)
 {
     nodeOfflineTracker_.OnUp(nodeId);
     UBSE_LOG_INFO << "NodeOffline: node back online, nodeId=" << nodeId;
+    // 节点回归触发账本差异重建（预检无差异跳过）：脑裂合并时存续master不再收到
+    // MASTER_ONLINE事件（收编分支角色不变），被收编方在分区期间分配的资源借NODE_UP
+    // 收编入账。executor异步执行不阻塞事件回调；executor为空时跳过，由周期对账兜底
+    auto executor = ubse::ssu::utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        UBSE_LOG_ERROR << "OnNodeUpEvent: get ssu executor failed, skip ledger diff absorb";
+        return;
+    }
+    executor->Execute([]() { UbseSsuServiceImp::GetInstance().AbsorbLedgerDifferences(); });
 }
 
 // 离线超阈值节点的周期处理（由collector采集成功回调触发）：
@@ -3943,7 +4193,7 @@ void UbseSsuServiceImp::ReconcileOfflineNodes()
             }
             if (entry->allocReq.strategy == UbseSsuAllocStrategy::NORMAL) {
                 // NORMAL多节点共挂：摘除离线节点的挂载关系，摘空后空间级state回CREATED
-                ledger.Modify(entry->name, [&nodeId](UbseSsuLedgerEntry &e) {
+                ledger.Modify(entry->name, entry->allocResult.resourceUuid, [&nodeId](UbseSsuLedgerEntry &e) {
                     if (e.attachNodes.erase(nodeId) > 0 && e.attachNodes.empty()) {
                         e.state = UbseSsuNsState::CREATED;
                     }
@@ -3961,6 +4211,255 @@ void UbseSsuServiceImp::ReconcileOfflineNodes()
 }
 
 
+// ============ 资源身份对账与差异重建 ============
+
+// 硬件资源组：同一(name, resourceUuid)下的NS清单。扫描口径与Rebuild一致：
+// customData.name为空的NS跳过（遗留/未写入）；ns.uuid转换失败的NS计入总数但
+// 不计入uuid集合（与RebuildEntry逐NS跳过对齐，避免转换失败放大缺失判定）
+struct UbseSsuHardwareResourceGroup {
+    uint32_t nsCount{0};
+    std::unordered_set<std::string> nsUuids; // 标准连字符UUID
+};
+
+// 从采集设备列表提取硬件资源组（key=复合键），供资源身份对账与差异重建预检共用
+static std::unordered_map<std::string, UbseSsuHardwareResourceGroup> ExtractHardwareResourceGroups(
+    const std::vector<UbseSsuDevInfo> &devList)
+{
+    std::unordered_map<std::string, UbseSsuHardwareResourceGroup> groups;
+    for (const auto &dev : devList) {
+        for (const auto &ns : dev.nameSpaces) {
+            if (ns.customData.name[0] == '\0') {
+                continue;
+            }
+            std::string nsName(ns.customData.name, strnlen(ns.customData.name, sizeof(ns.customData.name)));
+            if (nsName.empty()) {
+                continue;
+            }
+            std::string resourceUuid(ns.customData.resourceUuid,
+                                     strnlen(ns.customData.resourceUuid, sizeof(ns.customData.resourceUuid)));
+            auto &group = groups[ComposeResourceKey(nsName, resourceUuid)];
+            group.nsCount++;
+            auto uuidStr = StrToUuid(ns.uuid);
+            if (!uuidStr.empty()) {
+                group.nsUuids.insert(std::move(uuidStr));
+            }
+        }
+    }
+    return groups;
+}
+
+// 差异收编预检：硬件资源组与账本托管条目（非CREATING/IDLE）的复合键集及NS数量
+// 是否完全一致。CREATING/IDLE不参与（在途分配/失败回退空间）：账本侧排除托管键的同时
+// 硬件侧也须排除同名组，否则ledger-first分配流程"先Put CREATING再写NS"使在途组恒出现
+// 在硬件侧，两侧size恒不等，预检恒判差异；nsNum为0的异常条目仅比对键存在性
+static bool HardwareLedgerGroupsChanged(const std::vector<UbseSsuDevInfo> &devList)
+{
+    auto hwGroups = ExtractHardwareResourceGroups(devList);
+    std::unordered_map<std::string, uint32_t> managedKeys;
+    std::unordered_set<std::string> inFlightNames; // CREATING/IDLE空间名，硬件侧同步排除
+    for (const auto &entry : UbseSsuDebtLedger::GetInstance().GetAll()) {
+        if (entry->state == UbseSsuNsState::CREATING || entry->state == UbseSsuNsState::IDLE) {
+            inFlightNames.insert(entry->name);
+            continue;
+        }
+        managedKeys.emplace(ComposeResourceKey(entry->name, entry->allocResult.resourceUuid),
+                            entry->allocReq.nsNum);
+    }
+    size_t hwManagedCount = 0;
+    for (const auto &[key, group] : hwGroups) {
+        if (inFlightNames.count(ExtractNameFromResourceKey(key)) > 0) {
+            continue; // 在途/回退空间的硬件组与账本侧口径对齐，不参与比对
+        }
+        hwManagedCount++;
+        auto it = managedKeys.find(key);
+        if (it == managedKeys.end()) {
+            return true;
+        }
+        if (it->second > 0 && it->second != group.nsCount) {
+            return true;
+        }
+    }
+    return hwManagedCount != managedKeys.size();
+}
+
+// 节点回归触发的账本差异收编（仅master，OnNodeUpEvent经executor异步调用）：
+// 预检无差异时跳过；有差异走增量收编（AbsorbHardwareGroups）而非全量Rebuild——本master
+// 账本持续维护、视图可信，全量重置会清掉已收敛条目的挂载视图（free"需先卸载"门禁失效）
+// 并重开60s收敛窗口。预检与收编间硬件清单可能变化（竞态良性：多一次幂等收编）
+void UbseSsuServiceImp::AbsorbLedgerDifferences()
+{
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK || role != ELECTION_ROLE_MASTER) {
+        return;
+    }
+    auto devList = collector_.GetCachedDevList();
+    if (devList.empty() && collector_.IsFirstCollectPending()) {
+        // 首采未完成缓存不可信：交给首采恢复回调（SetOnFirstCollectFailRecovery）触发重建
+        return;
+    }
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    if (!ledger.IsReady()) {
+        // 账本未就绪：不预检，直接走全量重建路径（内部有首采守卫与空输入安全）
+        RebuildLedgerFromDevList();
+        return;
+    }
+    if (!HardwareLedgerGroupsChanged(devList)) {
+        UBSE_LOG_INFO << "AbsorbLedgerDifferences: hardware inventory unchanged, skip absorb";
+        return;
+    }
+    UBSE_LOG_INFO << "AbsorbLedgerDifferences: hardware inventory changed, absorb new hardware groups";
+    const size_t absorbedCount = ledger.AbsorbHardwareGroups(devList);
+    UBSE_LOG_INFO << "AbsorbLedgerDifferences: absorb finished, absorbedCount=" << absorbedCount;
+}
+
+// （name, resourceUuid）复合粒度资源身份对账：每个采集成功周期由collector回调触发。
+// name级存亡判障由ReconcileSpaceFaultStates负责，本函数只判身份差异，四类场景：
+// - uuid漂移：账本uuid组从硬件消失，防抖后置FAULTED阻断消费陈旧路径（关键字ResourceUuidChangedAlarm）
+// - NS缺失：uuid组在但成员数不足，防抖后置FAULTED并告警（关键字NsMissingAlarm）；计数补齐即回正
+// - 同名冲突孤儿：硬件多出同名不同uuid组(脑裂后创建同名资源)，告警转人工，关键字LedgerOrphanConflictAlarm
+// - 真孤儿：硬件同名无任何账本条目，告警转人工（关键字LedgerOrphanAlarm）。本对账不清理/不收编；
+//   NODE_UP差异收编路径（AbsorbHardwareGroups）会将其入账（与脑裂对端新分配不可区分，入账后
+//   本告警不再触发），收编时以LedgerOrphanAbsorbedAlarm留痕转人工
+// 写账本仅uuid漂移/NS缺失置障与NS缺失回正，其余仅告警；防抖键空间与name级faultDebouncer_隔离
+void UbseSsuServiceImp::ReconcileLedgerResource(const std::vector<UbseSsuDevInfo> &devList)
+{
+    auto &ledger = UbseSsuDebtLedger::GetInstance();
+    if (!ledger.IsReady()) {
+        return; // 账本未就绪（Rebuild前），身份语义未知，不判漂移
+    }
+    auto hwGroups = ExtractHardwareResourceGroups(devList);
+    // name在线集合（从复合键反解name，与Rebuild分组口径一致）
+    std::unordered_set<std::string> onlineNames;
+    for (const auto &[key, group] : hwGroups) {
+        onlineNames.insert(ExtractNameFromResourceKey(key));
+    }
+    auto entries = ledger.GetAll();
+    // 账本索引（全状态条目）：ledgerKeys供孤儿判定，creatingNames供同名冲突在途跳过
+    std::unordered_set<std::string> ledgerKeys;
+    std::unordered_set<std::string> ledgerNames;
+    std::unordered_set<std::string> creatingNames;
+    for (const auto &entry : entries) {
+        ledgerNames.insert(entry->name);
+        ledgerKeys.insert(ComposeResourceKey(entry->name, entry->allocResult.resourceUuid));
+        if (entry->state == UbseSsuNsState::CREATING) {
+            creatingNames.insert(entry->name);
+        }
+    }
+    // 防抖键全集：managed复合键 + 超额/孤儿瞬时键，周期末全量Prune防泄漏
+    std::unordered_set<std::string> debounceKeys;
+
+    // ---- 账本侧扫描：uuid漂移 / NS缺失（仅托管条目）----
+    for (const auto &entry : entries) {
+        if (entry->state == UbseSsuNsState::CREATING || entry->state == UbseSsuNsState::IDLE) {
+            continue; // 与name级对账同门槛：未落盘/失败回退不判身份
+        }
+        const auto &name = entry->name;
+        const auto &resourceUuid = entry->allocResult.resourceUuid;
+        const std::string compKey = ComposeResourceKey(name, resourceUuid);
+        debounceKeys.insert(compKey);
+        if (onlineNames.count(name) == 0) {
+            continue; // name级让路：整体消失由ReconcileSpaceFaultStates判FAULTED
+        }
+        auto it = hwGroups.find(compKey);
+        if (it == hwGroups.end()) {
+            // uuid漂移
+            uint32_t count = resourceDebouncer_.Increment(compKey);
+            if (count >= SSU_FAULT_DEBOUNCE_CYCLES && entry->state != UbseSsuNsState::FAULTED) {
+                ledger.Modify(name, resourceUuid,
+                              [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
+                UBSE_LOG_ERROR << "ResourceUuidChangedAlarm: ledger uuid group missing from hardware for " << count
+                               << " cycles, mark FAULTED, name=" << name << ", resourceUuid=" << resourceUuid;
+            }
+            continue;
+        }
+        const auto &group = it->second;
+        const uint32_t expected = entry->allocReq.nsNum;
+        if (expected == 0) {
+            continue; // 异常nsNum防御：不判完整性
+        }
+        if (group.nsUuids.size() < expected) {
+            // NS缺失
+            uint32_t count = resourceDebouncer_.Increment(compKey);
+            if (count >= SSU_FAULT_DEBOUNCE_CYCLES && entry->state != UbseSsuNsState::FAULTED) {
+                std::string missingPaths;
+                for (const auto &nsInfo : entry->allocResult.nameSpaceList) {
+                    if (group.nsUuids.count(nsInfo.nsUuid) == 0) {
+                        missingPaths += " " + nsInfo.nsDevPath;
+                    }
+                }
+                ledger.Modify(name, resourceUuid,
+                              [](UbseSsuLedgerEntry &e) { e.state = UbseSsuNsState::FAULTED; });
+                UBSE_LOG_ERROR << "NsMissingAlarm: ns count incomplete for " << count
+                               << " cycles, mark FAULTED, name=" << name << ", resourceUuid=" << resourceUuid
+                               << ", expected=" << expected << ", actual=" << group.nsUuids.size()
+                               << ", missingDevPaths=" << missingPaths;
+            }
+            continue;
+        }
+        if (group.nsUuids.size() > expected) {
+            // 同customData重复NS（异常）：防抖后仅告警一次，不置障；超额成因未知不回正
+            const std::string extraKey = ComposeResourceKey(compKey, "extra");
+            debounceKeys.insert(extraKey);
+            uint32_t count = resourceDebouncer_.Increment(extraKey);
+            if (count == SSU_FAULT_DEBOUNCE_CYCLES) {
+                UBSE_LOG_WARN << "NsExtraWarn: scanned ns count exceeds expected, name=" << name
+                              << ", resourceUuid=" << resourceUuid << ", expected=" << expected
+                              << ", actual=" << group.nsUuids.size();
+            }
+            continue;
+        }
+        // 完整：漂移/缺失计数在此清零（Reset须晚于NS缺失判定，否则缺失计数每周期被
+        // 先清后增永远计不满）；因漂移/缺失曾置FAULTED的在此回正
+        resourceDebouncer_.Reset(compKey);
+        if (entry->state == UbseSsuNsState::FAULTED) {
+            ledger.Modify(name, resourceUuid, [](UbseSsuLedgerEntry &e) {
+                e.state = e.attachNodes.empty() ? UbseSsuNsState::CREATED : UbseSsuNsState::ATTACHED;
+            });
+            UBSE_LOG_INFO << "NsIntegrityRecover: space ns count restored, state restored, name=" << name
+                          << ", resourceUuid=" << resourceUuid;
+        }
+    }
+
+    // ---- 硬件侧扫描：同名冲突孤儿 / 真孤儿 ----
+    for (const auto &[key, group] : hwGroups) {
+        if (ledgerKeys.count(key) > 0) {
+            continue; // 账本已有该(name, uuid)条目
+        }
+        std::string name = ExtractNameFromResourceKey(key);
+        if (creatingNames.count(name) > 0) {
+            continue; // 同名CREATING在途：分配中间态，静默跳过（如free残留后同名重分配的窗口期）
+        }
+        const std::string orphanKey = ComposeResourceKey("orphan", key);
+        debounceKeys.insert(orphanKey);
+        uint32_t count = resourceDebouncer_.Increment(orphanKey);
+        if (count != SSU_FAULT_DEBOUNCE_CYCLES) {
+            continue; // 防抖未满或已告警过（仅在阈值当拍告警一次，组消失即清键可重新告警）
+        }
+        std::string devPaths;
+        for (const auto &nsUuid : group.nsUuids) {
+            // 与CreateDevNameSpaces/RebuildEntry的持久化路径口径一致
+            devPaths += " /dev/disk/by-id/nvme-uuid." + nsUuid;
+        }
+        // 硬件存在同名但不同resourceUUID
+        if (ledgerNames.count(name) > 0) {
+            UBSE_LOG_ERROR << "LedgerOrphanConflictAlarm: hardware ns group same name different resourceUuid, "
+                           << "manual check required, name=" << name
+                           << ", orphanUuid=" << ExtractUuidFromResourceKey(key) << ", nsCount=" << group.nsCount
+                           << ", devPaths=" << devPaths;
+        } else {
+            // 硬件存在账本不存在的name资源
+            UBSE_LOG_ERROR << "LedgerOrphanAlarm: hardware ns group not tracked by ledger "
+                           << "(possible free partial-failure residue), manual cleanup required, name=" << name
+                           << ", resourceUuid=" << ExtractUuidFromResourceKey(key) << ", nsCount=" << group.nsCount
+                           << ", devPaths=" << devPaths;
+        }
+    }
+
+    resourceDebouncer_.PruneStale(debounceKeys);
+}
+
+
 // ============ 重启恢复辅助函数 ============
 
 // master账本对账（前置：ledgerReady_已置位）。Rebuild后账本仅含空间清单（state=CREATED、
@@ -3974,7 +4473,21 @@ static void ReconcileMasterLedger(const UbseSsuAttachRecord &record)
                        << ", name=" << record.name;
         return;
     }
-    if (!UbseSsuDebtLedger::GetInstance().Modify(record.name, [&record, &selfNodeId](UbseSsuLedgerEntry &e) {
+    // 复合键账本：本地记录非空时按(name, resourceUuid)精确定位；
+    // 升级前旧记录无uuid，按name解析唯一条目兜底；同名多resourceUuid（脑裂合并遗留）
+    // 无法定位唯一归属，WARN跳过待人工处理
+    std::string resourceUuid = record.resourceUuid;
+    if (resourceUuid.empty()) {
+        auto entries = UbseSsuDebtLedger::GetInstance().GetByName(record.name);
+        if (entries.size() > 1) {
+            UBSE_LOG_WARN << "ReconcileMasterLedger: duplicated name in ledger, skip reconcile, name=" << record.name
+                          << ", count=" << entries.size();
+            return;
+        }
+        resourceUuid = entries.empty() || entries[0] == nullptr ? "" : entries[0]->allocResult.resourceUuid;
+    }
+    if (!UbseSsuDebtLedger::GetInstance().Modify(record.name, resourceUuid,
+        [&record, &selfNodeId](UbseSsuLedgerEntry &e) {
             // 设备故障拦截：与HandleStatusReceiver拒收FAULTED上报对称，故障期间的对账不
             // 覆盖FAULTED状态掩盖告警；设备恢复由collector对账回正后本对账再收敛
             if (e.state == UbseSsuNsState::FAULTED) {
@@ -4007,7 +4520,10 @@ static void ReconcileMasterLedger(const UbseSsuAttachRecord &record)
 }
 
 // agent重报对账：复用既有STATUS_UPDATE RPC通道。
-// MASTER_NOT_READY纯重试；SPACE_NOT_FOUND（账本就绪且查无）=space确已被free，自愈清理本地
+// 一切失败（含SPACE_NOT_FOUND）均纯重试：SPACE_NOT_FOUND可能是账本暂缺该条目而非确已free——
+// NODE_UP差异收编（AbsorbHardwareGroups）即将把硬件组入账，重报若抢在收编前到达会误判
+// 已free而误清在用挂载（真孤儿/脑裂对端资源的收编留痕转人工终态也被破坏）。
+// 重试耗尽保留记录，交由周期对账CLEANUP收敛（与master diff同一权威谓词，清理只延迟不丢失）
 static void ReportToMasterWithRetry(const UbseSsuAttachRecord &record)
 {
     std::string selfNodeId;
@@ -4022,18 +4538,13 @@ static void ReportToMasterWithRetry(const UbseSsuAttachRecord &record)
         if (attempt > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(GetRecoverRetryIntervalMs()));
         }
-        auto ret = SendStatusUpdate(record.name, UbseSsuNsState::ATTACHED, devName, selfNodeId);
+        // 复合键精确重报（record.resourceUuid随记录落盘；升级前旧记录为空由master按name兼容解析）
+        auto ret = SendStatusUpdate(record.name, UbseSsuNsState::ATTACHED, devName, selfNodeId, record.resourceUuid);
         if (ret == UBSE_OK) {
             UBSE_LOG_INFO << "ReportToMasterWithRetry: report success, name=" << record.name;
             return;
         }
-        if (ret == UBSE_SSU_ERROR_SPACE_NOT_FOUND) {
-            UBSE_LOG_WARN << "ReportToMasterWithRetry: space freed on master, cleanup local, name=" << record.name;
-            CleanupLocalMount(record);
-            UbseSsuAttachRecordStore::GetInstance().Remove(record.name);
-            return;
-        }
-        // MASTER_NOT_READY（账本未就绪）及其他瞬时错误（网络/超时）：纯重试
+        // MASTER_NOT_READY/SPACE_NOT_FOUND（账本未就绪或条目待收编）及其他瞬时错误（网络/超时）：纯重试
         UBSE_LOG_WARN << "ReportToMasterWithRetry: report failed, name=" << record.name << ", attempt=" << attempt
                       << ", ret=" << FormatRetCode(ret);
     }
@@ -4158,15 +4669,22 @@ void UbseSsuServiceImp::ReconcileSelfLocalMounts(const std::string &selfNodeId)
             continue; // 在途挂载，主流程收敛
         }
         auto resourceLock = ubse::utils::UbseLoggingLockGuard(record.name);
-        auto entry = ledger.Get(record.name);
-        if (entry == nullptr) {
+        auto entries = ledger.GetByName(record.name);
+        if (entries.empty()) {
             // 账本无（已free）：残留清理（复用SPACE_NOT_FOUND清理语义）
             UBSE_LOG_WARN << "MountReconcile: space freed on ledger, cleanup local mount, name=" << record.name;
             CleanupLocalMount(record);
             UbseSsuAttachRecordStore::GetInstance().Remove(record.name);
             continue;
         }
-        if (entry->state == UbseSsuNsState::FAULTED) {
+        if (entries.size() > 1) {
+            // 同名多resourceUuid（脑裂合并遗留）：本地记录无法归属到唯一账本条目，等人工核对
+            UBSE_LOG_WARN << "MountReconcile: duplicated name in ledger, needs manual check, name=" << record.name
+                          << ", count=" << entries.size();
+            continue;
+        }
+        const auto &entry = entries[0];
+        if (entry == nullptr || entry->state == UbseSsuNsState::FAULTED) {
             continue;
         }
         if (entry->attachNodes.count(selfNodeId) == 0) {
@@ -4285,9 +4803,11 @@ void UbseSsuServiceImp::RunMountReconcile()
                 readyItems.push_back(std::move(item));
                 continue;
             }
-            auto entry = ledger.Get(item.name);
+            auto entries = ledger.GetByName(item.name);
             UbseSsuAttachRecord record;
-            if (entry != nullptr && BuildRecordFromLedger(*entry, collector_.GetCachedDevMap(), record)) {
+            // 同名多resourceUuid无法定位唯一账本条目，跳过等下轮（状态不变会持续WARN，提示人工介入）
+            if (entries.size() == 1 && entries[0] != nullptr &&
+                BuildRecordFromLedger(*entries[0], collector_.GetCachedDevMap(), record)) {
                 item.hasRecord = true;
                 item.record = std::move(record);
                 readyItems.push_back(std::move(item));

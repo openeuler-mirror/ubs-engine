@@ -139,7 +139,7 @@ static std::string GenerateUuidFallback()
     return buf;
 }
 
-static std::string GenerateUuid()
+std::string GenerateUuid()
 {
     static std::once_flag initFlag;
     std::call_once(initFlag, []() { InitUuid(); });

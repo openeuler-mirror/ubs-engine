@@ -17,6 +17,7 @@
 #include <vector>
 namespace ubse::adapter_plugins::ssu::def {
 const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 48; // 包含结尾'\0'
+const uint8_t UBSE_SSU_UUID_LENGTH = 37; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 65; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 69; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_RACK_NUM = 2;
@@ -65,6 +66,7 @@ struct UbseSsuDevNameSpaceCustomData {
     uint8_t nsNum;                                // ns数量
     uint64_t totalBytes;                          // ns总容量（字节）
     uint32_t crc;                                 // crc校验
+    char resourceUuid[UBSE_SSU_UUID_LENGTH]; // 分配唯一标识，脑裂合并后区分同名多次分配
 } __attribute__((packed));
 
 // 参数	    缩写	说明	               默认值

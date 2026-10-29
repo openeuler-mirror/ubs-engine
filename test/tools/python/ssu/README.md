@@ -95,7 +95,7 @@ UBSE_SDK_DIR=/opt/ubse-test/python python3 ubse_ssu_test_python.py ssu_list_allo
 
 ## 4. 命令参考
 
-所有参数为有序位置参数，不接受可选参数或省略。
+除三个 detach 命令末尾的可选 `[resource_uuid]` 外，所有参数为有序位置参数，不接受省略。
 
 ### 4.1 存储空间管理
 
@@ -104,6 +104,7 @@ UBSE_SDK_DIR=/opt/ubse-test/python python3 ubse_ssu_test_python.py ssu_list_allo
 | `ssu_list_alloc_info` | 无 | 列出所有已分配存储空间 |
 | `ssu_alloc_space` | `<name> <ns_size> <ns_num> <lba_format> <strategy> <tenant>` | 分配存储空间 |
 | `ssu_free_space` | `<name>` | 释放存储空间（幂等） |
+| `ssu_free_space_by_resource_uuid` | `<name> <resource_uuid>` | 按resourceUuid精确释放对应那次分配（同名多次分配/脑裂合并遗留场景） |
 
 ### 4.2 访问权限
 
@@ -117,11 +118,16 @@ UBSE_SDK_DIR=/opt/ubse-test/python python3 ubse_ssu_test_python.py ssu_list_allo
 | 命令 | 参数 | 说明 |
 |------|------|------|
 | `ssu_attach_space` | `<name> <nqn> <src_eid>` | 挂载存储空间 |
-| `ssu_detach_space` | `<name> <nqn> <src_eid>` | 卸载存储空间 |
+| `ssu_detach_space` | `<name> <nqn> <src_eid> [resource_uuid]` | 卸载存储空间；带 resource_uuid 时精确卸载同名多份分配之一 |
 | `ssu_attach_linear_space` | `<name> <nqn> <src_eid> <dev_name>` | 挂载线性编址存储空间 |
-| `ssu_detach_linear_space` | `<name> <nqn> <src_eid> <dev_name>` | 卸载线性编址存储空间 |
+| `ssu_detach_linear_space` | `<name> <nqn> <src_eid> <dev_name> [resource_uuid]` | 卸载线性编址存储空间；带 resource_uuid 时精确卸载同名多份分配之一 |
 | `ssu_attach_striped_space` | `<name> <nqn> <src_eid> <dev_name> <level> <chunk_size>` | 挂载条带化编址存储空间 |
-| `ssu_detach_striped_space` | `<name> <nqn> <src_eid> <dev_name> <level> <chunk_size>` | 卸载条带化编址存储空间 |
+| `ssu_detach_striped_space` | `<name> <nqn> <src_eid> <dev_name> <level> <chunk_size> [resource_uuid]` | 卸载条带化编址存储空间；带 resource_uuid 时精确卸载同名多份分配之一 |
+
+detach 的可选 `[resource_uuid]` 用于脑裂合并后同名多份分配场景：先用 `ssu_list_alloc_info` 查询各次分配的
+`resource_uuid`，再带该参数精确卸载其中一份（未命中报空间不存在）；不传时按 name 解析，同名多份会被拒绝，
+行为与从前一致。resource_uuid 长度 1~36、仅允许 `[0-9a-f-]`，由 SDK 校验；
+卸载后可用 `ssu_free_space_by_resource_uuid` 按同一 resource_uuid 精确释放对应分配。
 
 ### 4.4 查询
 
@@ -188,6 +194,14 @@ ubse_ssu_test_python> ssu_get_connect_info myspace 0 0 0 0 0 0 "" ""
 ubse_ssu_test_python> ssu_detach_space myspace nqn.2024-01.example:host-a 0000000000000001
 ubse_ssu_test_python> ssu_remove_access_permission myspace nqn.2024-01.example:host-a
 ubse_ssu_test_python> ssu_free_space myspace
+```
+
+脑裂合并后同名多份分配时，先通过 `ssu_list_alloc_info` 查询各次分配的 `resource_uuid`，
+再带可选参数精确卸载并释放其中一份：
+
+```
+ubse_ssu_test_python> ssu_detach_space myspace nqn.2024-01.example:host-a 0000000000000001 0123456789abcdef0123456789abcdef012
+ubse_ssu_test_python> ssu_free_space_by_resource_uuid myspace 0123456789abcdef0123456789abcdef012
 ```
 
 ### 6.4 条带化编址

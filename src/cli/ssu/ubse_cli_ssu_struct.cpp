@@ -167,6 +167,10 @@ bool UnpackAllocResult(UbseUnpackUtil &unpack, UbseCliSsuAllocResult &value)
         }
         decoded.nameSpaceList.emplace_back(std::move(nameSpace));
     }
+    // 服务端 AllocResultPack 在 namespace 列表尾部追加 resourceUuid，此处顺序对齐。
+    if (!UnpackString(unpack, decoded.resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
+        return false;
+    }
     value = std::move(decoded);
     return true;
 }
@@ -193,11 +197,18 @@ bool UbseCliSsuAllocDetailReq::Serialize(std::vector<uint8_t> &payload) const
 
 bool UbseCliSsuFreeSpaceReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH)) {
+    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH) || !StringFits(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
         return false;
     }
-    return BuildPayload(StringSize(name), payload,
-                        [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH); });
+    if (resourceUuid.empty()) {
+        // 未指定 resourceUuid 时保持旧线报文格式（仅 name），服务端按删除 name 下全部空间处理。
+        return BuildPayload(StringSize(name), payload,
+                            [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH); });
+    }
+    const uint32_t size = StringSize(name) + StringSize(resourceUuid);
+    return BuildPayload(size, payload, [this](UbsePackUtil &pack) {
+        return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH) && PackString(pack, resourceUuid, SSU_CLI_MAX_UUID_LENGTH);
+    });
 }
 
 bool UbseCliSsuAllocCreateReq::Serialize(std::vector<uint8_t> &payload) const
@@ -285,23 +296,37 @@ bool UbseCliSsuAttachAggregatedRsp::Deserialize(const uint8_t *buffer, uint32_t 
 
 bool UbseCliSsuDetachSpaceReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!SpaceFieldsFit(name, hostNqn, srcEid)) {
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
         return false;
     }
-    return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid), payload,
-                        [this](UbsePackUtil &pack) { return PackSpaceFields(pack, name, hostNqn, srcEid); });
+    if (resourceUuid.empty()) {
+        // 未指定 resourceUuid 时保持旧线报文格式，服务端按name解析（同名多份时拒绝）。
+        return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid), payload,
+                            [this](UbsePackUtil &pack) { return PackSpaceFields(pack, name, hostNqn, srcEid); });
+    }
+    return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(resourceUuid), payload,
+                        [this](UbsePackUtil &pack) {
+                            return PackSpaceFields(pack, name, hostNqn, srcEid) &&
+                                   PackString(pack, resourceUuid, SSU_CLI_MAX_UUID_LENGTH);
+                        });
 }
 
 bool UbseCliSsuDetachLinearReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH)) {
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH) ||
+        !StringFits(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
         return false;
     }
-    return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName), payload,
-                        [this](UbsePackUtil &pack) {
-                            return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-                                   PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH);
-                        });
+    uint32_t size = SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName);
+    if (!resourceUuid.empty()) {
+        // resourceUuid为尾部追加字段：非空时追加（精确卸载），空串不追加（服务端兼容旧格式）
+        size += StringSize(resourceUuid);
+    }
+    return BuildPayload(size, payload, [this](UbsePackUtil &pack) {
+        bool ret = PackSpaceFields(pack, name, hostNqn, srcEid) &&
+                   PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH);
+        return ret && (resourceUuid.empty() || PackString(pack, resourceUuid, SSU_CLI_MAX_UUID_LENGTH));
+    });
 }
 
 bool UbseCliSsuDetachStripedReq::Serialize(std::vector<uint8_t> &payload) const
@@ -309,15 +334,21 @@ bool UbseCliSsuDetachStripedReq::Serialize(std::vector<uint8_t> &payload) const
     const auto rawLevel = static_cast<uint8_t>(level);
     const auto rawChunkSize = static_cast<uint32_t>(chunkSize);
     // detach 不向用户暴露 level/chunkSize，不校验。
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH)) {
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH) ||
+        !StringFits(resourceUuid, SSU_CLI_MAX_UUID_LENGTH)) {
         return false;
     }
-    const uint32_t size =
+    uint32_t size =
         SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName) + sizeof(rawLevel) + sizeof(rawChunkSize);
+    if (!resourceUuid.empty()) {
+        // resourceUuid为尾部追加字段：非空时追加（精确卸载），空串不追加（服务端兼容旧格式）
+        size += StringSize(resourceUuid);
+    }
     return BuildPayload(size, payload, [this, rawLevel, rawChunkSize](UbsePackUtil &pack) {
-        return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-               PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
-               pack.UbsePackUint32(rawChunkSize);
+        bool ret = PackSpaceFields(pack, name, hostNqn, srcEid) &&
+                   PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
+                   pack.UbsePackUint32(rawChunkSize);
+        return ret && (resourceUuid.empty() || PackString(pack, resourceUuid, SSU_CLI_MAX_UUID_LENGTH));
     });
 }
 

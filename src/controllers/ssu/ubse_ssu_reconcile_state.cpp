@@ -38,6 +38,13 @@ uint32_t UbseSsuFaultDebouncer::Increment(const std::string &name)
     return ++counters_[name];
 }
 
+uint32_t UbseSsuFaultDebouncer::GetCount(const std::string &name) const
+{
+    std::lock_guard<std::mutex> lock(mtx_);
+    auto it = counters_.find(name);
+    return it != counters_.end() ? it->second : 0;
+}
+
 void UbseSsuFaultDebouncer::Reset(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(mtx_);

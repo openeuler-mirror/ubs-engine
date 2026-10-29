@@ -391,6 +391,59 @@ ubs_error_t ubs_ssu_space_detach_pack(const ubs_ssu_space_req_t *req, ubse_api_b
 }
 
 /**
+ * @brief 按resourceUuid精确卸载空间请求打包
+ * 对应服务端 SsuDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + resourceUuid(string)
+ * @param req 卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_space_detach_by_resource_uuid_pack(const ubs_ssu_space_req_t *req, const char *resource_uuid,
+                                                       ubse_api_buffer_t &buffer)
+{
+    if (req == nullptr || resource_uuid == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    size_t total_len = calc_space_req_size(req) + ubse_string_calc_size(resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (check_alloc_size(total_len) != UBS_SUCCESS) {
+        return UBS_ERR_OUT_OF_RANGE;
+    }
+    buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    if (buffer.buffer == nullptr) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    buffer.length = static_cast<uint32_t>(total_len);
+
+    PackCtx ctx = {buffer.buffer, buffer.buffer + total_len};
+    ubs_error_t ret = packString(ctx, req->name, UBS_SSU_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: name, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->nqn, UBS_SSU_MAX_NQN_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: nqn, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->src_eid, UBS_SSU_MAX_EID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: src_eid, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: resource_uuid, ret: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
+}
+
+/**
  * @brief 线性挂载空间请求打包
  * 对应服务端 SsuLinearAttachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + devName(string)
  * @param req 线性挂载空间请求参数
@@ -451,6 +504,66 @@ ubs_error_t ubs_ssu_linear_space_attach_pack(const ubs_ssu_linear_space_req_t *r
 ubs_error_t ubs_ssu_linear_space_detach_pack(const ubs_ssu_linear_space_req_t *req, ubse_api_buffer_t &buffer)
 {
     return ubs_ssu_linear_space_attach_pack(req, buffer);
+}
+
+/**
+ * @brief 按resourceUuid精确卸载线性空间请求打包
+ * 对应服务端 SsuLinearDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string) + devName(string) + resourceUuid(string)
+ * @param req 线性卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_linear_space_detach_by_resource_uuid_pack(const ubs_ssu_linear_space_req_t *req,
+                                                              const char *resource_uuid, ubse_api_buffer_t &buffer)
+{
+    if (req == nullptr || resource_uuid == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    size_t total_len = calc_linear_space_req_size(req) +
+                       ubse_string_calc_size(resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (check_alloc_size(total_len) != UBS_SUCCESS) {
+        return UBS_ERR_OUT_OF_RANGE;
+    }
+    buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    if (buffer.buffer == nullptr) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    buffer.length = static_cast<uint32_t>(total_len);
+
+    PackCtx ctx = {buffer.buffer, buffer.buffer + total_len};
+    ubs_error_t ret = packString(ctx, req->name, UBS_SSU_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: name, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->nqn, UBS_SSU_MAX_NQN_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: nqn, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->src_eid, UBS_SSU_MAX_EID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: src_eid, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: dev_name, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: resource_uuid, ret: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
 }
 
 /**
@@ -530,6 +643,82 @@ ubs_error_t ubs_ssu_striped_space_detach_pack(const ubs_ssu_striped_space_req_t 
 }
 
 /**
+ * @brief 按resourceUuid精确卸载条带化空间请求打包
+ * 对应服务端 SsuStripedDetachSpaceUnpack: name(string) + hostNqn(string) + srcEid(string)
+ *  + devName(string) + level(uint8) + chunkSize(uint32) + resourceUuid(string)
+ * level/chunkSize与原striped卸载报文格式保持一致（服务端读取但不校验），resourceUuid尾部追加
+ * @param req 条带化卸载空间请求参数
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_striped_space_detach_by_resource_uuid_pack(const ubs_ssu_striped_space_req_t *req,
+                                                               const char *resource_uuid, ubse_api_buffer_t &buffer)
+{
+    if (req == nullptr || resource_uuid == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    // 与原striped卸载格式一致：striped字段（含level/chunkSize）+ 尾部resourceUuid
+    size_t total_len = calc_striped_space_req_size(req) +
+                       ubse_string_calc_size(resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (check_alloc_size(total_len) != UBS_SUCCESS) {
+        return UBS_ERR_OUT_OF_RANGE;
+    }
+    buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    if (buffer.buffer == nullptr) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    buffer.length = static_cast<uint32_t>(total_len);
+
+    PackCtx ctx = {buffer.buffer, buffer.buffer + total_len};
+    ubs_error_t ret = packString(ctx, req->name, UBS_SSU_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: name, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->nqn, UBS_SSU_MAX_NQN_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: nqn, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->src_eid, UBS_SSU_MAX_EID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: src_eid, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, req->dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: dev_name, ret: " << ret;
+        return ret;
+    }
+    // level/chunkSize与原striped卸载报文格式保持一致，服务端读取但不校验
+    ret = packValue(ctx, static_cast<uint8_t>(req->level));
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: level, ret: " << ret;
+        return ret;
+    }
+    ret = packValue(ctx, static_cast<uint32_t>(req->chunk_size));
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: chunk_size, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: resource_uuid, ret: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
+}
+
+/**
  * @brief 释放空间请求打包
  * 对应服务端 SsuFreeSpaceUnpack: name(string)
  * @param name 空间名称
@@ -557,6 +746,48 @@ ubs_error_t ubs_ssu_space_free_pack(const char *name, ubse_api_buffer_t &buffer)
     if (ret != UBS_SUCCESS) {
         free_buffer(buffer);
         IPC_LOG_ERROR << "pack failed, attr: name, ret: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
+}
+
+/**
+ * @brief 按resourceUuid精确释放空间请求打包
+ * 对应服务端 SsuFreeSpaceUnpack: name(string) + resourceUuid(string)
+ * @param name 空间名称
+ * @param resource_uuid 分配唯一标识
+ * @param buffer 输出缓冲区
+ * @return ubs_error_t 错误码
+ */
+ubs_error_t ubs_ssu_space_free_by_resource_uuid_pack(const char *name, const char *resource_uuid,
+                                                     ubse_api_buffer_t &buffer)
+{
+    if (name == nullptr || resource_uuid == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    size_t total_len = calc_free_space_req_size(name) +
+                       ubse_string_calc_size(resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (check_alloc_size(total_len) != UBS_SUCCESS) {
+        return UBS_ERR_OUT_OF_RANGE;
+    }
+    buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    if (buffer.buffer == nullptr) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    buffer.length = static_cast<uint32_t>(total_len);
+
+    PackCtx ctx = {buffer.buffer, buffer.buffer + total_len};
+    ubs_error_t ret = packString(ctx, name, UBS_SSU_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: name, ret: " << ret;
+        return ret;
+    }
+    ret = packString(ctx, resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        free_buffer(buffer);
+        IPC_LOG_ERROR << "pack failed, attr: resource_uuid, ret: " << ret;
         return ret;
     }
     return UBS_SUCCESS;
@@ -1075,8 +1306,27 @@ static ubs_error_t unpack_alloc_result(UnpackCtx *ctx, ubs_ssu_alloc_result_t *r
         IPC_LOG_ERROR << "Failed to unpack namespace count";
         return ret;
     }
-
-    return unpack_namespace_info_list(ctx, &result->namespaces, result->namespace_cnt);
+    ret = unpack_namespace_info_list(ctx, &result->namespaces, result->namespace_cnt);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+    // 尾部追加字段：resourceUuid（分配唯一标识），与服务端 AllocResultPack 顺序对应。
+    // 失败时须释放已解包的namespace列表：调用方失败分支只delete结构体本身，
+    // 不会释放内部动态分配的namespaces/host_nqns
+    ret = unpackString(*ctx, result->resource_uuid, UBS_SSU_MAX_UUID_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        if (result->namespaces != nullptr) {
+            for (uint32_t i = 0; i < result->namespace_cnt; ++i) {
+                free_namespace_info(&result->namespaces[i]);
+            }
+            delete[] result->namespaces;
+            result->namespaces = nullptr;
+            result->namespace_cnt = 0;
+        }
+        IPC_LOG_ERROR << "Failed to unpack resource_uuid";
+        return ret;
+    }
+    return UBS_SUCCESS;
 }
 
 // ============================================================================

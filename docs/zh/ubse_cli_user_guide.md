@@ -1817,6 +1817,7 @@ ubsectl-ssu只能在root、ubse用户中运行。
 | name    | 分配空间标识                | 字符串，与创建SSU分配时的name参数一致 |
 | size    | 分配空间下所有命名空间容量之和       | 整数，字节数       |
 | strategy | 分配策略                  | 可选值：\[ Normal \| Linear \| Striped ] |
+| resource_uuid | 该次分配的唯一标识，用于区分同名多份分配（脑裂合并遗留） | 字符串，可作为 detach/delete 的 `-u` 参数值 |
 
 **错误信息说明**
 
@@ -1833,12 +1834,12 @@ ubsectl-ssu只能在root、ubse用户中运行。
 
 ```shell
 $ ubsectl-ssu display -t alloc_summary
-------------------------------------------------
-name            size    strategy
-------------------------------------------------
-alloc-space-1   10737418240     Linear
-alloc-space-2   21474836480     Striped
-------------------------------------------------
+----------------------------------------------------------------
+name            size    strategy        resource_uuid
+----------------------------------------------------------------
+alloc-space-1   10737418240     Linear  resource-uuid-1
+alloc-space-2   21474836480     Striped resource-uuid-2
+----------------------------------------------------------------
 ```
 
 ### 查询SSU分配详情
@@ -1872,6 +1873,7 @@ ubsectl-ssu display -t alloc_detail -n <name>
 | 字段名         | 字段描述                        | 字段取值                         |
 | ----------- | --------------------------- | ---------------------------- |
 | Name        | 分配空间标识，展示在表头上方              | 字符串，与创建SSU分配时的name参数一致     |
+| ResourceUuid | 分配唯一标识，展示在表头上方，每次分配生成一次 | 字符串，格式为UUID，可用于`ubsectl-ssu delete -u`精确释放该次分配 |
 | Strategy    | 分配策略，展示在表头上方                | 可选值：\[ Normal \| Linear \| Striped ]   |
 | ns_uuid     | 命名空间对应的物理设备UUID             | 字符串，格式为UUID                  |
 | tgt_eid     | Target EID                  | 字符串                          |
@@ -1905,7 +1907,7 @@ ubsectl-ssu display -t alloc_detail -n <name>
 ```shell
 $ ubsectl-ssu display -t alloc_detail -n alloc-space-1
 ----------------------------------------------------------------------------------------------------------------
-Name: alloc-space-1  Strategy:Linear
+Name: alloc-space-1  ResourceUuid:550e8400-e29b-41d4-a716-446655440000  Strategy:Linear
 ----------------------------------------------------------------------------------------------------------------
 ns_uuid    tgt_eid    tgt_nqn             namespace_id    ns_dev_path     ns_size    lba_format
 ----------------------------------------------------------------------------------------------------------------
@@ -1977,6 +1979,9 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 | ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation already exists. | 指定name的SSU存储空间已分配 |
+| ERROR: Multiple allocations with the same name but different resource UUIDs exist. Specify a resource UUID to operate on a specific one. | 同名多份分配（疑似脑裂残留），需指定resource_uuid精确操作 |
+| ERROR: Not enough free device space or tenant quota for the SSU allocation. | 设备可用空间或租户配额不足 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -1988,7 +1993,7 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 ```shell
 $ ubsectl-ssu create -n alloc-space-1 -s 10G
 ----------------------------------------------------------------------------------------------------------------
-Name: alloc-space-1  Strategy:Normal
+Name: alloc-space-1  ResourceUuid:550e8400-e29b-41d4-a716-446655440000  Strategy:Normal
 ----------------------------------------------------------------------------------------------------------------
 ns_uuid    tgt_eid    tgt_nqn             namespace_id    ns_dev_path     ns_size    lba_format
 ----------------------------------------------------------------------------------------------------------------
@@ -2001,7 +2006,7 @@ uuid-aa    e2         nqn.2024-01:target  1               /dev/nvme0n1    107374
 ```shell
 $ ubsectl-ssu create -n alloc-space-2 -s 20G -m 2 -l 4K -r Striped
 ----------------------------------------------------------------------------------------------------------------
-Name: alloc-space-2  Strategy:Striped
+Name: alloc-space-2  ResourceUuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8  Strategy:Striped
 ----------------------------------------------------------------------------------------------------------------
 ns_uuid    tgt_eid    tgt_nqn             namespace_id    ns_dev_path     ns_size    lba_format
 ----------------------------------------------------------------------------------------------------------------
@@ -2014,12 +2019,12 @@ uuid-bb    e3         nqn.2024-01:target  2               /dev/nvme1n1    107374
 
 **描述**
 
-释放SSU存储空间，删除该分配空间及其关联的所有命名空间。
+释放SSU存储空间。省略resource_uuid时，删除该分配名称及其关联的所有命名空间；指定resource_uuid时，仅精确释放该名称下对应那一次分配（适用于同名多次分配场景）。
 
 **用法**
 
 ```shell
-ubsectl-ssu delete -n <name>
+ubsectl-ssu delete -n <name> [-u <resource_uuid>]
 ```
 
 **输入参数**
@@ -2027,12 +2032,14 @@ ubsectl-ssu delete -n <name>
 | 参数        | 说明               | 取值                                         |
 | --------- | ---------------- | ------------------------------------------ |
 | -n/--name | **必选**，分配空间标识名称 | 字符串，1-47字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -u/--resource_uuid | 可选，分配唯一标识 | 字符串，1-36字符，仅支持小写十六进制字符（0-9、a-f）和`-`；可先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询 |
 
 **约束限制**
 
 1. ubsectl-ssu只能在root、ubse用户中运行
 2. name必须与创建SSU分配时的name参数一致
 3. 释放前需先执行`ubsectl-ssu detach`卸载该存储空间；存储空间处于已挂载（ATTACHED）状态时不允许释放
+4. 同名存在多次分配（如脑裂合并遗留）时，需先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，再指定`-u`逐份精确释放；省略`-u`时将删除该名称下的全部分配
 
 **输出信息说明**
 
@@ -2044,18 +2051,36 @@ ubsectl-ssu delete -n <name>
 | ---------------------------------------------- | ------------------ |
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid resource_uuid. The value must be 1-36 characters. | resource_uuid长度不合法 |
 | ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
 | ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
-| ERROR: The SSU operation timed out.          | SSU操作超时 |
+| ERROR: The SSU operation timed out.          | SSU操作超时          |
 | ERROR: The SSU allocation does not exist or has already been deleted. | 指定的SSU存储空间不存在或已经删除 |
 | ERROR: The SSU allocation is attached. Detach it before deleting it. | 指定的SSU存储空间已挂载，需先卸载再删除 |
+| ERROR: A stale local mount is suspected. Verify and clean up the local device, or delete the allocation. | 疑似本地残留挂载，需人工核对清理或删除该空间解除 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
 **示例**
 
+释放指定分配空间的全部空间：
+
 ```shell
 $ ubsectl-ssu delete -n alloc-space-1
+```
+
+同名多次分配场景下，先查询各次分配的ResourceUuid，再精确释放其中一份：
+
+```shell
+$ ubsectl-ssu display -t alloc_detail -n alloc-space-1
+----------------------------------------------------------------------------------------------------------------
+Name: alloc-space-1  ResourceUuid:550e8400-e29b-41d4-a716-446655440000  Strategy:Linear
+----------------------------------------------------------------------------------------------------------------
+ns_uuid    tgt_eid    tgt_nqn             namespace_id    ns_dev_path     ns_size    lba_format
+----------------------------------------------------------------------------------------------------------------
+...
+$ ubsectl-ssu delete -n alloc-space-1 -u 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ### 挂载已分配的存储空间
@@ -2105,6 +2130,9 @@ ubsectl-ssu attach -n <name> [-q <host_nqn>] [-e <src_eid>]
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2120,12 +2148,12 @@ ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1
 
 **描述**
 
-将使用普通（Normal）策略分配的存储空间从系统卸载，释放设备占用。
+将使用普通（Normal）策略分配的存储空间从系统卸载，释放设备占用。同名存在多次分配（如脑裂合并遗留）时，先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝。
 
 **用法**
 
 ```shell
-ubsectl-ssu detach -n <name> [-q <host_nqn>]
+ubsectl-ssu detach -n <name> [-q <host_nqn>] [-u <resource_uuid>]
 ```
 
 **输入参数**
@@ -2134,6 +2162,7 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 | -------------- | ---------------- | ------------------------------------------ |
 | -n/--name      | **必选**，分配空间标识名称 | 字符串，1-47字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
 | -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+| -u/--resource\_uuid | 可选，分配唯一标识 | 字符串，1-36字符，仅支持小写十六进制字符（0-9、a-f）和`-`；可先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询 |
 
 **约束限制**
 
@@ -2142,6 +2171,7 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 3. 卸载前需确保没有进程正在使用该存储空间
 4. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
 5. 该命令省略type，仅执行Normal存储空间的命名空间卸载；dev_name仅适用于显式指定Linear或Striped的聚合卸载
+6. 同名存在多次分配（如脑裂合并遗留）时，需先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，再指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝
 
 **输出信息说明**
 
@@ -2154,6 +2184,7 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid resource_uuid. The value must be 1-36 characters. | resource_uuid长度不合法 |
 | ERROR: The option --dev_name requires --type Linear or Striped. | 未指定Linear或Striped类型时携带了聚合设备名称参数 |
 | ERROR: The SSU request contains invalid arguments. | SSU请求包含非法参数 |
 | ERROR: Access to the SSU allocation is denied. | 无权访问指定的SSU存储空间 |
@@ -2161,6 +2192,10 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| ERROR: Multiple allocations with the same name but different resource UUIDs exist. Specify a resource UUID to operate on a specific one. | 省略resource_uuid时同名多份分配被歧义拒绝 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
@@ -2225,6 +2260,9 @@ ubsectl-ssu attach -t Linear -n <name> -d <dev_name> [-q <host_nqn>] [-e <src_ei
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2241,12 +2279,12 @@ dev_path: /dev/ssu_linear0
 
 **描述**
 
-将线性聚合的块设备卸载并释放。
+将线性聚合的块设备卸载并释放。同名存在多次分配（如脑裂合并遗留）时，先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝。
 
 **用法**
 
 ```shell
-ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
+ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>] [-u <resource_uuid>]
 ```
 
 **输入参数**
@@ -2257,6 +2295,7 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 | -n/--name      | **必选**，分配空间标识名称 | 字符串，1-47字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
 | -d/--dev\_name | **必选**，聚合设备名称    | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.` |
 | -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+| -u/--resource\_uuid | 可选，分配唯一标识 | 字符串，1-36字符，仅支持小写十六进制字符（0-9、a-f）和`-`；可先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询 |
 
 **约束限制**
 
@@ -2267,6 +2306,7 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 5. 卸载前需确保没有进程正在使用该聚合设备
 6. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
 7. 线性编址卸载不支持level和chunk_size参数
+8. 同名存在多次分配（如脑裂合并遗留）时，需先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，再指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝
 
 **输出信息说明**
 
@@ -2279,6 +2319,7 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid resource_uuid. The value must be 1-36 characters. | resource_uuid长度不合法 |
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
@@ -2288,6 +2329,10 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| ERROR: Multiple allocations with the same name but different resource UUIDs exist. Specify a resource UUID to operate on a specific one. | 省略resource_uuid时同名多份分配被歧义拒绝 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
@@ -2360,6 +2405,9 @@ ubsectl-ssu attach -t Striped -n <name> -d <dev_name> -l <level> -c <chunk_size>
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与挂载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2376,12 +2424,12 @@ dev_path: /dev/ssu_striped0
 
 **描述**
 
-将条带化聚合的块设备卸载并释放。
+将条带化聚合的块设备卸载并释放。同名存在多次分配（如脑裂合并遗留）时，先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝。
 
 **用法**
 
 ```shell
-ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
+ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>] [-u <resource_uuid>]
 ```
 
 **输入参数**
@@ -2392,6 +2440,7 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 | -n/--name      | **必选**，分配空间标识名称 | 字符串，1-47字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
 | -d/--dev\_name | **必选**，聚合设备名称    | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.` |
 | -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+| -u/--resource\_uuid | 可选，分配唯一标识 | 字符串，1-36字符，仅支持小写十六进制字符（0-9、a-f）和`-`；可先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询 |
 
 **约束限制**
 
@@ -2402,6 +2451,7 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 5. 卸载前需确保没有进程正在使用该聚合设备
 6. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
 7. 条带化编址卸载不需要level和chunk_size参数
+8. 同名存在多次分配（如脑裂合并遗留）时，需先通过`ubsectl-ssu display -t alloc_detail -n <name>`查询各次分配的ResourceUuid，再指定`-u`精确卸载其中一份；省略`-u`时同名多份分配会被歧义拒绝
 
 **输出信息说明**
 
@@ -2414,6 +2464,7 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid resource_uuid. The value must be 1-36 characters. | resource_uuid长度不合法 |
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Striped. | Striped模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
@@ -2423,6 +2474,10 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: The SSU allocation strategy does not match the attach or detach type. | 分配策略与卸载类型不匹配 |
 | ERROR: The SSU operation timed out.          | SSU操作超时 |
 | ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
+| ERROR: The SSU allocation is attached by another node. | 独占策略空间已被其他节点挂载，当前节点无权操作 |
+| ERROR: The SSU allocation is on a faulted device. It cannot be attached or detached; delete it to mitigate. | 空间所在设备故障，不能挂载/卸载，可删除止损 |
+| ERROR: Multiple allocations with the same name but different resource UUIDs exist. Specify a resource UUID to operate on a specific one. | 省略resource_uuid时同名多份分配被歧义拒绝 |
+| INFO: The SSU master ledger is not ready yet. Retry later. | master账本未就绪（首次采集/重建未完成），稍后重试 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
 
