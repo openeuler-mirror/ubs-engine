@@ -719,8 +719,13 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
     // 复用 pid 的新 startTime 一并记录: 锁外读完绑定后据此校验回填, 避免期间再次复用/退出时错挂
     std::vector<std::pair<pid_t, uint64_t>> reusedPids;
     std::map<pid_t, std::vector<def::BorrowSlot>> reusedLedgers;
+    // 绑定快照周期刷新: 借用硬准入依赖该快照排除绑定集外的 numa, 运行期改绑(尤其解除绑定)若不同步,
+    // 该进程的驻留源会被永久排除; 每 kNumBindingRefreshRounds 轮整批重读一次, 平常轮不做重 I/O
+    constexpr uint32_t kNumBindingRefreshRounds = 12;
+    std::vector<std::pair<pid_t, uint64_t>> refreshPids;
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
+        bool refreshRound = (++numaBindingRefreshRound_ % kNumBindingRefreshRounds == 0);
         for (const auto& [pid, entry] : collectInfo.entries) {
             auto it = managedPidCache_.find(pid);
             if (it == managedPidCache_.end()) {
@@ -751,10 +756,24 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
             // 旧绑定属于旧进程, 先置未知; 新绑定整读 numa_maps 是重 I/O, 放到锁外检测后回填
             it->second.numaBinding.reset();
         }
+        if (refreshRound) {
+            for (const auto& [pid, entry] : collectInfo.entries) {
+                auto it = managedPidCache_.find(pid);
+                if (it == managedPidCache_.end() || !it->second.numaBinding.has_value() ||
+                    it->second.numaBinding->policyNodes.empty()) {
+                    continue;
+                }
+                refreshPids.emplace_back(pid, it->second.startTime);
+            }
+        }
     }
     std::map<pid_t, std::optional<def::NumaBindingInfo>> reusedBindings;
     for (const auto& reused : reusedPids) {
         reusedBindings[reused.first] = collect::ReadProcessNumaBinding(reused.first);
+    }
+    std::map<pid_t, std::optional<def::NumaBindingInfo>> refreshBindings;
+    for (const auto& refresh : refreshPids) {
+        refreshBindings[refresh.first] = collect::ReadProcessNumaBinding(refresh.first);
     }
     {
         std::unique_lock<std::shared_mutex> lock(managedPidCacheMutex_);
@@ -764,6 +783,21 @@ void ProcessMemPidInfoManager::UpdateManagedPidVmRssBatch(const collect::PidColl
                 continue;
             }
             it->second.numaBinding = std::move(reusedBindings[reused.first]);
+        }
+        for (const auto& refresh : refreshPids) {
+            auto it = managedPidCache_.find(refresh.first);
+            auto& freshBinding = refreshBindings[refresh.first];
+            // 读失败(进程退出中/瞬态)保留旧快照, 避免抖动回退到"未知"而无从排除
+            if (it == managedPidCache_.end() || it->second.startTime != refresh.second || !freshBinding.has_value()) {
+                continue;
+            }
+            if (it->second.numaBinding->kind != freshBinding->kind ||
+                it->second.numaBinding->policyNodes != freshBinding->policyNodes) {
+                UBSE_LOG_INFO << "[process_mem] pid=" << refresh.first
+                              << " numa binding refreshed: kind=" << static_cast<uint32_t>(freshBinding->kind)
+                              << " policy_nodes=" << freshBinding->policyNodes.size();
+            }
+            it->second.numaBinding = std::move(freshBinding);
         }
     }
     for (const auto& reused : reusedPids) {
@@ -1022,10 +1056,10 @@ uint64_t RebalanceSlotTargetBytes(const def::BorrowSlot& slot, uint64_t overage)
     return newSize / pageSizeBytes * pageSizeBytes;
 }
 
-uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t overage,
-                                   std::map<int, uint64_t>& numaTargets)
+uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t overage, def::MigrateOutGroups& groups)
 {
-    numaTargets.clear();
+    groups.clear();
+    std::map<int, std::map<int, uint64_t>> targetsBySrc;
     uint64_t settled = 0;
     uint64_t rest = overage;
     for (const auto& slot : borrow.slots) {
@@ -1040,12 +1074,22 @@ uint64_t RebalanceAggregateTargets(const def::BorrowState& borrow, uint64_t over
         settled += reduce;
         rest -= reduce;
         if (targetBytes > 0) {
-            numaTargets[slot.remoteNumaId] += targetBytes;
+            targetsBySrc[slot.srcNumaId][slot.remoteNumaId] += targetBytes;
         }
     }
     for (const auto& slot : borrow.slots) {
         if (slot.status == def::BorrowSlotStatus::BORROWING && slot.capacity > 0 && slot.remoteNumaId >= 0) {
-            numaTargets[slot.remoteNumaId] += slot.capacity;
+            targetsBySrc[slot.srcNumaId][slot.remoteNumaId] += slot.capacity;
+        }
+    }
+    for (const auto& [srcNumaId, targets] : targetsBySrc) {
+        def::MigrateOutGroup group;
+        group.srcNumaId = srcNumaId;
+        for (const auto& [numaId, target] : targets) {
+            group.targets.emplace_back(numaId, target);
+        }
+        if (!group.targets.empty()) {
+            groups.push_back(std::move(group));
         }
     }
     return settled;
@@ -1102,14 +1146,13 @@ bool ProcessMemPidInfoManager::RebalancePidRemote(pid_t pid, const def::ManagedP
         return false;
     }
 
-    std::map<int, uint64_t> numaTargets;
-    uint64_t settled = RebalanceAggregateTargets(borrow, overage, numaTargets);
-    if (numaTargets.empty() || settled == 0) {
+    def::MigrateOutGroups groups;
+    uint64_t settled = RebalanceAggregateTargets(borrow, overage, groups);
+    if (groups.empty() || settled == 0) {
         return false;
     }
 
-    std::vector<std::pair<int, uint64_t>> targets(numaTargets.begin(), numaTargets.end());
-    int ret = process_mem::pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, targets);
+    int ret = process_mem::pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, groups);
     if (ret != 0) {
         UBSE_LOG_ERROR << "[process_mem] rebalance pid=" << pid << " failed ret=" << ret
                        << " expected_remote=" << expectedRemote;

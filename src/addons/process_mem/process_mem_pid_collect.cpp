@@ -657,6 +657,7 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
     uint64_t remoteUsedKb = 0;
     bool foundAny = false;
     std::unordered_map<uint32_t, NumaMemKbInfo> localNumaMap;
+    std::unordered_map<uint32_t, uint64_t> remoteNumaUsedMap;
     for (uint32_t numaId = 0; numaId < kMaxNumaNum; ++numaId) {
         auto isRemote = ReadNumaRemoteAttr(numaId);
         if (!isRemote.has_value()) {
@@ -669,11 +670,12 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
                               << " MemUsed failed, clear snapshot";
                 std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
                 localNumaFreeKbSnapshot_ = std::nullopt;
-                remoteNumaUsedKbSnapshot_ = std::nullopt;
+                remoteNumaUsedMapKbSnapshot_ = std::nullopt;
                 localNumaMemMapSnapshot_ = std::nullopt;
                 return;
             }
             remoteUsedKb += *usedKb;
+            remoteNumaUsedMap.emplace(numaId, *usedKb);
             continue;
         }
         auto memInfo = ReadLocalNumaMemKb(numaId);
@@ -682,7 +684,7 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
                           << " MemFree/MemTotal failed, clear snapshot";
             std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
             localNumaFreeKbSnapshot_ = std::nullopt;
-            remoteNumaUsedKbSnapshot_ = std::nullopt;
+            remoteNumaUsedMapKbSnapshot_ = std::nullopt;
             localNumaMemMapSnapshot_ = std::nullopt;
             return;
         }
@@ -693,13 +695,13 @@ void ProcessMemPidCollect::CollectNodeFreeMemory(uint64_t roundNum)
     if (!foundAny) {
         std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
         localNumaFreeKbSnapshot_ = std::nullopt;
-        remoteNumaUsedKbSnapshot_ = std::nullopt;
+        remoteNumaUsedMapKbSnapshot_ = std::nullopt;
         localNumaMemMapSnapshot_ = std::nullopt;
         return;
     }
     std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
     localNumaFreeKbSnapshot_ = localFreeKb;
-    remoteNumaUsedKbSnapshot_ = remoteUsedKb;
+    remoteNumaUsedMapKbSnapshot_ = std::move(remoteNumaUsedMap);
     localNumaMemMapSnapshot_ = std::move(localNumaMap);
     UBSE_LOG_DEBUG << "[process_mem] collect round=" << roundNum << " local numa free=" << localFreeKb
                    << "kB remote numa used=" << remoteUsedKb << "kB";
@@ -714,7 +716,20 @@ std::optional<uint64_t> ProcessMemPidCollect::GetLocalNumaFreeKb()
 std::optional<uint64_t> ProcessMemPidCollect::GetRemoteNumaUsedKb()
 {
     std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
-    return remoteNumaUsedKbSnapshot_;
+    if (!remoteNumaUsedMapKbSnapshot_.has_value()) {
+        return std::nullopt;
+    }
+    uint64_t totalKb = 0;
+    for (const auto& entry : *remoteNumaUsedMapKbSnapshot_) {
+        totalKb += entry.second;
+    }
+    return totalKb;
+}
+
+std::optional<std::unordered_map<uint32_t, uint64_t>> ProcessMemPidCollect::GetRemoteNumaUsedMapKb()
+{
+    std::lock_guard<std::mutex> lock(numaSnapshotMutex_);
+    return remoteNumaUsedMapKbSnapshot_;
 }
 
 std::optional<std::unordered_map<uint32_t, NumaMemKbInfo>> ProcessMemPidCollect::GetLocalNumaMemMap()

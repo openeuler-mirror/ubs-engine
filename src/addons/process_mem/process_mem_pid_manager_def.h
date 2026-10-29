@@ -123,11 +123,20 @@ struct BorrowSlot {
     uint64_t migratedBytes{0};
     int32_t exportSlotId{-1};
     std::string debtId{};
+    // 槽全部迁移量的拉页源本地 numa(同源不变量: 复用/填充仅限同源槽); -1 = 历史未知源旧槽
     int srcNumaId{-1};
     int remoteNumaId{-1};
     std::chrono::steady_clock::time_point borrowTime{};
     BorrowSlotStatus status{BorrowSlotStatus::BORROWING};
 };
+
+// migrate_out 的分组声明视图: 同源槽的全量目标聚合(dest -> bytes), 组内为完整量(存量+增量),
+// 不做增量下发; src<0 表示源未知. 每组描述决策与台账维度, 下发时跨组按 dest 汇总为单 payload
+struct MigrateOutGroup {
+    int srcNumaId{-1};
+    std::vector<std::pair<int, uint64_t>> targets{};
+};
+using MigrateOutGroups = std::vector<MigrateOutGroup>; // 按 srcNumaId 升序, 下发顺序稳定
 
 struct BorrowState {
     uint64_t currentRemote{0};
@@ -161,8 +170,8 @@ enum class ProcessStatus
     BORROWED,
 };
 
-// 纳管时一次性检测的 NUMA 绑定信息(numactl --membind/--interleave/--preferred 等 + cpuset 约束),
-// 不随运行期改绑刷新
+// NUMA 绑定信息(numactl --membind/--interleave/--preferred 等 + cpuset 约束),
+// 纳管/pid 复用/周期刷新时检测
 enum class NumaBindingKind : uint8_t
 {
     NONE,       // 无显式策略(default/local)
@@ -191,7 +200,8 @@ struct ManagedPidEntry {
     // 进程启动时刻（/proc/<pid>/stat 第22字段），用于识别退出后 pid 被复用
     uint64_t startTime{0};
 
-    // 纳管时检测的 NUMA 绑定快照(pid 复用时重检); nullopt = 读取失败/进程已不在
+    // NUMA 绑定快照: 纳管时检测, pid 复用与运行期按轮周期刷新(借用硬准入依赖);
+    // nullopt = 读取失败/进程已不在
     std::optional<NumaBindingInfo> numaBinding{};
 
     std::chrono::steady_clock::time_point lastMigrateTime{};

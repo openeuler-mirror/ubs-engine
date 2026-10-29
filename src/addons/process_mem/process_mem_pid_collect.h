@@ -29,9 +29,10 @@
 
 namespace process_mem::collect {
 
-// move_pages 采样默认每进程样本数: 精度 ±5% 级 (p=0.3 时 s.e.≈1.5%), 每样本成本
-// 冷页表 ~0.4us / 热页表 ~0.06us, 256 页对大进程一轮 <0.2ms
-inline constexpr size_t kDefaultSamplePages = 256;
+// move_pages 采样默认每进程样本数: 取较大值压低大 VA 进程驻留量的采样假 0 概率
+// (驻留/VA 比低时命中期望小; 命中期望随样本数线性增长); p=0.3 时 s.e.≈1.4%; 每样本成本
+// 冷页表 ~0.4us / 热页表 ~0.06us, 1024 页对大进程一轮 <0.5ms
+inline constexpr size_t kDefaultSamplePages = 1024;
 
 // 本地 numa 内存快照行: 决策层按各本地 numa 自身 MemFree 判缺, 并按其 MemTotal
 // 占本地总内存比例对全局阈值做等比例切分(借用/归还/OOM 逐 numa 判定)
@@ -80,7 +81,12 @@ public:
 
     std::optional<uint64_t> GetLocalNumaFreeKb();
 
+    // 远端各 numa MemUsed 总量(kB), 为明细快照求和
     std::optional<uint64_t> GetRemoteNumaUsedKb();
+
+    // 远端各 numa 的 MemUsed 明细快照(kB): 决策层据此按 dest 拆分在途迁移量
+    // (声明量 − 实际占用逐 numa 判池), 与整机口径同轮同锁写入
+    std::optional<std::unordered_map<uint32_t, uint64_t>> GetRemoteNumaUsedMapKb();
 
     // 本地各 numa 的 (MemFree, MemTotal) 明细快照, 与整机合计同轮同锁写入;
     // 任一节点读取失败时与整机口径一致整体置空, 决策层跳过本轮
@@ -123,7 +129,7 @@ private:
     std::shared_mutex vmRssHandlersMutex_{};
 
     std::optional<uint64_t> localNumaFreeKbSnapshot_{};
-    std::optional<uint64_t> remoteNumaUsedKbSnapshot_{};
+    std::optional<std::unordered_map<uint32_t, uint64_t>> remoteNumaUsedMapKbSnapshot_{};
     std::optional<std::unordered_map<uint32_t, NumaMemKbInfo>> localNumaMemMapSnapshot_{};
     std::mutex numaSnapshotMutex_{};
 

@@ -97,6 +97,8 @@ private:
 
     mutable std::shared_mutex managedPidCacheMutex_;
     std::map<pid_t, def::ManagedPidEntry> managedPidCache_;
+    // 绑定快照周期刷新轮次计数(每 N 轮整批重读一次 numa_maps), 受 managedPidCacheMutex_ 保护
+    uint32_t numaBindingRefreshRound_{0};
 };
 } // namespace process_mem::manager
 #endif

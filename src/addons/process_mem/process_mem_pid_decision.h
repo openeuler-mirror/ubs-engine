@@ -119,6 +119,9 @@ public:
 
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
+    // 远端各 numa MemUsed 明细读取钩子: 生产 Init 注册真实采集快照, 在途量按 dest 建池拆分;
+    // 未注册/返回 nullopt(UT)时退回节点级总量口径(remoteNumaUsedKbReader)
+    inline static std::function<std::optional<std::unordered_map<uint32_t, uint64_t>>()> remoteNumaUsedMapKbReader;
     // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
     // 未注册/返回 nullopt 时决策跳过本轮(不退化整机口径)
     inline static std::function<std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>>()>
@@ -139,8 +142,15 @@ private:
 
     void CheckTimeouts(uint64_t roundNum);
 
-    // 在途迁移总量(账本预期 − 实际远端占用): 生产侧已无调用点, 保留供 UT 观测借用在途量
+    // 在途迁移总量(账本预期 − 实际远端占用): 判缺/日志节点级口径, 明细
+    // (remoteNumaUsedMapKbReader) 不可用时兼作在途分摊的回退来源
     uint64_t GetPendingMigrateTotal() const;
+
+    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按远端 numa
+    // 声明量超出实测占用的部分逐 dest 建池, 池内再按各源在该 dest 的声明占比整除分摊;
+    // 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊); 判缺/紧急轮扣减
+    // 防在途数据被下轮重复下发借用
+    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc() const;
 
     uint64_t GetUbseBlockSizeBytes();
 
@@ -155,13 +165,15 @@ private:
 
     bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum, int srcNumaId);
 
-    void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
-                             std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
+    // 分组声明构建: 槽按各自 srcNumaId 分组(未知源 -1 单独成组), increments 归入 inFlightSrc 组;
+    // 每组为该源全部 COMPLETED 槽的全量目标聚合(dest -> 页对齐字节, 0 值滤除), 组按 src 升序
+    void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments, int inFlightSrc,
+                             def::MigrateOutGroups& groups, pid_t pid, const std::string& debtId);
 
     def::AtomicMigrateResult CommitBorrowAndMigrate(pid_t pid, const std::string& debtId,
                                                     const CreatedDebtInfo& created,
                                                     const std::map<int, uint64_t>& increments,
-                                                    std::vector<std::pair<int, uint64_t>>& numaTargets);
+                                                    def::MigrateOutGroups& groups);
 
     void FailBorrowAbort(pid_t pid, const std::string& debtId, uint64_t need, uint64_t roundNum);
 
@@ -172,6 +184,9 @@ private:
     std::optional<uint64_t> ReadLocalNumaFreeKb();
 
     std::optional<uint64_t> ReadRemoteNumaUsedKb() const;
+
+    // 远端各 numa MemUsed 明细读取: 未注册 reader(UT)时返回 nullopt(与本地明细同一模式切换点)
+    std::optional<std::unordered_map<uint32_t, uint64_t>> ReadRemoteNumaUsedMap() const;
 
     // 本地各 numa (MemFree, MemTotal) 明细读取: 未注册 reader 时返回 nullopt(与借用判缺同一模式切换点)
     std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ReadLocalNumaMemMap();
@@ -278,11 +293,10 @@ private:
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
                         CreatedDebtInfo& out, uint32_t& createRet);
     // updateLedger=false: 调用方(借用提交段)持缓存锁, 台账镜像须由其在锁外补记, 见 UpdateMigrateLedgerMirror
-    int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                           const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId = -1,
+    int RmrsMigrateToNumas(pid_t pid, const std::string& debtId, const def::MigrateOutGroups& groups,
                            bool updateLedger = true);
-    // migrate_out 成功后的台账镜像回填: 整 pid 覆盖声明/空声明清空(缓存锁外调用时与锁内同一语义)
-    void UpdateMigrateLedgerMirror(pid_t pid, int srcNumaId, const std::vector<std::pair<int, uint64_t>>& numaTargets);
+    // migrate_out 成功后的台账镜像回填: 整 pid 覆盖分组声明, 迁回(全零目标)声明等价清空该 pid 行
+    void UpdateMigrateLedgerMirror(pid_t pid, const def::MigrateOutGroups& groups);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
@@ -305,7 +319,7 @@ private:
                                       ReplacementDebt& out, uint64_t migrateBytes);
     uint32_t RollbackReplacementDebt(pid_t pid, const ReplacementDebtCtx& ctx, const std::string& newDebtId,
                                      int migrateRet, uint64_t migrateBytes);
-    std::vector<std::pair<int, uint64_t>> BuildRestoreTargets(pid_t pid);
+    def::MigrateOutGroups BuildRestoreTargets(pid_t pid);
     // 读归还槽迁出量并回填其借出归属本地 numa(srcNumaId, 无归属为 -1)
     uint64_t ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item, int& srcNumaId);
     bool ReadNumaMapsDiffs(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets, uint64_t& totalDiff,
