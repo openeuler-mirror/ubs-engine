@@ -44,6 +44,8 @@ std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> MakeLentDebts(const s
         debt.lentNodeId = "NODE0";
         debt.size = 1 * GB;
         debt.remoteNumaId = 5;
+        // 借出记账: 债务划出 mock 唯一本地 numa 0, 逐 numa 回收过滤(shortage_numas={0})才能命中
+        debt.lentNumaIdList = {0};
         debts.push_back(debt);
     }
     return debts;
@@ -76,6 +78,8 @@ BorrowState MakeBorrow(uint64_t amountGb, const std::string& debtId)
     slot.capacity = amountGb * GB;
     slot.status = BorrowSlotStatus::COMPLETED;
     slot.remoteNumaId = 5;
+    // mock 唯一本地 numa 0: 借出归属记账一致, 主动归还 per-numa 结算(按 srcNuma 预算)才能命中
+    slot.srcNumaId = 0;
     borrow.slots.push_back(slot);
     return borrow;
 }
@@ -163,7 +167,6 @@ void TestProcessMemPidDecision::SetUp()
     decision.observeCycles_ = 6;
     decision.returnRetryIntervalMs_ = 1;
     decision.oomFastWindowCount_ = 0;
-    decision.oomFastWindowMin_ = 0;
     decision.lastEmergencyBroadcast_ = std::chrono::steady_clock::now() - std::chrono::seconds(10);
     if (decision.borrowExecutor_ == nullptr || !decision.borrowExecutor_->IsStart()) {
         decision.borrowExecutor_ = ubse::task_executor::UbseTaskExecutor::Create("ProcMemDecisionTest", 2, 64);
@@ -186,6 +189,23 @@ void TestProcessMemPidDecision::SetUp()
         }
         return actualBytes / 1024;
     };
+    // 单本地 numa(0) 明细默认 mock: 判定/阈值按 MemTotal 占比切分, 单 numa 占比 100% → per-numa 等价整机
+    // 语义; free 实时联动 localNumaFreeKbReader 当前值; 未注册整机 free 时明细同样不可用(跳过轮)
+    ProcessMemPidDecision::localNumaMemMapReader = []() -> std::optional<std::unordered_map<uint32_t, NumaMemKbInfo>> {
+        std::optional<uint64_t> freeKb = std::nullopt;
+        if (ProcessMemPidDecision::localNumaFreeKbReader) {
+            freeKb = ProcessMemPidDecision::localNumaFreeKbReader();
+        }
+        if (!freeKb.has_value()) {
+            return std::nullopt;
+        }
+        std::unordered_map<uint32_t, NumaMemKbInfo> memMap;
+        NumaMemKbInfo info{};
+        info.totalKb = 512 * KB_PER_GB;
+        info.freeKb = *freeKb;
+        memMap[0] = info;
+        return memMap;
+    };
 }
 
 void TestProcessMemPidDecision::TearDown()
@@ -199,6 +219,7 @@ void TestProcessMemPidDecision::TearDown()
     ProcessMemPidBridge::rmrsProcessConfigQuery = {};
     ProcessMemPidDecision::localNumaFreeKbReader = nullptr;
     ProcessMemPidDecision::remoteNumaUsedKbReader = nullptr;
+    ProcessMemPidDecision::localNumaMemMapReader = nullptr;
     ProcessMemPidCollect::GetInstance().SetCollectVmRssOverride(nullptr);
 
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
@@ -311,7 +332,7 @@ TEST_F(TestProcessMemPidDecision, OomDetectorAlwaysFastPoll)
     auto& decision = ProcessMemPidDecision::GetInstance();
     EXPECT_EQ(decision.OomPollOnce(), 200u);
     EXPECT_EQ(decision.oomFastWindowCount_, 1u);
-    EXPECT_EQ(decision.oomFastWindowMin_, 200 * GB);
+    EXPECT_EQ(decision.oomWindowMinByNuma_.at(0), 200 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, OomDetectorFastPoll)
@@ -324,7 +345,7 @@ TEST_F(TestProcessMemPidDecision, OomDetectorFastPoll)
     auto& decision = ProcessMemPidDecision::GetInstance();
     EXPECT_EQ(decision.OomPollOnce(), 200u);
     EXPECT_EQ(decision.oomFastWindowCount_, 1u);
-    EXPECT_EQ(decision.oomFastWindowMin_, 10 * GB);
+    EXPECT_EQ(decision.oomWindowMinByNuma_.at(0), 10 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, OomEmergencyBorrow)
@@ -552,7 +573,7 @@ TEST_F(TestProcessMemPidDecision, OomActiveCounterReset)
     }
     MockNodeFree(30);
     decision.OomPollOnce();
-    EXPECT_EQ(decision.oomFastWindowMin_, 30 * GB);
+    EXPECT_EQ(decision.oomWindowMinByNuma_.at(0), 30 * GB);
 
     for (int i = 0; i < 2; ++i) {
         decision.OomPollOnce();
@@ -720,18 +741,21 @@ TEST_F(TestProcessMemPidDecision, OomActiveReturnUsesMigratedBytes)
     big.capacity = 8 * GB;
     big.migratedBytes = 8 * GB;
     big.remoteNumaId = 5;
+    big.srcNumaId = 0;
     big.status = BorrowSlotStatus::COMPLETED;
     BorrowSlot mid;
     mid.debtId = "debt-mid";
     mid.capacity = 4 * GB;
     mid.migratedBytes = 2 * GB;
     mid.remoteNumaId = 5;
+    mid.srcNumaId = 0;
     mid.status = BorrowSlotStatus::COMPLETED;
     BorrowSlot empty;
     empty.debtId = "debt-empty";
     empty.capacity = 2 * GB;
     empty.migratedBytes = 0;
     empty.remoteNumaId = 5;
+    empty.srcNumaId = 0;
     empty.status = BorrowSlotStatus::COMPLETED;
     borrow.slots = {big, mid, empty};
     borrow.currentRemote = 10 * GB;
@@ -1360,6 +1384,7 @@ TEST_F(TestProcessMemPidDecision, BorrowingSlotExcludedFromMigrateTargets)
     BorrowSlot slot;
     slot.debtId = "debt-inflight";
     slot.migratedBytes = gb2_5;
+    slot.srcNumaId = 0;
     slot.status = BorrowSlotStatus::BORROWING;
     slot.borrowTime = std::chrono::steady_clock::now();
     inFlight.slots.push_back(slot);
@@ -1479,6 +1504,7 @@ TEST_F(TestProcessMemPidDecision, ShortageDeductsPendingBorrow)
     inFlight.debtId = "debt-a";
     inFlight.migratedBytes = 15 * GB;
     inFlight.capacity = 15 * GB;
+    inFlight.srcNumaId = 0;
     inFlight.status = BorrowSlotStatus::BORROWING;
     inFlight.borrowTime = std::chrono::steady_clock::now() + std::chrono::hours(1);
     borrowA.slots = {inFlight};

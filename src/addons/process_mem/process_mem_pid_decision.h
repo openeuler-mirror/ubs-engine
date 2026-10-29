@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "ubse_thread_pool.h"
+#include "process_mem_pid_collect.h"
 #include "process_mem_pid_manager_def.h"
 
 namespace process_mem::decision {
@@ -44,6 +45,22 @@ struct CreatedDebtInfo {
     int remoteNumaId{-1};
     int32_t exportSlotId{-1};
     uint64_t capacity{0};
+};
+
+// 本地 numa 缺口: 触发源 numa 与缺口字节数(阈值已按该 numa MemTotal 占比等比例切分)
+struct NumaShortage {
+    int srcNumaId{-1};
+    uint64_t bytes{0};
+};
+
+// 借用轮执行上下文: 候选列表引用 + 每 pid 驻留采样缓存(一轮内每 pid 至多采样一次)
+struct BorrowRoundCtx {
+    const std::vector<def::BorrowCandidate>& candidates;
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>& residenceCache;
+    std::unordered_map<pid_t, uint64_t>& borrowedThisRound;
+    uint64_t blockSizeBytes{0};
+    uint64_t roundNum{0};
+    bool emergency{false};
 };
 
 struct ReplacementDebt {
@@ -100,23 +117,27 @@ public:
 
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
+    // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
+    // UT/明细不可用时未注册, 决策退化为整机口径单缺口(与旧行为一致)
+    inline static std::function<std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>>()>
+        localNumaMemMapReader;
     inline static std::function<uint32_t(pid_t, std::unordered_map<uint32_t, size_t>&)> numaMapsReader;
     inline static std::function<std::optional<bool>(uint32_t)> remoteNumaAttrReader;
 
 private:
     uint32_t OnDecisionTimer();
 
-    bool CheckNodeFreeMemory(uint64_t& outShortage);
+    bool CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages);
 
     std::vector<def::BorrowCandidate> BuildCandidates(uint64_t roundNum);
 
-    int CollectSrcNuma(pid_t pid, uint64_t roundNum);
+    uint64_t FillNumaShortage(BorrowRoundCtx& ctx, NumaShortage& shortage);
 
-    void ExecuteBorrowRound(const std::vector<def::BorrowCandidate>& candidates, uint64_t& shortage, uint64_t roundNum,
-                            bool emergency = false);
+    void ExecuteBorrowRound(BorrowRoundCtx& ctx, std::vector<NumaShortage>& shortages);
 
     void CheckTimeouts(uint64_t roundNum);
 
+    // 在途迁移总量(账本预期 − 实际远端占用): 生产侧已无调用点, 保留供 UT 观测借用在途量
     uint64_t GetPendingMigrateTotal() const;
 
     uint64_t GetUbseBlockSizeBytes();
@@ -130,7 +151,7 @@ private:
     // blockSize 仍失败即终止该支, 缺口回 shortage 由下轮整粒度重借收敛
     void SplitBorrowIntoChunks(pid_t pid, uint64_t need, int srcNumaId, uint64_t roundNum);
 
-    bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum);
+    bool ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need, uint64_t roundNum, int srcNumaId);
 
     void BuildMigrateTargets(const def::BorrowState& borrow, const std::map<int, uint64_t>& increments,
                              std::vector<std::pair<int, uint64_t>>& numaTargets, pid_t pid, const std::string& debtId);
@@ -149,6 +170,9 @@ private:
     std::optional<uint64_t> ReadLocalNumaFreeKb();
 
     std::optional<uint64_t> ReadRemoteNumaUsedKb() const;
+
+    // 本地各 numa (MemFree, MemTotal) 明细读取: 未注册 reader 时返回 nullopt(与借用判缺同一模式切换点)
+    std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ReadLocalNumaMemMap();
 
     bool EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
 
@@ -171,7 +195,10 @@ private:
     bool ResolveReturnDebtOrFree(const def::ReturnRequestItem& item, ReturnScene scene, ResolvedReturnDebt& resolved,
                                  bool& scheduleRetry);
 
-    void BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency);
+    // shortageNumas: 回收范围 numa 集合; 非空时仅广播占用其中 numa 的借出债务(逐 numa 回收),
+    // 空集合不设过滤, 广播全部借出债务
+    void BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency,
+                                const std::set<uint32_t>& shortageNumas = {});
 
     uint32_t ReturnOneDebt(const def::ReturnRequestItem& item, uint64_t& nodeFree, const ResolvedReturnDebt& resolved);
 
@@ -184,9 +211,24 @@ private:
     uint32_t ReturnDebtRemoteToRemote(const def::ReturnRequestItem& item, const ResolvedReturnDebt& resolved,
                                       uint64_t migrateBytes);
 
+    // 紧急借用判定/执行/归还广播: 逐本地 numa 判紧急(缺口=该 numa pressing 占比−free, 广播按紧急 numa
+    // 过滤); 明细不可用本轮跳过(不退化整机口径), 由采集恢复后的下轮轮询接续
     void OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree);
 
-    void OomActiveReturn(uint64_t windowMinFree);
+    // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize/驻留采样缓存 + emergency ctx → ExecuteBorrowRound
+    void ExecuteEmergencyBorrowRound(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates,
+                                     std::vector<NumaShortage>& shortages);
+
+    // OOM 事件订阅处理(reason 0/1 = 4K 小页, 2 = 大页跳过): ras 故障线程上校验/投递后即返回
+    uint32_t HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo);
+    // OOM 事件按节点身份响应: 事件 numa 有本机借出债务占用(借出方) → 广播归还收回本机内存;
+    // 否则(借入方) → 按事件 numa 紧急借出并迁出该 numa 数据
+    void OomEventRespond(const std::vector<int>& numaIds, uint64_t roundNum);
+    // 事件 numa 是否被本机借出债务占用(按 lentNumaIdList 判定, 口径同归还广播过滤):
+    // nullopt = 借出债务查询失败, 状态未知时放弃本次事件分流, 由定时轮询兜底
+    std::optional<bool> HasLentDebtOnEventNumas(const std::set<uint32_t>& eventNumas);
+
+    void OomActiveReturnPerNuma(uint64_t roundNum);
 
     void OomRearrangeMigrated();
 
@@ -234,7 +276,7 @@ private:
     bool CreateNumaDebt(pid_t pid, uint64_t need, int srcNumaId, const std::string& debtId, uint64_t roundNum,
                         CreatedDebtInfo& out, uint32_t& createRet);
     int RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                           const std::vector<std::pair<int, uint64_t>>& numaTargets);
+                           const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId = -1);
 
     bool CheckPidTimeoutSlots(pid_t pid, def::BorrowState& borrow, uint64_t roundNum);
     uint32_t DoReturnDebtOnce(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene,
@@ -258,7 +300,8 @@ private:
     uint32_t RollbackReplacementDebt(pid_t pid, const ReplacementDebtCtx& ctx, const std::string& newDebtId,
                                      int migrateRet, uint64_t migrateBytes);
     std::vector<std::pair<int, uint64_t>> BuildRestoreTargets(pid_t pid);
-    uint64_t ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item);
+    // 读归还槽迁出量并回填其借出归属本地 numa(srcNumaId, 无归属为 -1)
+    uint64_t ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item, int& srcNumaId);
     bool ReadNumaMapsDiffs(pid_t pid, const std::vector<std::pair<int, uint64_t>>& numaTargets, uint64_t& totalDiff,
                            uint64_t& maxDiff) const;
     bool WaitMigrateBackConverged(pid_t pid, const def::ReturnRequestItem& item,
@@ -266,9 +309,7 @@ private:
     uint32_t DeleteOldReturnDebt(const std::string& debtId);
     std::vector<std::string> BuildReplacementCandidates(const std::string& oldLenderNodeId);
 
-    void UpdateOomFastWindow(uint64_t roundNum, uint64_t nodeFree);
-    void CollectActiveReturnDebts(const std::map<pid_t, def::ManagedPidEntry>& snapshot,
-                                  std::vector<std::pair<pid_t, def::ReturnRequestItem>>& debts, uint64_t& totalRemote);
+    void UpdateOomFastWindow(uint64_t roundNum);
 
     uint32_t processIntervalSec_{5};
     uint64_t freeMemoryThresholdBytes_{0};
@@ -308,9 +349,14 @@ private:
     std::mutex oomMutex_{};
     std::condition_variable oomCv_{};
     bool oomRunning_{false};
+    bool oomAlarmRegistered_{false};
     uint32_t oomFastWindowCount_{0};
-    uint64_t oomFastWindowMin_{0};
+    // 主动归还窗口内各本地 numa 空闲最小值(per-numa 窗口): 窗口起始至结算无本地 numa 明细时样本为空,
+    // 结算跳过(不退化整机口径), 下轮窗口重新采样
+    std::unordered_map<uint32_t, uint64_t> oomWindowMinByNuma_{};
     std::chrono::steady_clock::time_point lastEmergencyBroadcast_{};
+    // 事件路径归还广播节流(borrow 执行器线程), 与周期紧急线的 lastEmergencyBroadcast_ 独立
+    std::atomic<int64_t> lastOomEventBroadcastMs_{0};
     std::atomic<uint64_t> oomRoundNumber_{0};
 };
 

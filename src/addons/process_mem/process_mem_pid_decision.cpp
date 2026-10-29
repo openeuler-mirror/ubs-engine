@@ -24,6 +24,7 @@
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_node_controller.h"
+#include "ubse_ras.h"
 #include "ubse_timer.h"
 #include "mp_error.h"
 #include "process_mem_pid_bridge.h"
@@ -57,6 +58,11 @@ constexpr uint64_t kStrandedSweepIntervalSec = 60; // 搁浅 RETURNING 槽兜底
 constexpr int64_t kEmergencyBroadcastIntervalMs = 2000;
 constexpr int kMaxConflictRetry = 10;       // rmrs 并发冲突放锁重试次数上限
 constexpr int kConflictRetryDelayMs = 1000; // 放锁等待间隔, 让同 numa 冲突操作完成
+// OOM 事件 reason: 0=KSWAPD/1=DIRECT_RECLAIM 为 4K 小页回收/分配失败, 2=HUGEPAGE 为 2M 大页, 跳过不处理
+constexpr int kOomReasonHugepage = 2;
+constexpr size_t kOomEventMaxNuma = 8; // OOM 事件上报 numa 定长槽数上限(与 sysSentry 上报槽一致)
+// 内核 MAX_NUMNODES 默认上限; 超出即非法, 同时保证 static_cast<int> 不回绕
+constexpr int64_t kMaxOomNumaId = 1024;
 
 bool IsFaultHandling(uint32_t ret)
 {
@@ -67,6 +73,73 @@ bool IsFaultHandling(uint32_t ret)
 bool IsConcurrencyConflict(uint32_t ret)
 {
     return ret == static_cast<uint32_t>(MEM_POOLING_ERROR_CONCURRENCY_CONFLICT);
+}
+
+// 无异常十进制解析(ras 上报消息属外部输入, 不依赖 stoi/strtoull 的异常与 errno 路径), 非法返回 -1
+int64_t ParseOomFieldDec(const std::string& field)
+{
+    if (field.empty() || field.size() > 10) {
+        return -1;
+    }
+    int64_t value = 0;
+    for (char c : field) {
+        if (c < '0' || c > '9') {
+            return -1;
+        }
+        value = value * 10 + (c - '0');
+    }
+    return value;
+}
+
+// OOM 事件 faultInfo 扁平化格式: "numa数_nid0_..._nidk_reason"(ras 派发前已解析原始 sysSentry 消息);
+// 非法返回 -1; 合法返回 reason, numaIds 出参为去重后的故障本地 numa 列表
+int ParseOomEventFaultInfo(const std::string& faultInfo, std::vector<int>& numaIds)
+{
+    numaIds.clear();
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (start <= faultInfo.size()) {
+        size_t sep = faultInfo.find('_', start);
+        parts.push_back((sep == std::string::npos) ? faultInfo.substr(start) : faultInfo.substr(start, sep - start));
+        if (sep == std::string::npos) {
+            break;
+        }
+        start = sep + 1;
+    }
+    // 至少一个 numa, 槽数不超定长上限
+    if (parts.size() < 3 || parts.size() > kOomEventMaxNuma + 2) {
+        return -1;
+    }
+    int64_t count = ParseOomFieldDec(parts[0]);
+    if (count <= 0 || static_cast<size_t>(count) != parts.size() - 2) {
+        return -1;
+    }
+    int64_t reason = ParseOomFieldDec(parts.back());
+    if (reason < 0) {
+        return -1;
+    }
+    numaIds.reserve(static_cast<size_t>(count));
+    for (size_t i = 1; i + 1 < parts.size(); ++i) {
+        int64_t nid = ParseOomFieldDec(parts[i]);
+        if (nid < 0 || nid >= kMaxOomNumaId) {
+            numaIds.clear();
+            return -1;
+        }
+        bool duplicated = false;
+        for (int existing : numaIds) {
+            if (existing == nid) {
+                duplicated = true;
+                break;
+            }
+        }
+        if (!duplicated) {
+            numaIds.push_back(static_cast<int>(nid));
+        }
+    }
+    if (numaIds.empty()) {
+        return -1;
+    }
+    return static_cast<int>(reason);
 }
 
 const char* ReturnSceneToString(ReturnScene scene)
@@ -99,6 +172,97 @@ double BytesToGbDouble(uint64_t bytes)
 double BytesToMbDouble(uint64_t bytes)
 {
     return static_cast<double>(bytes) / BYTES_PER_MB;
+}
+
+// 全局阈值按本地各 numa MemTotal 占比等比例切分, 不新增配置项; __uint128 防乘法溢出
+uint64_t SplitThresholdToNuma(uint64_t globalBytes, uint64_t numaTotalKb, uint64_t localTotalKb)
+{
+    if (numaTotalKb == 0 || localTotalKb == 0) {
+        return 0;
+    }
+    __uint128_t splitBytes = (static_cast<__uint128_t>(globalBytes) * numaTotalKb) / localTotalKb;
+    return (splitBytes > UINT64_MAX) ? UINT64_MAX : static_cast<uint64_t>(splitBytes);
+}
+
+// 全量迁出声明可携带真实源的归因判定: 参与声明的存量槽(COMPLETED 且迁出量>0, 归还中槽不在投影)
+// 与在途借用源 inFlightSrc 须全部同源且已指定(-1 未知/旧账); 单 payload 为一 (pid, src) 组,
+// 混源/未知源无法单组表达, 回退 -1 不指定由 rmrs/smap 自行选择拉页源
+int UnifiedDeclarationSrc(const std::vector<def::BorrowSlot>& slots, int inFlightSrc)
+{
+    int unified = inFlightSrc;
+    for (const auto& s : slots) {
+        if (s.status != def::BorrowSlotStatus::COMPLETED || s.migratedBytes == 0) {
+            continue;
+        }
+        if (s.srcNumaId < 0) {
+            return -1;
+        }
+        if (unified == -1) {
+            unified = s.srcNumaId;
+        } else if (unified != s.srcNumaId) {
+            return -1;
+        }
+    }
+    return unified;
+}
+
+// 借出债务是否占用缺口本地 numa: 借出记账 lentNumaIdList 为债务实际划出的本节点本地 numa;
+// 记账缺失(空列表/旧账)视为未占用, 逐 numa 精确回收跳过该类债务
+bool DebtOccupiesShortageNuma(const ubse::mem::controller::UbseNumaMemoryDebtInfo& debt,
+                              const std::set<uint32_t>& shortageNumas)
+{
+    for (int16_t lentNuma : debt.lentNumaIdList) {
+        if (lentNuma >= 0 && shortageNumas.count(static_cast<uint32_t>(lentNuma)) > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 借用额按 ubse blockSize 向上取整: 缺口不足一块仍按整块迁移, 允许多减
+uint64_t CeilAlignBlock(uint64_t bytes, uint64_t blockBytes)
+{
+    if (blockBytes == 0) {
+        return bytes;
+    }
+    return ((bytes + blockBytes - 1) / blockBytes) * blockBytes;
+}
+
+// 估算 pid 在缺口 numa 上的驻留字节数: move_pages 采样占比 × VmRSS; 采样不可用返回 UINT64_MAX
+// (不设限, 与旧借用一致), 分布无该 numa 驻留返回 0(借了也不缓解该缺口); 同一 pid 一轮至多采样一次
+uint64_t EstimateNumaResidentBytes(pid_t pid, int srcNumaId, uint64_t vmRssBytes,
+                                   std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>& residenceCache)
+{
+    if (srcNumaId < 0) {
+        return UINT64_MAX;
+    }
+    auto cacheIt = residenceCache.find(pid);
+    if (cacheIt == residenceCache.end()) {
+        std::unordered_map<uint32_t, size_t> dist;
+        auto queryRet =
+            collect::ProcessMemPidCollect::GetInstance().CollectProcessNumaMemDistributionBySample(pid, dist);
+        if (queryRet != UBSE_OK) {
+            UBSE_LOG_DEBUG << "[process_mem] borrow sample numa_maps failed pid=" << pid;
+        }
+        cacheIt = residenceCache.emplace(pid, std::move(dist)).first;
+    }
+    const auto& dist = cacheIt->second;
+    uint64_t totalBytes = 0;
+    uint64_t srcBytes = 0;
+    for (const auto& [numaId, bytes] : dist) {
+        totalBytes += bytes;
+        if (static_cast<int>(numaId) == srcNumaId) {
+            srcBytes = bytes;
+        }
+    }
+    if (totalBytes == 0) {
+        return UINT64_MAX;
+    }
+    if (srcBytes == 0) {
+        return 0;
+    }
+    // 分布值为字节数, 字节×字节中间积≈VmRSS², 须用 128 位中间量防 uint64 回绕
+    return static_cast<uint64_t>(static_cast<__uint128_t>(vmRssBytes) * srcBytes / totalBytes);
 }
 
 std::string GenerateBorrowName(pid_t pid)
@@ -402,6 +566,11 @@ uint32_t ProcessMemPidDecision::Init()
     LoadConfig();
     LoadOomReturnConfig();
 
+    // 生产默认注册本地 numa 明细 reader: 缺口/阈值按逐 numa 判定; 未注册(UT)时明细不可用, 触发/判缺类本轮跳过
+    localNumaMemMapReader = []() {
+        return collect::ProcessMemPidCollect::GetInstance().GetLocalNumaMemMap();
+    };
+
     if (!StartExecutors()) {
         return UBSE_ERROR;
     }
@@ -413,6 +582,20 @@ uint32_t ProcessMemPidDecision::Init()
             "ProcessMemDecisionTimer", [this]() -> uint32_t { return this->OnDecisionTimer(); }, processIntervalSec_) !=
         UBSE_OK) {
         return UBSE_ERROR;
+    }
+
+    // OOM 事件订阅: reason 0/1(4K 小页枯竭) 驱动按事件 numa 紧急借出并迁出该 numa 数据, reason 2(2M 大页)跳过;
+    // 注册失败不致命(200ms 定时轮询的 per-numa 紧急借出仍在), 告警日志后继续
+    if (!oomAlarmRegistered_) {
+        oomAlarmRegistered_ = ubse::ras::RegisterAlarmFaultHandler(
+                                  ubse::ras::ALARM_OOM_EVENT, "process_mem_oom",
+                                  [this](int alarmFaultEvent, std::string faultInfo) -> uint32_t {
+                                      return this->HandleOomAlarmEvent(alarmFaultEvent, std::move(faultInfo));
+                                  },
+                                  ubse::ras::AlarmHandlerPriority::HIGH) == UBSE_OK;
+        if (!oomAlarmRegistered_) {
+            UBSE_LOG_ERROR << "[process_mem] decision: register oom alarm handler failed, oom event borrow disabled";
+        }
     }
 
     {
@@ -432,6 +615,12 @@ uint32_t ProcessMemPidDecision::Init()
 
 void ProcessMemPidDecision::UnInit()
 {
+    // 先摘除 OOM 事件订阅, 阻断新事件入 borrow 队列; 已在飞的 ras 回调任务受 stopping_ 防护自弃
+    if (oomAlarmRegistered_) {
+        std::string handlerName = "process_mem_oom";
+        ubse::ras::UnRegisterAlarmFaultHandler(ubse::ras::ALARM_OOM_EVENT, handlerName);
+        oomAlarmRegistered_ = false;
+    }
     {
         std::lock_guard<std::mutex> lock(oomMutex_);
         oomRunning_ = false;
@@ -463,38 +652,59 @@ void ProcessMemPidDecision::RunBorrowRound(uint64_t roundNum)
     CheckTimeouts(roundNum);
     RedriveStrandedReturns(roundNum);
 
-    uint64_t shortage = 0;
-    if (!CheckNodeFreeMemory(shortage)) {
+    std::vector<NumaShortage> shortages;
+    if (!CollectNumaShortages(roundNum, shortages)) {
         return;
     }
+    uint64_t initialTotal = 0;
+    for (const auto& shortage : shortages) {
+        initialTotal += shortage.bytes;
+    }
 
-    uint64_t rawShortage = shortage;
-    uint64_t pendingMigrate = GetPendingMigrateTotal();
-    shortage = (shortage > pendingMigrate) ? (shortage - pendingMigrate) : 0;
-
-    uint64_t initialShortage = shortage;
-
-    uint64_t nodeFree = freeMemoryThresholdBytes_ - rawShortage;
-    BroadcastPassiveReturn(roundNum, nodeFree, false);
+    // 被动归还按本地缺口 numa 触发(lender 视角): 逐 numa 判缺口(阈值按该 numa MemTotal 占比切分),
+    // 缺口存在即广播占用该 numa 的借出债务; 明细不可用本轮跳过(上面判缺已提前返回)
+    auto memMap = ReadLocalNumaMemMap();
+    if (memMap.has_value() && !memMap->empty()) {
+        uint64_t localTotalKb = 0;
+        for (const auto& [numaId, mem] : *memMap) {
+            localTotalKb += mem.totalKb;
+        }
+        std::set<uint32_t> shortageNumas;
+        for (const auto& [numaId, mem] : *memMap) {
+            uint64_t threshold = SplitThresholdToNuma(freeMemoryThresholdBytes_, mem.totalKb, localTotalKb);
+            if (mem.freeKb * 1024 < threshold) {
+                shortageNumas.insert(numaId);
+            }
+        }
+        if (!shortageNumas.empty()) {
+            BroadcastPassiveReturn(roundNum, 0, false, shortageNumas);
+        }
+    }
 
     auto candidates = BuildCandidates(roundNum);
     if (candidates.empty()) {
-        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " shortage_gb=" << BytesToGb(rawShortage)
-                      << " pending_migrate_gb=" << BytesToGb(pendingMigrate)
-                      << " borrowed_gb=0 slots=0 remaining_shortage_gb=" << BytesToGb(shortage)
+        UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " shortage_gb=" << BytesToGbDouble(initialTotal)
+                      << " borrowed_gb=0 slots=0 remaining_shortage_gb=" << BytesToGbDouble(initialTotal)
                       << " dur_ms=0 (no candidates)";
         return;
     }
 
-    ExecuteBorrowRound(candidates, shortage, roundNum);
+    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> residenceCache;
+    std::unordered_map<pid_t, uint64_t> borrowedThisRound;
+    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, false};
+    ExecuteBorrowRound(ctx, shortages);
 
     auto roundEnd = std::chrono::steady_clock::now();
     auto durMs = std::chrono::duration_cast<std::chrono::milliseconds>(roundEnd - roundStart).count();
-    uint64_t borrowed = (shortage <= initialShortage) ? (initialShortage - shortage) : 0;
-
-    UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " shortage_gb=" << BytesToGb(rawShortage)
-                  << " pending_migrate_gb=" << BytesToGb(pendingMigrate) << " borrowed_gb=" << BytesToGb(borrowed)
-                  << " remaining_shortage_gb=" << BytesToGb(shortage) << " dur_ms=" << durMs;
+    uint64_t remainTotal = 0;
+    for (const auto& shortage : shortages) {
+        remainTotal += shortage.bytes;
+    }
+    UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=summary"
+                  << " shortage_gb=" << BytesToGbDouble(initialTotal)
+                  << " borrowed_gb=" << BytesToGbDouble(initialTotal - remainTotal)
+                  << " remaining_shortage_gb=" << BytesToGbDouble(remainTotal) << " dur_ms=" << durMs;
 }
 
 // RETURNING 槽无人驱动会永久搁置(lender 不再短缺时 PASSIVE 归还不再重播, worker 自旋耗尽后放弃),
@@ -567,29 +777,65 @@ uint32_t ProcessMemPidDecision::OnDecisionTimer()
     return UBSE_OK;
 }
 
-bool ProcessMemPidDecision::CheckNodeFreeMemory(uint64_t& outShortage)
+bool ProcessMemPidDecision::CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages)
 {
-    auto freeBytes = GetNodeFreeBytes();
-    if (!freeBytes.has_value()) {
-        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNumber_.load()
-                      << " read local numa free failed, skip round decision";
-        return false;
-    }
-    uint64_t totalFree = *freeBytes;
+    shortages.clear();
 
-    uint64_t roundNum = roundNumber_.load();
-    UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum
-                   << " step=node_check node_free_gb=" << BytesToGbDouble(totalFree)
-                   << " threshold_gb=" << BytesToGbDouble(freeMemoryThresholdBytes_) << " shortage_gb="
-                   << (totalFree >= freeMemoryThresholdBytes_ ?
-                           "0 (skip)" :
-                           std::to_string(BytesToGb(freeMemoryThresholdBytes_ - totalFree)));
-
-    if (totalFree >= freeMemoryThresholdBytes_) {
+    auto memMap = ReadLocalNumaMemMap();
+    if (!memMap.has_value() || memMap->empty()) {
+        // 本地 numa 明细不可用(未注册/采集失败): 本轮跳过不判缺(不退化整机口径), 等下轮明细恢复
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum
+                      << " local numa detail unavailable, skip round decision";
         return false;
     }
 
-    outShortage = freeMemoryThresholdBytes_ - totalFree;
+    uint64_t localTotalKb = 0;
+    for (const auto& [numaId, mem] : *memMap) {
+        localTotalKb += mem.totalKb;
+    }
+    if (localTotalKb == 0) {
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " local numa total invalid, skip round decision";
+        return false;
+    }
+
+    // 每 numa 在途借用(该 numa 源 BORROWING 槽): 迁移尚未落地本地空闲未回升, 先行扣减防下轮重复借用;
+    // COMPLETED 槽页面已物理迁走, 本地空闲已回升, 不计入
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    std::unordered_map<int, uint64_t> inFlightBytes;
+    for (const auto& [pid, entry] : snapshot) {
+        for (const auto& slot : entry.borrow.slots) {
+            if (slot.status == def::BorrowSlotStatus::BORROWING && slot.srcNumaId >= 0) {
+                inFlightBytes[slot.srcNumaId] += slot.migratedBytes;
+            }
+        }
+    }
+
+    for (const auto& [numaId, mem] : *memMap) {
+        uint64_t threshold = SplitThresholdToNuma(freeMemoryThresholdBytes_, mem.totalKb, localTotalKb);
+        uint64_t freeBytes = mem.freeKb * 1024;
+        if (freeBytes >= threshold) {
+            continue;
+        }
+        uint64_t shortage = threshold - freeBytes;
+        auto inFlightIt = inFlightBytes.find(static_cast<int>(numaId));
+        if (inFlightIt != inFlightBytes.end()) {
+            shortage = (shortage > inFlightIt->second) ? (shortage - inFlightIt->second) : 0;
+        }
+        if (shortage == 0) {
+            continue;
+        }
+        shortages.push_back({static_cast<int>(numaId), shortage});
+    }
+    if (shortages.empty()) {
+        return false;
+    }
+    // 缺口大的 numa 优先处理
+    std::sort(shortages.begin(), shortages.end(),
+              [](const NumaShortage& a, const NumaShortage& b) { return a.bytes > b.bytes; });
+    for (const auto& shortage : shortages) {
+        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " step=node_check"
+                       << " src_numa=" << shortage.srcNumaId << " shortage_gb=" << BytesToGbDouble(shortage.bytes);
+    }
     return true;
 }
 
@@ -735,95 +981,77 @@ std::vector<def::BorrowCandidate> ProcessMemPidDecision::BuildCandidates(uint64_
     return candidates;
 }
 
-int ProcessMemPidDecision::CollectSrcNuma(pid_t pid, uint64_t roundNum)
+uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShortage& shortage)
 {
-    auto parseStart = std::chrono::steady_clock::now();
-
-    std::unordered_map<uint32_t, size_t> numaDistribution;
-    auto ret = collect::ProcessMemPidCollect::GetInstance().CollectProcessNumaMemDistribution(pid, numaDistribution);
-    if (ret != UBSE_OK || numaDistribution.empty()) {
-        UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " step=numa pid=" << pid
-                       << " src_numa=-1 (no data)";
-        return -1;
+    if (shortage.bytes == 0) {
+        return 0;
     }
-
-    // 只统计本机 NUMA: numa_maps 含远端借入页面的分布, 远端占用更大时会把远端 numa
-    // 当 srcNuma, 导致同平面 socket 解析错配或失效
-    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
-    int bestNuma = -1;
-    size_t maxPages = 0;
-    for (const auto& [numaId, memSize] : numaDistribution) {
-        bool isLocal = false;
-        for (const auto& [numaLoc, numaInfo] : curNodeInfo.numaInfos) {
-            if (static_cast<uint32_t>(numaLoc.numaId) == numaId) {
-                isLocal = true;
-                break;
-            }
+    // 就绪门(自 master 执行器空指针修复沿用): OOM 紧急轮入口无就绪检查, 统一在此兜底
+    if (!BorrowExecutorReady()) {
+        UBSE_LOG_WARN << "[process_mem] borrow round=" << ctx.roundNum << " abort: borrow executor not ready";
+        return 0;
+    }
+    uint64_t filled = 0;
+    for (const auto& candidate : ctx.candidates) {
+        if (shortage.bytes == 0) {
+            break;
         }
-        if (!isLocal) {
+        uint64_t canMigrateLeft = candidate.canMigrate;
+        auto roundIt = ctx.borrowedThisRound.find(candidate.pid);
+        if (roundIt != ctx.borrowedThisRound.end()) {
+            canMigrateLeft = (canMigrateLeft > roundIt->second) ? (canMigrateLeft - roundIt->second) : 0;
+        }
+        if (canMigrateLeft == 0) {
             continue;
         }
-        if (memSize > maxPages) {
-            maxPages = memSize;
-            bestNuma = static_cast<int>(numaId);
+        // 候选需在该缺口 numa 有驻留, 借用额按驻留量封顶(块对齐后最多超出不足一个 blockSize);
+        // 无 numa 限定(src<0)不设驻留上限
+        uint64_t resident =
+            EstimateNumaResidentBytes(candidate.pid, shortage.srcNumaId, candidate.actual, ctx.residenceCache);
+        if (resident == 0) {
+            continue;
         }
-    }
-
-    auto parseEnd = std::chrono::steady_clock::now();
-    auto parseMs = std::chrono::duration_cast<std::chrono::milliseconds>(parseEnd - parseStart).count();
-
-    UBSE_LOG_DEBUG << "[process_mem] borrow round=" << roundNum << " step=numa pid=" << pid << " src_numa=" << bestNuma
-                   << " parse_ms=" << parseMs;
-
-    return bestNuma;
-}
-
-void ProcessMemPidDecision::ExecuteBorrowRound(const std::vector<def::BorrowCandidate>& candidates, uint64_t& shortage,
-                                               uint64_t roundNum, bool emergency)
-{
-    auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
-    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
-
-    for (const auto& candidate : candidates) {
-        if (!BorrowExecutorReady()) {
-            UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " abort: borrow executor not ready";
-            break;
-        }
-        if (shortage == 0) {
-            break;
-        }
-
-        // 向上取整到 blockSize: 缺口不足一个block时仍按整块迁移, 只要pid内存够就多迁一部分, shortage允许多减;
-        uint64_t amount = std::min(candidate.canMigrate, shortage);
-        amount = (blockSizeBytes == 0) ? amount : ((amount + blockSizeBytes - 1) / blockSizeBytes) * blockSizeBytes;
+        uint64_t cap = std::min(canMigrateLeft, shortage.bytes);
+        cap = std::min(cap, resident);
+        uint64_t amount = CeilAlignBlock(cap, ctx.blockSizeBytes);
         if (amount == 0) {
             break;
         }
 
-        int srcNumaId = CollectSrcNuma(candidate.pid, roundNum);
-
-        std::string debtId = RecordPendingBorrow(candidate.pid, amount, srcNumaId, roundNum);
+        std::string debtId = RecordPendingBorrow(candidate.pid, amount, shortage.srcNumaId, ctx.roundNum);
         if (debtId.empty()) {
             continue;
         }
+        ctx.borrowedThisRound[candidate.pid] += amount;
 
-        if (emergency) {
+        if (ctx.emergency) {
             UBSE_LOG_INFO << "[process_mem] oom emergency_borrow pid=" << candidate.pid
                           << " amount_gb=" << BytesToGbDouble(amount) << " (smap)";
         } else {
-            UBSE_LOG_INFO << "[process_mem] borrow round=" << roundNum << " step=execute pid=" << candidate.pid
-                          << " amount_gb=" << BytesToGbDouble(amount) << " same_plane_prefer=" << samePlanePrefer_
+            UBSE_LOG_INFO << "[process_mem] borrow round=" << ctx.roundNum << " step=execute pid=" << candidate.pid
+                          << " src_numa=" << shortage.srcNumaId << " amount_gb=" << BytesToGbDouble(amount)
+                          << " same_plane_prefer=" << samePlanePrefer_
                           << " timeout_ms=" << ((amount / BYTES_PER_MB / MB_128 + 1) * timeoutPer128MbMs_);
         }
 
         std::string traceId = TraceContext::GetTraceId();
-        borrowExecutor_->Execute([this, debtId, pid = candidate.pid, amount, srcNumaId, roundNum, traceId]() {
+        borrowExecutor_->Execute([this, debtId, pid = candidate.pid, amount, srcNumaId = shortage.srcNumaId,
+                                  roundNum = ctx.roundNum, traceId]() {
             TraceContext::SetTraceId(traceId);
             AsyncBorrowAndMigrate(debtId, pid, amount, srcNumaId, roundNum);
             TraceContext::Clear();
         });
 
-        shortage = (amount >= shortage) ? 0 : (shortage - amount);
+        shortage.bytes = (amount >= shortage.bytes) ? 0 : (shortage.bytes - amount);
+        filled += amount;
+    }
+    return filled;
+}
+
+void ProcessMemPidDecision::ExecuteBorrowRound(BorrowRoundCtx& ctx, std::vector<NumaShortage>& shortages)
+{
+    for (auto& shortage : shortages) {
+        FillNumaShortage(ctx, shortage);
     }
 }
 
@@ -885,7 +1113,15 @@ def::AtomicMigrateResult ProcessMemPidDecision::CommitBorrowAndMigrate(
                         result = def::AtomicMigrateResult::kFail;
                         return;
                     }
-                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets);
+                    // 声明源归因: 本轮在途借用槽与存量 COMPLETED 槽同源才携带真实 srcNid(拉页源),
+                    // 混源/旧账(-1)回退不指定; 借出前 RecordPendingBorrow 已按缺口 numa 记录槽源
+                    int declSrcNuma = -1;
+                    auto declSlotIt = std::find_if(newBorrow.slots.begin(), newBorrow.slots.end(),
+                                                   [&debtId](const def::BorrowSlot& s) { return s.debtId == debtId; });
+                    if (declSlotIt != newBorrow.slots.end() && declSlotIt->status == def::BorrowSlotStatus::BORROWING) {
+                        declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, declSlotIt->srcNumaId);
+                    }
+                    auto migrateRet = RmrsMigrateToNumas(pid, debtId, numaTargets, declSrcNuma);
                     if (migrateRet != 0) {
                         if (IsConcurrencyConflict(static_cast<uint32_t>(migrateRet))) {
                             // 并发冲突: 同 numa 迁移/归还操作在飞, 账本未变更, 放锁等待后重试
@@ -1081,7 +1317,7 @@ void ProcessMemPidDecision::FailBorrowAbort(pid_t pid, const std::string& debtId
 }
 
 bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& debtId, uint64_t& need,
-                                                  uint64_t roundNum)
+                                                  uint64_t roundNum, int srcNumaId)
 {
     // 超分比下调迁回后 COMPLETED 槽 capacity 保留而 migratedBytes 归 0, 远端债务块空闲;
     // 进程内存上涨时优先复用老块, 避免新建债务. 与归还/再平衡/对账迁出持同一 pid 锁串行
@@ -1114,6 +1350,7 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
 
     uint64_t applied = 0;
     uint64_t rest = need;
+    int declSrcNuma = -1;
     std::map<int, uint64_t> reuseTargets;
     infoMgr.UpdateManagedPidBorrowStateAtomic(
         pid,
@@ -1140,6 +1377,8 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
                     reuseTargets[s.remoteNumaId] += s.migratedBytes;
                 }
             }
+            // 复用填充的槽与存量槽须全部同源且等于本轮缺口源, 才在声明中携带真实 srcNid
+            declSrcNuma = UnifiedDeclarationSrc(newBorrow.slots, srcNumaId);
         },
         "borrow_reuse");
     if (applied != need) {
@@ -1153,7 +1392,7 @@ bool ProcessMemPidDecision::ReuseIdleSlotCapacity(pid_t pid, const std::string& 
     for (const auto& [numaId, bytes] : reuseTargets) {
         numaTargets.emplace_back(numaId, bytes);
     }
-    int ret = RmrsMigrateToNumas(pid, "", numaTargets);
+    int ret = RmrsMigrateToNumas(pid, "", numaTargets, declSrcNuma);
     if (ret != 0) {
         // 下发失败: 账本已 bump, smap 未生效, 由 CorrectSmapConfig 全量对齐自愈
         UBSE_LOG_WARN << "[process_mem] borrow round=" << roundNum << " step=reuse pid=" << pid
@@ -1171,7 +1410,7 @@ void ProcessMemPidDecision::AsyncBorrowAndMigrate(const std::string& debtId, pid
     std::map<int, uint64_t> increments;
 
     // 复用超分比下调迁回后空闲的 COMPLETED 债务块容量, 覆盖借用需求时不新建债务
-    if (ReuseIdleSlotCapacity(pid, debtId, need, roundNum)) {
+    if (ReuseIdleSlotCapacity(pid, debtId, need, roundNum, srcNumaId)) {
         RemoveSlotFinalize(pid, debtId);
         ProcessMemPidInfoManager::GetInstance().UpdateManagedPidLastMigrateTime(pid);
         return;
@@ -1265,20 +1504,21 @@ void ProcessMemPidDecision::SplitBorrowIntoChunks(pid_t pid, uint64_t need, int 
 }
 
 int ProcessMemPidDecision::RmrsMigrateToNumas(pid_t pid, const std::string& debtId,
-                                              const std::vector<std::pair<int, uint64_t>>& numaTargets)
+                                              const std::vector<std::pair<int, uint64_t>>& numaTargets, int srcNumaId)
 {
-    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, -1,
+    int ret = pid::bridge::ProcessMemPidBridge::MigrateOutToNumas(pid, numaTargets, srcNumaId,
                                                                   debtId.empty() ? "" : "debt_id=" + debtId);
     if (ret != 0) {
         return ret;
     }
     // migrate_out 每次为 pid 全量配额声明(存量+增量/削减后), 成功后整 pid 覆盖台账为声明
-    // 镜像, 不依赖 smap 查询; 当前声明不带源节点, 暂记 src=0; 空声明(清残留配置)清空该 pid
+    // 镜像, 不依赖 smap 查询; 声明带真实单源时按源记账, 混源/旧账(-1)沿用占位 src=0;
+    // 空声明(清残留配置)清空该 pid
     auto& migrateLedger = process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance();
     if (numaTargets.empty()) {
         migrateLedger.ClearPid(pid);
     } else {
-        migrateLedger.ReplacePidRows(pid, 0, numaTargets);
+        migrateLedger.ReplacePidRows(pid, srcNumaId >= 0 ? srcNumaId : 0, numaTargets);
     }
     return ret;
 }
@@ -1376,7 +1616,16 @@ std::optional<uint64_t> ProcessMemPidDecision::ReadRemoteNumaUsedKb() const
     return collect::ProcessMemPidCollect::GetInstance().GetRemoteNumaUsedKb();
 }
 
-void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency)
+std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ProcessMemPidDecision::ReadLocalNumaMemMap()
+{
+    if (!localNumaMemMapReader) {
+        return std::nullopt;
+    }
+    return localNumaMemMapReader();
+}
+
+void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t nodeFree, bool emergency,
+                                                   const std::set<uint32_t>& shortageNumas)
 {
     auto nodeId = GetCurrentNodeId();
 
@@ -1390,12 +1639,19 @@ void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t n
 
     std::unordered_map<std::string, std::vector<def::ReturnRequestItem>> groups;
     uint64_t lentDebtCount = 0;
+    uint64_t filteredDebtCount = 0;
     for (const auto& debt : debts) {
         if (debt.lentNodeId != nodeId) {
             continue;
         }
         ++lentDebtCount;
         if (debt.borrowNodeId.empty() || debt.borrowNodeId == nodeId) {
+            continue;
+        }
+        // 逐 numa 缺口只回收占用缺口本地 numa 的债务(归还释放该债占用的本节点 numa 页);
+        // 空集合不设 numa 过滤, 广播全部借出债务
+        if (!shortageNumas.empty() && !DebtOccupiesShortageNuma(debt, shortageNumas)) {
+            ++filteredDebtCount;
             continue;
         }
         groups[debt.borrowNodeId].push_back(def::ReturnRequestItem{debt.name, debt.size});
@@ -1422,6 +1678,17 @@ void ProcessMemPidDecision::BroadcastPassiveReturn(uint64_t roundNum, uint64_t n
     if (emergency) {
         UBSE_LOG_INFO << "[process_mem] oom lender_emergency: broadcasting to " << groups.size() << " borrowers=["
                       << borrowerList << "] lent_debts=" << lentDebtCount;
+    } else if (!shortageNumas.empty()) {
+        std::string numaList;
+        for (uint32_t numaId : shortageNumas) {
+            if (!numaList.empty()) {
+                numaList += ",";
+            }
+            numaList += std::to_string(numaId);
+        }
+        UBSE_LOG_INFO << "[process_mem] return passive lender=" << nodeId << " broadcasting to " << groups.size()
+                      << " borrowers=[" << borrowerList << "] shortage_numas=[" << numaList
+                      << "] lent_debts=" << lentDebtCount << " filtered=" << filteredDebtCount;
     } else {
         UBSE_LOG_INFO << "[process_mem] return passive lender=" << nodeId << " broadcasting to " << groups.size()
                       << " borrowers=[" << borrowerList << "] (nodeFree=" << BytesToGbDouble(nodeFree)
@@ -2321,7 +2588,7 @@ void ProcessMemPidDecision::ReconcileApplyChanges(const std::vector<pid_t>& affe
     UBSE_LOG_INFO << "[process_mem] reconcile: applied affected=" << affectedPids.size() << " query_fail=" << queryFail;
 }
 
-uint64_t ProcessMemPidDecision::ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item)
+uint64_t ProcessMemPidDecision::ReadSlotMigrateBytes(pid_t pid, const def::ReturnRequestItem& item, int& srcNumaId)
 {
     // 归还槽已标记 RETURNING: 空 mutate 触发 remoteNumaMigrated 重建(排除归还槽),
     // 保证迁回目标不含归还数据; 不做 claim 整理, migratedBytes 保持与真实数据一致
@@ -2335,6 +2602,7 @@ uint64_t ProcessMemPidDecision::ReadSlotMigrateBytes(pid_t pid, const def::Retur
         for (const auto& slot : pidIt->second.borrow.slots) {
             if (slot.debtId == item.name) {
                 migrateBytes = slot.migratedBytes;
+                srcNumaId = slot.srcNumaId;
                 break;
             }
         }
@@ -2447,10 +2715,33 @@ uint32_t ProcessMemPidDecision::ReturnOneDebt(const def::ReturnRequestItem& item
         return ReturnDebtRemoteToRemote(item, resolved, item.size);
     }
 
-    uint64_t migrateBytes = ReadSlotMigrateBytes(pid, item);
+    int srcNuma = -1;
+    uint64_t migrateBytes = ReadSlotMigrateBytes(pid, item, srcNuma);
     if (item.size == 0 || migrateBytes == 0) {
         // 无数据在远端或未携带容量: 直接归还内存
         return ReturnDebtUnified(pid, item, ReturnScene::PASSIVE);
+    }
+    // 迁回落点判定: 债务归属(src)本地 numa 有富余才迁回本地, 避免吸收页面把紧缺 numa 压过阈值;
+    // 借出时归属的是当时缺口的 numa, 迁移回来的页面按同一归属记账(声明层契约收敛前为近似)
+    auto memMap = ReadLocalNumaMemMap();
+    if (srcNuma >= 0 && memMap.has_value() && !memMap->empty()) {
+        uint64_t localTotalKb = 0;
+        for (const auto& [numaId, mem] : *memMap) {
+            localTotalKb += mem.totalKb;
+        }
+        auto srcIt = memMap->find(static_cast<uint32_t>(srcNuma));
+        if (localTotalKb > 0 && srcIt != memMap->end()) {
+            uint64_t srcThreshold =
+                SplitThresholdToNuma(freeMemoryThresholdBytes_, srcIt->second.totalKb, localTotalKb);
+            uint64_t srcFree = srcIt->second.freeKb * 1024;
+            if (srcFree > srcThreshold + migrateBytes) {
+                return ReturnDebtToLocal(pid, item, nodeFree, ReturnScene::PASSIVE);
+            }
+            UBSE_LOG_DEBUG << "[process_mem] return passive pid=" << pid << " debt_id=" << item.name
+                           << " src_numa=" << srcNuma << " free_gb=" << BytesToGbDouble(srcFree)
+                           << " no room, remote-to-remote instead";
+            return ReturnDebtRemoteToRemote(item, resolved, migrateBytes);
+        }
     }
     if (nodeFree > freeMemoryThresholdBytes_ + migrateBytes) {
         // 本地 free 充足: 先把账本数据迁回本地, 再归还内存
@@ -2727,8 +3018,10 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
                   << " migrate_gb=" << BytesToGbDouble(migrateBytes);
 
     // r2r 同步迁移成功即数据到位: 台账按迁移量增减(旧 numa 减、新 numa 加), 部分迁移时
-    // 不整行替换, 保留旧 numa 上其余债务的声明量
-    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().MoveRowBytes(pid, 0, ctx.oldRemoteNuma,
+    // 不整行替换, 保留旧 numa 上其余债务的声明量; 行键源与债务 usrInfo.srcNuma 同源
+    // (历史债务无源信息时兜底 0, 与 migrate_out 覆盖钩子写入的旧行键一致)
+    int ledgerSrcNuma = (ctx.srcNuma >= 0) ? ctx.srcNuma : 0;
+    process_mem::ledger::ProcessMemPidMigrateLedger::GetInstance().MoveRowBytes(pid, ledgerSrcNuma, ctx.oldRemoteNuma,
                                                                                 out.remoteNuma, migrateBytes);
 
     ProcessMemPidInfoManager::GetInstance().UpdateManagedPidBorrowStateAtomic(
@@ -2748,6 +3041,7 @@ uint32_t ProcessMemPidDecision::MigrateDebtToReplacement(const def::ReturnReques
             def::BorrowSlot newSlot{};
             newSlot.debtId = out.debtId;
             newSlot.remoteNumaId = out.remoteNuma;
+            newSlot.srcNumaId = ledgerSrcNuma;
             newSlot.capacity = item.size;
             newSlot.migratedBytes = migrateBytes;
             newSlot.status = def::BorrowSlotStatus::COMPLETED;
@@ -2947,17 +3241,11 @@ uint32_t ProcessMemPidDecision::OomPollOnce()
     }
     uint64_t nodeFree = *nodeFreeOpt;
 
-    UpdateOomFastWindow(roundNum, nodeFree);
+    UpdateOomFastWindow(roundNum);
 
-    if (nodeFree < emergencyThresholdBytes_) {
-        OomEmergencyBorrow(roundNum, nodeFree);
-        auto now = std::chrono::steady_clock::now();
-        auto sinceLast = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastEmergencyBroadcast_).count();
-        if (sinceLast >= kEmergencyBroadcastIntervalMs) {
-            BroadcastPassiveReturn(roundNum, nodeFree, true);
-            lastEmergencyBroadcast_ = now;
-        }
-    }
+    // 紧急线判定/执行/归还广播全部下沉 OomEmergencyBorrow: 按单个本地 numa 判紧急
+    // (整机 free 高但单 numa 枯竭也触发); 明细不可用跳过本轮(不退化整机口径)
+    OomEmergencyBorrow(roundNum, nodeFree);
 
     UBSE_LOG_DEBUG << "[process_mem] oom detector heartbeat oom_round=" << roundNum
                    << " LocalNumaFree=" << BytesToGbDouble(nodeFree)
@@ -2965,102 +3253,352 @@ uint32_t ProcessMemPidDecision::OomPollOnce()
     return fastPollIntervalMs_;
 }
 
-void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t roundNum, uint64_t nodeFree)
+void ProcessMemPidDecision::UpdateOomFastWindow(uint64_t roundNum)
 {
     if (oomFastWindowCount_ == 0) {
-        oomFastWindowMin_ = nodeFree;
-    } else {
-        oomFastWindowMin_ = std::min(oomFastWindowMin_, nodeFree);
+        // 窗口起始建立 per-numa 空闲最小值样本; 无本地 numa 明细时样本保持空,
+        // 结算时跳过该窗口(不退化整机口径), 下轮窗口重新采样
+        oomWindowMinByNuma_.clear();
+        auto memMap = ReadLocalNumaMemMap();
+        if (memMap.has_value() && !memMap->empty()) {
+            for (const auto& [numaId, mem] : *memMap) {
+                oomWindowMinByNuma_[numaId] = mem.freeKb * 1024;
+            }
+        }
+    } else if (!oomWindowMinByNuma_.empty()) {
+        auto memMap = ReadLocalNumaMemMap();
+        if (memMap.has_value()) {
+            for (auto& [numaId, minFree] : oomWindowMinByNuma_) {
+                auto it = memMap->find(numaId);
+                if (it != memMap->end()) {
+                    minFree = std::min(minFree, it->second.freeKb * 1024);
+                }
+            }
+        }
     }
     ++oomFastWindowCount_;
     if (oomFastWindowCount_ >= observeCycles_) {
-        UBSE_LOG_DEBUG << "[process_mem] oom active window settle oom_round=" << roundNum
-                       << " samples=" << oomFastWindowCount_ << " min_gb=" << BytesToGbDouble(oomFastWindowMin_)
-                       << " threshold_gb=" << BytesToGbDouble(freeMemoryThresholdBytes_);
-        if (oomFastWindowMin_ > freeMemoryThresholdBytes_) {
-            OomActiveReturn(oomFastWindowMin_);
+        if (oomWindowMinByNuma_.empty()) {
+            // 窗口期内始终无本地 numa 明细: 本轮不结算, 下轮窗口重新采样
+            UBSE_LOG_DEBUG << "[process_mem] oom active window settle oom_round=" << roundNum
+                           << " samples=" << oomFastWindowCount_ << " skip: local numa detail unavailable";
+        } else {
+            // per-numa 窗口: 按各本地 numa 自身阈值结算, 无盈余 numa 时不下发
+            OomActiveReturnPerNuma(roundNum);
         }
         oomFastWindowCount_ = 0;
-        oomFastWindowMin_ = 0;
+        oomWindowMinByNuma_.clear();
     }
 }
 
 void ProcessMemPidDecision::OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree)
 {
-    if (nodeFree >= freeMemoryThresholdBytes_) {
+    // per-numa 口径: 任一本地 numa free 低于其等比例 emergency 阈值即紧急,
+    // 缺口按该 numa 补足其等比例 pressing 水位(与事件借入/判缺同一占比切分);
+    // 归还广播节流(2s)后只回收占用紧急 numa 的借出债务
+    // 归还广播与本地候选无关(借出方收回远端占用), 须先于借用执行: 无候选/无缺口时归还不丢
+    auto throttledEmergencyBroadcast = [&](const std::set<uint32_t>& shortageNumas) {
+        auto now = std::chrono::steady_clock::now();
+        auto sinceLast = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastEmergencyBroadcast_).count();
+        if (sinceLast >= kEmergencyBroadcastIntervalMs) {
+            BroadcastPassiveReturn(roundNum, nodeFree, true, shortageNumas);
+            lastEmergencyBroadcast_ = now;
+        }
+    };
+
+    auto memMap = ReadLocalNumaMemMap();
+    if (!memMap.has_value() || memMap->empty()) {
+        // 本地 numa 明细不可用: 本轮跳过紧急判定(不退化整机口径), 由采集恢复后的下轮轮询接续
+        UBSE_LOG_WARN << "[process_mem] oom emergency borrow oom_round=" << roundNum
+                      << " skip: local numa detail unavailable";
         return;
     }
-    // 借用轮(决策定时轮/其它紧急轮)在飞时跳过本轮: 非阻塞, 200ms 后自然重试
+    uint64_t localTotalKb = 0;
+    for (const auto& [numaId, mem] : *memMap) {
+        localTotalKb += mem.totalKb;
+    }
+    std::vector<NumaShortage> shortages;
+    std::set<uint32_t> shortageNumas;
+    for (const auto& [numaId, mem] : *memMap) {
+        uint64_t freeBytes = mem.freeKb * 1024;
+        uint64_t emgBytes = SplitThresholdToNuma(emergencyThresholdBytes_, mem.totalKb, localTotalKb);
+        if (freeBytes >= emgBytes) {
+            continue;
+        }
+        shortageNumas.insert(numaId);
+        uint64_t pressingBytes = SplitThresholdToNuma(freeMemoryThresholdBytes_, mem.totalKb, localTotalKb);
+        if (pressingBytes > freeBytes) {
+            shortages.push_back({static_cast<int>(numaId), pressingBytes - freeBytes});
+        }
+    }
+    if (shortages.empty()) {
+        return;
+    }
+    UBSE_LOG_INFO << "[process_mem] oom emergency borrow oom_round=" << roundNum
+                  << " shortage_numas=" << shortageNumas.size() << " node_free_gb=" << BytesToGbDouble(nodeFree);
+    throttledEmergencyBroadcast(shortageNumas);
+    // 借用轮(决策定时轮/其它紧急轮)在飞时跳过本轮借出: 非阻塞, 200ms 后自然重试;
+    // 归还广播先于本锁执行, 不受借用轮串行影响
     std::unique_lock<std::mutex> roundLock(borrowRoundMutex_, std::try_to_lock);
     if (!roundLock.owns_lock()) {
         UBSE_LOG_DEBUG << "[process_mem] oom emergency_borrow skip: borrow round busy";
         return;
     }
-    uint64_t shortage = freeMemoryThresholdBytes_ - nodeFree;
-    uint64_t pendingMigrate = GetPendingMigrateTotal();
-    shortage = (shortage > pendingMigrate) ? (shortage - pendingMigrate) : 0;
-
     auto candidates = BuildCandidates(roundNum);
     if (candidates.empty()) {
         return;
     }
-    ExecuteBorrowRound(candidates, shortage, roundNum, true);
+    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages);
 }
 
-void ProcessMemPidDecision::OomActiveReturn(uint64_t windowMinFree)
+void ProcessMemPidDecision::ExecuteEmergencyBorrowRound(uint64_t roundNum,
+                                                        const std::vector<def::BorrowCandidate>& candidates,
+                                                        std::vector<NumaShortage>& shortages)
 {
-    if (windowMinFree <= freeMemoryThresholdBytes_) {
+    uint64_t blockSizeBytes = GetUbseBlockSizeBytes();
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> residenceCache;
+    std::unordered_map<pid_t, uint64_t> borrowedThisRound;
+    BorrowRoundCtx ctx{candidates, residenceCache, borrowedThisRound, blockSizeBytes, roundNum, true};
+    ExecuteBorrowRound(ctx, shortages);
+}
+
+uint32_t ProcessMemPidDecision::HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo)
+{
+    // ras 故障线程上下文: 校验/投递后立即返回, 不阻塞 ras 对 sysSentry 的聚合 ack
+    if (alarmFaultEvent != ubse::ras::ALARM_OOM_EVENT || stopping_) {
+        return UBSE_OK;
+    }
+    std::vector<int> numaIds;
+    int reason = ParseOomEventFaultInfo(faultInfo, numaIds);
+    if (reason == kOomReasonHugepage) {
+        UBSE_LOG_DEBUG << "[process_mem] oom alarm skip: reason=" << reason << " (hugepage 2M, not smallpage)";
+        return UBSE_OK;
+    }
+    // 4K 小页 OOM 仅 reason 0(KSWAPD)/1(DIRECT_RECLAIM) 两种, 其余未知 reason 不驱动借出
+    if (reason < 0 || (reason != 0 && reason != 1)) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm ignore: reason=" << reason << " fault_info=" << faultInfo;
+        return UBSE_OK;
+    }
+    uint64_t roundNum = oomRoundNumber_.fetch_add(1) + 1;
+    std::string numaDesc;
+    for (size_t i = 0; i < numaIds.size(); ++i) {
+        if (i > 0) {
+            numaDesc += ",";
+        }
+        numaDesc += std::to_string(numaIds[i]);
+    }
+    UBSE_LOG_INFO << "[process_mem] oom alarm borrow: reason=" << reason << " numas=[" << numaDesc
+                  << "] oom_round=" << roundNum;
+    if (borrowExecutor_ == nullptr || !borrowExecutor_->Execute([this, eventNumas = std::move(numaIds), roundNum]() {
+            this->OomEventRespond(eventNumas, roundNum);
+        })) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm borrow enqueue failed (stopping/executor stopped)";
+    }
+    return UBSE_OK;
+}
+
+// 事件 numa 是否有本机借出债务占用: 单次查询失败返回 nullopt(状态未知); 判定口径与
+// BroadcastPassiveReturn 的 shortageNumas 过滤一致(排除空 borrower 与自借)
+std::optional<bool> ProcessMemPidDecision::HasLentDebtOnEventNumas(const std::set<uint32_t>& eventNumas)
+{
+    auto nodeId = GetCurrentNodeId();
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debts;
+    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debts);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm lender check: query own debts failed, ret=" << ret;
+        return std::nullopt;
+    }
+    for (const auto& debt : debts) {
+        if (debt.lentNodeId != nodeId || debt.borrowNodeId.empty() || debt.borrowNodeId == nodeId) {
+            continue;
+        }
+        if (DebtOccupiesShortageNuma(debt, eventNumas)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ProcessMemPidDecision::OomEventRespond(const std::vector<int>& numaIds, uint64_t roundNum)
+{
+    if (stopping_) {
         return;
     }
-    uint64_t budget = windowMinFree - freeMemoryThresholdBytes_;
+    // 事件 numa 集合: 借出债务占用判定与归还广播过滤共用同一口径(lentNumaIdList)
+    std::set<uint32_t> eventNumas;
+    for (int numaId : numaIds) {
+        eventNumas.insert(static_cast<uint32_t>(numaId));
+    }
+    // 借出方语义: 事件 numa 的页被远端借入方占用(本机借出债务) → 广播归还收回本机内存,
+    // 不再借入; 债务查询失败状态未知, 放弃本次响应, 由 200ms 紧急/周期轮询兜底
+    auto lentOnEvent = HasLentDebtOnEventNumas(eventNumas);
+    if (!lentOnEvent.has_value()) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm respond round=" << roundNum
+                      << " skip: own lent debt query failed, fallback to periodic polling";
+        return;
+    }
+    if (*lentOnEvent) {
+        // 事件路径在 borrow 执行器线程, 节流时刻独立原子维护, 不受周期紧急线的节流窗口影响
+        auto nowMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+        int64_t lastMs = lastOomEventBroadcastMs_.load(std::memory_order_relaxed);
+        if (nowMs - lastMs < kEmergencyBroadcastIntervalMs ||
+            !lastOomEventBroadcastMs_.compare_exchange_strong(lastMs, nowMs)) {
+            UBSE_LOG_DEBUG << "[process_mem] oom alarm return(lender) round=" << roundNum
+                           << " skip: broadcast throttled";
+            return;
+        }
+        auto nodeFree = GetNodeFreeBytes();
+        UBSE_LOG_INFO << "[process_mem] oom alarm return(lender) round=" << roundNum
+                      << " shortage_numas=" << eventNumas.size() << ", broadcast return to borrowers";
+        BroadcastPassiveReturn(roundNum, nodeFree.value_or(0), true, eventNumas);
+        return;
+    }
+
+    // 事件缺口 = 该事件 numa 的紧急阈值占比量(emergency_threshold × numa MemTotal 占比): 4K 分配已在
+    // 该 numa 失败即视为下穿其紧急水位, 借用量只恢复到该 numa 紧急占比水位即止(≈emergency×占比,
+    // 远小于 pressing 补足与驻留全量), 单次量小迁移来得及; 不足部分由 200ms 周期紧急线/后续事件接续;
+    // 明细不可用本轮跳过(不退化整机口径), 同样由周期紧急线兜底
+    auto memMap = ReadLocalNumaMemMap();
+    if (!memMap.has_value() || memMap->empty()) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm borrow round=" << roundNum
+                      << " skip: local numa detail unavailable, fallback to periodic polling";
+        return;
+    }
+    // 借用轮(决策定时轮/其它紧急轮)在飞时跳过本轮借出: 非阻塞, 由 200ms 周期紧急线兜底
+    std::unique_lock<std::mutex> roundLock(borrowRoundMutex_, std::try_to_lock);
+    if (!roundLock.owns_lock()) {
+        UBSE_LOG_DEBUG << "[process_mem] oom alarm borrow round=" << roundNum << " skip: borrow round busy";
+        return;
+    }
+    auto candidates = BuildCandidates(roundNum);
+    if (candidates.empty()) {
+        return;
+    }
+    uint64_t localTotalKb = 0;
+    for (const auto& [numaId, mem] : *memMap) {
+        localTotalKb += mem.totalKb;
+    }
+    std::vector<NumaShortage> shortages;
+    shortages.reserve(numaIds.size());
+    for (int srcNumaId : numaIds) {
+        auto it = memMap->find(static_cast<uint32_t>(srcNumaId));
+        if (it == memMap->end()) {
+            continue;
+        }
+        uint64_t freeBytes = it->second.freeKb * 1024;
+        uint64_t emgBytes = SplitThresholdToNuma(emergencyThresholdBytes_, it->second.totalKb, localTotalKb);
+        if (emgBytes > freeBytes) {
+            shortages.push_back({srcNumaId, emgBytes - freeBytes});
+        }
+    }
+    if (shortages.empty()) {
+        UBSE_LOG_WARN << "[process_mem] oom alarm borrow round=" << roundNum
+                      << " skip: event numas free above emergency quota threshold (snapshot lag), "
+                      << "fallback to periodic polling";
+        return;
+    }
+    UBSE_LOG_INFO << "[process_mem] oom alarm borrow round=" << roundNum
+                  << " step=execute shortage_numas=" << shortages.size() << " candidates=" << candidates.size();
+    ExecuteEmergencyBorrowRound(roundNum, candidates, shortages);
+}
+
+void ProcessMemPidDecision::OomActiveReturnPerNuma(uint64_t roundNum)
+{
+    // 窗口按各本地 numa 结算: 空闲最小值超过该 numa 等比例阈值才算盈余, 盈余即该 numa 主动归还预算;
+    // 债务按借出归属(src) numa 匹配预算, 归属未知的遗留债务不参与(由 lender 被动归还覆盖)
+    auto memMap = ReadLocalNumaMemMap();
+    if (!memMap.has_value() || memMap->empty()) {
+        // 结算时 numa 明细不可用: 本轮跳过(不退化整机口径), 下轮窗口重新采样
+        UBSE_LOG_DEBUG << "[process_mem] oom active window settle oom_round=" << roundNum
+                       << " samples=" << oomFastWindowCount_ << " skip: local numa detail unavailable";
+        return;
+    }
+    uint64_t localTotalKb = 0;
+    for (const auto& [numaId, mem] : *memMap) {
+        localTotalKb += mem.totalKb;
+    }
+    if (localTotalKb == 0) {
+        return;
+    }
+
+    std::map<int, uint64_t> budgets;
+    for (const auto& [numaId, minFree] : oomWindowMinByNuma_) {
+        auto memIt = memMap->find(numaId);
+        if (memIt == memMap->end()) {
+            continue;
+        }
+        uint64_t threshold = SplitThresholdToNuma(freeMemoryThresholdBytes_, memIt->second.totalKb, localTotalKb);
+        if (minFree > threshold) {
+            budgets[static_cast<int>(numaId)] = minFree - threshold;
+            UBSE_LOG_DEBUG << "[process_mem] oom active window settle (per-numa) oom_round=" << roundNum
+                           << " samples=" << oomFastWindowCount_ << " src_numa=" << numaId
+                           << " surplus_gb=" << BytesToGbDouble(minFree - threshold);
+        }
+    }
+    if (budgets.empty()) {
+        UBSE_LOG_DEBUG << "[process_mem] oom active window settle (per-numa) oom_round=" << roundNum
+                       << " samples=" << oomFastWindowCount_ << " no numa surplus, skip";
+        return;
+    }
 
     auto& infoMgr = ProcessMemPidInfoManager::GetInstance();
     auto snapshot = infoMgr.GetManagedPidCacheSnapshot();
-
-    std::vector<std::pair<pid_t, def::ReturnRequestItem>> debts;
+    struct ActiveDebt {
+        pid_t pid;
+        def::ReturnRequestItem item;
+        int srcNumaId;
+    };
+    std::vector<ActiveDebt> debts;
     uint64_t totalRemote = 0;
-    CollectActiveReturnDebts(snapshot, debts, totalRemote);
+    for (const auto& [pid, entry] : snapshot) {
+        for (const auto& slot : entry.borrow.slots) {
+            if (slot.status != def::BorrowSlotStatus::COMPLETED) {
+                continue;
+            }
+            // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
+            // 用容量找缺口会错误跳过这类零成本债务
+            debts.push_back(ActiveDebt{pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes}, slot.srcNumaId});
+            totalRemote += slot.migratedBytes;
+        }
+    }
+    // 归属 numa 内大额优先, 归属未知(src<0)排最后
+    std::sort(debts.begin(), debts.end(), [](const ActiveDebt& a, const ActiveDebt& b) {
+        if (a.srcNumaId != b.srcNumaId) {
+            return a.srcNumaId > b.srcNumaId;
+        }
+        return a.item.size > b.item.size;
+    });
 
-    std::sort(debts.begin(), debts.end(), [](const auto& a, const auto& b) { return a.second.size > b.second.size; });
-
-    UBSE_LOG_INFO << "[process_mem] return active triggered: window_min_gb=" << BytesToGbDouble(windowMinFree)
-                  << " budget_gb=" << BytesToGbDouble(budget) << " total_remote_gb=" << BytesToGbDouble(totalRemote);
+    UBSE_LOG_INFO << "[process_mem] return active (per-numa) triggered oom_round=" << roundNum
+                  << " surplus_numas=" << budgets.size() << " total_remote_gb=" << BytesToGbDouble(totalRemote);
 
     uint64_t returned = 0;
-    for (const auto& [debtPid, item] : debts) {
-        if (item.size > budget) {
-            UBSE_LOG_DEBUG << "[process_mem] return active debt_id=" << item.name
-                           << " skip: size_gb=" << BytesToGbDouble(item.size)
-                           << " > budget_gb=" << BytesToGbDouble(budget);
+    for (const auto& debt : debts) {
+        if (debt.srcNumaId < 0) {
+            UBSE_LOG_DEBUG << "[process_mem] return active (per-numa) debt_id=" << debt.item.name
+                           << " skip: src numa unknown, wait for passive return";
             continue;
         }
-        if (!EnqueueReturnDebt(debtPid, item, ReturnScene::ACTIVE)) {
-            UBSE_LOG_WARN << "[process_mem] return active debt_id=" << item.name
+        auto budgetIt = budgets.find(debt.srcNumaId);
+        uint64_t remaining = (budgetIt != budgets.end()) ? budgetIt->second : 0;
+        if (remaining == 0 || debt.item.size > remaining) {
+            UBSE_LOG_DEBUG << "[process_mem] return active (per-numa) debt_id=" << debt.item.name
+                           << " src_numa=" << debt.srcNumaId << " skip: size_gb=" << BytesToGbDouble(debt.item.size)
+                           << " > budget_gb=" << BytesToGbDouble(remaining);
+            continue;
+        }
+        if (!EnqueueReturnDebt(debt.pid, debt.item, ReturnScene::ACTIVE)) {
+            UBSE_LOG_WARN << "[process_mem] return active (per-numa) debt_id=" << debt.item.name
                           << " enqueue failed (stopping/queue full)";
             continue;
         }
-        budget -= item.size;
-        returned += item.size;
+        budgetIt->second -= debt.item.size;
+        returned += debt.item.size;
     }
 
-    UBSE_LOG_INFO << "[process_mem] return active done: returned_gb=" << BytesToGbDouble(returned)
-                  << " remaining_budget_gb=" << BytesToGbDouble(budget);
-}
-
-void ProcessMemPidDecision::CollectActiveReturnDebts(const std::map<pid_t, def::ManagedPidEntry>& snapshot,
-                                                     std::vector<std::pair<pid_t, def::ReturnRequestItem>>& debts,
-                                                     uint64_t& totalRemote)
-{
-    for (const auto& [pid, entry] : snapshot) {
-        for (const auto& slot : entry.borrow.slots) {
-            if (slot.status == def::BorrowSlotStatus::COMPLETED) {
-                // 归还成本 = 实际迁移量: migrate=0 的债务无远端数据, 归还不涨本地 numa,
-                // 用容量找缺口会错误跳过这类零成本债务
-                debts.emplace_back(pid, def::ReturnRequestItem{slot.debtId, slot.migratedBytes});
-                totalRemote += slot.migratedBytes;
-            }
-        }
-    }
+    UBSE_LOG_INFO << "[process_mem] return active (per-numa) done: returned_gb=" << BytesToGbDouble(returned);
 }
 
 } // namespace process_mem::decision
