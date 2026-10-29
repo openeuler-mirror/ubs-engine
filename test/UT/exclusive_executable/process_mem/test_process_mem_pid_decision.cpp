@@ -84,6 +84,20 @@ BorrowState MakeBorrow(uint64_t amountGb, const std::string& debtId)
     return borrow;
 }
 
+// 在途未落地槽: 建债已发起、迁移尚未完成(BORROWING 全额计入 per-src 在途)
+BorrowState MakePendingBorrow(uint64_t amountGb, const std::string& debtId, int srcNuma)
+{
+    BorrowState borrow;
+    BorrowSlot slot;
+    slot.debtId = debtId;
+    slot.migratedBytes = amountGb * GB;
+    slot.capacity = amountGb * GB;
+    slot.status = BorrowSlotStatus::BORROWING;
+    slot.srcNumaId = srcNuma;
+    borrow.slots.push_back(slot);
+    return borrow;
+}
+
 void AddManagedPid(pid_t pid, uint64_t maxGb, double ratio, uint64_t vmRssGb, const BorrowState& borrow = {})
 {
     auto& mgr = ProcessMemPidInfoManager::GetInstance();
@@ -128,19 +142,27 @@ void MockNodeFree(uint64_t freeGb)
     MockNodeFreeBytes(freeGb * GB);
 }
 
-std::vector<ReturnRequestItem> DecodeItems(const std::string& payload)
+struct DecodedReturnRequest {
+    std::string targetNodeId;
+    std::string lenderNodeId;
+    std::vector<ReturnRequestItem> items;
+};
+
+DecodedReturnRequest DecodeReturnRequest(const std::string& payload)
 {
     ubse::serial::UbseDeSerialization deserializer{reinterpret_cast<const ubse::serial::base_ptr_type*>(payload.data()),
                                                    payload.size()};
+    DecodedReturnRequest decoded;
     ubse::serial::common_len count = 0;
+    deserializer >> decoded.targetNodeId >> decoded.lenderNodeId;
     deserializer >> ubse::serial::array_len_capture(count);
-    std::vector<ReturnRequestItem> items;
     for (ubse::serial::common_len i = 0; i < count; ++i) {
         ReturnRequestItem item;
-        deserializer >> item.name >> item.size;
-        items.push_back(item);
+        deserializer >> item.name >> item.size >> item.ledgerNumaIds >> item.ledgerNumaSizes;
+        item.lenderNodeId = decoded.lenderNodeId;
+        decoded.items.push_back(item);
     }
-    return items;
+    return decoded;
 }
 } // namespace
 
@@ -176,7 +198,8 @@ void TestProcessMemPidDecision::SetUp()
         decision.returnExecutor_ = ubse::task_executor::UbseTaskExecutor::Create("ProcMemReturnTest", 2, 64);
         decision.returnExecutor_->Start();
     }
-    // UT 无远端 numa sysfs: mock 实际占用量 = 已完成 slot 之和, 使 pending 语义等价于旧的在途借用口径
+    // UT 无远端 numa sysfs: mock 节点级实际占有 = 已完成 slot 之和(COMPLETED 视为已落地),
+    // 节点级总量口径仅剩轮次日志消费, 供 GetPendingMigrateTotal 断言
     ProcessMemPidDecision::remoteNumaUsedKbReader = []() -> std::optional<uint64_t> {
         uint64_t actualBytes = 0;
         auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
@@ -188,6 +211,24 @@ void TestProcessMemPidDecision::SetUp()
             }
         }
         return actualBytes / 1024;
+    };
+    // 远端明细口径(生产 Init 恒注册, 采样不可用时的在途回退): mock 各 dest 实际占用 = 该 dest
+    // 已完成 slot 之和 → 池差 0, 与节点级 mock 口径一致
+    ProcessMemPidDecision::remoteNumaUsedMapKbReader = []() -> std::optional<std::unordered_map<uint32_t, uint64_t>> {
+        std::unordered_map<uint32_t, uint64_t> usedBytesByDest;
+        auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+        for (const auto& [pid, entry] : snapshot) {
+            for (const auto& s : entry.borrow.slots) {
+                if (s.status == BorrowSlotStatus::COMPLETED && s.remoteNumaId >= 0) {
+                    usedBytesByDest[static_cast<uint32_t>(s.remoteNumaId)] += s.migratedBytes;
+                }
+            }
+        }
+        std::unordered_map<uint32_t, uint64_t> usedKbByDest;
+        for (const auto& [destNumaId, bytes] : usedBytesByDest) {
+            usedKbByDest[destNumaId] = bytes / 1024;
+        }
+        return usedKbByDest;
     };
     // 单本地 numa(0) 明细默认 mock: 判定/阈值按 MemTotal 占比切分, 单 numa 占比 100% → per-numa 等价整机
     // 语义; free 实时联动 localNumaFreeKbReader 当前值; 未注册整机 free 时明细同样不可用(跳过轮)
@@ -219,6 +260,7 @@ void TestProcessMemPidDecision::TearDown()
     ProcessMemPidBridge::rmrsProcessConfigQuery = {};
     ProcessMemPidDecision::localNumaFreeKbReader = nullptr;
     ProcessMemPidDecision::remoteNumaUsedKbReader = nullptr;
+    ProcessMemPidDecision::remoteNumaUsedMapKbReader = nullptr;
     ProcessMemPidDecision::localNumaMemMapReader = nullptr;
     ProcessMemPidCollect::GetInstance().SetCollectVmRssOverride(nullptr);
 
@@ -256,6 +298,34 @@ TEST_F(TestProcessMemPidDecision, PassiveReturnStopsWhenFreeRecovered)
     EXPECT_EQ(ubse::com::MockGetRpcSendRecords().size(), 2u);
 }
 
+TEST_F(TestProcessMemPidDecision, PassiveReturnBroadcastCarriesShortageLedgerDetail)
+{
+    MockNodeFree(10);
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debt;
+    debt.name = "debt-NODE1";
+    debt.borrowNodeId = "NODE1";
+    debt.lentNodeId = "NODE0";
+    debt.size = 2 * GB;
+    debt.remoteNumaId = 5;
+    debt.lentNumaIdList = {0, 7};
+    debt.lentNumaSizeList = {1 * GB, 1 * GB};
+    ubse::mem::controller::MockSetDebtInfos({debt});
+
+    ProcessMemPidDecision::GetInstance().OnDecisionTimer();
+
+    auto records = ubse::com::MockGetRpcSendRecords();
+    ASSERT_EQ(records.size(), 1u);
+    auto decoded = DecodeReturnRequest(records[0].payload);
+    EXPECT_EQ(decoded.targetNodeId, "NODE1");
+    EXPECT_EQ(decoded.lenderNodeId, "NODE0");
+    ASSERT_EQ(decoded.items.size(), 1u);
+    EXPECT_EQ(decoded.items[0].name, "debt-NODE1");
+    EXPECT_EQ(decoded.items[0].size, 2 * GB);
+    // 缺口 numa 0 命中(7 不在缺口), 明细与划出量平行同序
+    EXPECT_EQ(decoded.items[0].ledgerNumaIds, (std::vector<int16_t>{0}));
+    EXPECT_EQ(decoded.items[0].ledgerNumaSizes, (std::vector<uint64_t>{1 * GB}));
+}
+
 TEST_F(TestProcessMemPidDecision, BorrowerDirectReturn)
 {
     MockNodeFree(60);
@@ -280,6 +350,79 @@ TEST_F(TestProcessMemPidDecision, BorrowerDirectReturn)
     EXPECT_EQ(it->second.borrow.currentRemote, 0u);
     EXPECT_TRUE(it->second.borrow.slots.empty());
     EXPECT_EQ(it->second.processStatus, ProcessStatus::IDLE);
+}
+
+TEST_F(TestProcessMemPidDecision, PassiveReturnLedgerCheckMatchExecutesReturn)
+{
+    MockNodeFree(60);
+    auto debt = MakeDebt("debt-x", "NODE1", 5, 1001);
+    debt.lentNumaIdList = {3};
+    ubse::mem::controller::MockSetDebtInfos({debt});
+    AddManagedPid(1001, 10, 0.5, 4, MakeBorrow(1, "debt-x"));
+
+    std::vector<std::string> freedDebts;
+    ProcessMemPidBridge::rmrsFreeWithMigrate = [&freedDebts](const std::string& name) {
+        freedDebts.push_back(name);
+        return 0;
+    };
+
+    // 双键核对命中: 借出 id 与自身账本一致, 请求 numa 3 落在自身借出明细内 → 放行归还
+    ReturnRequestItem item{"debt-x", 1 * GB};
+    item.ledgerNumaIds = {3};
+    item.lenderNodeId = "NODE1";
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandleReturnRequest({item}), UBSE_OK);
+
+    ASSERT_EQ(freedDebts.size(), 1u);
+    EXPECT_EQ(freedDebts[0], "debt-x");
+
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto it = snapshot.find(1001);
+    ASSERT_NE(it, snapshot.end());
+    EXPECT_EQ(it->second.borrow.currentRemote, 0u);
+    EXPECT_TRUE(it->second.borrow.slots.empty());
+}
+
+TEST_F(TestProcessMemPidDecision, PassiveReturnLedgerCheckMismatchSkips)
+{
+    MockNodeFree(60);
+    auto debtNumaMiss = MakeDebt("debt-a", "NODE1", 5, 1001);
+    debtNumaMiss.lentNumaIdList = {3};
+    auto debtLenderMiss = MakeDebt("debt-b", "NODE1", 5, 1002);
+    debtLenderMiss.lentNumaIdList = {3};
+    ubse::mem::controller::MockSetDebtInfos({debtNumaMiss, debtLenderMiss});
+    AddManagedPid(1001, 10, 0.5, 4, MakeBorrow(1, "debt-a"));
+    AddManagedPid(1002, 10, 0.5, 4, MakeBorrow(1, "debt-b"));
+
+    std::vector<std::string> freedDebts;
+    ProcessMemPidBridge::rmrsFreeWithMigrate = [&freedDebts](const std::string& name) {
+        freedDebts.push_back(name);
+        return 0;
+    };
+
+    ReturnRequestItem numaMiss{"debt-a", 1 * GB};
+    numaMiss.ledgerNumaIds = {7}; // 自身明细 {3} 与落点 5 均不含 7 → 核不过
+    numaMiss.lenderNodeId = "NODE1";
+    ReturnRequestItem lenderMiss{"debt-b", 1 * GB};
+    lenderMiss.ledgerNumaIds = {3}; // numa 能命中, 借出 id 对不上
+    lenderMiss.lenderNodeId = "NODE2";
+    ReturnRequestItem ghost{"debt-ghost", 1 * GB};
+    ghost.ledgerNumaIds = {3}; // 账本无此债 → 跳过不盲还
+    ghost.lenderNodeId = "NODE1";
+    EXPECT_EQ(ProcessMemPidDecision::GetInstance().HandleReturnRequest({numaMiss, lenderMiss, ghost}), UBSE_OK);
+
+    // 三条均跳过: 无归还执行, 也无旧行为下账本不可得的直调归还
+    EXPECT_TRUE(freedDebts.empty());
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaDeleteCallCount(), 0u);
+
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    auto itA = snapshot.find(1001);
+    ASSERT_NE(itA, snapshot.end());
+    ASSERT_EQ(itA->second.borrow.slots.size(), 1u);
+    EXPECT_EQ(itA->second.borrow.slots[0].status, BorrowSlotStatus::COMPLETED);
+    auto itB = snapshot.find(1002);
+    ASSERT_NE(itB, snapshot.end());
+    ASSERT_EQ(itB->second.borrow.slots.size(), 1u);
+    EXPECT_EQ(itB->second.borrow.currentRemote, 1 * GB);
 }
 
 TEST_F(TestProcessMemPidDecision, TimeoutReturnEnqueuedAndSlotRemoved)
@@ -394,6 +537,81 @@ TEST_F(TestProcessMemPidDecision, OomEmergencyAllowsExistingDebt)
     ASSERT_NE(it, snapshot.end());
     EXPECT_EQ(it->second.borrow.currentRemote, 2 * GB);
     EXPECT_EQ(it->second.borrow.slots.size(), 2u);
+}
+
+// 事件轮缺口先扣 per-src 在途未落地(BORROWING 全额): 2GB 缺口 - 1GB 在途 = 仅下发 1GB
+TEST_F(TestProcessMemPidDecision, OomEventBorrowDeductsPendingUnlanded)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4, MakePendingBorrow(1, "debt-pending", 0));
+    AddManagedPid(1002, 10, 0.5, 4);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    ProcessMemPidDecision::GetInstance().OomEventRespond({0}, 1);
+
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+    EXPECT_EQ(ubse::mem::controller::MockGetLastNumaCreateSize(), GB);
+    EXPECT_EQ(migrateCalls, 1);
+    uint64_t remoteTotal = 0;
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    for (const auto& [pid, entry] : snapshot) {
+        remoteTotal += entry.borrow.currentRemote;
+    }
+    EXPECT_EQ(remoteTotal, GB);
+    // 在途槽不因本轮判定被改写
+    ASSERT_EQ(snapshot.at(1001).borrow.slots.size(), 1u);
+    EXPECT_EQ(snapshot.at(1001).borrow.currentRemote, 0u);
+}
+
+// 并发事件: 前一轮的下发仍在建债(2GB BORROWING 已同步落槽)时, 后一轮按同一在途口径
+// 把 2GB 缺口全额覆盖并跳过, 不重复借出
+TEST_F(TestProcessMemPidDecision, OomEventConcurrentDoesNotOverBorrow)
+{
+    ProcessMemPidDecision::localNumaFreeKbReader = []() {
+        return 3 * KB_PER_GB;
+    };
+    AddManagedPid(1001, 10, 0.5, 4);
+    AddManagedPid(1002, 10, 0.5, 4);
+
+    int migrateCalls = 0;
+    ProcessMemPidBridge::rmrsMigrateOut = [&migrateCalls](const std::vector<mempooling::smap::MigrateOutPayload>&,
+                                                          int) {
+        ++migrateCalls;
+        return 0;
+    };
+
+    auto& decision = ProcessMemPidDecision::GetInstance();
+    ubse::task_executor::MockSetExecutorAsync(true);
+    ubse::mem::controller::MockBlockNumaCreate();
+
+    decision.OomEventRespond({0}, 1);
+    ASSERT_TRUE(ubse::mem::controller::MockWaitNumaCreateEntered(5000));
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+
+    decision.OomEventRespond({0}, 2);
+    EXPECT_EQ(ubse::mem::controller::MockGetNumaCreateCallCount(), 1u);
+    EXPECT_EQ(migrateCalls, 0);
+
+    ubse::mem::controller::MockReleaseNumaCreate();
+    ubse::task_executor::MockWaitExecutorIdle();
+    EXPECT_EQ(migrateCalls, 1);
+
+    uint64_t remoteTotal = 0;
+    auto snapshot = ProcessMemPidInfoManager::GetInstance().GetManagedPidCacheSnapshot();
+    for (const auto& [pid, entry] : snapshot) {
+        remoteTotal += entry.borrow.currentRemote;
+    }
+    EXPECT_EQ(remoteTotal, 2 * GB);
+
+    ubse::task_executor::MockSetExecutorAsync(false);
 }
 
 // 整笔 2GB 超所有可借节点容量(>1GB 返回 803)触发拆分: 折半 1GB+1GB 由两个借出节点凑足

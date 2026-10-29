@@ -55,14 +55,44 @@ struct NumaShortage {
     uint64_t bytes{0};
 };
 
+// 每 pid 驻留采样缓存(pid → numa → 采样折算字节): 一轮内每 pid 至多采样一次,
+// 判缺准入估计与在途落地观测共用同一份分布
+using ResidenceCache = std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>;
+
+// COMPLETED 槽声明聚合(pid → dest → src → 声明字节): 在途未落地改用进程视角观测
+// (声明 − pid@dest 实测)计算, dest 全局已用量口径会被同 dest 其它占用污染
+using PidDestSrcDeclaredMap =
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, std::unordered_map<int, uint64_t>>>;
+
+// 进程视角实测占用(pid → dest → 字节)
+using PidDestObservedMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, uint64_t>>;
+
+// 池内当前声明源(pid → dest → src): 该池 borrowTime 最新的声明源; 迁移门控串行下新声明开始时
+// 老源必已收敛(零欠量), 池未落地量全额归它, 门控标记共用此判据
+using PidDestLatestSrcMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, int>>;
+
+// COMPLETED 槽 pid@dest 落地观测状态(仅 borrowRoundMutex_ 保护下读写);
+// locked = 超宽限仍无有效观测(迁移卡住/采样持续失败)后按声明足额释放, 声明增长自动解锁重开观测
+struct CompletedLandedObserve {
+    uint64_t observedBytes{0};
+    bool observedValid{false};
+    bool locked{false};
+    std::chrono::steady_clock::time_point lastAttempt{}; // 上次采样尝试(成败均刷新, 节流用)
+    std::chrono::steady_clock::time_point epochStart{};  // 观测起点(默认时间点=尚未开始计时)
+};
+
+// pid → dest → 观测状态(对集随当前声明 pair 级清理)
+using CompletedLandedObserveMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, CompletedLandedObserve>>;
+
 // 借用轮执行上下文: 候选列表引用 + 每 pid 驻留采样缓存(一轮内每 pid 至多采样一次)
 struct BorrowRoundCtx {
     const std::vector<def::BorrowCandidate>& candidates;
-    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>& residenceCache;
+    ResidenceCache& residenceCache;
     std::unordered_map<pid_t, uint64_t>& borrowedThisRound;
     uint64_t blockSizeBytes{0};
     uint64_t roundNum{0};
     bool emergency{false};
+    bool oomEvent{false}; // 事件轮: roundNum 为内部事件 id, 日志 tag 用 oom_event
 };
 
 struct ReplacementDebt {
@@ -75,6 +105,9 @@ struct ResolvedReturnDebt {
     int srcNuma{-1};
     std::string lentNodeId{};
     int remoteNumaId{-1};
+    // 本地账本记录的本债借出 numa 明细(lentNumaIdList 原样): 被动归还携带账本 id 集合时
+    // 据此核对请求与本债的对应关系
+    std::vector<int16_t> lentNumaIds{};
 };
 
 struct ReplacementDebtCtx {
@@ -111,6 +144,16 @@ public:
 
     bool EnqueuePidReturn(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
 
+    // 配置删除(REMOVED)流程: 删缓存前标记, 标记期间对账不对该 pid 的账本债务做孤儿强还
+    // (迁回未收敛前强还即丢页), 归还统一由本流程负责; 归还成功终结时自动清除;
+    // 未触发归还(pid 仍被其余配置纳管)时由调用方撤销标记
+    void MarkPidReturnPending(pid_t pid);
+    void ClearPidReturnPending(pid_t pid);
+
+    // REMOVED 专用入队: 入队失败不能吞(标记已置、对账已让路), 但不能阻塞调用线程(配置删除路径),
+    // 失败记账到决策轮重投; 同 pid 后到的请求覆盖先前待重投账本
+    void EnqueuePidReturnDeferred(pid_t pid, ReturnScene scene, const std::vector<def::BorrowSlot>& slots);
+
     uint32_t HandlePidExited(pid_t pid, const std::vector<def::BorrowSlot>& slots);
 
     uint32_t OomPollOnce();
@@ -120,7 +163,7 @@ public:
     inline static std::function<std::optional<uint64_t>()> localNumaFreeKbReader;
     inline static std::function<std::optional<uint64_t>()> remoteNumaUsedKbReader;
     // 远端各 numa MemUsed 明细读取钩子: 生产 Init 注册真实采集快照, 在途量按 dest 建池拆分;
-    // 未注册/返回 nullopt(UT)时退回节点级总量口径(remoteNumaUsedKbReader)
+    // 未注册/返回 nullopt 时 COMPLETED 异步窗口本轮弃权(不扣在途)
     inline static std::function<std::optional<std::unordered_map<uint32_t, uint64_t>>()> remoteNumaUsedMapKbReader;
     // 本地各 numa (MemFree, MemTotal) 明细读取钩子: 生产 Init 注册真实采集快照, 决策按 numa 判缺;
     // 未注册/返回 nullopt 时决策跳过本轮(不退化整机口径)
@@ -132,7 +175,7 @@ public:
 private:
     uint32_t OnDecisionTimer();
 
-    bool CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages);
+    bool CollectNumaShortages(uint64_t roundNum, std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache);
 
     std::vector<def::BorrowCandidate> BuildCandidates(uint64_t roundNum);
 
@@ -142,15 +185,20 @@ private:
 
     void CheckTimeouts(uint64_t roundNum);
 
-    // 在途迁移总量(账本预期 − 实际远端占用): 判缺/日志节点级口径, 明细
-    // (remoteNumaUsedMapKbReader) 不可用时兼作在途分摊的回退来源
+    // 在途迁移总量(账本预期 − 实际远端占用): 节点级口径, 供轮次日志
     uint64_t GetPendingMigrateTotal() const;
 
-    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按远端 numa
-    // 声明量超出实测占用的部分逐 dest 建池, 池内再按各源在该 dest 的声明占比整除分摊;
-    // 远端明细不可用时退回节点级总量口径(声明总量−实测总量按源占比分摊); 判缺/紧急轮扣减
-    // 防在途数据被下轮重复下发借用
-    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc() const;
+    // per-src 未落地在途量: BORROWING 槽无 dest, 按源全额记在途; COMPLETED 槽按 pid@dest 采样
+    // 观测(该 pid 在该远端 numa 声明量 − 实测占用)逐 (pid,dest) 建池, 池未落地量全额归该池
+    // 当前声明源(borrowTime 最新, 门控串行下老源必已收敛); 暂无可信观测时退回远端明细口径,
+    // 明细亦不可用则本轮弃权; 判缺/紧急轮扣减防在途数据被下轮重复下发借用
+    std::unordered_map<int, uint64_t> BuildPendingUnlandedPerSrc(ResidenceCache& residenceCache);
+
+    // COMPLETED 槽进程视角落地观测: 对每个 (pid,dest) 维护观测状态(500ms 节流采样/宽限锁定自愈),
+    // 有效观测的对按 声明−实测 计入未落地; 返回 false = 仍有对无有效观测(调用方整轮回退旧口径)
+    bool CollectObservedUnlanded(const PidDestSrcDeclaredMap& declaredByPidDest,
+                                 const PidDestLatestSrcMap& latestSrcByPidDest, ResidenceCache& residenceCache,
+                                 std::unordered_map<int, uint64_t>& unlanded);
 
     uint64_t GetUbseBlockSizeBytes();
 
@@ -191,6 +239,13 @@ private:
     // 本地各 numa (MemFree, MemTotal) 明细读取: 未注册 reader 时返回 nullopt(与借用判缺同一模式切换点)
     std::optional<std::unordered_map<uint32_t, collect::NumaMemKbInfo>> ReadLocalNumaMemMap();
 
+    // 入队失败待决策轮重投的 pid 归还(账本随缓存条目一并删除, 槽位数据只能在此暂存)
+    struct DeferredPidReturn {
+        ReturnScene scene{ReturnScene::REMOVED};
+        std::vector<def::BorrowSlot> slots{};
+        uint32_t attempts{0};
+    };
+
     bool EnqueueReturnDebt(pid_t pid, const def::ReturnRequestItem& item, ReturnScene scene);
 
     // 归还执行流去重: 同债务/同 pid 只允许一个归还流在飞(lender 重播/重试/主动扫描可能重复入队)
@@ -199,6 +254,10 @@ private:
     bool AcquirePidReturnInFlight(pid_t pid);
     void ReleasePidReturnInFlight(pid_t pid);
     bool IsPidReturnInFlight(pid_t pid);
+
+    // REMOVED 归还接管标记: 只在归还成功终结时清除; 重试耗尽保留(债务按滞留告警, 不丢页)
+    bool IsPidReturnPending(pid_t pid);
+    bool IsPidReturnDeferred(pid_t pid);
 
     void RunReturnDebt(pid_t pid, def::ReturnRequestItem item, ReturnScene scene);
 
@@ -232,9 +291,11 @@ private:
     // 过滤); 明细不可用本轮跳过(不退化整机口径), 由采集恢复后的下轮轮询接续
     void OomEmergencyBorrow(uint64_t roundNum, uint64_t nodeFree);
 
-    // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize/驻留采样缓存 + emergency ctx → ExecuteBorrowRound
+    // 紧急借用公共执行段: candidates 已构建, shortages 非空; blockSize + 驻留采样缓存(与在途观测
+    // 共用) + emergency ctx → ExecuteBorrowRound
     void ExecuteEmergencyBorrowRound(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates,
-                                     std::vector<NumaShortage>& shortages);
+                                     std::vector<NumaShortage>& shortages, ResidenceCache& residenceCache,
+                                     bool oomEvent = false);
 
     // OOM 事件订阅处理(reason 0/1 = 4K 小页, 2 = 大页跳过): ras 故障线程上校验/投递后即返回
     uint32_t HandleOomAlarmEvent(int alarmFaultEvent, std::string faultInfo);
@@ -255,7 +316,8 @@ private:
 
     void RunOrphanReturn(const std::string& debtName);
 
-    void RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue);
+    // 有界自旋退避入队; 返回是否最终入队成功(false = 放弃本次, 留待兜底扫描)
+    bool RetryReturnEnqueue(uint32_t retryCount, const std::function<bool()>& enqueue);
 
     uint32_t NextReturnRetryCount(const std::string& key);
 
@@ -281,6 +343,8 @@ private:
     }
     void RunBorrowRound(uint64_t roundNum);
     void RedriveStrandedReturns(uint64_t roundNum);
+    // 重投入队失败的 pid 归还(每决策轮一次, 成功即清除; 期间标记保持, 对账继续让路)
+    void RedriveDeferredPidReturns(uint64_t roundNum);
     void LogBorrowCandidates(uint64_t roundNum, const std::vector<def::BorrowCandidate>& candidates);
 
     void RemoveSlotFinalize(pid_t pid, const std::string& debtId);
@@ -353,13 +417,28 @@ private:
 
     std::set<std::string> inFlightDebtReturns_{};
     std::set<pid_t> inFlightPidReturns_{};
+    // REMOVED 流程已接管归还的 pid: 对账对这类 pid 跳过孤儿强还; 生命周期长于 inFlight
+    // (覆盖"已入队未执行/失败重试退避"间隙), 需归还成功终结才清除
+    std::set<pid_t> pidReturnPending_{};
     std::mutex inFlightReturnsMutex_{};
+
+    // 入队失败的 pid 归还待重投(配置删除线程只记账不阻塞, 决策轮重投)
+    std::map<pid_t, DeferredPidReturn> deferredPidReturns_{};
+    std::mutex deferredPidReturnsMutex_{};
 
     // 借用轮整轮串行: 定时轮与 OOM 紧急轮并发会重复消费同一 pid 的 canMigrate(瞬态双倍超借)
     std::mutex borrowRoundMutex_{};
 
     // 搁浅 RETURNING 槽兜底扫描的上次执行时刻(默认 time_point 表示尚未开始计时)
     std::chrono::steady_clock::time_point lastStrandedSweep_{};
+
+    // COMPLETED 槽 pid@dest 落地观测状态(仅 borrowRoundMutex_ 保护下读写): 观测有效前整轮回退
+    // 旧口径, 超宽限无观测按声明释放防迁移卡住/采样失败永久少借; 对集随当前声明 pair 级清理
+    CompletedLandedObserveMap completedLandedObserve_{};
+
+    // 迁移门控源集(仅 borrowRoundMutex_ 保护下读写): 该 pid 未收敛迁出池(声明 − pid@dest 实测
+    // 超容差)的当前声明源(borrowTime 最新); 随观测每轮重扫, 观测回退/空声明时为空 = 不门控
+    std::unordered_map<pid_t, std::set<int>> migratingSrcNumasByPid_{};
 
     std::atomic<uint64_t> roundNumber_{0};
     std::atomic<bool> cycleRunning_{false};
@@ -378,6 +457,8 @@ private:
     // 事件路径归还广播节流(borrow 执行器线程), 与周期紧急线的 lastEmergencyBroadcast_ 独立
     std::atomic<int64_t> lastOomEventBroadcastMs_{0};
     std::atomic<uint64_t> oomRoundNumber_{0};
+    // OOM 事件专用内部事件 id(与快速轮 oomRoundNumber_ 独立): 事件链日志按它定位, 不随快速轮跳号
+    std::atomic<uint64_t> oomEventId_{0};
 };
 
 } // namespace process_mem::decision

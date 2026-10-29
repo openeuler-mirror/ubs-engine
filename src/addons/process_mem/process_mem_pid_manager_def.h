@@ -116,6 +116,14 @@ enum class AtomicMigrateResult : uint8_t
 struct ReturnRequestItem {
     std::string name{};
     uint64_t size{0};
+    // 借出方账本缺口明细(账本 id 集合): 本债 lentNumaIdList ∩ 当期缺口本地 numa 的 id 集合,
+    // 与对应 lentNumaSizeList 划出量平行同序; 借出方按 numa 精确回收广播时携带,
+    // 空 = 整债语义(旧账无明细/全局低水位不限 numa 广播/非被动归还路径不携带)
+    std::vector<int16_t> ledgerNumaIds{};
+    std::vector<uint64_t> ledgerNumaSizes{};
+    // 请求发起借出节点 id(消息头消息级字段, 借入方解码时落到各条目): 借入方按
+    // (借出 id, 借出 numa) 双键核对自身账本; 空 = 未携带(非被动归还路径)
+    std::string lenderNodeId{};
 };
 
 struct BorrowSlot {
