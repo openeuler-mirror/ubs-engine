@@ -141,10 +141,11 @@ uint32_t ProcessMemPidCollect::Init()
 {
     const std::string section = "process_mem";
     const std::string collectIntervalKey = "collect_process_interval";
-    uint32_t collectInterval = 0;
-    ubse::config::UbseGetUInt(section, collectIntervalKey, collectInterval);
     constexpr uint32_t defaultCollectInterval = 5;
     constexpr uint32_t maxCollectInterval = 3600;
+    // 键缺失/非数字时框架不修改传入值, 以默认值初始化避免误报越界告警
+    uint32_t collectInterval = defaultCollectInterval;
+    ubse::config::UbseGetUInt(section, collectIntervalKey, collectInterval);
     if (collectInterval < 1 || collectInterval > maxCollectInterval) {
         UBSE_LOG_WARN << "[process_mem] config invalid: collect_process_interval=" << collectInterval
                       << "s out of range [1, 3600], fallback to default " << defaultCollectInterval << "s";
