@@ -146,6 +146,8 @@ uint32_t ProcessMemPidCollect::Init()
     constexpr uint32_t defaultCollectInterval = 5;
     constexpr uint32_t maxCollectInterval = 3600;
     if (collectInterval < 1 || collectInterval > maxCollectInterval) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: collect_process_interval=" << collectInterval
+                      << "s out of range [1, 3600], fallback to default " << defaultCollectInterval << "s";
         collectInterval = defaultCollectInterval;
     }
 

@@ -885,9 +885,9 @@ ubsectl display process-mem -t <type>
 
 | 字段名      | 字段描述                 | 字段取值       |
 | ----------- | ------------------------ | -------------- |
-| PID         | 进程ID，配置条目未匹配到进程时为 N/A | 整数 / N/A     |
-| Name        | 进程名                   | 字符串         |
-| Size        | 进程期望最大内存大小       | 如 1G、512M、1.5G |
+| PID         | 进程ID，按进程名配置的条目显示为 N/A | 整数 / N/A     |
+| Name        | 进程名，按 PID 配置的条目显示为 N/A | 字符串 / N/A   |
+| Size        | 进程期望最大内存大小，统一以 G 为单位回显 | 如 1G、0.5G、1.5G |
 | RemoteRatio | 远端内存占比上限          | 0.00-1.00      |
 
 **示例**
@@ -899,15 +899,15 @@ $ ubsectl display process-mem -t config
 PID         Name            Size       RemoteRatio
 ---------------------------------------------------------------------------------------------------
 1234        N/A             1G         0.50
-N/A         myapp           512M       0.30
+N/A         myapp           0.5G       0.30
 ---------------------------------------------------------------------------------------------------
 
-# 查看按当前纳管进程展开的详情（name 配置会展开为实际进程）
+# 查看按当前纳管进程展开的详情（name 配置展开为实际进程；按 PID 配置命中的进程 Name 显示为 N/A）
 $ ubsectl display process-mem -t proc_detail
 ---------------------------------------------------------------------------------------------------
 PID         Name            Size       RemoteRatio
 ---------------------------------------------------------------------------------------------------
-1234        myapp           1G         0.50
+1234        N/A             1G         0.50
 ---------------------------------------------------------------------------------------------------
 ```
 
@@ -941,7 +941,7 @@ ubsectl change process-mem (-p <pid> | -n <name>) -s <size> -r <remote-ratio>
 
 **输出信息说明**
 
-Set process-mem config successfully / 错误信息
+回显配置项（PID 或 Name、Size、RemoteRatio 三行，Size 统一以 G 为单位），末尾为 Set process-mem config successfully / 错误信息
 
 **示例**
 
@@ -949,6 +949,9 @@ Set process-mem config successfully / 错误信息
 
     ```bash
     $ ubsectl change process-mem -p 1234 -s 1G -r 0.5
+    PID: 1234
+    Size: 1G
+    RemoteRatio: 0.50
     Set process-mem config successfully
     ```
 
@@ -956,6 +959,9 @@ Set process-mem config successfully / 错误信息
 
     ```bash
     $ ubsectl change process-mem -n myapp -s 512M -r 0.3
+    Name: myapp
+    Size: 0.5G
+    RemoteRatio: 0.30
     Set process-mem config successfully
     ```
 
@@ -986,7 +992,7 @@ ubsectl remove process-mem (-p <pid> | -n <name>)
 
 **输出信息说明**
 
-Unset successfully
+pid <pid> removed / name '<name>' removed / 错误信息
 
 **示例**
 
@@ -994,14 +1000,14 @@ Unset successfully
 
     ```bash
     $ ubsectl remove process-mem -p 1234
-    Unset successfully
+    pid 1234 removed
     ```
 
 2. 按进程名移除配置（匹配当前节点所有同名进程）
 
     ```bash
     $ ubsectl remove process-mem -n myapp
-    Unset successfully
+    name 'myapp' removed
     ```
 
 ### 导入共享内存

@@ -583,6 +583,8 @@ void ProcessMemPidDecision::LoadConfig()
     constexpr uint32_t defaultInterval = 5;
     constexpr uint32_t maxInterval = 3600;
     if (processIntervalSec_ < 1 || processIntervalSec_ > maxInterval) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: schedule_interval=" << processIntervalSec_
+                      << "s out of range [1, 3600], fallback to default " << defaultInterval << "s";
         processIntervalSec_ = defaultInterval;
     }
 
@@ -592,6 +594,8 @@ void ProcessMemPidDecision::LoadConfig()
     constexpr uint64_t defaultThresholdGb = 15;
     constexpr uint64_t maxThresholdGb = 4096;
     if (thresholdGb < 1 || thresholdGb > maxThresholdGb) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: pressing_free_threshold_gb=" << thresholdGb
+                      << " out of range [1, 4096], fallback to default " << defaultThresholdGb << "GB";
         thresholdGb = defaultThresholdGb;
     }
     freeMemoryThresholdBytes_ = GbToBytes(thresholdGb);
@@ -601,6 +605,8 @@ void ProcessMemPidDecision::LoadConfig()
     constexpr uint32_t defaultTimeoutMs = 1000;
     constexpr uint32_t maxTimeoutMs = 1800000;
     if (timeoutPer128MbMs_ == 0 || timeoutPer128MbMs_ > maxTimeoutMs) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: borrow.timeout=" << timeoutPer128MbMs_
+                      << "ms out of range [1, 1800000], fallback to default " << defaultTimeoutMs << "ms";
         timeoutPer128MbMs_ = defaultTimeoutMs;
     }
 
@@ -621,6 +627,8 @@ void ProcessMemPidDecision::LoadOomReturnConfig()
     constexpr uint32_t minFastPollMs = 50;
     constexpr uint32_t maxFastPollMs = 60000;
     if (fastPollMs < minFastPollMs || fastPollMs > maxFastPollMs) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: collect_node_interval=" << fastPollMs
+                      << "ms out of range [50, 60000], fallback to default " << defaultFastPollMs << "ms";
         fastPollMs = defaultFastPollMs;
     }
     fastPollIntervalMs_ = fastPollMs;
@@ -629,6 +637,8 @@ void ProcessMemPidDecision::LoadOomReturnConfig()
     constexpr uint32_t defaultEmergencyGb = 5;
     constexpr uint32_t maxEmergencyGb = 4096;
     if (emergencyGb < 1 || emergencyGb > maxEmergencyGb) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold_gb=" << emergencyGb
+                      << " out of range [1, 4096], fallback to default " << defaultEmergencyGb << "GB";
         emergencyGb = defaultEmergencyGb;
     }
     emergencyThresholdBytes_ = GbToBytes(emergencyGb);
@@ -639,9 +649,19 @@ void ProcessMemPidDecision::LoadOomReturnConfig()
     constexpr uint32_t defaultObserveCycles = 300;
     constexpr uint32_t maxObserveCycles = 4096;
     if (observeCycles < 1 || observeCycles > maxObserveCycles) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: observe_cycles=" << observeCycles
+                      << " out of range [1, 4096], fallback to default " << defaultObserveCycles;
         observeCycles = defaultObserveCycles;
     }
     observeCycles_ = observeCycles;
+
+    if (emergencyThresholdBytes_ >= freeMemoryThresholdBytes_) {
+        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold_gb="
+                      << BytesToGbDouble(emergencyThresholdBytes_)
+                      << " >= pressing_free_threshold_gb=" << BytesToGbDouble(freeMemoryThresholdBytes_)
+                      << ", should be less; node free in [pressing, emergency) will still broadcast emergency passive "
+                         "return";
+    }
 }
 
 bool ProcessMemPidDecision::StartExecutors()
