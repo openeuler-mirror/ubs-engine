@@ -1546,6 +1546,13 @@ uint64_t ProcessMemPidDecision::FillNumaShortage(BorrowRoundCtx& ctx, NumaShorta
             // 绑定集内但采样不可用: 以 vmRss 为回退上限(单 numa 驻留量的真上界), 取代无界语义
             capBytes = candidate.actual;
         }
+        // 可迁移量按整块向下取整: 驻留不足一块的 numa 迁不出整块, 不能被缺口向上取整放大成超额借用
+        if (capBytes != UINT64_MAX && ctx.blockSizeBytes != 0) {
+            capBytes = (capBytes / ctx.blockSizeBytes) * ctx.blockSizeBytes;
+        }
+        if (capBytes == 0) {
+            continue;
+        }
         bool stale = (candidate.lastMigrateTime.time_since_epoch().count() == 0) ||
                      (now - candidate.lastMigrateTime) > std::chrono::seconds(kCandidateStaleIntervalSec);
         ordered.push_back({i, capBytes, bound, stale});
