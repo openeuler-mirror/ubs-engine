@@ -1,0 +1,80 @@
+name: ubs-engine_issuecheck
+
+on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+      - openEuler*
+  pull_request_comment:
+    types: [created]
+    comments: [ 'checkissue' ]
+    branches:
+      - master
+      - openEuler*
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+  atomgit_token: ${{  atomgit.token  }}
+  repo: ${{  atomgit.event.pull_request.base.repo.full_name  }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 5
+  exceed-action: QUEUE
+
+permissions:
+  project: read
+  repository: read
+  id-token: write
+
+stages:
+  checkissue:
+    name: issue associate check
+    jobs:
+      issue_associate_check:
+        name: issue_associate_check
+        runs-on: [self-hosted, openeuler, x86, cpu=8]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: Install RPM
+            run: | 
+                set -eux
+                dnf install -y curl jq
+          - name: check issue
+            run: |
+              set -eux
+              ret=$(curl -L "https://api.atomgit.com/api/v5/repos/${{ env.repo }}/pulls/${{ env.pr_id }}/issues?access_token=${{ env.atomgit_token }}")
+              echo "[INFO]: RET is ${ret}"
+              err_code=$(echo "${ret}" | jq -r '.error_code // empty' 2>/dev/null || true)
+              if [ -n "${err_code}" ]; then
+                  if [ "${err_code}" == "403" ]; then
+                      echo "[ERROR]: token 无权限访问 API(403), 请检查 atomgit_token 的权限范围"
+                  else
+                      echo "[ERROR]: API 返回错误, error_code=${err_code}"
+                  fi
+                  exit 1
+              fi
+              if [ "$(echo "${ret}" | jq -r 'type')" != "array" ]; then
+                  echo "[ERROR]: API 响应格式异常, 预期数组"
+                  exit 1
+              fi
+              if [ "$(echo "${ret}" | jq 'length')" == "0" ];then
+                  echo "[ERROR]: This PR do not has issues!"
+                  exit 1
+              else
+                  echo "[INFO] This PR has issues!"
+                  exit 0
+              fi
