@@ -992,7 +992,7 @@ ubsectl remove process-mem (-p <pid> | -n <name>)
 
 **输出信息说明**
 
-pid <pid> removed / name '<name>' removed / 错误信息
+`pid <pid> removed` / `name '<name>' removed` / 错误信息
 
 **示例**
 
