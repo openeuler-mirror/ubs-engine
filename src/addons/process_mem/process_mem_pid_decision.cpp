@@ -594,8 +594,8 @@ void ProcessMemPidDecision::LoadConfig()
     constexpr uint64_t defaultThresholdGb = 15;
     constexpr uint64_t maxThresholdGb = 4096;
     if (thresholdGb < 1 || thresholdGb > maxThresholdGb) {
-        UBSE_LOG_WARN << "[process_mem] config invalid: pressing_free_threshold_gb=" << thresholdGb
-                      << " out of range [1, 4096], fallback to default " << defaultThresholdGb << "GB";
+        UBSE_LOG_WARN << "[process_mem] config invalid: pressing_free_threshold=" << thresholdGb
+                      << "GB out of range [1, 4096], fallback to default " << defaultThresholdGb << "GB";
         thresholdGb = defaultThresholdGb;
     }
     freeMemoryThresholdBytes_ = GbToBytes(thresholdGb);
@@ -637,8 +637,8 @@ void ProcessMemPidDecision::LoadOomReturnConfig()
     constexpr uint32_t defaultEmergencyGb = 5;
     constexpr uint32_t maxEmergencyGb = 4096;
     if (emergencyGb < 1 || emergencyGb > maxEmergencyGb) {
-        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold_gb=" << emergencyGb
-                      << " out of range [1, 4096], fallback to default " << defaultEmergencyGb << "GB";
+        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold=" << emergencyGb
+                      << "GB out of range [1, 4096], fallback to default " << defaultEmergencyGb << "GB";
         emergencyGb = defaultEmergencyGb;
     }
     emergencyThresholdBytes_ = GbToBytes(emergencyGb);
@@ -656,11 +656,11 @@ void ProcessMemPidDecision::LoadOomReturnConfig()
     observeCycles_ = observeCycles;
 
     if (emergencyThresholdBytes_ >= freeMemoryThresholdBytes_) {
-        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold_gb="
+        UBSE_LOG_WARN << "[process_mem] config invalid: emergency_free_threshold="
                       << BytesToGbDouble(emergencyThresholdBytes_)
-                      << " >= pressing_free_threshold_gb=" << BytesToGbDouble(freeMemoryThresholdBytes_)
-                      << ", should be less; node free in [pressing, emergency) will still broadcast emergency passive "
-                         "return";
+                      << "GB >= pressing_free_threshold=" << BytesToGbDouble(freeMemoryThresholdBytes_)
+                      << "GB, should be strictly less; if emergency > pressing, node free in [pressing, emergency) "
+                         "will still broadcast emergency passive return";
     }
 }
 

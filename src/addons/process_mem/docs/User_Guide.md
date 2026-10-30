@@ -68,7 +68,7 @@ schedule_interval=5
 # ratio, and any NUMA whose free drops below its share triggers borrowing, derived from capacity
 # planning as f = S - k x d x r (valid range 1-4096 GB, out-of-range falls back to default 15);
 # should not exceed total local memory and should be greater than emergency_free_threshold;
-# otherwise node free in [pressing, emergency) still broadcasts emergency passive return)
+# otherwise node free in [pressing, emergency) still broadcasts emergency passive return
 pressing_free_threshold=15
 # Borrow timeout per 128MB block (ms), valid range 1-1800000 (30 min), out-of-range falls
 # back to default 1000
@@ -94,7 +94,7 @@ collect_node_interval=200
 # Emergency borrow/pass-off threshold (GB), valid range 1-4096, out-of-range falls back to
 # default 5; split across local NUMA nodes by MemTotal ratio and judged per NUMA; should be less
 # than pressing_free_threshold; otherwise node free in [pressing, emergency) still broadcasts
-# emergency passive return)
+# emergency passive return
 emergency_free_threshold=5
 ```
 
