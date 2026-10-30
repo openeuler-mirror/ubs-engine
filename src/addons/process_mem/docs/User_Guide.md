@@ -5,10 +5,10 @@ ProcessMem 是 UBS Engine 的一款进程级内存调度插件。通过周期性
 ## 1.1 核心功能
 
 - **进程纳管与发现**：支持按 PID 或进程名（comm）配置纳管进程；按进程名配置的进程调度配置持久化保存，同名进程启动时自动重新纳管；已纳管进程的调度参数按 PID 保存为配置快照，进程仍在但无法按名匹配（如进程改名、父进程已退出的子进程）或 UBSE 重启后仍可恢复纳管；自动发现纳管进程的子进程并继承父进程的调度参数；root 进程（uid 0）默认被过滤，不参与纳管。
-- **进程 NUMA 内存采集**：周期性读取 `/proc/<pid>/numa_maps` 与 `/proc/<pid>/status`，获取进程在各 NUMA 节点上的内存分布与 VmRSS，并采集本地/远端 NUMA 内存水位快照。
-- **自动借用与迁出**：本地 NUMA 总空闲内存低于 `pressing_free_threshold` 时，从纳管进程中筛选候选进程，向远端 NUMA 借用内存并通过 SMAP 迁移进程页面。
+- **进程 NUMA 内存采集**：周期性读取 `/proc/<pid>/status` 获取 VmRSS，并采集本地/远端 NUMA 内存水位快照；进程在各 NUMA 节点上的驻留分布按需以 move_pages 采样估算（默认每次采样 1024 页），NUMA 绑定策略在进程发现时从 `/proc/<pid>/numa_maps` 解析。
+- **自动借用与迁出**：任一本地 NUMA 空闲内存低于其按 MemTotal 占比拆分的 `pressing_free_threshold` 份额时，按缺口 NUMA 从纳管进程中筛选在该 NUMA 有驻留的候选进程，向远端 NUMA 借用内存并通过 SMAP 迁移进程页面。
 - **债务块容量复用**：超分比下调或进程内存回落后，再平衡将超出的远端页面迁回本地，债务槽容量保留而远端占用归零；进程内存再次上涨需要借用时优先复用这部分空闲容量，不新建债务。
-- **自动迁回与归还**：空闲内存观测窗口最小值回升超过水位阈值时触发主动归还；借出节点空闲内存不足时向借入节点广播被动归还请求；本地空闲充足时页面迁回本地后归还，不足时支持远端到远端（R2R）迁移归还。
+- **自动迁回与归还**：逐 NUMA 观测，某 NUMA 观测窗口最小值回升超过其水位份额时，以该 NUMA 盈余触发主动归还；借出节点某 NUMA 空闲不足时仅向借入节点广播占用该 NUMA 的借出债务回收请求；本地空闲充足时页面迁回本地后归还，不足时支持远端到远端（R2R）迁移归还。
 - **故障处理**：借出/归还受故障处理影响时保留借用、不误删，由后续周期自动重试回收；UBSE 重启或故障恢复后自动核对并恢复借用状态（补录未记录的借用、清理失效记录、按实测远端占用量校准），无法归属的借用自动归还。
 - **配置持久化**：PID/进程名调度配置及进程配置快照通过 UbseStorage 持久化，UBSE 重启后自动恢复。
 
@@ -56,19 +56,22 @@ ubse.plugin.name=process_mem
 ubse.plugin.pkg=libprocess_mem.so
 
 [process_mem]
-# Collect cycle: interval between /proc scans (valid range 1-3600s, fallback default 5)
+# Collect cycle: interval between /proc scans (valid range 1-3600s, out-of-range falls
+# back to default 5)
 collect_process_interval=5
 # Default on: root processes (uid 0) are skipped when matching managed pids
 filter_root_process=true
 # Decision cycle: interval between borrow rounds (timeout check / borrow / passive return),
-# valid range 1-3600s, fallback default 5
+# valid range 1-3600s, out-of-range falls back to default 5
 schedule_interval=5
-# Free-memory threshold that triggers borrowing: borrow starts when total free of all local NUMA nodes
-# drops below f, derived from capacity planning as f = S - k x d x r (valid range 1-4096 GB,
-# fallback default 15; should not exceed total local memory and should be greater than
-# emergency_free_threshold)
+# Free-memory threshold that triggers borrowing: f is split across local NUMA nodes by MemTotal
+# ratio, and any NUMA whose free drops below its share triggers borrowing, derived from capacity
+# planning as f = S - k x d x r (valid range 1-4096 GB, out-of-range falls back to default 15);
+# should not exceed total local memory and should be greater than emergency_free_threshold;
+# otherwise node free in [pressing, emergency) still broadcasts emergency passive return
 pressing_free_threshold=15
-# Borrow timeout per 128MB block (ms), valid range 1-1800000 (30 min), fallback default 1000
+# Borrow timeout per 128MB block (ms), valid range 1-1800000 (30 min), out-of-range falls
+# back to default 1000
 borrow.timeout=1000
 # Whether borrowing must stay on the same plane: true=must (strict filtering),
 # false=prefer (soft, score-weighted)
@@ -76,18 +79,22 @@ borrow.must_same_plane=false
 
 # Active return (optional, defaults apply)
 [process_mem.return]
-# Number of consecutive fast-poll cycles: node free is sampled only during emergency fast polling (200ms);
-# every n samples the window minimum is settled, and active return is triggered when the window minimum
-# exceeds pressing_free_threshold (default 300 x 200ms = 60s observation window);
-# valid range 1-4096, fallback default 300
+# Number of consecutive fast-poll cycles: local NUMA free is sampled during fast polling (200ms);
+# every n samples each NUMA's window minimum is settled, and active return is triggered per NUMA
+# when its window minimum exceeds its share of pressing_free_threshold
+# (default 300 x 200ms = 60s observation window); valid range 1-4096, out-of-range falls
+# back to default 300
 observe_cycles=300
 
 # OOM fast detection (optional, defaults apply)
 [process_mem.oom]
-# Emergency fast-poll interval (ms), valid range 50-60000, fallback default 200
+# Emergency fast-poll interval (ms), valid range 50-60000, out-of-range falls back to
+# default 200
 collect_node_interval=200
-# Emergency borrow/pass-off threshold (GB), valid range 1-4096, fallback default 5;
-# should be less than pressing_free_threshold
+# Emergency borrow/pass-off threshold (GB), valid range 1-4096, out-of-range falls back to
+# default 5; split across local NUMA nodes by MemTotal ratio and judged per NUMA; should be less
+# than pressing_free_threshold; otherwise node free in [pressing, emergency) still broadcasts
+# emergency passive return
 emergency_free_threshold=5
 ```
 
@@ -97,15 +104,17 @@ emergency_free_threshold=5
 | -------- | ------ | ---- | -------- | ---- |
 | ubse.plugin.name | process_mem | - | - | 插件名称。固定值：process_mem。 |
 | ubse.plugin.pkg | libprocess_mem.so | - | - | 插件依赖的动态库文件名。固定值：libprocess_mem.so。 |
-| collect_process_interval | 5 | 秒 | [1, 3600] | 进程发现与采集周期，周期内扫描 `/proc`、采集 VmRSS 与 NUMA 内存分布。参数不在配置范围内则采用默认值。 |
+| collect_process_interval | 5 | 秒 | [1, 3600] | 进程发现与采集周期，周期内扫描 `/proc`、采集纳管进程 VmRSS 与本地/远端 NUMA 内存水位快照（进程逐 NUMA 驻留分布按需采样估算）。参数不在配置范围内则采用默认值并打印告警日志。 |
 | filter_root_process | true | - | true/false | 是否过滤 root 进程（uid 0）。开启后 root 进程不纳管、不参与借用；PID 配置了 root 进程将被拒绝。 |
-| schedule_interval | 5 | 秒 | [1, 3600] | 调度决策周期，周期内执行借用超时检查、借用决策与被动归还广播。参数不在配置范围内则采用默认值。 |
-| pressing_free_threshold | 15 | GB | [1, 4096] | 本地所有 NUMA 节点总空闲内存低于 pressing_free_threshold 时触发借用，由容量规划推导：pressing_free_threshold = S − k × d × r。不应超过本地总内存，且应大于 emergency_free_threshold。参数不在配置范围内则采用默认值。 |
-| borrow.timeout | 1000 | 毫秒/128MB | [1, 1800000]（30 分钟） | 每 128MB 借用量对应的超时时间，超时未完成的借用将被清理并归还。参数为 0 或超出范围则采用默认值。 |
+| schedule_interval | 5 | 秒 | [1, 3600] | 调度决策周期，周期内执行借用超时检查、借用决策与被动归还广播。参数不在配置范围内则采用默认值并打印告警日志。 |
+| pressing_free_threshold | 15 | GB | [1, 4096] | 阈值按各本地 NUMA 的 MemTotal 占比拆分，任一 NUMA 空闲内存低于其份额时对该 NUMA 计算缺口并触发借用，由容量规划推导：pressing_free_threshold = S − k × d × r。不应超过本地总内存，且应大于 emergency_free_threshold（配置颠倒时启动仅打印告警日志，行为不阻断）。参数不在配置范围内则采用默认值并打印告警日志。 |
+| borrow.timeout | 1000 | 毫秒/128MB | [1, 1800000]（30 分钟） | 每 128MB 借用量对应的超时时间，超时未完成的借用将被清理并归还。参数为 0 或超出范围则采用默认值并打印告警日志。 |
 | borrow.must_same_plane | false | - | true/false | true 表示借用必须落在同平面节点（严格过滤）；false 表示软偏好，按评分加权选择借出节点。 |
-| observe_cycles | 300 | 次 | [1, 4096] | 连续快速轮询周期数：仅在紧急快速轮询（200ms）期间采样节点空闲内存，每 n 次采样结算一次观测窗口，窗口内空闲内存最小值高于 pressing_free_threshold 时触发主动归还（默认 300 × 200ms = 60s 观测窗口）。参数不在配置范围内则采用默认值。 |
-| collect_node_interval | 200 | 毫秒 | [50, 60000] | OOM 紧急快速轮询间隔，用于本地空闲内存的持续监控。参数不在配置范围内则采用默认值。 |
-| emergency_free_threshold | 5 | GB | [1, 4096] | 本地空闲内存低于该阈值时触发紧急借用并向借入节点广播被动归还请求；与 OOM 观测窗口配合，空闲内存回升（观测窗口最小值高于 pressing_free_threshold）时触发主动归还。应小于 pressing_free_threshold。参数不在配置范围内则采用默认值。 |
+| observe_cycles | 300 | 次 | [1, 4096] | 连续快速轮询周期数：快速轮询（200ms）期间逐本地 NUMA 采样空闲内存，每 n 次采样按 NUMA 结算一次观测窗口，某 NUMA 窗口内空闲最小值高于其 pressing 份额时以该 NUMA 盈余触发主动归还（默认 300 × 200ms = 60s 观测窗口）。参数不在配置范围内则采用默认值并打印告警日志。 |
+| collect_node_interval | 200 | 毫秒 | [50, 60000] | OOM 紧急快速轮询间隔，用于本地空闲内存的持续监控（逐 NUMA 紧急判定与观测窗口采样）。参数不在配置范围内则采用默认值并打印告警日志。 |
+| emergency_free_threshold | 5 | GB | [1, 4096] | 阈值按各本地 NUMA 的 MemTotal 占比拆分，任一 NUMA 空闲内存低于其份额时触发紧急借用（缺口补足至该 NUMA 的 pressing 份额），并向借入节点广播紧急归还请求（仅回收占用该 NUMA 的借出债务，广播间隔不低于 2s）。应小于 pressing_free_threshold，配置颠倒时启动打印告警日志。参数不在配置范围内则采用默认值并打印告警日志。 |
+
+> 配置键缺失、非数字或 bool 取值非法时保留默认值，由配置框架打印告警；数值超出允许范围时回退默认值，并在 `process_mem.log` 打印 `config invalid:` 告警日志，均不影响启动。
 
 `pressing_free_threshold` 由容量规划推导，各变量含义：
 
@@ -142,10 +151,16 @@ sudo systemctl restart ubse
 
 ```bash
 # 查看 process_mem 插件日志
-tail -f /var/log/ubse/process_mem_plugin.log
+tail -f /var/log/ubse/process_mem.log
 ```
 
-ubse.log 中应能看到 process_mem 初始化成功的信息。
+`process_mem.log` 中应能看到 process_mem 初始化信息（如 `decision init` 日志）。
+
+检查配置是否全部合法（无输出表示无越界配置）：
+
+```bash
+grep "config invalid" /var/log/ubse/process_mem.log
+```
 
 ```bash
 # 检查 libprocess_mem.so 是否被 UBSE 进程加载
@@ -214,25 +229,26 @@ ubsectl remove process-mem -n <name>
 
 ## 4.1 调度决策
 
-ProcessMem 周期性运行三套任务：
+ProcessMem 周期性运行以下任务，并响应系统 OOM 事件：
 
 - **采集**（间隔 `collect_process_interval`）：扫描系统进程，发现符合进程名配置的新进程并纳入管理，发现纳管进程的子进程并继承其调度参数，同时记录各纳管进程的内存占用与本地/远端 NUMA 内存水位。
 - **调度决策**（间隔 `schedule_interval`），每轮执行以下判断：
 
-1. 检查本地 NUMA 总空闲内存，低于 `pressing_free_threshold` 时计算缺口。计算时扣除**在途迁移量**：页面迁移需要时间，已发起但尚未到达远端的内存实际仍占用本地，这部分计入已借出量，避免缺口重复计算、借出超出实际需要。
-2. 从纳管进程中筛选可借用候选：单个进程可迁移到远端的内存上限 = 当前内存占用 × `remoteRatio`，再减去已位于远端的内存和在途迁移部分；不足一个迁移块（blockSize）或未配置（maxMemory/remoteRatio 非法）的进程不参与。
-3. 候选进程按优先级排序：普通进程优先于子进程、当前无在途借用优先、最近 60s 内未迁移过优先、实际占用超过预期（内存占用 > maxMemory × remoteRatio）优先、内存占用大的优先。
-4. 按序为候选进程借出内存，直到缺口填满或候选耗尽。借出量按整块（blockSize）向上取整：缺口不足一块时也按一块借出（前提是进程仍有可迁移内存），因此实际借出量可能略大于缺口。借出前优先复用进程已有债务槽的空闲容量（见 4.2），复用成功时不新建债务。
+1. 逐本地 NUMA 检查空闲内存：低于该 NUMA 按 MemTotal 占比拆分后的 `pressing_free_threshold` 份额时，计算该 NUMA 的缺口（份额 − 空闲）。计算时扣除**在途迁移量**：页面迁移需要时间，已发起但尚未到达远端的内存实际仍占用本地，这部分按迁出 NUMA 记账，避免缺口重复计算、借出超出实际需要。
+2. 从纳管进程中筛选可借用候选：单个进程可迁移到远端的内存上限 = 当前内存占用 × `remoteRatio`，再减去已位于远端的内存和在途迁移部分；不足一个迁移块（blockSize）或未配置（maxMemory/remoteRatio 非法）的进程不参与。此外，进程只能从其在缺口 NUMA 有驻留的页面中借出（该 NUMA 驻留为 0 不参与该 NUMA 的借出），单次借出量不超过其在该 NUMA 的驻留量；显式绑定 NUMA（bind/interleave）的进程仅可从绑定集合内的 NUMA 借出，绑定集外直接排除。
+3. 候选进程按优先级排序：普通进程优先于子进程、当前无在途借用优先、最近 60s 内未迁移过优先、实际占用超过预期（内存占用 > maxMemory × remoteRatio）优先、内存占用大的优先。填充某个缺口 NUMA 时，候选还会在该 NUMA 范围内重排：驻留量大者优先（单次迁移可填更多缺口）、显式绑定该 NUMA 的进程次优先、久未迁移者再次之。
+4. 按序为候选进程借出内存，直到缺口填满或候选耗尽。借出量按整块（blockSize）向上取整：缺口不足一块时也按一块借出（前提是进程仍有可迁移内存），因此实际借出量可能略大于缺口。借出前优先复用进程已有债务槽的空闲容量（见 4.2），复用成功时不新建债务。若借出节点无法一次容纳整笔借用（调度返回容量不足），整笔借用自动递归对半拆成多块，由多个借出节点并发借出凑足；最小粒度（一个 blockSize）仍失败时，余量留待下一轮决策重试。
 5. 借用超时检查：借用发起后按借出量计算超时时间（每 128MB 对应 `borrow.timeout`），超时未完成的借用将被取消并归还。
 
-- **OOM 快速检测**（间隔 `collect_node_interval`，默认 200ms）：持续快速轮询本地 NUMA 空闲内存，并以 `observe_cycles` 次采样（默认 300 次，约 60s）为一个观测窗口，记录窗口内空闲内存的最小值：
-  1. 当前空闲内存低于 `emergency_free_threshold` 时，立即执行紧急借用（决策流程与普通借用一致），同时向借入节点广播紧急归还请求，请其尽快迁回页面。
-  2. 观测窗口结算时，若窗口内空闲内存最小值高于 `pressing_free_threshold`，说明本地内存已持续回升，触发主动归还：归还额度 = 窗口最小值 − `pressing_free_threshold`。从账本中找出归还成本（实际迁移量）不超过剩余归还额度的账本，按迁移量从大到小逐笔迁回归还；迁移量为 0 的账本远端无数据，归还零成本，恒符合条件。
+- **OOM 快速检测**（间隔 `collect_node_interval`，默认 200ms）：持续快速轮询本地 NUMA 空闲内存，逐 NUMA 记录观测窗口（`observe_cycles` 次采样，默认 300 次，约 60s）内的空闲最小值：
+  1. 任一本地 NUMA 空闲内存低于其按占比拆分的 `emergency_free_threshold` 份额时，立即触发紧急借用：缺口按该 NUMA 补足至其 `pressing_free_threshold` 份额（决策流程与普通借用一致，同样扣除在途量），同时向借入节点广播紧急归还请求（仅回收占用该 NUMA 的借出债务，广播间隔不低于 2s）。归还广播先于借出执行，无候选进程或无缺口时归还请求也不会丢失。
+  2. 观测窗口结算时，逐 NUMA 比较：某 NUMA 窗口最小值高于其 `pressing_free_threshold` 份额即产生该 NUMA 的归还预算（最小值 − 份额）。账本按借出 NUMA 匹配预算，按迁出时间早者优先、绑定该 NUMA 者优先、迁移量大者优先的顺序，在预算内逐笔迁回归还；借出 NUMA 未知的账本不参与主动归还（由借出方被动归还覆盖）；迁移量为 0 的账本归还零成本，只需该 NUMA 尚有剩余预算即可归还。
+- **OOM 事件响应**：订阅系统 OOM 告警（RAS），4K 小页 OOM（reason 0/1）时按事件 NUMA 立即响应——本机在事件 NUMA 上有借出债务时，只向借入节点广播归还请求（收回本机内存，不再借入）；否则按事件 NUMA 的紧急份额缺口借入并迁出该 NUMA 页面（缺口补至紧急份额即止，不等 200ms 轮询）。2M 大页 OOM（reason 2）及其他未知 reason 不驱动借出。
 
 ## 4.2 借用与迁出
 
-1. **优先复用空闲容量**：借用前先检查本进程已完成债务槽的空闲容量（槽容量 − 已迁移量）。超分比下调或进程内存回落后，再平衡按「内存占用 × 超分比」削减各远端 NUMA 的迁出目标，超出部分页面迁回本地，债务槽容量保留、远端占用归零，即形成空闲容量。仅当空闲容量足以**完全覆盖**本次借用需求时复用：在 pid 锁内直接补齐账本占用，并按各远端 NUMA 的全量目标重新下发一次迁移，全程不新建债务；空闲容量不足以覆盖时不做部分复用，整体走新建债务流程（避免账本迁移量非块大小整数倍）。本进程存在其他在途借用时本轮跳过复用，留待下一轮重试；复用后下发失败时账本已更新而 smap 未生效，由对账流程按账本期望全量对齐自愈。
-2. 为候选进程确定借用量，向远端 NUMA 借出内存，随后将进程页面迁移到远端。
+1. **优先复用空闲容量**：借用前先检查本进程已完成债务槽的空闲容量（槽容量 − 已迁移量），仅复用与本次借出目标同源（同一借出节点 NUMA）的槽位，跨源槽位不参与复用。超分比下调或进程内存回落后，再平衡按「内存占用 × 超分比」削减各远端 NUMA 的迁出目标，超出部分页面迁回本地，债务槽容量保留、远端占用归零，即形成空闲容量。仅当空闲容量足以**完全覆盖**本次借用需求时复用：在 pid 锁内直接补齐账本占用，并按各远端 NUMA 的全量目标重新下发一次迁移，全程不新建债务；空闲容量不足以覆盖时不做部分复用，整体走新建债务流程（避免账本迁移量非块大小整数倍）。本进程存在其他在途借用时本轮跳过复用，留待下一轮重试；复用后下发失败时账本已更新而 smap 未生效，由对账流程按账本期望全量对齐自愈。
+2. 为候选进程确定借用量，向远端 NUMA 借出内存，随后将进程页面迁移到远端。借出节点容量不足（调度返回 803）时，整笔借用自动递归对半拆成多块，由多个借出节点并发创建并迁移凑足；每块债务独立自洽，最小粒度一块仍失败时余量留待下一轮重试。
 3. 借出成功后，进程的远端占用随之增加。同一进程的迁移、迁回、归还操作串行执行，避免并发操作互相覆盖。
 4. 迁移失败时：若借出节点正处于故障处理状态，本次借用予以保留（不撤销），待故障恢复后由归还流程自动回收；其他原因失败则撤销借用并归还已借出的内存。
 
@@ -240,8 +256,8 @@ ProcessMem 周期性运行三套任务：
 
 归还场景：
 
-- **主动归还**：本地空闲内存持续回升（快速检测窗口内最小值高于 `pressing_free_threshold`）时，以"窗口最小值 − `pressing_free_threshold`"为归还额度，从账本中找出归还成本（实际迁移量）不超过剩余额度的账本逐笔归还；迁移量为 0 的账本（远端无数据）归还零成本，优先符合条件。
-- **被动归还**：借出节点本地空闲低于 `pressing_free_threshold`（或紧急阈值 `emergency_free_threshold`）时，向借入节点发起归还请求，由借入方迁回并归还。
+- **主动归还**：逐 NUMA 判断，某 NUMA 快速检测窗口内最小值高于其 `pressing_free_threshold` 份额时，以该 NUMA 盈余（最小值 − 份额）为预算，仅归还借出 NUMA 为该 NUMA 且归还成本（实际迁移量）不超过剩余预算的账本，预算内按迁出时间早者优先、绑定该 NUMA 者优先、迁移量大者优先逐笔归还；借出 NUMA 未知的账本不参与，由借出方被动归还覆盖；迁移量为 0 的账本（远端无数据）归还零成本，只需该 NUMA 尚有剩余预算即可。
+- **被动归还**：借出节点某 NUMA 空闲低于其 pressing 份额（或紧急份额 `emergency_free_threshold`）时，仅向借入节点请求回收占用该 NUMA 的借出债务，请求携带账本 id 与该 NUMA 的划出量明细；借入方按（账本 id，借出 NUMA）双键核对后迁回并归还。
 - **超时归还**：借用超时的借用直接取消并归还。
 - **进程退出归还**：进程退出、取消纳管或 PID 被新进程复用（启动时间变化）时，归还该进程的全部远端内存。
 
@@ -249,7 +265,7 @@ ProcessMem 周期性运行三套任务：
 
 1. 本地空闲充足时：先将页面从远端迁回本地，核对实际分布与预期一致后，再归还借用的内存。
 2. 本地空闲不足时：将页面从原远端直接转移到其他可用远端（替换原借出节点），再归还原借用，腾出原借出节点的空间。
-3. 归还失败的兜底：被动归还不主动重试，等待借出节点下一轮请求；其余场景按 1s 间隔重试（最多 100 次）；借用已不存在时视为归还成功，重复归还不影响结果。
+3. 归还失败的兜底：被动归还不主动重试，等待借出节点下一轮请求；其余场景按 1s 间隔重试（最多 100 次）；归还流程滞留未完成的，由 60s 周期兜底扫描重新驱动；借用已不存在时视为归还成功，重复归还不影响结果。
 
 ## 4.4 故障处理
 
@@ -260,10 +276,10 @@ ProcessMem 周期性运行三套任务：
 # 5 使用建议
 
 - **建议关闭 swap**：部署节点建议关闭 swap（`swapoff -a`，并取消开机自动挂载），否则进程页面迁移到远端 NUMA 的过程中会不断触发页面换入换出，造成 swap 颠簸，影响迁移效率与业务性能。
-- **迁移粒度约束**：页面迁移以迁移块（blockSize）为最小粒度，进程可迁移量不足一个迁移块时不参与借用。单个进程的可迁移上限 = 进程实际内存占用 × `remoteRatio`，节点内存紧张时应保证实际内存占用 × `remoteRatio` ≥ 一个迁移块（默认 128MB），否则进程无法借出远端内存；`--size` 配置的 maxMemory 不影响该上限的计算，仅用于配置合法性校验（为 0 的进程不参与借用）与优先级判定。迁移块大小由 ubse.conf 中 `[ubse.memory]` 段的 `obmm.memory.block.size` 配置（默认 128MB，范围 4 ~ 4096MB，numa借用粒度必须为128MB）。
+- **迁移粒度约束**：页面迁移以迁移块（blockSize）为最小粒度，进程可迁移量不足一个迁移块时不参与借用。单个进程的可迁移上限 = 进程实际内存占用 × `remoteRatio`，节点内存紧张时应保证实际内存占用 × `remoteRatio` ≥ 一个迁移块（默认 128MB），否则进程无法借出远端内存；`--size` 配置的 maxMemory 不影响该上限的计算，仅用于配置合法性校验（为 0 的进程不参与借用）与优先级判定。迁移块大小由 ubse.conf 中 `[ubse.memory]` 段的 `obmm.memory.block.size` 配置（默认 128MB，范围 4 ~ 4096MB 且必须为 2 的整数倍）；numa 借用受导入时 decoder 表限制，借用粒度必须为 128MB 的整数倍，fd/share 类型无此限制。
 - **调度算法建议配置空闲优先**：建议在 ubse.conf 的 `[ubse.memory]` 段配置 `scheduler.mode=free-priority`（空闲优先，默认值）。空闲优先算法优先选择空闲内存占比最高的节点作为借出节点，保证借出节点自身内存充足，降低被动归还发生的概率；若配置为 `reliability-priority`（可靠性优先），借出量会跨节点均衡，可能选中内存紧张的节点，增大被动归还概率。
-- **阈值配置关系**：`emergency_free_threshold` 应小于 `pressing_free_threshold`，且 `pressing_free_threshold` 应小于本地总内存。否则可能出现借用持续无法触发，或空闲内存回升后永远达不到主动归还条件的情况。触发水位与系统 OOM 底线之差即模型中的水位余量，决定了节点能承受的内存上涨速率，具体估算见第 6 章。
-- **绑 NUMA 进程暂不支持纳管**：当前版本暂不支持纳管绑定 NUMA 的进程（如通过 taskset、numactl 指定 CPU 或内存节点的进程），此类进程的页面迁移可能无效，请勿将其纳入纳管配置。借用/归还决策以本地 NUMA 总空闲内存为判断依据，不区分单个 NUMA 节点的空闲差异，无法为绑 NUMA 进程做针对性的 NUMA 节点级调度。
+- **阈值配置关系**：`emergency_free_threshold` 应小于 `pressing_free_threshold`，且 `pressing_free_threshold` 应小于本地总内存。否则可能出现借用持续无法触发，或空闲内存回升后永远达不到主动归还条件的情况。配置颠倒（紧急阈值不小于触发阈值）时启动仅打印告警日志、不阻断启动，此时空闲处于 [触发水位, 紧急水位) 区间也会触发紧急归还广播。触发水位与系统 OOM 底线之差即模型中的水位余量，决定了节点能承受的内存上涨速率，具体估算见第 6 章。
+- **绑 NUMA 进程**：支持纳管显式绑定 NUMA 的进程（如通过 numactl、taskset 指定内存节点，bind/interleave 策略）。此类进程仅从其绑定集合内的 NUMA 借出，绑定集外的 NUMA 直接排除；借用/归还决策逐 NUMA 进行，绑定进程在绑定 NUMA 上优先迁出、归还时优先归位。prefer/mixed 等软策略按未绑定处理。建议运行期保持绑定集合稳定，频繁改绑可能降低调度准确性。
 - **root 进程过滤**：`filter_root_process=true`（默认）时 root 进程（uid 0）不参与纳管，按 PID 配置 root 进程会被拒绝；确有需要纳管 root 进程时，可将该参数置为 false 后重启 UBSE 生效。
 - **进程名配置**：进程名匹配的是进程的 comm（进程名），进程名超过 15 字符时无法配置；同名进程新启动时会自动纳管，无需重复配置。
 
@@ -277,8 +293,8 @@ ProcessMem 周期性运行三套任务：
 | ---- | ---- | ---- |
 | 上涨速率 | 纳管进程内存增长的速率，等效为本地空闲内存被消耗的速率 | GB/s |
 | 上涨持续时长 | 一轮内存上涨从开始到结束的持续时间 | 秒 |
-| 反应窗口 | 从内存开始上涨到第一次借用把页面迁出为止的延迟 = 快照陈旧时长（即采集周期）+ 决策周期 + 首次扫描耗时（首次触发借用的那一轮内、对每个候选进程串行读取 `/proc/<pid>/numa_maps` 的耗时，随纳管进程数与映射规模增长） | 秒 |
-| 触发水位 | 配置项 `pressing_free_threshold`，本地空闲内存低于该值触发借用 | GB |
+| 反应窗口 | 从内存开始上涨到第一次借用把页面迁出为止的延迟 = 快照陈旧时长（即采集周期）+ 决策周期 + 首次扫描耗时（首次触发借用的那一轮内、对每个候选进程串行采样驻留分布的耗时，随纳管进程数与映射规模增长） | 秒 |
+| 触发水位 | 配置项 `pressing_free_threshold`，本地空闲内存低于该值触发借用；实际按各 NUMA 的 MemTotal 占比拆分后逐 NUMA 生效，本章按单 NUMA 口径估算 | GB |
 | OOM 最低水位 | 系统触发 OOM 的内存底线，节点空闲内存跌到该底线附近即可能触发系统 OOM；由用户按部署环境自行评估，process_mem 无对应配置项，与 `emergency_free_threshold`（紧急借用触发线）不是同一个量 | GB |
 | 水位余量 | 触发水位 − OOM 最低水位，不触发 OOM 的前提下可被上涨消耗的余量 | GB |
 | 标称迁移带宽 | SMAP 给出的页面迁移速率规格 | GB/s |
@@ -360,7 +376,7 @@ process_mem + rmrs redis 超分的内存借用场景下，开启插件后相对�
 ProcessMem 插件日志文件路径：
 
 ```bash
-/var/log/ubse/process_mem_plugin.log
+/var/log/ubse/process_mem.log
 ```
 
 # 9 卸载
