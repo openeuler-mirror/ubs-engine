@@ -320,7 +320,8 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         2: "NPU",
         3: "NIC_PFE",
         4: "NIC_VFE",
-        5: "UBCTRL"
+        5: "UBCTRL",
+        6: "P_IDEV"
     }
     # 合法设备类型集合
     VALID_DEVICE_TYPES = set(DEVICE_TYPE_MAP.values())
@@ -333,7 +334,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         """根据设备类型和设备ID结构体构建设备ID字符串
 
         Args:
-            dev_type: 设备类型字符串，必须是 "BUSI", "NPU", "NIC_PFE", "NIC_VFE", "UBCTRL" 之一
+            dev_type: 设备类型字符串，必须是 "BUSI", "NPU", "NIC_PFE", "NIC_VFE", "UBCTRL", "P_IDEV" 之一
             dev_type_t: 设备UbsUbDevicesTypeT结构体
 
         Returns:
@@ -360,6 +361,9 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             return f"{dev_type_t.slot_id}-{dev_type_t.chip_id}-{dev_type_t.pf_id}-{dev_type_t.vf_id}"
         elif device_type == "UBCTRL":
             return f"{dev_type_t.slot_id}-{dev_type_t.chip_id}-{dev_type_t.die_id}"
+        elif device_type == "P_IDEV":
+            # P_IDEV的device_id为pfe的eid，5位零填充十六进制字符串（如0002a）
+            return f"{dev_type_t.eid:05x}"
         else:
             return f"{dev_type_t.slot_id}-{dev_type_t.chip_id}-{dev_type_t.die_id}"
 
@@ -500,6 +504,15 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
     def parse_device_id(self, device_type, device_id_str):
         if device_type not in self.VALID_DEVICE_TYPES:
             raise ValueError(f"Invalid device type:{device_type}. Must be one of {self.VALID_DEVICE_TYPES}")
+        if device_type == "P_IDEV":
+            # P_IDEV的device_id为pfe的eid，5位零填充十六进制字符串（如0002a），不包含'-'
+            try:
+                eid = int(device_id_str, 16)
+            except ValueError:
+                raise ValueError(f"Invalid P_IDEV device Id format:{device_id_str}")
+            if not 0 <= eid <= 0xFFFFFFFF:
+                raise ValueError(f"P_IDEV device Id out of range:{device_id_str}")
+            return 0, 0, 0, 0, 0, eid
         parts = device_id_str.split('-')
         if len(parts) < 2:
             raise ValueError(f"Invalid device Id format:{device_id_str}")
@@ -524,7 +537,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         else:
             if len(parts) == 3:
                 die_id = int(parts[2])
-        return slot_id, chip_id, die_id, pf_id, vf_id
+        return slot_id, chip_id, die_id, pf_id, vf_id, 0
 
     def dict_to_ubs_ub_devices_type_t(self, device_dict):
         device_type = device_dict["device_type"]
@@ -535,9 +548,9 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             raise ValueError(f"Invalid device type:{device_type}. Must be one of {self.VALID_DEVICE_TYPES}")
         device_type_value = self.DEVICE_TYPE_TO_VALUE[device_type]
         # 将 device_id 转换为UbsDeviceIdT
-        slot_id, chip_id, die_id, pf_id, vf_id = self.parse_device_id(device_type, device_id_str)
+        slot_id, chip_id, die_id, pf_id, vf_id, eid = self.parse_device_id(device_type, device_id_str)
 
-        return UbsUbDevicesTypeT(device_type_value, slot_id, chip_id, die_id, pf_id, vf_id)
+        return UbsUbDevicesTypeT(device_type_value, slot_id, chip_id, die_id, pf_id, vf_id, eid)
 
     def _allocate_npu_device(self, upi_str, bus_instance_guid, device_list):
         """

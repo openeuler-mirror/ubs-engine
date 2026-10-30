@@ -174,6 +174,7 @@ static ubs_ub_alloc_devices_info_t BuildValidAllocInfo(ubs_ub_devices_type_t* de
     devList[0].die_id = 0;
     devList[0].pf_id = 0;
     devList[0].vf_id = 0;
+    devList[0].eid = 0x2A;
     allocInfo.ub_dev_list = devList;
     return allocInfo;
 }

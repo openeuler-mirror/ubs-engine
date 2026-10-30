@@ -30,6 +30,7 @@ namespace ubse::it::tests::npu {
 struct NpuDeviceWithAffinity {
     ubs_ub_devices_type_t npuDev;
     ubs_ub_devices_type_t affinityNicPfe;
+    ubs_ub_devices_type_t affinityPfeIdev;
 };
 
 static std::vector<NpuDeviceWithAffinity> ExtractNpuWithAffinityNicPfe(const ubs_ub_devices_list_t& devList)
@@ -45,10 +46,13 @@ static std::vector<NpuDeviceWithAffinity> ExtractNpuWithAffinityNicPfe(const ubs
         item.npuDev.chip_id = devList.npu_ptr[i].attr->chip_id;
 
         item.affinityNicPfe = {};
+        item.affinityPfeIdev = {};
         for (uint8_t j = 0; j < devList.npu_ptr[i].attr->affinity_devices_count; ++j) {
             if (devList.npu_ptr[i].attr->affinity_devices[j].device_type == UBS_NIC_PFE) {
                 item.affinityNicPfe = devList.npu_ptr[i].attr->affinity_devices[j];
-                break;
+            }
+            if (devList.npu_ptr[i].attr->affinity_devices[j].device_type == UBS_P_IDEV) {
+                item.affinityPfeIdev = devList.npu_ptr[i].attr->affinity_devices[j];
             }
         }
         result.push_back(item);
@@ -166,11 +170,15 @@ void RunDeviceListQueryTest(ubse::it::infra::ItCluster& cluster)
         EXPECT_GE(devList.nic_pfe_cnt, 1u) << "Should have at least one NIC_PFE device";
 
         for (size_t i = 0; i < npuItems.size(); ++i) {
+            EXPECT_EQ(npuItems[i].affinityPfeIdev.device_type, UBS_P_IDEV) << "NPU should have P_IDEV affinity device";
+            EXPECT_NE(npuItems[i].affinityPfeIdev.eid, 0u) << "P_IDEV affinity eid should not be 0";
             IT_LOG_INFO << "NPU[" << i << "]: slot=" << npuItems[i].npuDev.slot_id
                         << ", chip=" << npuItems[i].npuDev.chip_id
                         << ", affinity NIC: slot=" << npuItems[i].affinityNicPfe.slot_id
                         << ", chip=" << npuItems[i].affinityNicPfe.chip_id
-                        << ", pf=" << npuItems[i].affinityNicPfe.pf_id;
+                        << ", pf=" << npuItems[i].affinityNicPfe.pf_id
+                        << ", affinity P_IDEV: type=" << npuItems[i].affinityPfeIdev.device_type
+                        << ", eid=" << npuItems[i].affinityPfeIdev.eid;
         }
     }
 

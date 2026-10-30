@@ -33,7 +33,8 @@ enum class ResourceType
     NPU,
     NIC_PFE,
     NIC_VFE,
-    UBCONTROLLER
+    UBCONTROLLER,
+    P_IDEV
 };
 struct UbDevice {
     ResourceType type;
@@ -42,6 +43,7 @@ struct UbDevice {
     uint8_t dieId{};
     uint16_t pfId{};
     uint16_t vfId{};
+    uint32_t eid{}; // P_IDEV设备的eid，取16字节EID的前4字节
 };
 struct UbaTidSize {
     uint64_t uba{};
