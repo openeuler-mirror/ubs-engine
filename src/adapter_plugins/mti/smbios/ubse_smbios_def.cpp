@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <new>
 #include <vector>
 
 #include "ubse_common_def.h"
@@ -105,7 +106,6 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char* filePath, uint32_t& 
     struct stat statbuf;
     int fd;
     uint32_t bufSize = 0;
-    uint8_t* ptr = nullptr;
     auto ret = OpenSmbiosFile(filePath, fd);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to open " << filePath << ", ret=" << ret;
@@ -124,25 +124,27 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char* filePath, uint32_t& 
         CloseFd(fd, filePath);
         return {};
     }
-    if (ptr = new (std::nothrow) uint8_t[maxLen]; ptr == nullptr) {
+    // 直接构造vector并捕获bad_alloc: 原实现先分配裸buffer再拷贝构造vector，
+    // 既多占一倍内存(maxLen上限256MB)，且拷贝的是随后即被覆盖的未初始化数据；
+    // vector拷贝构造若抛bad_alloc还会同时泄漏裸buffer和fd
+    std::vector<uint8_t> buf;
+    try {
+        buf.resize(maxLen);
+    } catch (const std::bad_alloc&) {
         UBSE_LOG_ERROR << "Failed to allocate " << maxLen << " bytes";
         CloseFd(fd, filePath);
         return {};
     }
-    std::vector<uint8_t> buf(ptr, ptr + maxLen);
     if (lseek(fd, base, SEEK_SET) == -1) {
         UBSE_LOG_ERROR << "Failed to lseek " << filePath << ", errno=" << errno;
-        delete[] ptr;
         CloseFd(fd, filePath);
         return {};
     }
     if (auto ret = ReadFromFileDescriptor(fd, buf.data(), maxLen, filePath); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse " << filePath << ", ret=" << ret;
-        delete[] ptr;
         CloseFd(fd, filePath);
         return {};
     }
-    delete[] ptr;
     CloseFd(fd, filePath);
     return buf;
 }

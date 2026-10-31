@@ -487,6 +487,31 @@ void UbseComEngine::DestroyChannel(ubs_hcom_channel ch)
     ubs_hcom_service_disconnect(hcomNetService_, ch);
 }
 
+void UbseComEngine::AsyncDestroyChannel(const UBSHcomChannelPtr& ch)
+{
+    // 先递增在途计数再创建线程，保证Stop()等待期间不会遗漏新启动的线程
+    asyncDestroyThreadNum_.fetch_add(1);
+    try {
+        std::thread t([this, ch]() {
+            // 停机后跳过Disconnect: Stop()内RemoveAllChannel已同步兜底销毁，
+            // 此处再访问hcomNetService_存在与Destroy析构的竞态
+            if (!deleted_.load(std::memory_order_acquire)) {
+                DestroyChannel(ch);
+            }
+            asyncDestroyThreadNum_.fetch_sub(1);
+        });
+        t.detach();
+    } catch (const std::exception& e) {
+        // std::thread构造失败抛出system_error(如线程资源不足)，计数回退后退化为同步断连
+        asyncDestroyThreadNum_.fetch_sub(1);
+        UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for " << e.what();
+        // 停机阶段同样跳过Disconnect，与异步线程体的守卫语义一致
+        if (!deleted_.load(std::memory_order_acquire)) {
+            DestroyChannel(ch);
+        }
+    }
+}
+
 void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type)
 {
     UbseComChannelInfo channelInfo{};
@@ -560,12 +585,33 @@ void UbseComEngine::Stop()
     if (startRetryThread_.joinable()) {
         startRetryThread_.join();
     }
+    // 等待异步销毁channel的分离线程全部退出，避免引擎对象delete后线程访问悬空的this；
+    // 对齐SDK drain路径600秒硬超时约定，超时后打印ERROR并放行拆除流程
+    // （未进入Disconnect的残余线程由lambda内deleted_守卫保证不再触碰已销毁的service）
+    constexpr int kAsyncDestroyWaitSec = 600;
+    int waitedSec = 0;
+    while (asyncDestroyThreadNum_.load() > 0 && waitedSec < kAsyncDestroyWaitSec) {
+        UBSE_LOG_INFO << "stopping async channel destroy thread, num=" << asyncDestroyThreadNum_.load();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        waitedSec++;
+    }
+    if (asyncDestroyThreadNum_.load() > 0) {
+        UBSE_LOG_ERROR << "async channel destroy threads not drained in " << waitedSec
+                       << "s, num=" << asyncDestroyThreadNum_.load() << ", force teardown";
+    }
     std::lock_guard<std::mutex> lock(serviceMutex_);
     auto engineName = engineInfo_.GetName();
-    if (hcomNetService_ != 0) {
-        while (reconnectThreadNum_ > 0) {
+    if (hcomNetService_ != nullptr) {
+        // reconnect线程等待同样收敛为有限窗口，超时后放行拆除（历史遗留无超时问题一并修复）
+        int reconnectWaitedSec = 0;
+        while (reconnectThreadNum_ > 0 && reconnectWaitedSec < kAsyncDestroyWaitSec) {
             UBSE_LOG_INFO << "stoping reconnect thread num=" << reconnectThreadNum_;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            reconnectWaitedSec++;
+        }
+        if (reconnectThreadNum_ > 0) {
+            UBSE_LOG_ERROR << "reconnect threads not drained in " << reconnectWaitedSec
+                           << "s, num=" << reconnectThreadNum_ << ", force teardown";
         }
         linkManager_.RemoveAllChannel(this);
         auto ret = ubs_hcom_service_destroy(hcomNetService_, engineName.c_str());

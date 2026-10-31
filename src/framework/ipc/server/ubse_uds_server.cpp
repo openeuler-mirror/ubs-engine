@@ -446,7 +446,21 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
 
     // 处理写事件
     if (events & EPOLLOUT) {
-        HandleWrite(session);
+        // HandleRead 内部多条失败路径会调用 CloseSession 销毁 session，
+        // 此处必须按 fd 重新校验会话有效性，避免操作已释放的悬空指针。
+        // 注意: 不能持 sessionsMutex_ 调用 HandleWrite，其内部的 CloseSession/RemoveSession
+        // 会再次获取该锁，形成同线程自死锁
+        ClientSession* curSession = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(sessionsMutex_);
+            auto it = sessions_.find(fd);
+            if (it != sessions_.end()) {
+                curSession = &it->second;
+            }
+        }
+        if (curSession != nullptr) {
+            HandleWrite(curSession);
+        }
     }
 }
 
@@ -475,6 +489,12 @@ void UbseUDSServer::RecordClientRequestId(uint64_t requestId, uint64_t clientReq
 {
     std::lock_guard<std::mutex> lock(clientReqIdMutex_);
     clientReqId_[requestId] = clientRequestId;
+}
+
+void UbseUDSServer::RemoveClientRequestId(uint64_t requestId)
+{
+    std::lock_guard<std::mutex> lock(clientReqIdMutex_);
+    clientReqId_.erase(requestId);
 }
 
 bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
@@ -517,17 +537,30 @@ void UbseUDSServer::SubmitRequestTask(ClientSession* session, const UbseRequestH
     auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule == nullptr) {
         UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        // 发送错误响应, SendResponse内部会清理clientReqId_表项, 同时避免客户端同步等待挂死
+        UbseResponseMessage response{{UBSE_ERR_DAEMON_UNREACHABLE, 0}, nullptr};
+        auto ret = SendResponse(context.requestId, response);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "send rsp failed, " << FormatRetCode(ret);
+        }
         return;
     }
     auto taskExecutor = taskExecutorModule->Get("IpcExecutor");
     if (taskExecutor == nullptr) {
         UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        UbseResponseMessage response{{UBSE_ERR_DAEMON_UNREACHABLE, 0}, nullptr};
+        auto ret = SendResponse(context.requestId, response);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "send rsp failed, " << FormatRetCode(ret);
+        }
         return;
     }
     if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
             this->HandleRequest(fd, header, data, context);
         })) {
         UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
+        // 清理clientReqId_表项, 该路径不经过SendResponse, 避免映射无界增长
+        RemoveClientRequestId(context.requestId);
         CloseSession(session->fd);
     }
 }
@@ -817,24 +850,33 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     }
 
     // 序列化响应并添加到写缓冲区
-    std::lock_guard<std::mutex> lock(sessionsMutex_);
-    auto it = sessions_.find(targetFd);
-    if (it == sessions_.end()) {
-        UBSE_LOG_WARN << "Connection for request " << requestId << " already closed";
-        return UBSE_ERR_IPC_CONNECTION_FAILED;
-    }
+    // 注意: CloseSession内部会经RemoveSession再次获取sessionsMutex_，
+    // 因此不能在持锁状态下调用，否则同线程二次加锁形成自死锁
+    int fdToClose = -1;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(targetFd);
+        if (it == sessions_.end()) {
+            UBSE_LOG_WARN << "Connection for request " << requestId << " already closed";
+            return UBSE_ERR_IPC_CONNECTION_FAILED;
+        }
 
-    auto& session = it->second;
-    auto ret = SerializeResponseMessage(finalResponse, session.writeBuffer);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Serialization failed, " << FormatRetCode(ret);
-        CloseSession(targetFd);
-        return UBSE_ERR_IPC_CONNECTION_FAILED;
+        auto& session = it->second;
+        auto ret = SerializeResponseMessage(finalResponse, session.writeBuffer);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Serialization failed, " << FormatRetCode(ret);
+            fdToClose = targetFd;
+        } else {
+            session.state = SessionState::READY_TO_WRITE;
+            // 注册写事件
+            if (!ModifyEpollEvent(epollFd_, targetFd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP)) {
+                fdToClose = targetFd;
+            }
+        }
     }
-    session.state = SessionState::READY_TO_WRITE;
-    // 注册写事件
-    if (!ModifyEpollEvent(epollFd_, targetFd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP)) {
-        CloseSession(targetFd);
+    if (fdToClose != -1) {
+        CloseSession(fdToClose);
+        return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
     return UBSE_OK;
 }

@@ -32,6 +32,10 @@ uint64_t RandomId()
 
 uint32_t SerializeRequestMessage(const UbseRequestMessage& requestMessage, std::vector<uint8_t>& buffer)
 {
+    // 防御: bodyLen接近UINT32_MAX时, 加头部开销后窄化回绕会使resize过小, 后续memcpy越界写
+    if (requestMessage.header.bodyLen > UBSE_MESSAGE_SIZE) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
     const uint32_t totalLength = sizeof(bool) + sizeof(UbseRequestHeader) + requestMessage.header.bodyLen;
     // 分配缓冲区
     try {
@@ -62,6 +66,10 @@ uint32_t SerializeRequestMessage(const UbseRequestMessage& requestMessage, std::
 uint32_t SerializeResponseMessage(const UbseResponseMessage& responseMessage, std::vector<uint8_t>& buffer)
 {
     // 计算总长度
+    // 防御: bodyLen接近UINT32_MAX时, 加头部开销后窄化回绕会使resize过小, 后续memcpy越界写
+    if (responseMessage.header.bodyLen > UBSE_MESSAGE_SIZE) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
     const uint32_t totalLength = sizeof(bool) + sizeof(UbseResponseHeader) + responseMessage.header.bodyLen;
 
     // 分配缓冲区

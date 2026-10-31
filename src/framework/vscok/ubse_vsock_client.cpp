@@ -21,6 +21,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <thread>
 #include <utility>
 
@@ -270,7 +271,13 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, 
         return false;
     }
     uint64_t total_size = sizeof(MsgHeader) + data_len;
-    std::unique_ptr<char[]> buffer(new char[total_size]);
+    // nothrow分配+判空: 普通new失败会抛std::bad_alloc，而本模块无try/catch，
+    // 异常会穿透调用链导致std::terminate
+    std::unique_ptr<char[]> buffer(new (std::nothrow) char[total_size]);
+    if (buffer == nullptr) {
+        UBSE_LOG_ERROR << "Alloc buffer failed, size=" << total_size;
+        return false;
+    }
 
     MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     hdr->id = id;

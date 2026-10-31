@@ -158,6 +158,7 @@ private:
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
     void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);
+    void RemoveClientRequestId(uint64_t requestId);
     void SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
                            const UbseRequestContext& context);
     void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);

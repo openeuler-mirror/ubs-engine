@@ -562,6 +562,10 @@ std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryNpuDevices(R
 
     for (auto& dev : npuDevMap) {
         auto npuDevice = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(dev.second);
+        if (npuDevice == nullptr) {
+            UBSE_LOG_ERROR << "Failed to transfer npu " << dev.first << " to resource";
+            return {UBSE_ERROR, npuDevices};
+        }
         std::shared_ptr<NpuResource> npuRes = std::make_shared<NpuResource>();
         res = UbseNpuControllerProcess::DeviceNpuToResource(npuDevice, npuRes);
         if (res != UBSE_OK) {
@@ -1342,6 +1346,10 @@ UbseResult UbseNpuManagerApi::RegisterIDevToBusi(std::vector<std::shared_ptr<Col
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::P_IDEV) {
             std::shared_ptr<CollectionDeviceIdevPfe> pfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(dev->GetBondingIdev());
+            if (pfe == nullptr) {
+                UBSE_LOG_ERROR << "Failed to transfer bonding idev to pfe, david " << dev->GetIdStr();
+                continue;
+            }
             auto subDevVfe = pfe->GetSubDevVfe();
             if (subDevVfe.empty()) {
                 UBSE_LOG_ERROR << "sub dev vfe is empty";
@@ -1374,6 +1382,10 @@ UbseResult UbseNpuManagerApi::UnbindVfeDavid(uint16_t upi, std::vector<std::shar
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::V_IDEV) {
             std::shared_ptr<CollectionDeviceIdevVfe> vfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(dev->GetBondingIdev());
+            if (vfe == nullptr) {
+                UBSE_LOG_ERROR << "Failed to transfer bonding idev to vfe, david " << dev->GetIdStr();
+                continue;
+            }
             UbseMtiIdevVfe mtivfe = ConvertToUbseMtiIdevVfe(vfe);
             UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(dev);
             unbindList.push_back(std::make_pair(mtivfe, mtiDavid));
@@ -1397,7 +1409,15 @@ UbseResult UbseNpuManagerApi::UnbindVfeDavid(uint16_t upi, std::vector<std::shar
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::V_IDEV) {
             std::shared_ptr<CollectionDeviceIdevVfe> vfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(dev->GetBondingIdev());
+            if (vfe == nullptr) {
+                UBSE_LOG_ERROR << "Failed to transfer bonding idev to vfe, david " << dev->GetIdStr();
+                continue;
+            }
             std::shared_ptr<CollectionDeviceIdevPfe> pfe = vfe->GetParentPfe();
+            if (pfe == nullptr) {
+                UBSE_LOG_ERROR << "vfe has no parent pfe, david " << dev->GetIdStr();
+                continue;
+            }
             ResourceCollection::BindDevice(pfe, dev);
         }
     }
@@ -2204,7 +2224,12 @@ UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi>& busInstance)
 std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf>& vfList, std::vector<bool>& resList)
 {
     std::vector<UbseMti1825Vf> newNicList;
-    for (uint8_t i = 0; i < resList.size(); i++) {
+    // 防御: resList长度由对端固件响应决定，与vfList不一致时取短者遍历，避免越界
+    if (vfList.size() != resList.size()) {
+        UBSE_LOG_ERROR << "resList size " << resList.size() << " mismatch vfList size " << vfList.size();
+    }
+    size_t count = std::min(vfList.size(), resList.size());
+    for (size_t i = 0; i < count; i++) {
         if (!resList[i]) {
             newNicList.push_back(vfList[i]);
         }
@@ -2215,7 +2240,12 @@ std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf>&
 std::vector<UbseMtiIdevVfe> UpdateFailedVfeList(const std::vector<UbseMtiIdevVfe>& vfeList, std::vector<bool>& resList)
 {
     std::vector<UbseMtiIdevVfe> newVfeList;
-    for (uint8_t i = 0; i < resList.size(); i++) {
+    // 防御: resList长度由对端固件响应决定，与vfeList不一致时取短者遍历，避免越界
+    if (vfeList.size() != resList.size()) {
+        UBSE_LOG_ERROR << "resList size " << resList.size() << " mismatch vfeList size " << vfeList.size();
+    }
+    size_t count = std::min(vfeList.size(), resList.size());
+    for (size_t i = 0; i < count; i++) {
         if (!resList[i]) {
             newVfeList.push_back(vfeList[i]);
         }
@@ -2225,7 +2255,7 @@ std::vector<UbseMtiIdevVfe> UpdateFailedVfeList(const std::vector<UbseMtiIdevVfe
 
 bool CheckResList(std::vector<bool>& resList)
 {
-    for (uint8_t i = 0; i < resList.size(); i++) {
+    for (size_t i = 0; i < resList.size(); i++) {
         if (!resList[i]) {
             UBSE_LOG_DEBUG << "Fail value found at index " << i;
             return false;

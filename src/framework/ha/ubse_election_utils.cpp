@@ -43,7 +43,8 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
             continue; // 字段数量不匹配，跳过
         }
         std::string nodeId, changeChType;
-        uint32_t state, timestamp;
+        uint32_t state = 0;
+        uint32_t timestamp = 0;
         bool valid = true;
         auto nid = Split(fields[0], ':');
         if (nid.size() == PAIR_SIZE) {
@@ -58,6 +59,10 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
             } catch (...) {
                 valid = false;
             }
+        } else {
+            // 字段格式不合法（缺少或含多个':'），必须置valid为false，
+            // 否则state保持未初始化仍会进入构造
+            valid = false;
         }
         auto ts = Split(fields[2], ':');
         if (valid && ts.size() == PAIR_SIZE) {
@@ -66,6 +71,9 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
             } catch (...) {
                 valid = false;
             }
+        } else {
+            // 同上，防止timestamp未赋值即被使用
+            valid = false;
         }
         auto ct = Split(fields[3], ':');
         if (valid && ct.size() == PAIR_SIZE) {

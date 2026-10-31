@@ -83,6 +83,12 @@ bool SetSocketFilePermission()
     return true;
 }
 
+bool UbseHttpServer::IsServerRunning()
+{
+    std::lock_guard<std::mutex> lock(serverMutex_);
+    return server_ != nullptr && server_->is_running();
+}
+
 bool UbseHttpServer::Start(bool isTcpServer)
 {
     try {
@@ -97,19 +103,22 @@ bool UbseHttpServer::Start(bool isTcpServer)
     }
     uint32_t retryTime = 0;
     while (retryTime <= START_TIMEOUT) {
-        if (server_ && server_->is_running()) {
+        if (IsServerRunning()) {
             return isTcpServer || SetSocketFilePermission();
         }
         retryTime += SLEEP_TIME;
         std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
     }
-    return server_ && server_->is_running();
+    return IsServerRunning();
 }
 
 void UbseHttpServer::Stop()
 {
-    if (server_) {
-        server_->stop();
+    {
+        std::lock_guard<std::mutex> lock(serverMutex_);
+        if (server_) {
+            server_->stop();
+        }
     }
     if (serverThread_.joinable()) {
         serverThread_.join();
@@ -300,16 +309,20 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
 void UbseHttpServer::TcpRun()
 {
     try {
-        server_ = CreateSslServer();
-        if (!server_) {
+        auto server = CreateSslServer();
+        if (!server) {
             throw std::runtime_error("Failed to create SSL server.");
         }
-        server_->Get("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Post("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Put("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Delete("/.*",
-                        [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Patch("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        httplib::Server* srv = server.get();
+        {
+            std::lock_guard<std::mutex> lock(serverMutex_);
+            server_ = std::move(server);
+        }
+        srv->Get("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Post("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Put("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Delete("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Patch("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
 
         uint32_t port = 0;
         GetTcpServerPort(port);
@@ -336,7 +349,7 @@ void UbseHttpServer::TcpRun()
         close(sockfd);
 
         std::string eid = "127.0.0.1";
-        server_->listen(eid, port);
+        srv->listen(eid, port);
     } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Error starting server=" << e.what();
     }
@@ -345,19 +358,23 @@ void UbseHttpServer::TcpRun()
 void UbseHttpServer::UdsRun()
 {
     try {
-        server_ = std::make_unique<Server>();
-        server_->new_task_queue = []() -> httplib::ThreadPool* {
+        auto server = std::make_unique<Server>();
+        server->new_task_queue = []() -> httplib::ThreadPool* {
             return new httplib::ThreadPool(NO_1, NO_8);
         };
-        if (!server_) {
+        if (!server) {
             throw std::runtime_error("Failed to create SSL server.");
         }
-        server_->Get("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Post("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Put("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Delete("/.*",
-                        [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
-        server_->Patch("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        httplib::Server* srv = server.get();
+        {
+            std::lock_guard<std::mutex> lock(serverMutex_);
+            server_ = std::move(server);
+        }
+        srv->Get("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Post("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Put("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Delete("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        srv->Patch("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
 
         std::string udsAddress = UBSE_UBM_UDS_ADDRESS;
 
@@ -378,7 +395,7 @@ void UbseHttpServer::UdsRun()
             return;
         }
 
-        bool ret = server_->set_address_family(AF_UNIX).listen(udsAddress, 80);
+        bool ret = srv->set_address_family(AF_UNIX).listen(udsAddress, 80);
         if (!ret) {
             UBSE_LOG_ERROR << "start server fail";
             return;

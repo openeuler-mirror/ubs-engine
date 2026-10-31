@@ -53,11 +53,7 @@ UbseSerialization::UbseSerialization()
       mCap_(std::max(AlignTo(INIT_CAPACITY), mLen_)),
       mFlag_(true)
 {
-    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
-    if (Unlikely(mBuf_ == nullptr)) {
-        mFlag_ = false;
-        return;
-    }
+    AllocBuffer();
 }
 
 UbseSerialization::UbseSerialization(ALIGN_BASE align)
@@ -71,10 +67,14 @@ UbseSerialization::UbseSerialization(ALIGN_BASE align)
         mFlag_ = false;
         return;
     }
+    AllocBuffer();
+}
+
+void UbseSerialization::AllocBuffer()
+{
     mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
     if (Unlikely(mBuf_ == nullptr)) {
         mFlag_ = false;
-        return;
     }
 }
 
@@ -90,22 +90,21 @@ UbseSerialization::UbseSerialization(common_len cap, ALIGN_BASE align)
     : mBuf_(nullptr),
       mAlignOffset_(static_cast<common_len>(align) - 1),
       mLen_(AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS)),
-      mCap_(AlignTo(cap) + mLen_),
+      mCap_(0),
       mFlag_(true)
 {
-    if (!isValidAlign(align)) {
+    // cap上限校验须前置于任何算术之前，防止AlignTo(cap)+mLen_在cap接近
+    // UINT64_MAX时无符号回绕成极小容量，静默通过下方的容量上限检查
+    if (!isValidAlign(align) || cap >= MAX_CAPACITY) {
         mFlag_ = false;
         return;
     }
+    mCap_ = AlignTo(cap) + mLen_;
     if (mCap_ >= MAX_CAPACITY) {
         mFlag_ = false;
         return;
     }
-    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
-    if (Unlikely(mBuf_ == nullptr)) {
-        mFlag_ = false;
-        return;
-    }
+    AllocBuffer();
 }
 
 UbseSerialization::UbseSerialization(UbseSerialization&& other) noexcept
@@ -213,6 +212,10 @@ UbseSerialization& UbseSerialization::operator<<(const char* str)
 
 UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 {
+    // 先检查自身状态: 构造时分配失败(mBuf_为空)的对象禁止进入写入路径
+    if (Unlikely(!mFlag_)) {
+        return *this;
+    }
     if (!kid.Check()) {
         mFlag_ = false;
         return *this;
@@ -240,7 +243,8 @@ UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 
 bool UbseSerialization::expandCapacity(common_len len)
 {
-    if (mLen_ + len >= MAX_CAPACITY) {
+    // 兜底: 缓冲区未成功分配时禁止写入(即使容量看似足够，mBuf_也为空)
+    if (Unlikely(mBuf_ == nullptr) || mLen_ + len >= MAX_CAPACITY) {
         mFlag_ = false;
         return false;
     }
