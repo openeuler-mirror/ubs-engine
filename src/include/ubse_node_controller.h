@@ -343,6 +343,8 @@ public:
     UbseNodeInfo GetCurNode();
     // 通过节点Id获取节点信息
     UbseNodeInfo GetNodeById(const std::string& nodeId);
+    // 静默查询：节点不存在时返回空info且不打日志（供升主镜像消费等正常"查无"场景使用）
+    UbseNodeInfo GetNodeByIdSilent(const std::string& nodeId);
     // 共享内存借用 共享域中的共享节点列表，从节点侧仅记录index，需要在master侧恢复时，获取对应的nodeId和hostName，slotId = index+1, slotId范围（1~16）
     UbseNodeInfo GetNodeBySlotId(uint32_t slotId);
     // 通过socket获取本地controller的eid

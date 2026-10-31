@@ -436,9 +436,10 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
         }
     }
 
-    // 本节点对账
+    // 本节点对账（纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥）
     taskExecutor_->Execute([this]() -> void {
         auto selfNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+        UbseNodeControllerLockMgr::WriteLock(selfNodeId);
 
         UbseNodeLedger(selfNodeId);
 
@@ -453,6 +454,7 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
             UBSE_LOG_WARN << "[CLOS_STATE_REPORT] report master self change failed, nodeId="
                           << selfNodeId << ", " << FormatRetCode(reportRet);
         }
+        UbseNodeControllerLockMgr::WriteUnLock(selfNodeId);
     });
 
     // 周期对账，注册对账定时器回调并启动定时器
@@ -775,10 +777,13 @@ void UbseNodeControllerMaster::ClearFaultCounter(const std::string &nodeId)
 // 执行节点平滑处理
 void UbseNodeControllerMaster::ExecuteNodeSmoothing(const std::string &nodeId)
 {
+    // 与镜像消费/NODE_UP对账路径共用per-node写锁，FAULT→SMOOTHING迁移原子化
+    UbseNodeControllerLockMgr::WriteLock(nodeId);
     // 检查节点当前状态
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     // 只有故障状态才切换到smoothing
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
 
@@ -786,6 +791,7 @@ void UbseNodeControllerMaster::ExecuteNodeSmoothing(const std::string &nodeId)
 
     // 直接调用UbseNodeLedger函数来处理完整的平滑过程
     UbseNodeLedger(nodeId);
+    UbseNodeControllerLockMgr::WriteUnLock(nodeId);
 }
 
 UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo &nodeInfo)
@@ -1376,7 +1382,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
     UBSE_LOG_INFO << "nodeId=" << nodeId << ", pre bmc fail, start to smoothing.";
     std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
+        // 纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥
         taskExecutor_->Execute([this, nodeId]() -> void {
+            UbseNodeControllerLockMgr::WriteLock(nodeId);
             UbseNodeLedger(nodeId);
 
             auto reportRet = ReportSingleNodeChangeToPrev(nodeId, "ras pre fault fail");
@@ -1384,6 +1392,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
                 UBSE_LOG_WARN << "[CLOS_REPORT] report ras pre fault fail change failed, nodeId=" << nodeId << ", "
                               << FormatRetCode(reportRet);
             }
+            UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         });
     }
 
@@ -1494,7 +1503,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 
     std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
+        // 纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥
         taskExecutor_->Execute([this, nodeId]() -> void {
+            UbseNodeControllerLockMgr::WriteLock(nodeId);
             UbseNodeLedger(nodeId);
 
             auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
@@ -1507,6 +1518,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
                 UBSE_LOG_WARN << "[CLOS_REPORT] report ras fault clear change failed, nodeId=" << nodeId << ", "
                               << FormatRetCode(reportRet);
             }
+            UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         });
     }
 
@@ -2585,43 +2597,72 @@ void UbseNodeControllerMaster::ConsumeMirrorOnPromote(bool globalScope)
         if (globalScope == isLocalNode) {
             continue;
         }
-        // 全局主只消费非本机柜节点：globalState 不继承旧 READY，WORKING/SMOOTHING 重置 INIT 等待重新上报
-        if (globalScope) {
-            info.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
-            if (info.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                info.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-                info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
-            }
-        }
-        // 柜内主消费：WORKING/SMOOTHING 不可直接继承，置 INIT 后立即重对账
-        bool needLedger = !globalScope &&
-                          (info.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                           info.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING);
-        if (needLedger) {
-            UBSE_LOG_INFO << "[NODE_SYNC] promote consume: nodeId=" << nodeId << " state="
-                          << static_cast<uint32_t>(info.clusterState) << " not inheritable, set INIT and re-ledger";
-            info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
-        }
-        uint64_t faultTimeMs = 0;
-        auto faultIter = faultProtect.find(nodeId);
-        if (faultIter != faultProtect.end()) {
-            faultTimeMs = faultIter->second;
-        }
-        UBSE_LOG_INFO << "[NODE_SYNC] restore from mirror: nodeId=" << nodeId
-                      << " state=" << static_cast<uint32_t>(info.clusterState);
-        UbseNodeController::GetInstance().RestoreNodeInfoFromMirror(info, faultTimeMs);
-        // 柜内升主：FAULT节点重建故障上报计数器（计数器为内存态、不随镜像同步），
-        // 从0重新累计150次上报后触发平滑对账，避免倒换后FAULT节点无法进入平滑流程。
-        if (!globalScope && info.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
-            std::lock_guard<std::mutex> lock(faultCountersMutex_);
-            faultReportCounters_[nodeId] = 0;
-            UBSE_LOG_INFO << "[NODE_SYNC] rebuild fault report counter after promote, nodeId=" << nodeId;
-        }
-        if (needLedger && taskExecutor_ != nullptr) {
-            taskExecutor_->Execute([this, nodeId]() -> void { UbseNodeLedger(nodeId); });
-        }
+        ConsumeMirrorNode(nodeId, info, faultProtect, globalScope);
+    }
+}
+
+void UbseNodeControllerMaster::ConsumeMirrorNode(const std::string& nodeId, const UbseNodeInfo& mirrorInfo,
+                                                 const std::unordered_map<std::string, uint64_t>& faultProtect,
+                                                 bool globalScope)
+{
+    UbseNodeInfo info = mirrorInfo;
+    // 与NODE_UP/周期/重试对账路径持有同一把per-node写锁，"检查内存现状+恢复镜像"原子执行
+    UbseNodeControllerLockMgr::WriteLock(nodeId);
+    if (!globalScope && IsNodeUpTakenOver(nodeId)) {
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         // 只移除已消费条目；镜像被本/他路径消费为空时，RemoveMirrorNode 内部整体清理并复位 lastSyncSeq_
         UbseNodeControllerAgent::GetInstance().RemoveMirrorNode(nodeId);
+        return;
     }
+    // 全局主只消费非本机柜节点：globalState 不继承旧 READY，WORKING/SMOOTHING 重置 INIT 等待重新上报
+    if (globalScope) {
+        info.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
+        if (info.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+            info.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+            info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+        }
+    } else if (info.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+               info.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+        // 柜内主消费：WORKING/SMOOTHING 不可直接继承，转INIT等升主后NODE_UP事件重对账
+        // （升主后选举主角色活跃集合清空重建，可达成员必然补发NODE_UP驱动SMOOTHING→WORKING；
+        // 不可达成员停留INIT，消除残影节点立即对账失败后永久卡死SMOOTHING且display显示在线的问题）
+        UBSE_LOG_INFO << "[NODE_SYNC] promote consume: nodeId=" << nodeId << " state="
+                      << static_cast<uint32_t>(info.clusterState) << " not inheritable, set INIT and wait node-up";
+        info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+    }
+    uint64_t faultTimeMs = 0;
+    auto faultIter = faultProtect.find(nodeId);
+    if (faultIter != faultProtect.end()) {
+        faultTimeMs = faultIter->second;
+    }
+    UBSE_LOG_INFO << "[NODE_SYNC] restore from mirror: nodeId=" << nodeId
+                  << " state=" << static_cast<uint32_t>(info.clusterState);
+    UbseNodeController::GetInstance().RestoreNodeInfoFromMirror(info, faultTimeMs);
+    // 柜内升主：FAULT节点重建故障上报计数器（计数器为内存态、不随镜像同步），
+    // 从0重新累计150次上报后触发平滑对账，避免倒换后FAULT节点无法进入平滑流程。
+    if (!globalScope && info.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        std::lock_guard<std::mutex> lock(faultCountersMutex_);
+        faultReportCounters_[nodeId] = 0;
+        UBSE_LOG_INFO << "[NODE_SYNC] rebuild fault report counter after promote, nodeId=" << nodeId;
+    }
+    UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+    // 只移除已消费条目；镜像被本/他路径消费为空时，RemoveMirrorNode 内部整体清理并复位 lastSyncSeq_
+    UbseNodeControllerAgent::GetInstance().RemoveMirrorNode(nodeId);
+}
+
+bool UbseNodeControllerMaster::IsNodeUpTakenOver(const std::string& nodeId)
+{
+    // NODE_UP对账在途(SMOOTHING)或已收敛(WORKING)视为NODE_UP已接管：内存信息已由NODE_UP采集刷新，
+    // 若回置INIT，NODE_UP已消费完且周期对账跳过INIT，节点将永久卡死INIT，须跳过镜像恢复
+    // （升主时内存无全集群数据属正常情况，用静默查询避免对每个镜像节点打ERROR误导运维）
+    auto curNode = UbseNodeController::GetInstance().GetNodeByIdSilent(nodeId);
+    if (curNode.nodeId.empty() ||
+        (curNode.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING &&
+         curNode.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING)) {
+        return false;
+    }
+    UBSE_LOG_INFO << "[NODE_SYNC] promote consume: nodeId=" << nodeId << " state="
+                  << static_cast<uint32_t>(curNode.clusterState) << " taken over by node-up flow, skip mirror restore";
+    return true;
 }
 } // namespace ubse::nodeController

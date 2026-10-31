@@ -121,10 +121,23 @@ private:
 
     /**
      * 升主消费：从镜像恢复节点信息。
-     * @param globalScope true=升全局主：仅重建非本机柜节点，状态原样继承不做对账；false=升柜内主（默认）：
-     *        FAULT/UNKNOWN/INIT直接继承，WORKING/SMOOTHING转INIT并立即重对账
+     * @param globalScope true=升全局主：仅重建非本机柜节点，globalState重置INIT、clusterState转INIT等待机柜主重报；
+     *        false=升柜内主（默认）：FAULT/UNKNOWN/INIT直接继承，WORKING/SMOOTHING转INIT等升主后NODE_UP事件重对账
      */
     void ConsumeMirrorOnPromote(bool globalScope = false);
+
+    /**
+     * 消费单个镜像节点：per-node写锁内"检查内存现状+恢复镜像"原子执行，
+     * 防止与NODE_UP/周期/重试对账路径交错；锁内完成状态继承决策与FAULT计数器补建
+     */
+    void ConsumeMirrorNode(const std::string& nodeId, const UbseNodeInfo& mirrorInfo,
+                           const std::unordered_map<std::string, uint64_t>& faultProtect, bool globalScope);
+
+    /**
+     * 检查柜内内存现状是否已被NODE_UP对账接管（SMOOTHING对账在途/WORKING已收敛），
+     * 已接管则跳过镜像恢复，防止回置INIT后NODE_UP已消费完导致节点永久卡死INIT
+     */
+    bool IsNodeUpTakenOver(const std::string& nodeId);
 
     /**
      * 升主时以 epoch 毫秒为起点重置同步序号，使序号随时间单调、跨进程重启不归零

@@ -308,6 +308,55 @@ TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_NotRebuildFaultCount
     EXPECT_EQ(master.faultReportCounters_.find("faultNodeRemote"), master.faultReportCounters_.end());
 }
 
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_NodeUpTakenOverSkipRestore)
+{
+    UbseNodeControllerMaster master{};
+    auto &agent = UbseNodeControllerAgent::GetInstance();
+    auto &ctrl = UbseNodeController::GetInstance();
+
+    // 内存中该节点已被NODE_UP对账接管(SMOOTHING)，镜像中还是旧WORKING快照
+    UbseNodeInfo memInfo{};
+    memInfo.nodeId = "takenNode";
+    memInfo.groupId = 0;
+    memInfo.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING;
+    ctrl.RestoreNodeInfoFromMirror(memInfo, 0);
+
+    UbseNodeInfo mirrorInfo{};
+    mirrorInfo.nodeId = "takenNode";
+    mirrorInfo.groupId = 0;
+    mirrorInfo.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_WORKING;
+    agent.nodeInfoMirror_["takenNode"] = mirrorInfo;
+
+    master.ConsumeMirrorOnPromote(false);
+
+    // NODE_UP已接管：跳过镜像恢复，内存保持SMOOTHING不被回置INIT(防永久卡死)，镜像条目移除
+    EXPECT_EQ(ctrl.GetNodeById("takenNode").clusterState,
+              nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    EXPECT_EQ(agent.nodeInfoMirror_.find("takenNode"), agent.nodeInfoMirror_.end());
+    ctrl.CleanAfterMasterSwitchRole();
+}
+
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_WorkingGhostNodeSetInitWaitNodeUp)
+{
+    UbseNodeControllerMaster master{};
+    auto &agent = UbseNodeControllerAgent::GetInstance();
+    auto &ctrl = UbseNodeController::GetInstance();
+
+    // 镜像中WORKING残影节点，内存无此节点：转INIT等升主后NODE_UP重对账，不立即调度对账
+    UbseNodeInfo mirrorInfo{};
+    mirrorInfo.nodeId = "ghostNode";
+    mirrorInfo.groupId = 0;
+    mirrorInfo.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_WORKING;
+    agent.nodeInfoMirror_["ghostNode"] = mirrorInfo;
+
+    master.ConsumeMirrorOnPromote(false);
+
+    EXPECT_EQ(ctrl.GetNodeById("ghostNode").clusterState,
+              nodeController::UbseNodeClusterState::UBSE_NODE_INIT);
+    EXPECT_EQ(agent.nodeInfoMirror_.find("ghostNode"), agent.nodeInfoMirror_.end());
+    ctrl.CleanAfterMasterSwitchRole();
+}
+
 TEST_F(TestUbseNodeControllerMaster, UbseLcneTopologyChangeHandler)
 {
     GTEST_SKIP();
