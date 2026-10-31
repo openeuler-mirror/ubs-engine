@@ -436,9 +436,10 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
         }
     }
 
-    // 本节点对账
+    // 本节点对账（纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥）
     taskExecutor_->Execute([this]() -> void {
         auto selfNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+        UbseNodeControllerLockMgr::WriteLock(selfNodeId);
 
         UbseNodeLedger(selfNodeId);
 
@@ -453,6 +454,7 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
             UBSE_LOG_WARN << "[CLOS_STATE_REPORT] report master self change failed, nodeId="
                           << selfNodeId << ", " << FormatRetCode(reportRet);
         }
+        UbseNodeControllerLockMgr::WriteUnLock(selfNodeId);
     });
 
     // 周期对账，注册对账定时器回调并启动定时器
@@ -1380,7 +1382,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
     UBSE_LOG_INFO << "nodeId=" << nodeId << ", pre bmc fail, start to smoothing.";
     std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
+        // 纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥
         taskExecutor_->Execute([this, nodeId]() -> void {
+            UbseNodeControllerLockMgr::WriteLock(nodeId);
             UbseNodeLedger(nodeId);
 
             auto reportRet = ReportSingleNodeChangeToPrev(nodeId, "ras pre fault fail");
@@ -1388,6 +1392,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
                 UBSE_LOG_WARN << "[CLOS_REPORT] report ras pre fault fail change failed, nodeId=" << nodeId << ", "
                               << FormatRetCode(reportRet);
             }
+            UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         });
     }
 
@@ -1498,7 +1503,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 
     std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
+        // 纳入per-node锁纪律，与镜像消费/周期/重试/NODE_UP对账路径互斥
         taskExecutor_->Execute([this, nodeId]() -> void {
+            UbseNodeControllerLockMgr::WriteLock(nodeId);
             UbseNodeLedger(nodeId);
 
             auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
@@ -1511,6 +1518,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
                 UBSE_LOG_WARN << "[CLOS_REPORT] report ras fault clear change failed, nodeId=" << nodeId << ", "
                               << FormatRetCode(reportRet);
             }
+            UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         });
     }
 
@@ -2646,7 +2654,8 @@ bool UbseNodeControllerMaster::IsNodeUpTakenOver(const std::string& nodeId)
 {
     // NODE_UP对账在途(SMOOTHING)或已收敛(WORKING)视为NODE_UP已接管：内存信息已由NODE_UP采集刷新，
     // 若回置INIT，NODE_UP已消费完且周期对账跳过INIT，节点将永久卡死INIT，须跳过镜像恢复
-    auto curNode = UbseNodeController::GetInstance().GetNodeById(nodeId);
+    // （升主时内存无全集群数据属正常情况，用静默查询避免对每个镜像节点打ERROR误导运维）
+    auto curNode = UbseNodeController::GetInstance().GetNodeByIdSilent(nodeId);
     if (curNode.nodeId.empty() ||
         (curNode.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING &&
          curNode.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING)) {
