@@ -254,7 +254,7 @@ static uint32_t PrepareAttachImport(const UbseMemShareAttachReq &req, IShareStor
          importObj.algoResult.exportNumaInfos[0].numaId, importObj.algoResult.exportNumaInfos[0].size});
     FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
                                 importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
-                                importObj.algoResult.importNumaInfos);
+                                importObj.algoResult.importNumaInfos, importObj.req.lenderInfo.portId);
     importObj.req.trustRingData.ClearReqSignedDataMemory();
     UBSE_LOG_INFO << "import size=" << importObj.req.size << ", requestId=" << req.requestId;
     ConstructShareImportObj(importObj, req);

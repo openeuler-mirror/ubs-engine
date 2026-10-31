@@ -351,7 +351,8 @@ uint32_t CascadeMasterStore::GetCnaTopo(const UbseMemShareAttachReq &req,
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
     auto ret = UBSE_OK;                  
     if (adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
-        ret = GetCnaInfoWhenImportClos(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
+        ret = GetCnaInfoWhenImportClos(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj,
+                                        importObj.req.lenderInfo.portId);
     } else {
         ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj, false,
                                             importObj.req.lenderInfo.portId);
@@ -651,7 +652,8 @@ uint32_t GlobalMasterStore::GetCnaTopo(const UbseMemShareAttachReq &req,
     }
     UBSE_LOG_INFO << "req info: importNodeId=" << req.importNodeId << ", exportNodeId=" << remoteNode
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
-    auto ret = GetCnaInfoWhenImportClos(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
+    auto ret = GetCnaInfoWhenImportClos(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj,
+                                        importObj.req.lenderInfo.portId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get cna info when import, " << ubse::log::FormatRetCode(ret)
                        << ", requestId=" << req.requestId;

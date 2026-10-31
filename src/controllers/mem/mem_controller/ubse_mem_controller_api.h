@@ -64,7 +64,7 @@ uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string
                               uint32_t specifiedPortId = UINT32_MAX);
 
 uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::string &importNodeId,
-                              UbseMemBorrowImportBaseObj &importObj);
+                              UbseMemBorrowImportBaseObj &importObj, uint32_t specifiedPortId);
 
 uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::string &importNodeId,
                                  UbseMemNumaBorrowImportObj &importObj);
