@@ -746,6 +746,33 @@ TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_WorkingNodeResetInit
     EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_INIT);
 }
 
+TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_NodeUpTakenOverSkipRestore)
+{
+    auto& agent = UbseNodeControllerAgent::GetInstance();
+    agent.nodeInfoMirror_.clear();
+    agent.faultProtectMirror_.clear();
+    UbseNodeInfo mirrorWorking{};
+    mirrorWorking.nodeId = "1";
+    mirrorWorking.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    agent.nodeInfoMirror_["1"] = mirrorWorking;
+
+    auto& ctrl = UbseNodeController::GetInstance();
+    ctrl.nodeInfos.clear();
+    // NODE_UP先接管：内存已SMOOTHING(对账在途)，镜像消费必须跳过恢复，防止回置INIT后
+    // NODE_UP已消费完、周期对账跳过INIT导致节点永久卡死
+    UbseNodeInfo smoothing{};
+    smoothing.nodeId = "1";
+    smoothing.clusterState = UbseNodeClusterState::UBSE_NODE_SMOOTHING;
+    ctrl.nodeInfos["1"] = smoothing;
+    MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
+
+    UbseNodeControllerMaster master{};
+    EXPECT_NO_THROW(master.ConsumeMirrorOnPromote());
+    // 镜像消费不覆盖内存状态：保持SMOOTHING由NODE_UP对账收敛，镜像最终清空
+    EXPECT_EQ(ctrl.nodeInfos["1"].clusterState, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    EXPECT_TRUE(agent.nodeInfoMirror_.empty());
+}
+
 TEST_F(TestUbseNodeControllerMaster, ConsumeMirrorOnPromote_FaultNodeInheritProtect)
 {
     auto& agent = UbseNodeControllerAgent::GetInstance();
