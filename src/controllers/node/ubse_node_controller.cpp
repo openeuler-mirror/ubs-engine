@@ -169,6 +169,16 @@ UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
     return iter->second;
 }
 
+UbseNodeInfo UbseNodeController::GetNodeByIdSilent(const std::string& nodeId)
+{
+    std::shared_lock<std::shared_mutex> lock(rwMutex);
+    auto iter = nodeInfos.find(nodeId);
+    if (iter == nodeInfos.end()) {
+        return UbseNodeInfo{};
+    }
+    return iter->second;
+}
+
 UbseNodeInfo UbseNodeController::GetNodeBySlotId(uint32_t slotId)
 {
     std::shared_lock<std::shared_mutex> lock(rwMutex);

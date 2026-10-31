@@ -84,8 +84,12 @@ private:
 
     void UbseNodeCleanAfterSwitchStandby();
 
-    // 升主消费：从镜像恢复节点信息（FAULT/UNKNOWN/INIT直接继承，WORKING/SMOOTHING保留状态并立即重对账）
+    // 升主消费：从镜像恢复节点信息（FAULT/UNKNOWN/INIT直接继承，WORKING/SMOOTHING转INIT等NODE_UP重对账）
     void ConsumeMirrorOnPromote();
+
+    // 消费单个镜像节点：per-node写锁内"检查内存现状+恢复镜像"原子执行，防止与NODE_UP对账路径交错
+    void ConsumeMirrorNode(const std::string& nodeId, const UbseNodeInfo& mirrorInfo,
+                           const std::unordered_map<std::string, uint64_t>& faultProtect);
 
     void UbseMasterNotifyAllAgentsAction(const std::string& nodeId, std::string action);
 
