@@ -7,6 +7,10 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 
+#include <algorithm>
+#include <iostream>
+#include <string>
+
 #include "mem_fragmentation_msg.h"
 #include "mempooling_def.h"
 #include "vm_serial_util.h"
@@ -14,6 +18,22 @@
 using namespace vm;
 using namespace vm::mempooling;
 namespace ubse::vm::ut {
+
+std::string HugePagesText(const std::unordered_map<uint64_t, NumaPageData>& pages)
+{
+    std::string text = "[";
+    bool first = true;
+    for (const auto& entry : pages) {
+        if (!first) {
+            text += "; ";
+        }
+        text += "pageSize=" + std::to_string(entry.second.pageSize) +
+                "kB,total=" + std::to_string(entry.second.hugePageTotal) +
+                ",free=" + std::to_string(entry.second.hugePageFree);
+        first = false;
+    }
+    return text + "]";
+}
 
 TestMemFragmentationMsg::TestMemFragmentationMsg() = default;
 
@@ -345,6 +365,28 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize2)
     EXPECT_EQ(ret, VM_ERROR_NULLPTR);
 }
 
+TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_PageSize_Serialize_Deserialize)
+{
+    borrow_setting_c setting{};
+    strcpy_s(setting.borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "test_host_1");
+    setting.borrow_strategy.src_socket_id = 0;
+    setting.borrow_strategy.src_numa_id = 1;
+    setting.borrow_strategy.borrow_size = 1024 * 1024;
+    setting.borrow_strategy.dest_numa_infos_size = 1;
+    strcpy_s(setting.borrow_strategy.dest_numa_infos[0].host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "dest_host_1");
+    setting.borrow_strategy.dest_numa_infos[0].socket_id = 0;
+    setting.borrow_strategy.dest_numa_infos[0].numa_nums = 1;
+    setting.borrow_strategy.dest_numa_infos[0].numa_ids[0] = 10;
+    setting.borrow_strategy.dest_numa_infos[0].mem_sizes[0] = 1024 * 1024;
+    setting.page_size = HUGE_PAGE_SIZE_1G_KB;
+
+    MemBorrowSettingMsg msg(setting);
+    EXPECT_EQ(msg.Serialize(), VM_OK);
+    MemBorrowSettingMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    EXPECT_EQ(dmsg.Deserialize(), VM_OK);
+    EXPECT_EQ(dmsg.GetMemBorrowSettingMsg().page_size, HUGE_PAGE_SIZE_1G_KB);
+}
+
 // Tests for MemFragmentationNodeInfoListMsg
 TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deserialize)
 {
@@ -354,6 +396,8 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deseri
     NodeInfo node1;
     node1.nodeId = "node1";
     node1.isCurrent = true;
+    node1.isMaster = true;
+    node1.podId = "pod-1";
     NumaInfo numa1;
     numa1.timestamp = 1000;
     numa1.metaData.nodeId = "node1";
@@ -365,11 +409,23 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deseri
     numa1.metaData.memFree = 50000;
     numa1.metaData.numaPageInfo[4096] = {4096, 100, 50};
     node1.numaInfos.push_back(numa1);
+    NumaInfo numa1b;
+    numa1b.timestamp = 1500;
+    numa1b.metaData.nodeId = "node1";
+    numa1b.metaData.hostName = "host1";
+    numa1b.metaData.numaId = 1;
+    numa1b.metaData.socketId = 1;
+    numa1b.metaData.isLocal = true;
+    numa1b.metaData.memTotal = 16777216;
+    numa1b.metaData.memFree = 8388608;
+    numa1b.metaData.numaPageInfo[1048576] = {1048576, 8, 4};
+    node1.numaInfos.push_back(numa1b);
     nodeInfoList.push_back(node1);
 
     NodeInfo node2;
     node2.nodeId = "node2";
     node2.isCurrent = false;
+    node2.isMaster = false;
     NumaInfo numa2;
     numa2.timestamp = 2000;
     numa2.metaData.nodeId = "node2";
@@ -377,26 +433,138 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deseri
     numa2.metaData.numaId = 1;
     numa2.metaData.socketId = 1;
     numa2.metaData.isLocal = false;
-    numa2.metaData.memTotal = 200000;
-    numa2.metaData.memFree = 100000;
+    numa2.metaData.memTotal = 4194304;
+    numa2.metaData.memFree = 2097152;
     numa2.metaData.numaPageInfo[2048] = {2048, 200, 100};
+    numa2.metaData.numaPageInfo[1048576] = {1048576, 2, 1};
     node2.numaInfos.push_back(numa2);
+    NumaInfo numa3;
+    numa3.timestamp = 3000;
+    numa3.metaData.nodeId = "node2";
+    numa3.metaData.hostName = "host2";
+    numa3.metaData.numaId = 2;
+    numa3.metaData.socketId = 2;
+    numa3.metaData.isLocal = false;
+    numa3.metaData.memTotal = 8388608;
+    numa3.metaData.memFree = 4194304;
+    numa3.metaData.numaPageInfo[1048576] = {1048576, 4, 3};
+    node2.numaInfos.push_back(numa3);
     nodeInfoList.push_back(node2);
 
     MemFragmentationNodeInfoListMsg msg{nodeInfoList};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
 
+    const auto* raw = reinterpret_cast<const char*>(msg.SerializedData());
+    const auto rawSize = static_cast<size_t>(msg.SerializedDataSize());
+    ASSERT_NE(raw, nullptr);
+    ASSERT_GT(rawSize, 0UL);
+    auto bytesContain = [&raw, &rawSize](const std::string& needle) {
+        return std::search(raw, raw + rawSize, needle.begin(), needle.end()) != raw + rawSize;
+    };
+    EXPECT_TRUE(bytesContain("node1"));
+    EXPECT_TRUE(bytesContain("node2"));
+    EXPECT_TRUE(bytesContain("host1"));
+    EXPECT_TRUE(bytesContain("host2"));
+    EXPECT_TRUE(bytesContain("pod-1"));
+    std::cout << "rawBytes=" << rawSize << " node1/node2/host1/host2/pod-1 all found in serialized stream" << std::endl;
+
     MemFragmentationNodeInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
 
     auto result = dmsg.GetNodeInfoList();
+    for (const auto& node : result) {
+        std::cout << "nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent << " isMaster=" << node.isMaster
+                  << " podId=" << node.podId << " numaCount=" << node.numaInfos.size() << std::endl;
+        for (const auto& numa : node.numaInfos) {
+            std::cout << "  numaId=" << numa.metaData.numaId << " socketId=" << numa.metaData.socketId
+                      << " isLocal=" << numa.metaData.isLocal << " nodeId=" << numa.metaData.nodeId
+                      << " hostName=" << numa.metaData.hostName << " timestamp=" << numa.timestamp
+                      << " memTotal=" << numa.metaData.memTotal << "kB memFree=" << numa.metaData.memFree
+                      << "kB hugePages=" << HugePagesText(numa.metaData.numaPageInfo) << std::endl;
+        }
+    }
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].nodeId, "node1");
     EXPECT_EQ(result[0].isCurrent, true);
+    EXPECT_EQ(result[0].isMaster, true);
+    EXPECT_EQ(result[0].podId, "pod-1");
     EXPECT_EQ(result[1].nodeId, "node2");
     EXPECT_EQ(result[1].isCurrent, false);
+    EXPECT_EQ(result[1].isMaster, false);
+    EXPECT_EQ(result[1].podId, "");
+
+    ASSERT_EQ(result[0].numaInfos.size(), 2);
+    const auto& rn1 = result[0].numaInfos[0];
+    EXPECT_EQ(rn1.metaData.nodeId, "node1");
+    EXPECT_EQ(rn1.metaData.hostName, "host1");
+    EXPECT_EQ(rn1.metaData.numaId, 0);
+    EXPECT_EQ(rn1.metaData.socketId, 0);
+    EXPECT_TRUE(rn1.metaData.isLocal);
+    EXPECT_EQ(rn1.metaData.memTotal, 100000);
+    EXPECT_EQ(rn1.metaData.memFree, 50000);
+    EXPECT_EQ(rn1.timestamp, 1000);
+    ASSERT_EQ(rn1.metaData.numaPageInfo.size(), 1);
+    auto page1 = rn1.metaData.numaPageInfo.find(4096);
+    ASSERT_NE(page1, rn1.metaData.numaPageInfo.end());
+    EXPECT_EQ(page1->second.pageSize, 4096);
+    EXPECT_EQ(page1->second.hugePageTotal, 100);
+    EXPECT_EQ(page1->second.hugePageFree, 50);
+
+    const auto& rn1b = result[0].numaInfos[1];
+    EXPECT_EQ(rn1b.metaData.nodeId, "node1");
+    EXPECT_EQ(rn1b.metaData.hostName, "host1");
+    EXPECT_EQ(rn1b.metaData.numaId, 1);
+    EXPECT_EQ(rn1b.metaData.socketId, 1);
+    EXPECT_TRUE(rn1b.metaData.isLocal);
+    EXPECT_EQ(rn1b.metaData.memTotal, 16777216);
+    EXPECT_EQ(rn1b.metaData.memFree, 8388608);
+    EXPECT_EQ(rn1b.timestamp, 1500);
+    ASSERT_EQ(rn1b.metaData.numaPageInfo.size(), 1);
+    auto page1b = rn1b.metaData.numaPageInfo.find(1048576);
+    ASSERT_NE(page1b, rn1b.metaData.numaPageInfo.end());
+    EXPECT_EQ(page1b->second.pageSize, 1048576);
+    EXPECT_EQ(page1b->second.hugePageTotal, 8);
+    EXPECT_EQ(page1b->second.hugePageFree, 4);
+
+    ASSERT_EQ(result[1].numaInfos.size(), 2);
+    const auto& rn2 = result[1].numaInfos[0];
+    EXPECT_EQ(rn2.metaData.nodeId, "node2");
+    EXPECT_EQ(rn2.metaData.hostName, "host2");
+    EXPECT_EQ(rn2.metaData.numaId, 1);
+    EXPECT_EQ(rn2.metaData.socketId, 1);
+    EXPECT_FALSE(rn2.metaData.isLocal);
+    EXPECT_EQ(rn2.metaData.memTotal, 4194304);
+    EXPECT_EQ(rn2.metaData.memFree, 2097152);
+    EXPECT_EQ(rn2.timestamp, 2000);
+    ASSERT_EQ(rn2.metaData.numaPageInfo.size(), 2);
+    auto page2048 = rn2.metaData.numaPageInfo.find(2048);
+    ASSERT_NE(page2048, rn2.metaData.numaPageInfo.end());
+    EXPECT_EQ(page2048->second.pageSize, 2048);
+    EXPECT_EQ(page2048->second.hugePageTotal, 200);
+    EXPECT_EQ(page2048->second.hugePageFree, 100);
+    auto page1g = rn2.metaData.numaPageInfo.find(1048576);
+    ASSERT_NE(page1g, rn2.metaData.numaPageInfo.end());
+    EXPECT_EQ(page1g->second.pageSize, 1048576);
+    EXPECT_EQ(page1g->second.hugePageTotal, 2);
+    EXPECT_EQ(page1g->second.hugePageFree, 1);
+
+    const auto& rn3 = result[1].numaInfos[1];
+    EXPECT_EQ(rn3.metaData.nodeId, "node2");
+    EXPECT_EQ(rn3.metaData.hostName, "host2");
+    EXPECT_EQ(rn3.metaData.numaId, 2);
+    EXPECT_EQ(rn3.metaData.socketId, 2);
+    EXPECT_FALSE(rn3.metaData.isLocal);
+    EXPECT_EQ(rn3.metaData.memTotal, 8388608);
+    EXPECT_EQ(rn3.metaData.memFree, 4194304);
+    EXPECT_EQ(rn3.timestamp, 3000);
+    ASSERT_EQ(rn3.metaData.numaPageInfo.size(), 1);
+    auto page3 = rn3.metaData.numaPageInfo.find(1048576);
+    ASSERT_NE(page3, rn3.metaData.numaPageInfo.end());
+    EXPECT_EQ(page3->second.pageSize, 1048576);
+    EXPECT_EQ(page3->second.hugePageTotal, 4);
+    EXPECT_EQ(page3->second.hugePageFree, 3);
 }
 
 TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Empty_List)
@@ -416,6 +584,173 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Empty_List)
     EXPECT_EQ(result.size(), 0);
 }
 
+TEST_F(TestMemFragmentationMsg, MemFragmentationVmInfoListMsg_Serialize_Deserialize)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    VmDomainInfo vmDomainInfo1;
+    vmDomainInfo1.metaData.nodeId = "node1";
+    vmDomainInfo1.metaData.hostName = "host1";
+    vmDomainInfo1.metaData.uuid = "uuid1";
+    vmDomainInfo1.metaData.name = "vm1";
+    vmDomainInfo1.metaData.state = "running";
+    vmDomainInfo1.metaData.vmCreateTime = 1000;
+    vmDomainInfo1.metaData.maxMem = 1024;
+    vmDomainInfo1.metaData.pid = 123;
+    mempooling::VmDomainNumaInfo vmNumaInfo1;
+    vmNumaInfo1.numaId = 0;
+    vmNumaInfo1.pageSize = 2048;
+    vmNumaInfo1.usedMem = 100;
+    vmNumaInfo1.socketId = 0;
+    vmNumaInfo1.isLocal = true;
+    vmDomainInfo1.numaInfo[0] = vmNumaInfo1;
+    mempooling::VmDomainNumaInfo vmNumaInfo1b;
+    vmNumaInfo1b.numaId = 1;
+    vmNumaInfo1b.pageSize = 1048576;
+    vmNumaInfo1b.usedMem = 1024;
+    vmNumaInfo1b.socketId = 1;
+    vmNumaInfo1b.isLocal = false;
+    vmDomainInfo1.numaInfo[1] = vmNumaInfo1b;
+
+    VmNodeInfo node1;
+    node1.nodeId = "node1";
+    node1.isCurrent = true;
+    node1.isMaster = true;
+    node1.podId = "pod-1";
+    node1.vmInfos.push_back(vmDomainInfo1);
+
+    VmDomainInfo vmDomainInfo2;
+    vmDomainInfo2.metaData.nodeId = "node2";
+    vmDomainInfo2.metaData.hostName = "host2";
+    vmDomainInfo2.metaData.uuid = "uuid2";
+    vmDomainInfo2.metaData.name = "vm2";
+    vmDomainInfo2.metaData.state = "running";
+    vmDomainInfo2.metaData.vmCreateTime = 2000;
+    vmDomainInfo2.metaData.maxMem = 2048;
+    vmDomainInfo2.metaData.pid = 456;
+    mempooling::VmDomainNumaInfo vmNumaInfo2;
+    vmNumaInfo2.numaId = 1;
+    vmNumaInfo2.pageSize = 2048;
+    vmNumaInfo2.usedMem = 200;
+    vmNumaInfo2.socketId = 1;
+    vmNumaInfo2.isLocal = false;
+    vmDomainInfo2.numaInfo[1] = vmNumaInfo2;
+    mempooling::VmDomainNumaInfo vmNumaInfo2b;
+    vmNumaInfo2b.numaId = 2;
+    vmNumaInfo2b.pageSize = 1048576;
+    vmNumaInfo2b.usedMem = 2048;
+    vmNumaInfo2b.socketId = 2;
+    vmNumaInfo2b.isLocal = false;
+    vmDomainInfo2.numaInfo[2] = vmNumaInfo2b;
+
+    VmNodeInfo node2;
+    node2.nodeId = "node2";
+    node2.isCurrent = false;
+    node2.isMaster = false;
+    node2.vmInfos.push_back(vmDomainInfo2);
+
+    std::vector<VmNodeInfo> vmNodeInfoList;
+    vmNodeInfoList.push_back(node1);
+    vmNodeInfoList.push_back(node2);
+
+    MemFragmentationVmInfoListMsg msg{vmNodeInfoList};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    const auto* raw = reinterpret_cast<const char*>(msg.SerializedData());
+    const auto rawSize = static_cast<size_t>(msg.SerializedDataSize());
+    ASSERT_NE(raw, nullptr);
+    ASSERT_GT(rawSize, 0UL);
+    auto bytesContain = [&raw, &rawSize](const std::string& needle) {
+        return std::search(raw, raw + rawSize, needle.begin(), needle.end()) != raw + rawSize;
+    };
+    EXPECT_TRUE(bytesContain("node1"));
+    EXPECT_TRUE(bytesContain("node2"));
+    EXPECT_TRUE(bytesContain("vm1"));
+    EXPECT_TRUE(bytesContain("vm2"));
+    EXPECT_TRUE(bytesContain("uuid1"));
+    std::cout << "rawBytes=" << rawSize << " node1/node2/vm1/vm2/uuid1 all found in serialized stream" << std::endl;
+
+    MemFragmentationVmInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto result = dmsg.GetVmNodeInfoList();
+    for (const auto& node : result) {
+        std::cout << "nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent << " isMaster=" << node.isMaster
+                  << " podId=" << node.podId << " vmCount=" << node.vmInfos.size() << std::endl;
+        for (const auto& vmInfo : node.vmInfos) {
+            std::cout << "  name=" << vmInfo.metaData.name << " uuid=" << vmInfo.metaData.uuid
+                      << " state=" << vmInfo.metaData.state << " hostName=" << vmInfo.metaData.hostName
+                      << " vmCreateTime=" << vmInfo.metaData.vmCreateTime << " maxMem=" << vmInfo.metaData.maxMem
+                      << "kB pid=" << vmInfo.metaData.pid << " timestamp=" << vmInfo.timestamp << std::endl;
+            for (const auto& entry : vmInfo.numaInfo) {
+                const auto& numa = entry.second;
+                std::cout << "    numaId=" << numa.numaId << " pageSize=" << numa.pageSize << "kB"
+                          << " socketId=" << numa.socketId << " isLocal=" << numa.isLocal << " usedMem=" << numa.usedMem
+                          << "kB" << std::endl;
+            }
+        }
+    }
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(result[0].nodeId, "node1");
+    EXPECT_EQ(result[0].isCurrent, true);
+    EXPECT_EQ(result[0].isMaster, true);
+    EXPECT_EQ(result[0].podId, "pod-1");
+    ASSERT_EQ(result[0].vmInfos.size(), 1);
+    const auto& rvm1 = result[0].vmInfos[0];
+    EXPECT_EQ(rvm1.metaData.uuid, "uuid1");
+    EXPECT_EQ(rvm1.metaData.name, "vm1");
+    EXPECT_EQ(rvm1.metaData.state, "running");
+    EXPECT_EQ(rvm1.metaData.hostName, "host1");
+    EXPECT_EQ(rvm1.metaData.vmCreateTime, 1000);
+    EXPECT_EQ(rvm1.metaData.maxMem, 1024);
+    EXPECT_EQ(rvm1.metaData.pid, 123);
+    ASSERT_EQ(rvm1.numaInfo.size(), 2);
+    auto vmNuma1 = rvm1.numaInfo.find(0);
+    ASSERT_NE(vmNuma1, rvm1.numaInfo.end());
+    EXPECT_EQ(vmNuma1->second.numaId, 0);
+    EXPECT_EQ(vmNuma1->second.pageSize, 2048);
+    EXPECT_EQ(vmNuma1->second.usedMem, 100);
+    EXPECT_EQ(vmNuma1->second.socketId, 0);
+    EXPECT_TRUE(vmNuma1->second.isLocal);
+    auto vmNuma1b = rvm1.numaInfo.find(1);
+    ASSERT_NE(vmNuma1b, rvm1.numaInfo.end());
+    EXPECT_EQ(vmNuma1b->second.numaId, 1);
+    EXPECT_EQ(vmNuma1b->second.pageSize, 1048576);
+    EXPECT_EQ(vmNuma1b->second.usedMem, 1024);
+    EXPECT_EQ(vmNuma1b->second.socketId, 1);
+    EXPECT_FALSE(vmNuma1b->second.isLocal);
+    EXPECT_EQ(result[1].nodeId, "node2");
+    EXPECT_EQ(result[1].isCurrent, false);
+    EXPECT_EQ(result[1].isMaster, false);
+    EXPECT_EQ(result[1].podId, "");
+    ASSERT_EQ(result[1].vmInfos.size(), 1);
+    const auto& rvm2 = result[1].vmInfos[0];
+    EXPECT_EQ(rvm2.metaData.uuid, "uuid2");
+    EXPECT_EQ(rvm2.metaData.name, "vm2");
+    EXPECT_EQ(rvm2.metaData.state, "running");
+    EXPECT_EQ(rvm2.metaData.hostName, "host2");
+    EXPECT_EQ(rvm2.metaData.vmCreateTime, 2000);
+    EXPECT_EQ(rvm2.metaData.maxMem, 2048);
+    EXPECT_EQ(rvm2.metaData.pid, 456);
+    ASSERT_EQ(rvm2.numaInfo.size(), 2);
+    auto vmNuma2 = rvm2.numaInfo.find(1);
+    ASSERT_NE(vmNuma2, rvm2.numaInfo.end());
+    EXPECT_EQ(vmNuma2->second.numaId, 1);
+    EXPECT_EQ(vmNuma2->second.pageSize, 2048);
+    EXPECT_EQ(vmNuma2->second.usedMem, 200);
+    EXPECT_EQ(vmNuma2->second.socketId, 1);
+    EXPECT_FALSE(vmNuma2->second.isLocal);
+    auto vmNuma2b = rvm2.numaInfo.find(2);
+    ASSERT_NE(vmNuma2b, rvm2.numaInfo.end());
+    EXPECT_EQ(vmNuma2b->second.numaId, 2);
+    EXPECT_EQ(vmNuma2b->second.pageSize, 1048576);
+    EXPECT_EQ(vmNuma2b->second.usedMem, 2048);
+    EXPECT_EQ(vmNuma2b->second.socketId, 2);
+    EXPECT_FALSE(vmNuma2b->second.isLocal);
+}
+
 // Tests for MemFragmentationMemBorrowParamMsg
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Deserialize)
 {
@@ -433,6 +768,8 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Dese
     numaMeta2.numaId = 1;
     param.numaMetaInfos.push_back(numaMeta2);
 
+    param.pageSize = HUGE_PAGE_SIZE_1G_KB;
+
     MemFragmentationMemBorrowParamMsg msg{param, true};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
@@ -444,6 +781,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Dese
     auto resultParam = dmsg.GetBorrowParam();
     EXPECT_EQ(resultParam.nodeId, "node1");
     EXPECT_EQ(resultParam.borrowSize, 1024);
+    EXPECT_EQ(resultParam.pageSize, HUGE_PAGE_SIZE_1G_KB);
     EXPECT_EQ(resultParam.numaMetaInfos.size(), 2);
     EXPECT_EQ(dmsg.GetIsAsync(), true);
 }
