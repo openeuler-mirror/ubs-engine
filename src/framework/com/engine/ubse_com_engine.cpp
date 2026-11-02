@@ -491,6 +491,14 @@ void UbseComEngine::AsyncDestroyChannel(const UBSHcomChannelPtr& ch)
 {
     // 先递增在途计数再创建线程，保证Stop()等待期间不会遗漏新启动的线程
     asyncDestroyThreadNum_.fetch_add(1);
+    // 复查deleted_：若fetch_add在全序上晚于Stop()的计数drain读取落地，Stop()将越过
+    // 等待点并在DeleteEngine后释放engine，此后spawn的线程体会触碰悬空成员；
+    // 此处提前退出（channel由Stop()内RemoveAllChannel同步兜底销毁）。
+    // 复查读到false时，由seq_cst全序可保证fetch_add先于Stop()读计数被观察到，窗口闭合
+    if (deleted_.load(std::memory_order_acquire)) {
+        asyncDestroyThreadNum_.fetch_sub(1);
+        return;
+    }
     try {
         std::thread t([this, ch]() {
             // 停机后跳过Disconnect: Stop()内RemoveAllChannel已同步兜底销毁，

@@ -154,7 +154,9 @@ private:
                        const UbseRequestContext& context);
     void CloseSession(int fd);
     void HandleRead(ClientSession* session);
-    void HandleWrite(ClientSession* session);
+    // 按fd处理写事件：锁内校验会话并取走待写数据，锁外仅使用fd与数据副本，
+    // 避免跨线程CloseSession导致map节点失效后的悬空指针访问
+    void HandleWrite(int fd);
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
     void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);

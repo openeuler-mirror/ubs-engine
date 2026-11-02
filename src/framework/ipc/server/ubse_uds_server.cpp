@@ -446,21 +446,10 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
 
     // 处理写事件
     if (events & EPOLLOUT) {
-        // HandleRead 内部多条失败路径会调用 CloseSession 销毁 session，
-        // 此处必须按 fd 重新校验会话有效性，避免操作已释放的悬空指针。
-        // 注意: 不能持 sessionsMutex_ 调用 HandleWrite，其内部的 CloseSession/RemoveSession
-        // 会再次获取该锁，形成同线程自死锁
-        ClientSession* curSession = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(sessionsMutex_);
-            auto it = sessions_.find(fd);
-            if (it != sessions_.end()) {
-                curSession = &it->second;
-            }
-        }
-        if (curSession != nullptr) {
-            HandleWrite(curSession);
-        }
+        // 按fd处理写事件：HandleWrite内部在锁内校验会话并取走待写数据，
+        // 锁外仅使用fd与数据副本发送，不持有指向map节点的指针，
+        // 消除task executor线程经SendResponse失败路径并发CloseSession导致的悬空指针窗口
+        HandleWrite(fd);
     }
 }
 
@@ -734,40 +723,60 @@ void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession* session)
     }
 }
 
-void UbseUDSServer::HandleWrite(ClientSession* session)
+void UbseUDSServer::HandleWrite(int fd)
 {
-    if (session == nullptr) {
-        UBSE_LOG_ERROR << "Session is nullptr";
-        return;
+    // 锁内校验会话状态并取走待写数据，锁外仅使用fd与数据副本，
+    // 不再持有指向sessions_节点(值语义)的裸指针，避免其他线程
+    // (task executor经SendResponse失败路径)并发CloseSession引发的use-after-free
+    std::vector<uint8_t> sendBuffer;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(fd);
+        if (it == sessions_.end()) {
+            return;
+        }
+        auto& session = it->second;
+        if (session.state != SessionState::READY_TO_WRITE && session.state != SessionState::WRITING) {
+            return;
+        }
+        sendBuffer = std::move(session.writeBuffer);
     }
-    if (session->state != SessionState::READY_TO_WRITE && session->state != SessionState::WRITING) {
+
+    if (!sendBuffer.empty() &&
+        SendMsg(fd, sendBuffer.data(), sendBuffer.size(), DEFAULT_SERVER_SEND_TIMEOUT) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to send message";
+        // 发送失败按fd关闭会话；fd为值类型，若会话已被其他线程移除，RemoveSession内部为空操作
+        CloseSession(fd);
         return;
     }
 
-    size_t totalSent = session->writeBuffer.size();
-    if (totalSent > 0) {
-        if (SendMsg(session->fd, session->writeBuffer.data(), totalSent, DEFAULT_SERVER_SEND_TIMEOUT) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to send message";
-            session->writeBuffer.clear();
-            // 客户端关闭连接
-            CloseSession(session->fd);
+    // 发送成功后按fd重新校验会话：发送期间会话可能已被其他线程关闭
+    bool isShortLink = false;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(fd);
+        if (it == sessions_.end()) {
             return;
         }
+        auto& session = it->second;
+        isShortLink = (session.connType != SessionType::PERSISTENT);
+        if (isShortLink) {
+            // 记录开始预关闭的时间点
+            session.closingStartTime = std::chrono::steady_clock::now();
+        } else {
+            session.state = SessionState::CONNECT;
+        }
     }
-    session->writeBuffer.clear();
-    if (session->connType != SessionType::PERSISTENT) {
+    if (isShortLink) {
         // 短链接预关闭链接
-        UBSE_LOG_DEBUG << "Short link " << session->fd << " pre-closed";
-        // 记录开始预关闭的时间点
-        session->closingStartTime = std::chrono::steady_clock::now();
-        // 移除session
-        RemoveSession(session->fd, true);
+        UBSE_LOG_DEBUG << "Short link " << fd << " pre-closed";
+        // 移除session（内部自行加锁，将session移入预关闭队列）
+        RemoveSession(fd, true);
         // 强制关闭超时未关闭session
         CheckAndCloseTimeoutSessions();
     } else {
-        session->state = SessionState::CONNECT;
         // 修改epoll事件为只读
-        ModifyEpollEvent(epollFd_, session->fd, EPOLLIN | EPOLLET | EPOLLRDHUP);
+        ModifyEpollEvent(epollFd_, fd, EPOLLIN | EPOLLET | EPOLLRDHUP);
     }
 }
 
