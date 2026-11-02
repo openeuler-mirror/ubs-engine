@@ -37,20 +37,20 @@ typedef struct {
     char src_nid[VIRT_MAX_NODE_ID_LENGTH];
     int16_t src_socket_id;
     int16_t src_numa_id;
-    uint64_t borrow_size;
+    uint64_t borrow_size; // 借用大小，单位kB
 }src_memory_borrow_param;
 typedef struct {
     char host_id[VIRT_MAX_NODE_ID_LENGTH];
     uint16_t socket_id;
     uint16_t numa_nums;
     int numa_ids[MAX_DEST_NUMA_NUM];
-    uint64_t mem_sizes[MAX_DEST_NUMA_NUM];
+    uint64_t mem_sizes[MAX_DEST_NUMA_NUM]; // 各NUMA借用大小，单位kB，建议为所选大页规格（2048kB或1048576kB）的整数倍，未对齐时服务端按页大小向上取整
 }dst_numa_info_c;
 typedef struct {
     char src_host_id[VIRT_MAX_NODE_ID_LENGTH];
     int16_t src_socket_id;
     int16_t src_numa_id;
-    uint64_t borrow_size;
+    uint64_t borrow_size; // 借用大小，单位kB
     dst_numa_info_c dest_numa_infos[MAX_DEST_PARAM_SIZE];
     uint32_t dest_numa_infos_size;
 }borrow_strategy_c;
@@ -75,7 +75,7 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-暂无
+- `src_param.borrow_size` 单位kB，为需要借入的内存大小。
 
 ## 附注 NOTES
 
@@ -139,6 +139,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
 typedef struct {
     borrow_strategy_c borrow_strategy;
     bool isAsync;
+    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页）
 }borrow_setting_c;
 typedef struct {
     char borrow_ids_ptr[MAX_BORROW_ID_COUNT][MAX_BORROW_ID_LENGTH];
@@ -168,7 +169,8 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-暂无
+- `borrow_setting.page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或其他取值返回 `VA_ERROR_INVALID_PARAM`。
+- `borrow_strategy.dest_numa_infos[i].mem_sizes[j]` 单位kB，建议为所选大页规格（2048kB或1048576kB）的整数倍，未对齐时服务端按页大小向上取整。
 
 ## 附注 NOTES
 
@@ -195,7 +197,8 @@ int main(void)
     };
     borrow_setting_c borrow_setting = {
             borrow_strategy = borrow_strategy,
-            isAsync = true
+            isAsync = true,
+            page_size = 2048 // 单位kB，仅支持2048或1048576
     };
     mem_borrow_result_c result;
     ret = ubs_virt_agent_mem_borrow_execute(&borrow_setting, &result);
@@ -735,110 +738,7 @@ int main(void)
 }
 ```
 
-# 9. ubs_virt_agent_mem_fragmentation_node_info_list
-
-## 库 LIBRARY
-
-virt_agent库 (libubs-virt-agent.so)
-
-## 摘要 SYNOPSIS
-
-```c++
-#include <ubs_virt_agent_mem_fragmentation.h>
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list);
-```
-
-- 数据结构说明
-
-```c++
-typedef struct {
-    uint64_t pageSize{};
-    uint64_t hugePageTotal{};
-    uint64_t hugePageFree{};
-} numa_page_data;
-
-typedef struct {
-    time_t timestamp;
-    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
-    char host_name[UBS_VA_HOST_NAME_MAX];
-    int16_t numa_id;
-    int16_t socket_id;  // Socket ID mapped to CPUs bound to this NUMA
-    int16_t is_local;   // Whether this is a local NUMA (0: non-local, 1: local)
-    uint64_t mem_total; // Total memory of this NUMA node (inclusive), collected from system files, in kB
-    uint64_t mem_free;  // Free memory on this NUMA node, collected from system files, in kB
-    numa_page_data* huge_page_data;
-    uint64_t numaPageInfoCount;
-} numa_info_t;
-
-typedef struct {
-    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];  // 节点名称
-    numa_info_t *numa_infos;  // numa信息
-    uint32_t numa_len; // numa数量
-    bool is_current; // 是否是查询节点
-} node_info_s;
-
-typedef struct {
-    node_info_s *node_infos; // 节点列表
-    uint32_t node_len; // 节点数量
-} node_info_list_s;
-```
-
-## 描述 DESCRIPTION
-
-查询集群内所有节点的内存信息
-
-## 参数 Parameters
-
-| name           | IN/OUT | description |
-|----------------|--------|-------------|
-| node_info_list | OUT    | 节点信息列表      |
-
-## 返回值 RETURN VALUE
-
-返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
-
-## 错误 ERRORS
-
-| Error                        | Description |
-|------------------------------|-------------|
-| VA_ERROR_BASE                | 基本错误类型      |
-| VA_ERROR_INVALID_PARAM       | 参数不合法       |
-| VA_ERROR_NULL_POINTER        | 空指针         |
-| VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
-| VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
-| VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
-| VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
-| VA_ERROR_TIMEOUT_FAILED      | 超时          |
-
-## 约束 CONSTRAINTS
-
-暂无
-
-## 附注 NOTES
-
-暂无
-
-## 样例 EXAMPLES
-
-以下程序为使用示例。
-
-```c++
-#include <stdio.h>
-#include <ubs_virt_agent_mem_fragmentation.h>
-
-int main(void)
-{
-    node_info_list_s *node_info_list = null;
-    const virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list);
-    if (ret != 0) {
-        return ret;
-    }
-    /* Do your work here... */
-    return 0;
-}
-```
-
-# 10. ubs_virt_agent_mem_borrow
+# 9. ubs_virt_agent_mem_borrow
 
 ## 库 LIBRARY
 
@@ -860,9 +760,10 @@ typedef struct {
 
 typedef struct {
     char src_nid[VIRT_MEM_MAX_NODE_ID_LENGTH];  // nodeId
-    numa_meta_info_s *numa_meta_infos; // numa信息了列表
+    numa_meta_info_s *numa_meta_infos; // numa信息列表
     uint32_t numa_len; // numa数量
     uint64_t borrow_size; // 借用大小, 单位MB
+    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页）
 } mem_borrow_param_s;
 
 typedef struct {
@@ -870,7 +771,7 @@ typedef struct {
     uint16_t present_numa_ids_ptr[MAX_BORROW_ID_COUNT]; // 借用内存映射numaId列表
     uint32_t borrow_ids_size; // 借用标识符列表长度
     uint32_t present_numa_ids_size; // 映射numaId列表长度
-    char task_id[MEM_TASK_ID_MAX]; // 借用任务
+    char task_id[MEM_TASK_ID_MAX]; // 借用任务ID
 } mem_borrow_result_c;
 
 typedef struct {
@@ -910,7 +811,8 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-暂无
+- `borrow_size` 单位MB（大规格虚机路径，服务端内部换算为kB后使用）。
+- `page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或其他取值返回 `VA_ERROR_INVALID_PARAM`。
 
 ## 附注 NOTES
 
@@ -922,14 +824,16 @@ typedef struct {
 
 ```c++
 #include <stdio.h>
+#include <string.h>
 #include <ubs_virt_agent_mem_fragmentation.h>
 
 int main(void)
 {
     mem_borrow_param_s *param = (mem_borrow_param_s *)malloc(sizeof(mem_borrow_param_s));
-    param -> src_nid = "node0";
+    memcpy(param -> src_nid, "node0", sizeof("node0"));
     param -> numa_len = 4;
     param -> borrow_size = 3145728; // 单位MB, 此处借用3TB内存
+    param -> page_size = 2048; // 单位kB, 仅支持2048或1048576
     numa_meta_info_s *numa_meta_infos = (numa_meta_info_s *)malloc(sizeof(numa_meta_info_s) * param -> numa_len);
     
     // 根据实际情况填写 or 根据ubs_virt_agent_mem_fragmentation_node_info_list查询结果填写
@@ -938,8 +842,8 @@ int main(void)
     for (int i = 0; i < param -> numa_len; ++i) {
         numa_meta_infos[i].numa_id = i;
     }
-    mem_borrow_result_s* result = null;
-    const virt_agent_ret_t ret = ubs_virt_agent_mem_borrow(param, true, result);
+    mem_borrow_result_s result;
+    const virt_agent_ret_t ret = ubs_virt_agent_mem_borrow(param, true, &result);
     if (ret != 0) {
         return ret;
     }
@@ -948,7 +852,7 @@ int main(void)
 }
 ```
 
-# 11. ubs_virt_agent_page_swap_enable
+# 10. ubs_virt_agent_page_swap_enable
 
 ## 库 LIBRARY
 
@@ -1059,6 +963,74 @@ int main(void)
     virt_agent_ret_t ret = ubs_virt_agent_page_swap_enable(pid, page_swap_enable);
     if (ret != 0) {
         return ret;
+    }
+    /* Do your work here... */
+    return 0;
+}
+```
+
+# 11. ubs_virt_agent_mem_fragmentation_heartbeat
+
+## 库 LIBRARY
+
+virt_agent库 (libubs-virt-agent.so)
+
+## 摘要 SYNOPSIS
+
+```c
+#include <ubs_virt_agent_mem_fragmentation.h>
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_heartbeat(void);
+```
+
+## 描述 DESCRIPTION
+
+检测本节点ubse服务是否存活。
+
+ubse服务正常运行时，接口在毫秒级返回 `VA_SUCCESS`；ubse服务已停止时，接口立即返回失败。
+
+## 参数 Parameters
+
+无
+
+## 返回值 RETURN VALUE
+
+返回 `VA_SUCCESS` 表示ubse服务存活，返回其他值表示ubse服务不可用，请见`错误 ERRORS`
+
+## 错误 ERRORS
+
+| Error                        | Description |
+|------------------------------|-------------|
+| VA_ERROR_BASE                | 基本错误类型      |
+| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_NULL_POINTER        | 空指针         |
+| VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
+| VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
+| VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
+| VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
+| VA_ERROR_TIMEOUT_FAILED      | 超时          |
+
+## 约束 CONSTRAINTS
+
+- 接口不承诺超时上限，ubse服务假死（进程存活但无响应）场景下调用方会阻塞至IPC内部超时才返回失败。
+
+## 附注 NOTES
+
+- 判定依据仅为返回值是否为 `VA_SUCCESS`，不验证ubse服务的业务功能是否正常。
+
+## 样例 EXAMPLES
+
+以下程序为使用示例。
+
+```c
+#include <stdio.h>
+#include <ubs_virt_agent_mem_fragmentation.h>
+
+int main(void)
+{
+    int32_t ret = ubs_virt_agent_mem_fragmentation_heartbeat();
+    if (ret != VA_SUCCESS) {
+        perror("ubse service is not alive.\n");
+        return -1;
     }
     /* Do your work here... */
     return 0;

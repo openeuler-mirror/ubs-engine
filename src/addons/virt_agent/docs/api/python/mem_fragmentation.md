@@ -103,7 +103,7 @@ param = {
         "srcSocketId": int,  # 源Socket ID
         "srcNumaId": int     # 源NUMA ID
     },
-    "borrowSize": int        # 借用大小
+    "borrowSize": int        # 借用大小，单位kB
 }
 ```
 
@@ -120,14 +120,14 @@ class DstNumaInfoT:
     socket_id: int      # 目的Socket ID
     numa_nums: int      # NUMA数量
     numa_ids: List[int]     # NUMA ID列表
-    mem_sizes: List[int]    # 各NUMA借用内存大小列表
+    mem_sizes: List[int]    # 各NUMA借用内存大小列表，单位kB
 
 @dataclass
 class BorrowStrategyT:
     src_host_id: str                 # 源节点ID
     src_socket_id: int               # 源Socket ID
     src_numa_id: int                 # 源NUMA ID
-    borrow_size: int                 # 借用大小
+    borrow_size: int                 # 借用大小，单位kB
     dest_numa_infos: List[DstNumaInfoT]  # 借用决策信息列表
 ```
 
@@ -207,14 +207,15 @@ param = {
         "srcSocketId": int,  # 源Socket ID
         "srcNumaId": int     # 源NUMA ID
     },
-    "borrowSize": int,       # 借用大小
+    "borrowSize": int,       # 借用大小，单位kB
+    "pageSize": int,         # 大页大小，单位kB，仅支持2048或1048576，必填
     "destParam": [           # 目的NUMA信息列表
         {
             "destNid": str,      # 目的节点ID
             "destSocketId": int, # 目的Socket ID
             "destNumaNum": int,  # NUMA数量
             "destNumaId": List[int],  # NUMA ID列表
-            "memSize": List[int]      # 各NUMA借用内存大小列表
+            "memSize": List[int]      # 各NUMA借用内存大小列表，单位kB
         }
     ]
 }
@@ -250,7 +251,8 @@ class BorrowExecuteResT:
 
 ## 约束 CONSTRAINTS
 
-暂无
+- `pageSize` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页），缺失或取值非法时抛出 `ValueError`。
+- `memSize` 单位kB，建议为所选大页规格（2048kB或1048576kB）的整数倍，未对齐时服务端按页大小向上取整。
 
 ## 附注 NOTES
 
@@ -270,6 +272,7 @@ param = {
         "srcNumaId": 0
     },
     "borrowSize": 128,
+    "pageSize": 2048,  # 单位kB，仅支持2048或1048576
     "destParam": [
         {
             "destNid": "1",
@@ -728,6 +731,8 @@ class NodeInfoT:
     node_id: str                # 节点ID
     numa_infos: List[NumaInfoT] # NUMA信息列表
     is_current: bool            # 是否是查询节点
+    is_master: bool             # 是否是主节点
+    pod_id: str                 # 超节点ID（二层超节点ID），不可用时为空字符串
 ```
 
 ## 错误 ERRORS
@@ -761,6 +766,7 @@ from ubse.ubs_virt_agent_fragmentation import ubs_mem_fragmentation_node_info_li
 node_info_list = ubs_mem_fragmentation_node_info_list()
 for node_info in node_info_list:
     print(f"nodeId={node_info.node_id}, isCurrent={node_info.is_current}, "
+          f"isMaster={node_info.is_master}, podId={node_info.pod_id}, "
           f"numaCount={len(node_info.numa_infos)}")
 ```
 
@@ -801,6 +807,7 @@ class BorrowParamT:
     node_id: str                    # 源节点ID
     numa_meta_infos: List[NumaMetaInfoT]  # NUMA元信息列表
     borrow_size: int                # 借用大小，单位MB
+    page_size: int                  # 大页大小，单位kB，仅支持2048或1048576，必填
 ```
 
 ## 返回值 RETURN VALUE
@@ -833,7 +840,8 @@ class MemBorrowResultT:
 
 ## 约束 CONSTRAINTS
 
-暂无
+- `borrow_size` 单位MB（大规格虚机路径，服务端内部换算为kB后使用）。
+- `page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或取值非法时抛出 `ValueError`。
 
 ## 附注 NOTES
 
@@ -852,7 +860,8 @@ numa_meta_infos = [NumaMetaInfoT(numa_id=i) for i in range(4)]
 param = BorrowParamT(
     node_id="node0",
     numa_meta_infos=numa_meta_infos,
-    borrow_size=3145728  # 单位MB，此处借用3TB内存
+    borrow_size=3145728,  # 单位MB，此处借用3TB内存
+    page_size=2048        # 单位kB，仅支持2048或1048576
 )
 result = ubs_mem_borrow(param, is_async=True)
 for res in result:

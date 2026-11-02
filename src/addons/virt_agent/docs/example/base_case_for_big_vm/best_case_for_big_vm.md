@@ -139,7 +139,7 @@ echo 215 > /sys/devices/system/node/node3/hugepages/hugepages-1048576kB/nr_hugep
 
 返回值：
 class NumaInfoHugePageDataT:
- 	     page_size: int # 大页大小（字节）
+ 	     page_size: int # 大页大小，单位kB（2048或1048576）
  	     huge_page_total: int # 总大页数量
  	     huge_page_free: int # 可用大页数量
  	     
@@ -149,14 +149,16 @@ class NumaInfoT:
  	     numa_id: str # NUMA ID
  	     socket_id: int # 套接字ID
  	     is_local: int # 是否为本地NUMA
- 	     mem_total: int # 总内存（字节）
- 	     mem_free: int # 可用内存（字节）
- 	     numa_huge_page_info: Dict[int, NumaInfoHugePageDataT] # 大页信息字典，键为大页大小（字节），值为大页信息
+ 	     mem_total: int # 总内存，单位kB
+ 	     mem_free: int # 可用内存，单位kB
+ 	     numa_huge_page_info: Dict[int, NumaInfoHugePageDataT] # 大页信息字典，键为大页大小（单位kB），值为大页信息
  	     
 class NodeInfoT:
- 	     node_id: str # 节点ID
- 	     numa_infos: List[NumaInfoT] # 当前节点NUMA信息列表
- 	     is_current: bool # 是否为当前节点
+	     node_id: str # 节点ID
+	     numa_infos: List[NumaInfoT] # 当前节点NUMA信息列表
+	     is_current: bool # 是否为当前节点
+	     is_master: bool # 是否为主节点
+	     pod_id: str # 物理节点所在二层超节点ID（superPodId），读取失败时为空串
 ```
 ### 6.1.3 调用示例
 详见[test_node_info_list.py](../../../sdk/python/sample/test_node_info_list.py)
@@ -169,13 +171,13 @@ class NodeInfoT:
 ```
 参数：
 class NumaMetaInfoT:
- 	     socket_id: int # 套接字ID
  	     numa_id: int # NUMA ID
  	     
 class BorrowParamT:
  	     node_id: str # 节点id
  	     numa_meta_infos: List[NumaMetaInfoT] # numa元信息列表
  	     borrow_size: int # 借用内存大小，单位：MB
+ 	     page_size: int # 大页大小，单位kB（2048或1048576），必填，未设置（0）或非法值将报错
 
 is_async # 是否异步执行借用
 
