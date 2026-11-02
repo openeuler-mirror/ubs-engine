@@ -13,7 +13,8 @@ import ctypes
 from typing import Dict, Any, Tuple
 from ubse.ffi.ubs_virt_agent_base import UbsVirtAgentBase
 from ubse.models.ubs_virt_agent_model import BorrowExecuteResT
-from ubse.ffi.ubs_virt_agent_types import BorrowStrategy, MemBorrowSetting, MemBorrowResult
+from ubse.ffi.ubs_virt_agent_types import BorrowStrategy, MemBorrowSetting, MemBorrowResult, \
+    HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB
 from ubse.ffi.ubs_virt_agent_exceptions import UbsVirtAgentError
 
 
@@ -34,6 +35,11 @@ class UbsVirtAgentMemBorrowExecute(UbsVirtAgentBase):
         mem_borrow_setting = MemBorrowSetting()
         mem_borrow_setting.borrow_strategy = borrow_strategy
         mem_borrow_setting.is_async = is_async
+        page_size = param.get("pageSize")
+        if page_size not in (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB):
+            raise ValueError(
+                "pageSize must be %d or %d (kB)" % (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB))
+        mem_borrow_setting.page_size = page_size
 
         mem_borrow_result = MemBorrowResult()
 

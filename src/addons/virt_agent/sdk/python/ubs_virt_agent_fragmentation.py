@@ -100,6 +100,8 @@ def ubs_mem_fragmentation_node_info_list() -> List['NodeInfoT']:
             - node_id: Node ID
             - numa_infos: NUMA information list
             - is_current: Whether it is the current node
+            - is_master: Whether it is the master node
+            - pod_id: super pod ID (second-level super-node ID), empty when unavailable
     """
     return _node_info_list_interface.ubs_mem_fragmentation_node_info_list()
 
@@ -116,6 +118,7 @@ def ubs_mem_borrow(param: 'BorrowParamT', is_async: bool = False) -> List['MemBo
             - node_id: Source node ID
             - numa_meta_infos: NUMA meta information list (socket_id, numa_id)
             - borrow_size: Borrow size (MB)
+            - page_size: Huge page size in kB, only 2048 or 1048576, required
         is_async (bool): Whether to execute asynchronously, default is False (synchronous)
 
     Returns:

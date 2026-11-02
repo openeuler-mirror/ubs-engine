@@ -43,8 +43,10 @@ class UbsVirtAgentNodeInfoList(UbsVirtAgentBase):
         Returns:
             List[NodeInfoT]: Node information list, each element contains:
                 - node_id: Node ID
-                - numa_infos: NUMA information list
-                - is_current: Whether it is the current node
+            - numa_infos: NUMA information list
+            - is_current: Whether it is the current node
+            - is_master: Whether it is the master node
+            - pod_id: super pod ID (second-level super-node ID), empty when unavailable
 
         Raises:
             ConnectionError: Raised when native library is not loaded

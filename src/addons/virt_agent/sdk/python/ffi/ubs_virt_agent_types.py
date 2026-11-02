@@ -182,10 +182,15 @@ class BorrowStrategy(ctypes.Structure):
     ]
 
 
+HUGE_PAGE_SIZE_2M_KB = 2048
+HUGE_PAGE_SIZE_1G_KB = 1048576
+
+
 class MemBorrowSetting(ctypes.Structure):
     _fields_ = [
         ("borrow_strategy", BorrowStrategy),
-        ("is_async", ctypes.c_bool)
+        ("is_async", ctypes.c_bool),
+        ("page_size", ctypes.c_uint64)
     ]
 
 

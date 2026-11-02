@@ -58,6 +58,8 @@ def print_node_info(node_info):
     print(f"\n{'='*60}")
     print(f"节点ID: {node_info.node_id}")
     print(f"是否为当前节点: {'是' if node_info.is_current else '否'}")
+    print(f"是否为主节点: {'是' if node_info.is_master else '否'}")
+    print(f"二层超节点ID(superPodId): {node_info.pod_id if node_info.pod_id else '(未获取)'}")
     print(f"NUMA节点数量: {len(node_info.numa_infos)}")
     
     for i, numa_info in enumerate(node_info.numa_infos, 1):
