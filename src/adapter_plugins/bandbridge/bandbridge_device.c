@@ -191,7 +191,11 @@ static int bandbridge_validate_user_buf(struct bandbridge_mbuf* tmpbuf)
         bandbridge_log_err("[bandbridge_validate_user_buf] sq alloc size %d invalid.\n", sq_alloc_size);
         return -EINVAL;
     }
-    /* 线缆上一个完整消息头即一个 basic block，最小长度用协议常量而非 sizeof（UT 构建会丢失 packed 属性） */
+    /*
+     * 下限为一个 basic block（32字节）：线缆协议按整块传输，纯消息头也占满一块。
+     * 不用 sizeof(msg_header)：UT 构建的 mock 头会把 __attribute__ 重定义为空，
+     * packed 失效后 sizeof 从 32 漂移为 34，会误拒合法的最小消息。
+     */
     if (tmpbuf->sendbuf_size < CTRLQ_BB_SIZE || tmpbuf->sendbuf_size > sq_alloc_size) {
         bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d, min=%d.\n",
                            tmpbuf->sendbuf_size, sq_alloc_size, CTRLQ_BB_SIZE);

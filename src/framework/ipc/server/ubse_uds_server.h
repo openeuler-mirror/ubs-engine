@@ -111,7 +111,8 @@ protected:
     virtual uint32_t CreateServerSocket();
     virtual void HandleNewConnection();
     virtual bool GetClientCredentials(int socketFd, UbseClientInfo& info);
-    virtual bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
+    virtual bool CheckRequestPermission(const UbseClientInfo& clientInfo, const UbseRequestHeader& header,
+                                        uint64_t requestId);
 
     std::atomic<bool> running_{false};
     std::thread eventLoopThread_{};
@@ -153,23 +154,23 @@ private:
     void HandleRequest(int fd, const UbseRequestHeader& header, const std::vector<uint8_t>& buffer,
                        const UbseRequestContext& context);
     void CloseSession(int fd);
-    void HandleRead(ClientSession* session);
-    // 按fd处理写事件：锁内校验会话并取走待写数据，锁外仅使用fd与数据副本，
+    // 按fd处理读/写事件：锁内校验会话状态并取走所需数据副本，锁外仅使用fd与局部缓冲，
     // 避免跨线程CloseSession导致map节点失效后的悬空指针访问
+    void HandleRead(int fd);
     void HandleWrite(int fd);
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
     void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);
     void RemoveClientRequestId(uint64_t requestId);
-    void SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
+    void SubmitRequestTask(int fd, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
                            const UbseRequestContext& context);
-    void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);
+    void ProcessRequest(int fd, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);
     void RegisterLongLinkAsyncCallback(uint64_t reqId, UbseAsyncCallBack callBack);
 
-    void HandleRequest(ClientSession* session);
+    void HandleRequest(int fd);
     bool GetClientInfoByFd(int fd, UbseClientInfo& clientInfo);
     uint32_t SendReq(int fd, UbseRequestMessage requestMessage, void* ctx, UbseAsyncResponseHandler handler);
-    void ReceiveResponse(const ClientSession* session);
+    void ReceiveResponse(int fd);
     void ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage& response);
 
     void CheckAndCloseTimeoutSessions();

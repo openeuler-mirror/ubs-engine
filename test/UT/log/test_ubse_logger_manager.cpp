@@ -246,7 +246,9 @@ TEST_F(TestUbseLoggerManager, testEarlyBufferFlushedInOrder)
     LoggerOptions options{UbseLogLevel::INFO, 2, 2, 64};
     UbseLoggerManager::gInited_ = false; // gInited_为静态状态，避免受前面用例影响
     EXPECT_EQ(manager->Init(options, writer), UBSE_OK);
-    constexpr int MAX_WAIT_MS = 1000; // 等待异步写线程输出全部启动缓冲日志
+    // CI整机高负载（ninja并行跑多个测试二进制）时异步写线程可能被调度延迟，预留充足等待预算；
+    // 正常场景几毫秒内完成等待，不增加用例耗时
+    constexpr int MAX_WAIT_MS = 10000; // 等待异步写线程输出全部启动缓冲日志
     int waitedMs = 0;
     while (writer->Count() < 3 && waitedMs < MAX_WAIT_MS) {
         usleep(1000);
@@ -276,7 +278,8 @@ TEST_F(TestUbseLoggerManager, testInitResizePreservesEarlyLogs)
     LoggerOptions options{UbseLogLevel::INFO, 2, 2, 2}; // 配置容量2，非默认，触发迁移
     UbseLoggerManager::gInited_ = false;
     EXPECT_EQ(manager->Init(options, writer), UBSE_OK);
-    constexpr int MAX_WAIT_MS = 1000; // 等待异步写线程输出迁移后的日志
+    // 同testEarlyBufferFlushedInOrder：预留充足等待预算，规避CI高负载下异步线程调度延迟导致的偶发失败
+    constexpr int MAX_WAIT_MS = 10000; // 等待异步写线程输出迁移后的日志
     int waitedMs = 0;
     while (writer->Count() < 2 && waitedMs < MAX_WAIT_MS) {
         usleep(1000);

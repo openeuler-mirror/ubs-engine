@@ -42,10 +42,11 @@ public:
     void RegisterRoute(const std::string& path, const std::string& method, UbseHttpHandlerFunc handler);
 
 private:
-    UbseHttpServer() : running_(false){};
+    UbseHttpServer() : running_(false), threadDone_(false){};
     std::mutex routesMutex_;
     std::mutex serverMutex_; // 保护 server_ 的跨线程读写，避免数据竞争
     std::atomic<bool> running_;
+    std::atomic<bool> threadDone_; // 工作线程退出标志，TcpRun/UdsRun 退出时置位，Stop() 轮询等待
     std::unique_ptr<httplib::Server> server_;
     std::thread serverThread_;
     std::unordered_map<std::string, UbseHttpHandlerFunc> routes_;

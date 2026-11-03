@@ -30,7 +30,8 @@ private:
     void Stop() override;
     void HandleNewConnection() override;
     bool GetClientCredentials(int socketFd, UbseClientInfo& info) override;
-    bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId) override;
+    bool CheckRequestPermission(const UbseClientInfo& clientInfo, const UbseRequestHeader& header,
+                                uint64_t requestId) override;
 
     uint32_t BindVsockSocket() const;
     void LoadConfigServer();

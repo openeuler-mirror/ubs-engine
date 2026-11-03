@@ -91,6 +91,8 @@ bool UbseHttpServer::IsServerRunning()
 
 bool UbseHttpServer::Start(bool isTcpServer)
 {
+    // 复位上一轮线程退出标志；须先于 spawn，避免覆盖新线程退出时的置位
+    threadDone_.store(false);
     try {
         if (isTcpServer) {
             serverThread_ = std::thread(&UbseHttpServer::TcpRun, this);
@@ -114,14 +116,20 @@ bool UbseHttpServer::Start(bool isTcpServer)
 
 void UbseHttpServer::Stop()
 {
-    {
-        std::lock_guard<std::mutex> lock(serverMutex_);
-        if (server_) {
-            server_->stop();
-        }
-    }
     if (serverThread_.joinable()) {
+        // 轮询触发 stop() 直至线程退出，覆盖 server_ 晚赋值后进入 listen() 的窗口，
+        // 避免无人触发 stop() 导致 listen() 不返回、join() 永久挂起
+        while (!threadDone_.load()) {
+            {
+                std::lock_guard<std::mutex> lock(serverMutex_);
+                if (server_) {
+                    server_->stop();
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
+        }
         serverThread_.join();
+        threadDone_.store(false); // 复位退出标志，支持后续重新 Start
     }
 
     // 删除 UDS socket 文件
@@ -306,8 +314,26 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
     return sslServer;
 }
 
+// RAII 守卫：确保 TcpRun/UdsRun 的所有 return 及异常路径都置位线程退出标志
+class ThreadDoneGuard {
+public:
+    explicit ThreadDoneGuard(std::atomic<bool>& threadDone) : threadDone_(threadDone) {}
+    ~ThreadDoneGuard()
+    {
+        threadDone_.store(true);
+    }
+    ThreadDoneGuard(const ThreadDoneGuard&) = delete;
+    ThreadDoneGuard& operator=(const ThreadDoneGuard&) = delete;
+    ThreadDoneGuard(ThreadDoneGuard&&) = delete;
+    ThreadDoneGuard& operator=(ThreadDoneGuard&&) = delete;
+
+private:
+    std::atomic<bool>& threadDone_;
+};
+
 void UbseHttpServer::TcpRun()
 {
+    ThreadDoneGuard threadDoneGuard(threadDone_);
     try {
         auto server = CreateSslServer();
         if (!server) {
@@ -357,6 +383,7 @@ void UbseHttpServer::TcpRun()
 
 void UbseHttpServer::UdsRun()
 {
+    ThreadDoneGuard threadDoneGuard(threadDone_);
     try {
         auto server = std::make_unique<Server>();
         server->new_task_queue = []() -> httplib::ThreadPool* {

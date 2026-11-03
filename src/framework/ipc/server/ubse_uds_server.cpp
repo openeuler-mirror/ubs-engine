@@ -428,20 +428,12 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
         return;
     }
 
-    // 获取会话
-    ClientSession* session;
-    {
-        std::lock_guard<std::mutex> lock(sessionsMutex_);
-        auto it = sessions_.find(fd);
-        if (it == sessions_.end()) {
-            return;
-        }
-        session = &it->second;
-    }
-
     // 处理读事件
     if (events & EPOLLIN) {
-        HandleRead(session);
+        // 按fd处理读事件：HandleRead内部在锁内校验会话状态并置READING，
+        // 锁外仅使用fd与局部缓冲接收数据，不持有指向map节点的指针，
+        // 消除task executor线程经SendResponse失败路径并发CloseSession导致的悬空指针窗口
+        HandleRead(fd);
     }
 
     // 处理写事件
@@ -486,7 +478,8 @@ void UbseUDSServer::RemoveClientRequestId(uint64_t requestId)
     clientReqId_.erase(requestId);
 }
 
-bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
+bool UbseUDSServer::CheckRequestPermission(const UbseClientInfo& clientInfo, const UbseRequestHeader& header,
+                                           uint64_t requestId)
 {
     uint32_t ret = UBSE_OK;
     if (!UbseContext::GetInstance().IsAllModulesReady()) {
@@ -495,8 +488,8 @@ bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseReq
     }
 
     std::string userName{};
-    if (ret == UBSE_OK && ubse::utils::UbseOsUtil::GetUserNameById(session->clientInfo.uid, userName) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get username for UID: " << session->clientInfo.uid;
+    if (ret == UBSE_OK && ubse::utils::UbseOsUtil::GetUserNameById(clientInfo.uid, userName) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get username for UID: " << clientInfo.uid;
         ret = UBSE_ERR_PERMISSION_DENIED;
     }
 
@@ -510,8 +503,7 @@ bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseReq
         return true;
     }
     UBSE_LOG_ERROR << "Request permission check failed, moduleCode=" << header.moduleCode
-                   << ", opCode=" << header.opCode << ", uid=" << session->clientInfo.uid
-                   << ", ret=" << FormatRetCode(ret);
+                   << ", opCode=" << header.opCode << ", uid=" << clientInfo.uid << ", ret=" << FormatRetCode(ret);
     UbseResponseMessage response{{ret, 0}, nullptr};
     auto sendRet = SendResponse(requestId, response);
     if (sendRet != UBSE_OK) {
@@ -520,8 +512,8 @@ bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseReq
     return false;
 }
 
-void UbseUDSServer::SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header,
-                                      std::vector<uint8_t>&& bodyData, const UbseRequestContext& context)
+void UbseUDSServer::SubmitRequestTask(int fd, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
+                                      const UbseRequestContext& context)
 {
     auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule == nullptr) {
@@ -544,40 +536,52 @@ void UbseUDSServer::SubmitRequestTask(ClientSession* session, const UbseRequestH
         }
         return;
     }
-    if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
+    // 任务lambda仅按fd捕获，不持有指向sessions_节点的指针；
+    // fd为值类型，会话若已被其他线程移除，CloseSession内部为空操作
+    if (!taskExecutor->Execute([this, fd, header, data = std::move(bodyData), context]() {
             this->HandleRequest(fd, header, data, context);
         })) {
         UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
         // 清理clientReqId_表项, 该路径不经过SendResponse, 避免映射无界增长
         RemoveClientRequestId(context.requestId);
-        CloseSession(session->fd);
+        CloseSession(fd);
     }
 }
 
-void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHeader& header,
-                                   std::vector<uint8_t>&& bodyData)
+void UbseUDSServer::ProcessRequest(int fd, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData)
 {
     UBSE_LOG_DEBUG << "process request, module=" << header.moduleCode << ", opCode=" << header.opCode;
+    // 锁内拷贝clientInfo快照：权限校验与上下文构造仅使用值拷贝，
+    // 不持有指向sessions_节点的指针，避免其他线程并发CloseSession引发的use-after-free
+    UbseClientInfo clientInfo{};
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(fd);
+        if (it == sessions_.end()) {
+            return;
+        }
+        clientInfo = it->second.clientInfo;
+    }
     // 生成请求ID
-    auto requestId = GenerateAndRegisterRequestId(session->fd);
+    auto requestId = GenerateAndRegisterRequestId(fd);
     if (requestId == 0) {
         UBSE_LOG_ERROR << "Failed to generate request ID.";
-        CloseSession(session->fd);
+        CloseSession(fd);
         return;
     }
     // 记录请求的clientId，通过长连接回复客户端消息时，客户端映射对应的请求
     RecordClientRequestId(requestId, header.clientRequestId);
     // 权限校验
-    if (!CheckRequestPermission(session, header, requestId)) {
+    if (!CheckRequestPermission(clientInfo, header, requestId)) {
         return;
     }
     bool isPersistent = (header.moduleCode == UBSE_LONG_LINK_REGISTER);
     // 长连接注册请求
     if (isPersistent) {
-        return HandlePersistentSession(header, session->fd, requestId);
+        return HandlePersistentSession(header, fd, requestId);
     }
     // 更新session
-    if (!UpgradeSession(session->fd, false)) {
+    if (!UpgradeSession(fd, false)) {
         UBSE_LOG_ERROR << "Failed to upgrade session.";
         UbseResponseMessage response{{UBSE_ERR_IPC_CONNECTION_FAILED, 0}, nullptr};
         auto ret = SendResponse(requestId, response);
@@ -587,59 +591,76 @@ void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHead
         return;
     }
     // 创建请求上下文
-    UbseRequestContext context{session->clientInfo, requestId,
+    UbseRequestContext context{clientInfo, requestId,
                                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                          std::chrono::steady_clock::now().time_since_epoch())
                                                          .count()),
                                header.moduleCode, header.opCode};
 
-    // 更新会话状态
-    session->state = SessionState::PROCESSING;
+    // 锁内置PROCESSING并复验会话仍存在：期间会话可能被task executor线程关闭，
+    // 若已关闭则清理请求映射避免无界增长，不再提交任务
+    bool sessionAlive = false;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(fd);
+        if (it != sessions_.end()) {
+            it->second.state = SessionState::PROCESSING;
+            sessionAlive = true;
+        }
+    }
+    if (!sessionAlive) {
+        {
+            std::lock_guard<std::mutex> lock(requestMapMutex_);
+            requestIdToFd_.erase(requestId);
+        }
+        RemoveClientRequestId(requestId);
+        return;
+    }
 
     // 提交任务到线程池
-    SubmitRequestTask(session, header, std::move(bodyData), context);
+    SubmitRequestTask(fd, header, std::move(bodyData), context);
 }
 
-void UbseUDSServer::HandleRequest(ClientSession* session)
+void UbseUDSServer::HandleRequest(int fd)
 {
-    UBSE_LOG_DEBUG << "receive fd" << session->fd << " request.";
-    // 读取消息头
-    if (RecvMsg(session->fd, session->readBuffer.data(), sizeof(UbseRequestHeader), DEFAULT_SERVER_RECEIVE_TIMEOUT) !=
-        UBSE_OK) {
+    UBSE_LOG_DEBUG << "receive fd" << fd << " request.";
+    // 读取消息头：使用局部缓冲，仅以fd访问socket，不持有指向sessions_节点的指针
+    std::vector<uint8_t> readBuffer(sizeof(UbseRequestHeader));
+    if (RecvMsg(fd, readBuffer.data(), sizeof(UbseRequestHeader), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to receive message header.";
         // 客户端关闭连接
-        CloseSession(session->fd);
+        CloseSession(fd);
         return;
     }
     // 反序列化请求头
     UbseRequestHeader header{};
-    auto ret = memcpy_s(&header, sizeof(UbseRequestHeader), session->readBuffer.data(), sizeof(UbseRequestHeader));
+    auto ret = memcpy_s(&header, sizeof(UbseRequestHeader), readBuffer.data(), sizeof(UbseRequestHeader));
     if (ret != EOK) {
         UBSE_LOG_ERROR << "memcpy_s failed, " << FormatRetCode(ret);
-        CloseSession(session->fd);
+        CloseSession(fd);
         return;
     }
     // 检查最大消息大小
     if (header.bodyLen > UBSE_MESSAGE_SIZE) { // 10MB
         UBSE_LOG_ERROR << "Request body size " << header.bodyLen << " exceeds maximum allowed size.";
-        CloseSession(session->fd);
+        CloseSession(fd);
         return;
     }
 
     // 读取消息体
-    session->readBuffer.clear();
-    session->readBuffer.resize(header.bodyLen);
+    readBuffer.clear();
+    readBuffer.resize(header.bodyLen);
     size_t expectedSize = header.bodyLen;
 
     if (expectedSize > 0) {
-        if (RecvMsg(session->fd, session->readBuffer.data(), expectedSize, DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
+        if (RecvMsg(fd, readBuffer.data(), expectedSize, DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to receive message body.";
             // 客户端关闭连接
-            CloseSession(session->fd);
+            CloseSession(fd);
             return;
         }
     }
-    ProcessRequest(session, header, std::move(session->readBuffer));
+    ProcessRequest(fd, header, std::move(readBuffer));
 }
 
 void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage& response)
@@ -656,35 +677,43 @@ void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessa
     }
 }
 
-void UbseUDSServer::HandleRead(ClientSession* session)
+void UbseUDSServer::HandleRead(int fd)
 {
-    if (session == nullptr) {
-        UBSE_LOG_ERROR << "Session is nullptr";
-        return;
+    // 锁内校验会话状态并置READING，锁外仅使用fd与局部缓冲接收数据，
+    // 不再持有指向sessions_节点(值语义)的裸指针，消除task executor线程
+    // (经SendResponse失败路径)并发CloseSession引发的use-after-free
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        auto it = sessions_.find(fd);
+        if (it == sessions_.end()) {
+            return;
+        }
+        auto& session = it->second;
+        if (session.state != SessionState::CONNECT && session.state != SessionState::READING) {
+            UBSE_LOG_WARN << "Invalid session state=" << static_cast<uint32_t>(session.state);
+            return;
+        }
+        session.state = SessionState::READING;
     }
-    if (session->state != SessionState::CONNECT && session->state != SessionState::READING) {
-        UBSE_LOG_WARN << "Invalid session state=" << static_cast<uint32_t>(session->state);
-        return;
-    }
-    session->state = SessionState::READING;
+
     bool isResp;
-    if (RecvMsg(session->fd, &isResp, sizeof(bool), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
+    if (RecvMsg(fd, &isResp, sizeof(bool), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to receive msg flag";
-        CloseSession(session->fd);
+        CloseSession(fd);
         return;
     }
 
     if (!isResp) {
-        return HandleRequest(session);
+        return HandleRequest(fd);
     }
 
-    ReceiveResponse(session);
+    ReceiveResponse(fd);
 }
-void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession* session)
+void UbseUDSServer::ReceiveResponse(int fd)
 {
-    UBSE_LOG_DEBUG << "receive fd" << session->fd << " response.";
+    UBSE_LOG_DEBUG << "receive fd" << fd << " response.";
     UbseResponseHeader header{};
-    if (RecvMsg(session->fd, &header, sizeof(header), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
+    if (RecvMsg(fd, &header, sizeof(header), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
         UBSE_LOG_ERROR << "receive resp head failed";
         return;
     }
@@ -705,7 +734,7 @@ void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession* session)
         response.freeFunc = [](void* p) {
             delete[] static_cast<uint8_t*>(p);
         };
-        if (RecvMsg(session->fd, response.body, header.bodyLen, DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
+        if (RecvMsg(fd, response.body, header.bodyLen, DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
             delete[] response.body;
             response.body = nullptr;
             UBSE_LOG_ERROR << "receive resp body failed";
