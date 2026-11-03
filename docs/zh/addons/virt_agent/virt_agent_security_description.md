@@ -72,6 +72,11 @@ date: 2026-03-12
 | 归还节点借用内存   | `virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);`                                   | vm.fragmentation | ubs-scheduler |
 | 查询内存操作任务结果 | `virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);`                | vm.fragmentation | ubs-scheduler |
 | 借用失败后回滚    | `virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);`                                                    | vm.fragmentation | ubs-scheduler |
+| 查询集群节点内存信息 | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list);` | vm.query         | ubs-scheduler |
+| 查询集群节点虚拟机信息 | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info_list(vm_info_list_s *vm_info_list);` | vm.query         | ubs-scheduler |
+| 检测ubse服务是否存活 | `virt_agent_ret_t ubs_virt_agent_mem_fragmentation_heartbeat(void);` | vm.fragmentation | ubs-scheduler |
+| 内存借用 | `virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async, mem_borrow_result_s *result);` | vm.fragmentation | ubs-scheduler |
+| 设置页交换开关 | `virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable);` | vm.fragmentation | ubs-scheduler |
 
 ### 确定性热迁移接口
 
