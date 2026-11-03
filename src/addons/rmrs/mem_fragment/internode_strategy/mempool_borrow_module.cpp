@@ -1363,6 +1363,10 @@ MpResult MempoolBorrowModule::ProcessSingleBorrowInOverCommit(const SrcMemoryBor
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow] Mem borrow failed, size=" << opt.size << ", name=" << name
             << ", res=" << static_cast<uint32_t>(ret) << ".";
+        if (isFault && trackInFaultProcess) {
+            // 借用失败需移除登记，避免陈旧 borrowId 干扰后续归还判定
+            (void)BorrowIdInFaultProcess::Instance().Remove(name);
+        }
         return MapBorrowFailReason(ret);
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "ProcessSingleBorrowInOverCommit end.";

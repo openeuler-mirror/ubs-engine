@@ -299,17 +299,18 @@ uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer& req, U
     RmrsInStream inBuilder(req.data, req.len);
     inBuilder >> jsonMap;
 
-    // 更新内存值
-    auto& nodeNumaBindMap = OverCommitStorage::Instance().getNodeNumaBindMap();
+    // 更新内存值（经加锁接口写入，避免与 UpdateBindTypeDB/SelectBindTypeDB 并发访问 map）
+    std::unordered_map<std::string, NumaBindType> newBindMap;
     for (auto& [k, v] : jsonMap) {
         auto it = STR_TO_BIND_TYPE_MAP.find(v);
         if (it == STR_TO_BIND_TYPE_MAP.end()) {
             LOG_ERROR << "[MpElection][SyncData] Invalid bind type, key=" << k << ", value=" << v << ".";
             continue;
         };
-        nodeNumaBindMap[k] = it->second;
+        newBindMap[k] = it->second;
         LOG_DEBUG << "[MpElection][SyncData] JsonMap key=" << k << ", value=" << v << ".";
     }
+    (void)OverCommitStorage::Instance().UpdateBindTypeMap(newBindMap);
     UbseByteBuffer buffer{};
     RmrsOutStream outBuilder;
     outBuilder << jsonMap;

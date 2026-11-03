@@ -158,11 +158,16 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
 void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
                                                               uint32_t resCode)
 {
-    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
+    if (ctx == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx is null.";
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
+    if (respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] RespData is null.";
+        *result = MEM_POOLING_ERROR;
+        return;
+    }
     if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;

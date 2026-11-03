@@ -45,6 +45,7 @@ public:
         return instance;
     }
     MpResult UpdateBindTypeDB(const std::string& nodeId, const NumaBindType value);
+    MpResult UpdateBindTypeMap(const std::unordered_map<std::string, NumaBindType>& bindMap);
     MpResult SelectBindTypeDB();
     MpResult GetNumaBindType(const std::string& nodeId, NumaBindType& value);
     MpResult UpdateWaterMark(const uint16_t highWaterMark, const uint16_t lowWaterMark);

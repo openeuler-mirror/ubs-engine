@@ -800,12 +800,12 @@ MpResult OverCommitFaultMemIdModule::MemIdExecuteRpc(OverCommitFaultMemIdExecute
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
             delete[] data;
         }};
-    uint32_t ret;
-    UbseRpcSend(endpoint_fm_memid_execute, reqData, &ret,
-                over_commit::OverCommitFaultManagementHandler::MemIdExecuteResHandler);
-    if (ret != MEM_POOLING_OK) {
+    uint32_t ret = static_cast<uint32_t>(MEM_POOLING_ERROR);
+    uint32_t retRpc = UbseRpcSend(endpoint_fm_memid_execute, reqData, &ret,
+                                  over_commit::OverCommitFaultManagementHandler::MemIdExecuteResHandler);
+    if (retRpc != MEM_POOLING_OK || ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecuteRpc failed.";
-        return ret;
+        return MEM_POOLING_ERROR;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecuteRpc success.";
     return MEM_POOLING_OK;
@@ -919,6 +919,14 @@ MpResult OverCommitFaultMemIdModule::ExecuteMemBorrow(const BorrowRecord& record
         UbseResult errCode = UbseMemNumaCreateWithLender(uniqueName, borrower, lenders, usrInfo, outMemDesc);
         if (errCode == UBSE_OK && outMemDesc.numaId == targetNuma)
             return MEM_POOLING_OK;
+        if (errCode == UBSE_OK) {
+            // 命中非目标 numa 的借用需回滚，避免残留无法归还的内存块
+            UbseResult delRet = UbseMemNumaDelete(uniqueName, borrower);
+            if (delRet != UBSE_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << TAG << "Rollback borrow failed, name=" << uniqueName << ", ret=" << delRet << ".";
+            }
+        }
     }
 
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Cannot borrow new mem for target numa.";
