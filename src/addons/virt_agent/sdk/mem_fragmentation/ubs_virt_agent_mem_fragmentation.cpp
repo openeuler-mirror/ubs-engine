@@ -174,6 +174,11 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borro
             return VA_ERROR_INVALID_PARAM;
         }
     }
+    if (borrow_setting->page_size != HUGE_PAGE_SIZE_2M_KB && borrow_setting->page_size != HUGE_PAGE_SIZE_1G_KB) {
+        IPC_LOG_ERROR << "Invalid page_size: " << borrow_setting->page_size
+                      << ", supported values are 2048 and 1048576 (kB).";
+        return VA_ERROR_INVALID_PARAM;
+    }
 
     MemBorrowSettingMsg msg(*borrow_setting);
     auto res = msg.Serialize();
@@ -498,6 +503,55 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_
     return VA_SUCCESS;
 }
 
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info_list(vm_info_list_s* vm_info_list)
+{
+    if (vm_info_list == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: vm_info_list is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
+    constexpr ubse_api_buffer_t _requestBuffer = {};
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet = ubse_invoke_call(UBS_VA_QUERY, UBS_VA_VM_INFO_LIST, &_requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_BASE;
+    }
+    mem_fragmentation::MemFragmentationVmInfoListMsg repMsg(responseBuffer.buffer, responseBuffer.length);
+    if (const auto ret = repMsg.Deserialize(); ret != VA_SUCCESS) {
+        IPC_LOG_ERROR << "vm info list deserialize failed, err=" << ret;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_DESERIALIZE_FAILED;
+    }
+    const auto vmNodeList = repMsg.GetVmNodeInfoList();
+    ubse_api_buffer_free(&responseBuffer);
+    if (const auto ret = VmNodeInfoListToCStyle(vmNodeList, *vm_info_list); ret != VM_OK) {
+        IPC_LOG_ERROR << "VmNodeInfoListToCStyle failed, err=" << ret;
+        return VA_ERROR_BASE;
+    }
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_heartbeat(void)
+{
+    constexpr ubse_api_buffer_t _requestBuffer = {};
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet = ubse_invoke_call(UBS_VA_QUERY, UBS_VA_HEARTBEAT, &_requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "heartbeat ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_BASE;
+    }
+    ubse_api_buffer_free(&responseBuffer);
+    return VA_SUCCESS;
+}
+
 virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
                                            mem_borrow_result_s* result)
 {
@@ -509,6 +563,10 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, cons
     auto ret = BorrowParamFromCStyle(param, borrowParam);
     if (ret != VM_OK) {
         IPC_LOG_ERROR << "BorrowParamFromCStyle failed, err=" << ret;
+        return VA_ERROR_INVALID_PARAM;
+    }
+    if (borrowParam.pageSize != HUGE_PAGE_SIZE_2M_KB && borrowParam.pageSize != HUGE_PAGE_SIZE_1G_KB) {
+        IPC_LOG_ERROR << "Invalid page_size: " << param->page_size << ", supported values are 2048 and 1048576 (kB).";
         return VA_ERROR_INVALID_PARAM;
     }
     MemFragmentationMemBorrowParamMsg reqMsg(borrowParam, is_async);

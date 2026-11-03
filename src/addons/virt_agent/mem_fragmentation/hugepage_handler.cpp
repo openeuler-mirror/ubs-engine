@@ -27,72 +27,109 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-VmResult HugePageHandler::SetHugePages(const uint64_t& numaId, const uint64_t& borrowedSize)
+VmResult HugePageHandler::SetHugePages(const uint64_t& numaId, const uint64_t& borrowedSize, const uint64_t& pageSize)
 {
-    UBSE_LOG_INFO << "Set hugepages start.";
+    UBSE_LOG_INFO << "Set hugepages start, numaId=" << numaId << ", pageSize=" << pageSize << "kB.";
 
     // Directly execute the set hugepages operation on this node
-    HugePageInfo hugePageInfo{numaId, borrowedSize};
+    HugePageInfo hugePageInfo{numaId, borrowedSize, pageSize};
     auto ret = AllocateHugePages(hugePageInfo);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Set hugepages failed. " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Set hugepages failed, numaId=" << numaId << ", pageSize=" << pageSize << "kB. "
+                       << FormatRetCode(ret);
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "Set hugepages successfully.";
+    UBSE_LOG_INFO << "Set hugepages successfully, numaId=" << numaId << ", pageSize=" << pageSize << "kB.";
     return ret;
 }
 
 VmResult HugePageHandler::AllocateHugePages(const HugePageInfo& pageInfo)
 {
-    UBSE_LOG_INFO << "Allocate hugePages start, numaId=" << pageInfo.numaId
-                  << ", borrowSizes=" << pageInfo.borrowedSize;
+    UBSE_LOG_INFO << "Allocate hugePages start, numaId=" << pageInfo.numaId << ", borrowSizes=" << pageInfo.borrowedSize
+                  << ", pageSize=" << pageInfo.pageSize << "kB";
     std::string filePath;
-    VmResult ret = GetHugePageCanonicalPath(std::to_string(pageInfo.numaId), filePath);
+    VmResult ret = GetHugePageCanonicalPath(std::to_string(pageInfo.numaId), pageInfo.pageSize, filePath);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "GetHugePageCanonicalPath failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "GetHugePageCanonicalPath failed, pageSize=" << pageInfo.pageSize << "kB, "
+                       << FormatRetCode(ret);
         return VM_ERROR;
     }
     uint64_t originalHugePages;
     ret = GetCurrentHugePages(filePath, originalHugePages);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Get originalHugePages failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Get originalHugePages failed, pageSize=" << pageInfo.pageSize << "kB, "
+                       << FormatRetCode(ret);
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "NumaId=" << pageInfo.numaId << ", originalHugePages=" << originalHugePages;
-    // Calculate the size of the final large page allocation using 2M as the unit (round up if not divisible).
-    const uint64_t hugePages = (pageInfo.borrowedSize + (2 * MB_TO_BYTES - 1)) / (2 * MB_TO_BYTES);
+    UBSE_LOG_INFO << "NumaId=" << pageInfo.numaId << ", originalHugePages=" << originalHugePages
+                  << ", pageSize=" << pageInfo.pageSize << "kB";
+    // Calculate the size of the final large page allocation using pageSize as the unit (round up if not divisible).
+    const uint64_t pageSizeBytes = pageInfo.pageSize * 1024;
+    const uint64_t hugePages =
+        pageInfo.borrowedSize / pageSizeBytes + ((pageInfo.borrowedSize % pageSizeBytes == 0) ? 0 : 1);
+    if (pageInfo.borrowedSize % pageSizeBytes != 0) {
+        UBSE_LOG_WARN << "Borrowed size is not aligned to page size, rounding up, numaId=" << pageInfo.numaId
+                      << ", borrowedSize=" << pageInfo.borrowedSize << ", pageSize=" << pageInfo.pageSize
+                      << "kB, targetHugePages=" << hugePages;
+    }
     for (size_t count = 0; count < MAX_WRITE_HUGE_PAGE_RETRY_TIME; ++count) {
         ret = RewriteHugePages(filePath, hugePages);
         if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "RewriteHugePages failed, " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "RewriteHugePages failed, pageSize=" << pageInfo.pageSize
+                           << "kB, targetHugePages=" << hugePages << ", " << FormatRetCode(ret);
             return VM_ERROR;
         }
         ret = GetCurrentHugePages(filePath, originalHugePages);
         if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Get originalHugePages failed," << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Get originalHugePages failed, pageSize=" << pageInfo.pageSize << "kB, "
+                           << FormatRetCode(ret);
             return VM_ERROR;
         }
         if (originalHugePages != hugePages) {
-            UBSE_LOG_WARN << "Allocate hugePages not enough, one last try.";
+            UBSE_LOG_WARN << "Allocate hugePages not enough, one last try, numaId=" << pageInfo.numaId
+                          << ", pageSize=" << pageInfo.pageSize << "kB, targetHugePages=" << hugePages
+                          << ", currentHugePages=" << originalHugePages;
             sleep(WRITE_HUGE_PAGE_RETRY_INTERVAL);
             continue;
         }
-        UBSE_LOG_INFO << "Allocate hugePages successed.";
+        UBSE_LOG_INFO << "Allocate hugePages successed, numaId=" << pageInfo.numaId
+                      << ", pageSize=" << pageInfo.pageSize << "kB, targetHugePages=" << hugePages;
         return VM_OK;
     }
-    UBSE_LOG_INFO << "Allocate hugePages failed.";
+    UBSE_LOG_INFO << "Allocate hugePages failed, numaId=" << pageInfo.numaId << ", pageSize=" << pageInfo.pageSize
+                  << "kB, targetHugePages=" << hugePages;
     return VM_ERROR;
 }
 
-VmResult HugePageHandler::GetHugePageCanonicalPath(const std::string& numaId, std::string& filePath)
+VmResult HugePageHandler::GetHugePageDirName(const uint64_t& pageSize, std::string& dirName)
+{
+    if (pageSize == HUGE_PAGE_SIZE_2M_KB) {
+        dirName = "/hugepages/hugepages-2048kB/nr_hugepages";
+        return VM_OK;
+    }
+    if (pageSize == HUGE_PAGE_SIZE_1G_KB) {
+        dirName = "/hugepages/hugepages-1048576kB/nr_hugepages";
+        return VM_OK;
+    }
+    UBSE_LOG_ERROR << "Invalid pageSize: " << pageSize << "kB, supported values are 2048 and 1048576 (kB).";
+    return VM_ERROR;
+}
+
+VmResult HugePageHandler::GetHugePageCanonicalPath(const std::string& numaId, const uint64_t& pageSize,
+                                                   std::string& filePath)
 {
     if (!std::all_of(begin(numaId), end(numaId), [](char c) { return std::isdigit(c); })) {
         UBSE_LOG_ERROR << "numaId must be all digit.";
         return VM_ERROR;
     }
-    filePath = HUGEPAGES_PATH_HEAD + numaId + HUGEPAGES_PATH_TAIL;
+    std::string pathTail;
+    VmResult ret = GetHugePageDirName(pageSize, pathTail);
+    if (ret != VM_OK) {
+        return ret;
+    }
+    filePath = HUGEPAGES_PATH_HEAD + numaId + pathTail;
     if (!VmFileUtil::CanonicalPath(filePath)) {
-        UBSE_LOG_ERROR << "HugePage path is invalid, filePath: " << filePath;
+        UBSE_LOG_ERROR << "HugePage path is invalid, pageSize=" << pageSize << "kB, filePath: " << filePath;
         return VM_ERROR;
     }
     return VM_OK;

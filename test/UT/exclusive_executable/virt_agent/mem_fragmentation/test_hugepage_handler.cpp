@@ -29,7 +29,7 @@ void TestHugepageHandler::TearDown()
 TEST_F(TestHugepageHandler, SetHugePages)
 {
     MOCKER(HugePageHandler::AllocateHugePages).stubs().will(returnValue(VM_OK));
-    auto ret = HugePageHandler::SetHugePages(0, 1024);
+    auto ret = HugePageHandler::SetHugePages(0, 1024, HUGE_PAGE_SIZE_2M_KB);
     EXPECT_EQ(ret, VM_OK);
     GlobalMockObject::verify();
 }
@@ -37,14 +37,14 @@ TEST_F(TestHugepageHandler, SetHugePages)
 TEST_F(TestHugepageHandler, SetHugePagesFail)
 {
     MOCKER(HugePageHandler::AllocateHugePages).stubs().will(returnValue(VM_ERROR));
-    auto ret = HugePageHandler::SetHugePages(0, 1024);
+    auto ret = HugePageHandler::SetHugePages(0, 1024, HUGE_PAGE_SIZE_2M_KB);
     EXPECT_EQ(ret, VM_ERROR);
     GlobalMockObject::verify();
 }
 
 TEST_F(TestHugepageHandler, AllocateHugePages)
 {
-    HugePageInfo info{0, 1024};
+    HugePageInfo info{0, 1024, HUGE_PAGE_SIZE_2M_KB};
     uint64_t hugePages = (info.borrowedSize + (2 * MB_TO_BYTES - 1)) / (2 * MB_TO_BYTES);
     MOCKER(HugePageHandler::GetHugePageCanonicalPath).stubs().will(returnValue(VM_OK));
     MOCKER(HugePageHandler::GetCurrentHugePages).stubs().will(returnValue(VM_OK));
@@ -60,7 +60,7 @@ TEST_F(TestHugepageHandler, AllocateHugePages)
 
 TEST_F(TestHugepageHandler, GetCurrentHugePagesFail2ndTime)
 {
-    HugePageInfo info{0, 1024};
+    HugePageInfo info{0, 1024, HUGE_PAGE_SIZE_2M_KB};
     uint64_t hugePages = (info.borrowedSize + (2 * MB_TO_BYTES - 1)) / (2 * MB_TO_BYTES);
     MOCKER(HugePageHandler::GetHugePageCanonicalPath).stubs().will(returnValue(VM_OK));
     MOCKER(HugePageHandler::GetCurrentHugePages)
@@ -76,7 +76,7 @@ TEST_F(TestHugepageHandler, GetCurrentHugePagesFail2ndTime)
 
 TEST_F(TestHugepageHandler, AllocateHugePagesGetHugePageCanonicalPathFail)
 {
-    HugePageInfo info{0, 1024};
+    HugePageInfo info{0, 1024, HUGE_PAGE_SIZE_2M_KB};
     uint64_t hugePages = (info.borrowedSize + (2 * MB_TO_BYTES - 1)) / (2 * MB_TO_BYTES);
     MOCKER(HugePageHandler::GetHugePageCanonicalPath).stubs().will(returnValue(VM_ERROR));
     auto ret = HugePageHandler::AllocateHugePages(info);
@@ -88,7 +88,7 @@ TEST_F(TestHugepageHandler, GetHugePageCanonicalPath)
 {
     std::string path;
     MOCKER(VmFileUtil::CanonicalPath).stubs().will(returnValue(true));
-    auto ret = HugePageHandler::GetHugePageCanonicalPath("1", path);
+    auto ret = HugePageHandler::GetHugePageCanonicalPath("1", HUGE_PAGE_SIZE_2M_KB, path);
     EXPECT_EQ(ret, VM_OK);
     GlobalMockObject::verify();
 }

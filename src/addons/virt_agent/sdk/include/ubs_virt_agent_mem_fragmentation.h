@@ -28,7 +28,7 @@ typedef struct {
     int16_t numaId;   // CPU NUMA ID
     int16_t socketId; // CPU socket ID
     bool isLocal;
-    uint64_t pageSize; // VM page size, default is 2 MB huge pages (2048 KBytes)
+    uint64_t pageSize; // VM page size in kB, only 2048 (2M) or 1048576 (1G) is valid; 0 when not configured
     int64_t usedMem;
 } vm_numa_info_t;
 
@@ -146,6 +146,19 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam);
 
 /** ==============big memory virtual machine============== */
 virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s* node_info_list);
+
+/**
+ * @brief  query vm information of all nodes in the cluster
+ * @param vm_info_list [OUT] vm information list of all nodes
+ * @return 0 for success, non-zero for error
+ */
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info_list(vm_info_list_s* vm_info_list);
+
+/**
+ * @brief  detect whether the local ubse service is alive
+ * @return 0 for success (service alive), non-zero for error (service unreachable)
+ */
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_heartbeat(void);
 
 virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
                                            mem_borrow_result_s* result);

@@ -21,6 +21,7 @@ OVERCOMMITMENT_RATIO_MAX = 128
 MIGRATE_WATER_LINE_MAX = 128
 MSG_MAX_LENGTH = 128
 VIRT_MAX_NODE_ID_LENGTH = 48
+VIRT_MAX_POD_ID_LENGTH = 48
 MAX_BORROW_ID_COUNT = 100
 MAX_VM_NUM = 300
 MAX_BORROW_ID_LENGTH = 128
@@ -260,7 +261,10 @@ class NodeInfoC(ctypes.Structure):
         ("node_id", ctypes.c_char * VIRT_MAX_NODE_ID_LENGTH),
         ("numa_infos", ctypes.POINTER(NumaInfo)),
         ("numa_len", ctypes.c_uint32),
-        ("is_current", ctypes.c_bool)
+        ("is_current", ctypes.c_bool),
+        ("is_master", ctypes.c_bool),
+        ("pod_id", ctypes.c_void_p),
+        ("pod_id_len", ctypes.c_uint32)
     ]
 
 
@@ -287,6 +291,8 @@ class NodeInfoListC(ctypes.Structure):
         if self.node_infos:
             for i in range(self.node_len):
                 node_info = self.node_infos[i]
+                if node_info.pod_id:
+                    free_func(node_info.pod_id)
                 if node_info.numa_infos:
                     for j in range(node_info.numa_len):
                         numa_info = node_info.numa_infos[j]
@@ -321,7 +327,8 @@ class MemBorrowParamC(ctypes.Structure):
         ("src_nid", ctypes.c_char * VIRT_MAX_NODE_ID_LENGTH),
         ("numa_meta_infos", ctypes.POINTER(NumaMetaInfoC)),
         ("numa_len", ctypes.c_uint32),
-        ("borrow_size", ctypes.c_uint64)
+        ("borrow_size", ctypes.c_uint64),
+        ("page_size", ctypes.c_uint64)
     ]
 
 

@@ -32,6 +32,7 @@ using namespace vm::mempooling;
 struct VMMemoryBorrowParam {
     SrcMemoryBorrowParam srcParam{};
     std::vector<DestMemoryBorrowParam> destParam{};
+    uint64_t pageSize{};
 };
 
 struct VMMigrateParam {
@@ -46,6 +47,7 @@ struct AsyncBorrowCtx {
     std::condition_variable cv;
     int pendingCount{0};                     // Remaining borrow thread count, protected by lock
     std::vector<std::string> successTaskIds; // taskIds that succeeded in phase-1
+    uint64_t pageSize{0};                    // Hugepage size (kB) requested by this borrow batch, 2048 or 1048576
 };
 
 class VirtMemFragSdk {
@@ -90,8 +92,8 @@ private:
     static void ExecuteAsyncMemBorrow(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
                                       const UbseRequestContext& context);
     static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult& migrateStrategyResult, UbseIpcMessage& buffer);
-    static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult);
-    static VmResult SetSrcNodeHugePageGlobal();
+    static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult, const uint64_t& pageSize);
+    static VmResult SetSrcNodeHugePageGlobal(const uint64_t& pageSize);
     /** ==============big memory virtual machine============== */
     static VmResult NodeInfoListSerialize(const std::vector<mem_fragmentation::NodeInfo>& nodeInfoList,
                                           UbseIpcMessage& resp);
@@ -102,12 +104,22 @@ private:
     static void GetRemoteNodeInfoMasterHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
     static VmResult GetRemoteNodeInfoDestReceiver(const UbseByteBuffer& req, UbseByteBuffer& rep);
     static VmResult GetNodeInfoList(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult VmInfoListSerialize(const std::vector<mem_fragmentation::VmNodeInfo>& vmNodeInfoList,
+                                        UbseIpcMessage& resp);
+    static VmResult GetVmInfoFromRemote(const std::string& nodeId,
+                                        std::vector<mem_fragmentation::VmNodeInfo>& vmInfoList);
+    static void GetRemoteVmInfoSrcHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+    static VmResult GetRemoteVmInfoMasterReceiver(const UbseByteBuffer& req, UbseByteBuffer& rep);
+    static void GetRemoteVmInfoMasterHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+    static VmResult GetRemoteVmInfoDestReceiver(const UbseByteBuffer& req, UbseByteBuffer& rep);
+    static VmResult GetVmInfoList(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult Heartbeat(const UbseIpcMessage& req, const UbseRequestContext& context);
     static VmResult BorrowParamDeserialize(const UbseIpcMessage& req, mem_fragmentation::BorrowParam& borrowParam,
                                            bool& isAsync);
     static VmResult MemBorrowStrategyByRMRS(const mem_fragmentation::BorrowParam& borrowParam,
                                             std::vector<MemBorrowStrategyResult>& borrowResult);
     static VmResult SyncRunBorrowExec(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
-                                      mem_borrow_result_c& memBorrowRstC);
+                                      mem_borrow_result_c& memBorrowRstC, const uint64_t& pageSize);
     static VmResult ExecBorrowCore(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
                                    MemBorrowExecuteResult& memBorrowExecRst);
     // AsyncMemBorrowExec two-phase: borrow threads run phase-1 + result archiving, watcher thread runs phase-2 global hugepage after all borrows complete
@@ -116,9 +128,9 @@ private:
     static void AsyncBorrowWatcher(std::shared_ptr<AsyncBorrowCtx> ctx);
     static void AsyncBorrowCountDown(std::shared_ptr<AsyncBorrowCtx> ctx, size_t count = 1);
     static VmResult SyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,
-                                      std::vector<mem_borrow_result_c>& memBorrowRstCs);
+                                      std::vector<mem_borrow_result_c>& memBorrowRstCs, const uint64_t& pageSize);
     static VmResult AsyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,
-                                       std::vector<mem_borrow_result_c>& memBorrowRstCs);
+                                       std::vector<mem_borrow_result_c>& memBorrowRstCs, const uint64_t& pageSize);
     static VmResult BorrowResultSerialize(const std::vector<mem_borrow_result_c>& memBorrowRstCs, UbseIpcMessage& resp);
     static VmResult MemBorrow(const UbseIpcMessage& req, const UbseRequestContext& context);
     static VmResult PageSwapEnableParamSerialize(const UbseIpcMessage& req, pid_t& pid,

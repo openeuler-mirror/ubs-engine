@@ -313,12 +313,14 @@ struct AlarmNumaInfo {
 struct HugePageInfo {
     uint64_t numaId{};
     uint64_t borrowedSize{};
+    uint64_t pageSize{};
     std::string ToString() const
     {
         std::ostringstream oss;
         oss << "{";
         oss << R"("numaId": )" << numaId << R"(, )";
-        oss << R"("borrowSize": )" << borrowedSize;
+        oss << R"("borrowSize": )" << borrowedSize << R"(, )";
+        oss << R"("pageSize": )" << pageSize;
         oss << "}";
         return oss.str();
     }

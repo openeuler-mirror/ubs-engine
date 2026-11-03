@@ -320,6 +320,9 @@ VmResult MemFragmentationVmInfoMsg::Deserialize()
         in >> info.metaData.pid;
         size_t numaInfoSize = 0;
         in >> numaInfoSize;
+        if (numaInfoSize > MAX_NUMA_NUM) {
+            return VM_ERROR_INVAL;
+        }
         for (size_t j = 0; j < numaInfoSize; j++) {
             int16_t numaId = 0;
             VmDomainNumaInfo vmDomainNumaInfo{};
@@ -544,6 +547,10 @@ VmResult MemBorrowSettingMsg::Serialize()
     if (!out.Check()) {
         return VM_ERROR;
     }
+    out << borrowSettingC_.page_size;
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
 
     mOutputRawDataSize = out.GetLength();
     mOutputRawData = out.GetBuffer(true);
@@ -603,6 +610,10 @@ VmResult MemBorrowSettingMsg::Deserialize()
     }
 
     in >> borrowSettingC_.isAsync;
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    in >> borrowSettingC_.page_size;
     if (!in.Check()) {
         return VM_ERROR;
     }
@@ -1184,7 +1195,7 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Serialize()
     VmSerialization out;
     auto nodeInfoListCount = nodeInfoList.size();
     out << nodeInfoListCount;
-    for (auto& [nodeId, numaInfos, isCurrent] : nodeInfoList) {
+    for (auto& [nodeId, numaInfos, isCurrent, isMaster, podId] : nodeInfoList) {
         out << nodeId;
         auto numaInfosCount = numaInfos.size();
         out << numaInfosCount;
@@ -1206,6 +1217,8 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Serialize()
             }
         }
         out << isCurrent;
+        out << isMaster;
+        out << podId;
     }
     if (!out.Check()) {
         return VM_ERROR;
@@ -1263,7 +1276,124 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Deserialize()
             nodeInfo.numaInfos.emplace_back(std::move(numaInfo));
         }
         in >> nodeInfo.isCurrent;
+        in >> nodeInfo.isMaster;
+        in >> nodeInfo.podId;
         nodeInfoList.emplace_back(std::move(nodeInfo));
+    }
+
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationVmInfoListMsg::Serialize()
+{
+    VmSerialization out;
+    auto vmNodeInfoListCount = vmNodeInfoList.size();
+    if (vmNodeInfoListCount > MAX_NODE_NUM) {
+        return VM_ERROR_INVAL;
+    }
+    out << vmNodeInfoListCount;
+    for (auto& [nodeId, vmInfos, isCurrent, isMaster, podId] : vmNodeInfoList) {
+        out << nodeId;
+        auto vmInfosCount = vmInfos.size();
+        if (vmInfosCount > MAX_VM_NUM) {
+            return VM_ERROR_INVAL;
+        }
+        out << vmInfosCount;
+        for (auto& info : vmInfos) {
+            out << info.metaData.nodeId;
+            out << info.metaData.hostName;
+            out << info.metaData.uuid;
+            out << info.metaData.name;
+            out << info.metaData.state;
+            out << info.metaData.vmCreateTime;
+            out << info.metaData.maxMem;
+            out << info.metaData.pid;
+            auto numaInfoSize = info.numaInfo.size();
+            out << numaInfoSize;
+            for (auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
+                out << numaId;
+                out << vmDomainNumaInfo.numaId;
+                out << vmDomainNumaInfo.pageSize;
+                out << vmDomainNumaInfo.usedMem;
+                out << vmDomainNumaInfo.socketId;
+                out << vmDomainNumaInfo.isLocal;
+            }
+            out << info.timestamp;
+        }
+        out << isCurrent;
+        out << isMaster;
+        out << podId;
+    }
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = out.GetBuffer(true);
+    mOutputRawDataOwned = false;
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationVmInfoListMsg::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        return VM_ERROR_NULLPTR;
+    }
+    VmDeSerialization in(mInputRawData, mInputRawDataSize);
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+
+    size_t vmNodeInfoListCount{};
+    in >> vmNodeInfoListCount;
+    if (vmNodeInfoListCount > MAX_NODE_NUM) {
+        return VM_ERROR_INVAL;
+    }
+    vmNodeInfoList.reserve(vmNodeInfoListCount);
+    for (size_t i = 0; i < vmNodeInfoListCount; i++) {
+        VmNodeInfo vmNodeInfo{};
+        in >> vmNodeInfo.nodeId;
+        size_t vmInfosCount{};
+        in >> vmInfosCount;
+        if (vmInfosCount > MAX_VM_NUM) {
+            return VM_ERROR_INVAL;
+        }
+        vmNodeInfo.vmInfos.reserve(vmInfosCount);
+        for (size_t j = 0; j < vmInfosCount; j++) {
+            mempooling::VmDomainInfo info;
+            in >> info.metaData.nodeId;
+            in >> info.metaData.hostName;
+            in >> info.metaData.uuid;
+            in >> info.metaData.name;
+            in >> info.metaData.state;
+            in >> info.metaData.vmCreateTime;
+            in >> info.metaData.maxMem;
+            in >> info.metaData.pid;
+            size_t numaInfoSize = 0;
+            in >> numaInfoSize;
+            if (numaInfoSize > MAX_NUMA_NUM) {
+                return VM_ERROR_INVAL;
+            }
+            for (size_t k = 0; k < numaInfoSize; k++) {
+                int16_t numaId = 0;
+                VmDomainNumaInfo vmDomainNumaInfo{};
+                in >> numaId;
+                in >> vmDomainNumaInfo.numaId;
+                in >> vmDomainNumaInfo.pageSize;
+                in >> vmDomainNumaInfo.usedMem;
+                in >> vmDomainNumaInfo.socketId;
+                in >> vmDomainNumaInfo.isLocal;
+                info.numaInfo.emplace(numaId, vmDomainNumaInfo);
+            }
+            in >> info.timestamp;
+            vmNodeInfo.vmInfos.emplace_back(std::move(info));
+        }
+        in >> vmNodeInfo.isCurrent;
+        in >> vmNodeInfo.isMaster;
+        in >> vmNodeInfo.podId;
+        vmNodeInfoList.emplace_back(std::move(vmNodeInfo));
     }
 
     if (!in.Check()) {
@@ -1282,6 +1412,7 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Serialize()
         out << numaId;
     }
     out << borrowPram.borrowSize;
+    out << borrowPram.pageSize;
     out << isAsync;
     if (!out.Check()) {
         return VM_ERROR;
@@ -1315,6 +1446,7 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Deserialize()
         borrowPram.numaMetaInfos.emplace_back(std::move(numaMetaInfo));
     }
     in >> borrowPram.borrowSize;
+    in >> borrowPram.pageSize;
     in >> isAsync;
 
     if (!in.Check()) {
