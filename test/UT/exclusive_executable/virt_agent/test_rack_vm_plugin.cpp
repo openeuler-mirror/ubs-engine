@@ -26,6 +26,7 @@
 #include "resource_collect.h"
 #include "router.h"
 #include "status_manager.h"
+#include "test_virtagent_exit_guard.h"
 #include "vm_configuration.h"
 #include "vm_error.h"
 
@@ -65,6 +66,7 @@ void TestDlcloseUbseVmPlugin()
 void TestUbseVmPlugin::SetUp()
 {
     Test::SetUp();
+    InstallVirtAgentExitGuard();
     TestDlopenUbseVmPlugin();
 }
 
