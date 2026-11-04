@@ -1198,18 +1198,12 @@ void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string &nodeId)
     }
     UBSE_LOG_INFO << "nodeId=" << nodeId
                   << " node up, before collect ledger current state=" << static_cast<uint32_t>(nodeInfo.clusterState);
-    // 预下电，故障，断连等异常场景不进行对账；
     // smoothing 表示节点已经在对账流程中，不对账；
-    // init为初始静态数据 或者 节点首次上报，等待节点上线事件触发后启动对账
-    // 已进入故障上报计数流程的节点，等待150次上报，避免上线事件提前触发对账。
-    bool waitingFaultReports = false;
-    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
-        std::lock_guard<std::mutex> lock(faultCountersMutex_);
-        waitingFaultReports = faultReportCounters_.find(nodeId) != faultReportCounters_.end();
-    }
-
-    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING || waitingFaultReports) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, smoothing or waiting fault reports, skip ledger";
+    // FAULT节点不跳过NODE_UP对账：60s故障保护窗(FAULT_STATE_PROTECT_SECONDS)内状态机层拒绝
+    // SMOOTHING迁移（窗内NODE_UP被消耗），窗过后NODE_UP可直接驱动FAULT→SMOOTHING；
+    // 150次上报(约5min)保留作为NODE_UP被保护窗消耗后的兜底恢复通道
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, smoothing, skip ledger";
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
