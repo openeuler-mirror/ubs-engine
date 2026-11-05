@@ -430,17 +430,11 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
 
     // 处理读事件
     if (events & EPOLLIN) {
-        // 按fd处理读事件：HandleRead内部在锁内校验会话状态并置READING，
-        // 锁外仅使用fd与局部缓冲接收数据，不持有指向map节点的指针，
-        // 消除task executor线程经SendResponse失败路径并发CloseSession导致的悬空指针窗口
         HandleRead(fd);
     }
 
     // 处理写事件
     if (events & EPOLLOUT) {
-        // 按fd处理写事件：HandleWrite内部在锁内校验会话并取走待写数据，
-        // 锁外仅使用fd与数据副本发送，不持有指向map节点的指针，
-        // 消除task executor线程经SendResponse失败路径并发CloseSession导致的悬空指针窗口
         HandleWrite(fd);
     }
 }
@@ -518,7 +512,6 @@ void UbseUDSServer::SubmitRequestTask(int fd, const UbseRequestHeader& header, s
     auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule == nullptr) {
         UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
-        // 发送错误响应, SendResponse内部会清理clientReqId_表项, 同时避免客户端同步等待挂死
         UbseResponseMessage response{{UBSE_ERR_DAEMON_UNREACHABLE, 0}, nullptr};
         auto ret = SendResponse(context.requestId, response);
         if (ret != UBSE_OK) {
@@ -536,13 +529,10 @@ void UbseUDSServer::SubmitRequestTask(int fd, const UbseRequestHeader& header, s
         }
         return;
     }
-    // 任务lambda仅按fd捕获，不持有指向sessions_节点的指针；
-    // fd为值类型，会话若已被其他线程移除，CloseSession内部为空操作
     if (!taskExecutor->Execute([this, fd, header, data = std::move(bodyData), context]() {
             this->HandleRequest(fd, header, data, context);
         })) {
         UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
-        // 清理clientReqId_表项, 该路径不经过SendResponse, 避免映射无界增长
         RemoveClientRequestId(context.requestId);
         CloseSession(fd);
     }
@@ -551,8 +541,6 @@ void UbseUDSServer::SubmitRequestTask(int fd, const UbseRequestHeader& header, s
 void UbseUDSServer::ProcessRequest(int fd, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData)
 {
     UBSE_LOG_DEBUG << "process request, module=" << header.moduleCode << ", opCode=" << header.opCode;
-    // 锁内拷贝clientInfo快照：权限校验与上下文构造仅使用值拷贝，
-    // 不持有指向sessions_节点的指针，避免其他线程并发CloseSession引发的use-after-free
     UbseClientInfo clientInfo{};
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
@@ -597,8 +585,6 @@ void UbseUDSServer::ProcessRequest(int fd, const UbseRequestHeader& header, std:
                                                          .count()),
                                header.moduleCode, header.opCode};
 
-    // 锁内置PROCESSING并复验会话仍存在：期间会话可能被task executor线程关闭，
-    // 若已关闭则清理请求映射避免无界增长，不再提交任务
     bool sessionAlive = false;
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
@@ -624,7 +610,6 @@ void UbseUDSServer::ProcessRequest(int fd, const UbseRequestHeader& header, std:
 void UbseUDSServer::HandleRequest(int fd)
 {
     UBSE_LOG_DEBUG << "receive fd" << fd << " request.";
-    // 读取消息头：使用局部缓冲，仅以fd访问socket，不持有指向sessions_节点的指针
     std::vector<uint8_t> readBuffer(sizeof(UbseRequestHeader));
     if (RecvMsg(fd, readBuffer.data(), sizeof(UbseRequestHeader), DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to receive message header.";
@@ -679,9 +664,6 @@ void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessa
 
 void UbseUDSServer::HandleRead(int fd)
 {
-    // 锁内校验会话状态并置READING，锁外仅使用fd与局部缓冲接收数据，
-    // 不再持有指向sessions_节点(值语义)的裸指针，消除task executor线程
-    // (经SendResponse失败路径)并发CloseSession引发的use-after-free
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
         auto it = sessions_.find(fd);
@@ -754,9 +736,6 @@ void UbseUDSServer::ReceiveResponse(int fd)
 
 void UbseUDSServer::HandleWrite(int fd)
 {
-    // 锁内校验会话状态并取走待写数据，锁外仅使用fd与数据副本，
-    // 不再持有指向sessions_节点(值语义)的裸指针，避免其他线程
-    // (task executor经SendResponse失败路径)并发CloseSession引发的use-after-free
     std::vector<uint8_t> sendBuffer;
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
@@ -774,13 +753,12 @@ void UbseUDSServer::HandleWrite(int fd)
     if (!sendBuffer.empty() &&
         SendMsg(fd, sendBuffer.data(), sendBuffer.size(), DEFAULT_SERVER_SEND_TIMEOUT) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to send message";
-        // 发送失败按fd关闭会话；fd为值类型，若会话已被其他线程移除，RemoveSession内部为空操作
         CloseSession(fd);
         return;
     }
 
-    // 发送成功后按fd重新校验会话：发送期间会话可能已被其他线程关闭
     bool isShortLink = false;
+    bool hasPendingWrite = false;
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
         auto it = sessions_.find(fd);
@@ -792,6 +770,8 @@ void UbseUDSServer::HandleWrite(int fd)
         if (isShortLink) {
             // 记录开始预关闭的时间点
             session.closingStartTime = std::chrono::steady_clock::now();
+        } else if (!session.writeBuffer.empty()) {
+            hasPendingWrite = true;
         } else {
             session.state = SessionState::CONNECT;
         }
@@ -803,7 +783,7 @@ void UbseUDSServer::HandleWrite(int fd)
         RemoveSession(fd, true);
         // 强制关闭超时未关闭session
         CheckAndCloseTimeoutSessions();
-    } else {
+    } else if (!hasPendingWrite) {
         // 修改epoll事件为只读
         ModifyEpollEvent(epollFd_, fd, EPOLLIN | EPOLLET | EPOLLRDHUP);
     }
@@ -887,9 +867,6 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
         finalResponse = {{UBSE_ERROR_INVAL, 0}, nullptr};
     }
 
-    // 序列化响应并添加到写缓冲区
-    // 注意: CloseSession内部会经RemoveSession再次获取sessionsMutex_，
-    // 因此不能在持锁状态下调用，否则同线程二次加锁形成自死锁
     int fdToClose = -1;
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);

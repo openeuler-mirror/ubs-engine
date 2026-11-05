@@ -204,14 +204,14 @@ static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     auto ret = InnerUnpackUbCtrlDeviceId(ctx, item.attr);
     if (ret != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return ret;
     }
 
@@ -247,26 +247,26 @@ static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
     if (InnerUnpackNicPfeDeviceId(ctx, item.attr) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
             SecureFreeAttr(item.attr);
-            item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+            item.attr = nullptr;
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -303,26 +303,26 @@ static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 
     if (InnerUnpackNicVfeDeviceId(ctx, item.attr) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
             SecureFreeAttr(item.attr);
-            item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+            item.attr = nullptr;
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -358,26 +358,26 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
 
     if (InnerUnpackNpuDeviceId(ctx, item.attr) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
             SecureFreeAttr(item.attr);
-            item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+            item.attr = nullptr;
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -412,14 +412,14 @@ static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& device
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
         SecureFreeAttr(item.attr);
-        item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+        item.attr = nullptr;
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->sub_devices[i]) != UBS_SUCCESS) {
             SecureFreeAttr(item.attr);
-            item.attr = nullptr; // 防止InnerFreeAllDeviceBuffers二次释放
+            item.attr = nullptr;
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }

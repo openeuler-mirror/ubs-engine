@@ -44,9 +44,9 @@ public:
 private:
     UbseHttpServer() : running_(false), threadDone_(false){};
     std::mutex routesMutex_;
-    std::mutex serverMutex_; // 保护 server_ 的跨线程读写，避免数据竞争
+    std::mutex serverMutex_;
     std::atomic<bool> running_;
-    std::atomic<bool> threadDone_; // 工作线程退出标志，TcpRun/UdsRun 退出时置位，Stop() 轮询等待
+    std::atomic<bool> threadDone_;
     std::unique_ptr<httplib::Server> server_;
     std::thread serverThread_;
     std::unordered_map<std::string, UbseHttpHandlerFunc> routes_;
@@ -59,7 +59,6 @@ private:
 
     void UdsRun();
 
-    // 加锁读取 server_ 并判断其运行状态，供 Start/Stop 跨线程调用
     bool IsServerRunning();
 
     void GetTcpServerPort(uint32_t& port);

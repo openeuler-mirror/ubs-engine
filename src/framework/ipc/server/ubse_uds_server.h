@@ -154,8 +154,6 @@ private:
     void HandleRequest(int fd, const UbseRequestHeader& header, const std::vector<uint8_t>& buffer,
                        const UbseRequestContext& context);
     void CloseSession(int fd);
-    // 按fd处理读/写事件：锁内校验会话状态并取走所需数据副本，锁外仅使用fd与局部缓冲，
-    // 避免跨线程CloseSession导致map节点失效后的悬空指针访问
     void HandleRead(int fd);
     void HandleWrite(int fd);
     uint32_t BindSocket() const;

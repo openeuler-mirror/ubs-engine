@@ -92,7 +92,6 @@ UbseResult UbseFileUtil::IsAbsolutePath(const std::string& path)
 std::vector<std::string> UbseFileUtil::ListFiles(const std::string& directory, const std::regex& pattern)
 {
     std::vector<std::string> files;
-    // RAII管理DIR*：循环内string构造/push_back可能抛bad_alloc，裸closedir会被跳过导致fd泄漏
     std::unique_ptr<DIR, decltype(&closedir)> dir(opendir(directory.c_str()), closedir);
     if (dir == nullptr) {
         return files; // 返回空向量
@@ -247,8 +246,6 @@ bool UbseFileUtil::CanonicalPath(std::string& path)
     }
 
     /* It will allocate memory to store path */
-    // realpath(nullptr)返回malloc的缓冲区，用unique_ptr托管：
-    // path赋值若抛bad_alloc，裸free会被跳过导致泄漏
     std::unique_ptr<char, decltype(&free)> realPath(realpath(path.c_str(), nullptr), free);
     if (realPath == nullptr) {
         return false;

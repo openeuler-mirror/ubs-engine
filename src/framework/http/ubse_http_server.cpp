@@ -91,7 +91,6 @@ bool UbseHttpServer::IsServerRunning()
 
 bool UbseHttpServer::Start(bool isTcpServer)
 {
-    // 复位上一轮线程退出标志；须先于 spawn，避免覆盖新线程退出时的置位
     threadDone_.store(false);
     try {
         if (isTcpServer) {
@@ -117,7 +116,6 @@ bool UbseHttpServer::Start(bool isTcpServer)
 void UbseHttpServer::Stop()
 {
     if (serverThread_.joinable()) {
-        // 轮询触发 stop() 直至线程退出，覆盖 server_ 晚赋值后进入 listen() 的窗口，
         // 避免无人触发 stop() 导致 listen() 不返回、join() 永久挂起
         while (!threadDone_.load()) {
             {
@@ -129,7 +127,7 @@ void UbseHttpServer::Stop()
             std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
         }
         serverThread_.join();
-        threadDone_.store(false); // 复位退出标志，支持后续重新 Start
+        threadDone_.store(false);
     }
 
     // 删除 UDS socket 文件

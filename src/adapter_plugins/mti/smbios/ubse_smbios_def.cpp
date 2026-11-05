@@ -124,9 +124,6 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char* filePath, uint32_t& 
         CloseFd(fd, filePath);
         return {};
     }
-    // 直接构造vector并捕获bad_alloc: 原实现先分配裸buffer再拷贝构造vector，
-    // 既多占一倍内存(maxLen上限256MB)，且拷贝的是随后即被覆盖的未初始化数据；
-    // vector拷贝构造若抛bad_alloc还会同时泄漏裸buffer和fd
     std::vector<uint8_t> buf;
     try {
         buf.resize(maxLen);

@@ -2224,7 +2224,6 @@ UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi>& busInstance)
 std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf>& vfList, std::vector<bool>& resList)
 {
     std::vector<UbseMti1825Vf> newNicList;
-    // 防御: resList长度由对端固件响应决定，与vfList不一致时取短者遍历，避免越界
     if (vfList.size() != resList.size()) {
         UBSE_LOG_ERROR << "resList size " << resList.size() << " mismatch vfList size " << vfList.size();
     }
@@ -2240,7 +2239,6 @@ std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf>&
 std::vector<UbseMtiIdevVfe> UpdateFailedVfeList(const std::vector<UbseMtiIdevVfe>& vfeList, std::vector<bool>& resList)
 {
     std::vector<UbseMtiIdevVfe> newVfeList;
-    // 防御: resList长度由对端固件响应决定，与vfeList不一致时取短者遍历，避免越界
     if (vfeList.size() != resList.size()) {
         UBSE_LOG_ERROR << "resList size " << resList.size() << " mismatch vfeList size " << vfeList.size();
     }

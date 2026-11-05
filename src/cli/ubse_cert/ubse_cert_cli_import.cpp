@@ -114,8 +114,8 @@ bool CopyFileContents(const std::string& sourcePath, const std::string& destinat
         return false;
     }
 
-    // 源文件大小上限：防止误传入大文件或设备文件导致内存耗尽
-    constexpr std::streamoff MAX_CERT_FILE_SIZE = 10 * 1024 * 1024; // 10MB，证书文件远小于此
+    // 防止误传入大文件或设备文件导致内存耗尽
+    constexpr std::streamoff MAX_CERT_FILE_SIZE = 10 * 1024 * 1024;
     sourceFile.seekg(0, std::ios::end);
     std::streamoff fileSize = sourceFile.tellg();
     sourceFile.seekg(0, std::ios::beg);

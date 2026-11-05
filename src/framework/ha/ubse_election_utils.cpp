@@ -60,8 +60,6 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
                 valid = false;
             }
         } else {
-            // 字段格式不合法（缺少或含多个':'），必须置valid为false，
-            // 否则state保持未初始化仍会进入构造
             valid = false;
         }
         auto ts = Split(fields[2], ':');
@@ -72,7 +70,6 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
                 valid = false;
             }
         } else {
-            // 同上，防止timestamp未赋值即被使用
             valid = false;
         }
         auto ct = Split(fields[3], ':');

@@ -66,7 +66,6 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg& resp)
         return ret;
     }
     // 业务处理
-    // 值初始化避免读未初始化内存; AllocDevicesImpl成功路径会整体覆盖该GUID
     std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid{};
     std::string newBusInstanceGuidStr(reinterpret_cast<const char*>(newBusInstanceGuid.data()),
                                       UBSE_UB_DEVICE_GUID_SIZE);

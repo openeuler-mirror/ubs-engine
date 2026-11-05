@@ -227,13 +227,7 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine* en
     if (isSync) {
         engine->DestroyChannel(chPtr);
     } else {
-        try {
-            std::thread t([chPtr, id, engine]() { engine->DestroyChannel(chPtr); });
-            t.detach();
-        } catch (const std::bad_alloc& e) {
-            UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for" << e.what();
-            engine->DestroyChannel(chPtr);
-        }
+        engine->AsyncDestroyChannel(chPtr);
     }
     UBSE_LOG_INFO << "Remove channel by user, channel_id=" << id;
 }
@@ -487,22 +481,17 @@ void UbseComEngine::DestroyChannel(ubs_hcom_channel ch)
     ubs_hcom_service_disconnect(hcomNetService_, ch);
 }
 
-void UbseComEngine::AsyncDestroyChannel(const UBSHcomChannelPtr& ch)
+void UbseComEngine::AsyncDestroyChannel(ubs_hcom_channel ch)
 {
-    // 先递增在途计数再创建线程，保证Stop()等待期间不会遗漏新启动的线程
+    // 先递增在途计数，避免Stop()漏等新启动的线程
     asyncDestroyThreadNum_.fetch_add(1);
-    // 复查deleted_：若fetch_add在全序上晚于Stop()的计数drain读取落地，Stop()将越过
-    // 等待点并在DeleteEngine后释放engine，此后spawn的线程体会触碰悬空成员；
-    // 此处提前退出（channel由Stop()内RemoveAllChannel同步兜底销毁）。
-    // 复查读到false时，由seq_cst全序可保证fetch_add先于Stop()读计数被观察到，窗口闭合
-    if (deleted_.load(std::memory_order_acquire)) {
+
+    if (deleted_.load()) {
         asyncDestroyThreadNum_.fetch_sub(1);
         return;
     }
     try {
         std::thread t([this, ch]() {
-            // 停机后跳过Disconnect: Stop()内RemoveAllChannel已同步兜底销毁，
-            // 此处再访问hcomNetService_存在与Destroy析构的竞态
             if (!deleted_.load(std::memory_order_acquire)) {
                 DestroyChannel(ch);
             }
@@ -510,10 +499,8 @@ void UbseComEngine::AsyncDestroyChannel(const UBSHcomChannelPtr& ch)
         });
         t.detach();
     } catch (const std::exception& e) {
-        // std::thread构造失败抛出system_error(如线程资源不足)，计数回退后退化为同步断连
         asyncDestroyThreadNum_.fetch_sub(1);
         UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for " << e.what();
-        // 停机阶段同样跳过Disconnect，与异步线程体的守卫语义一致
         if (!deleted_.load(std::memory_order_acquire)) {
             DestroyChannel(ch);
         }
@@ -593,9 +580,6 @@ void UbseComEngine::Stop()
     if (startRetryThread_.joinable()) {
         startRetryThread_.join();
     }
-    // 等待异步销毁channel的分离线程全部退出，避免引擎对象delete后线程访问悬空的this；
-    // 对齐SDK drain路径600秒硬超时约定，超时后打印ERROR并放行拆除流程
-    // （未进入Disconnect的残余线程由lambda内deleted_守卫保证不再触碰已销毁的service）
     constexpr int kAsyncDestroyWaitSec = 600;
     int waitedSec = 0;
     while (asyncDestroyThreadNum_.load() > 0 && waitedSec < kAsyncDestroyWaitSec) {
@@ -609,8 +593,7 @@ void UbseComEngine::Stop()
     }
     std::lock_guard<std::mutex> lock(serviceMutex_);
     auto engineName = engineInfo_.GetName();
-    if (hcomNetService_ != nullptr) {
-        // reconnect线程等待同样收敛为有限窗口，超时后放行拆除（历史遗留无超时问题一并修复）
+    if (hcomNetService_ != 0) {
         int reconnectWaitedSec = 0;
         while (reconnectThreadNum_ > 0 && reconnectWaitedSec < kAsyncDestroyWaitSec) {
             UBSE_LOG_INFO << "stoping reconnect thread num=" << reconnectThreadNum_;

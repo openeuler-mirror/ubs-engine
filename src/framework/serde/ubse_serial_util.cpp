@@ -93,8 +93,6 @@ UbseSerialization::UbseSerialization(common_len cap, ALIGN_BASE align)
       mCap_(0),
       mFlag_(true)
 {
-    // cap上限校验须前置于任何算术之前，防止AlignTo(cap)+mLen_在cap接近
-    // UINT64_MAX时无符号回绕成极小容量，静默通过下方的容量上限检查
     if (!isValidAlign(align) || cap >= MAX_CAPACITY) {
         mFlag_ = false;
         return;
@@ -212,7 +210,6 @@ UbseSerialization& UbseSerialization::operator<<(const char* str)
 
 UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 {
-    // 先检查自身状态: 构造时分配失败(mBuf_为空)的对象禁止进入写入路径
     if (Unlikely(!mFlag_)) {
         return *this;
     }
@@ -243,7 +240,6 @@ UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 
 bool UbseSerialization::expandCapacity(common_len len)
 {
-    // 兜底: 缓冲区未成功分配时禁止写入(即使容量看似足够，mBuf_也为空)
     if (Unlikely(mBuf_ == nullptr) || mLen_ + len >= MAX_CAPACITY) {
         mFlag_ = false;
         return false;

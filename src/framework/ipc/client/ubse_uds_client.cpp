@@ -869,7 +869,7 @@ void UbseUDSClient::ProcessEpollEvents(struct epoll_event* events, int numEvents
             // 异步触发重连，避免在事件循环线程内自join导致死锁
             try {
                 if (reconnectTriggerThread_.joinable()) {
-                    reconnectTriggerThread_.join(); // 旧触发线程很快退出(≤50ms)
+                    reconnectTriggerThread_.join();
                 }
                 reconnectTriggerThread_ = std::thread([this]() {
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
