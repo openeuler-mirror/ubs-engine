@@ -33,6 +33,7 @@
 #include "ham_migrate.h"
 #include "ham_migrate_vm_info_storage.h"
 #undef private
+#include "../test_virtagent_exit_guard.h"
 #include "ham_migrate_dst_info_message.h"
 #include "libvirt_helper.h"
 #include "migrate_strategy.h"
@@ -113,6 +114,7 @@ void ClearHamMigrateState()
 void TestHamMigrate::SetUp()
 {
     Test::SetUp();
+    InstallVirtAgentExitGuard();
     ClearHamMigrateState();
     VmConfiguration::GetInstance().LoadConfig();
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
