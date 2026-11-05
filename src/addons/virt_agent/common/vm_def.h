@@ -24,6 +24,8 @@ constexpr uint32_t HAM_MIGRATE_MESSAGE_TO_MASTER = 16;           // send pid che
 constexpr uint32_t HAM_MIGRATE_MESSAGE_TO_AGENT = 17;            // send pid check message to agent
 constexpr uint32_t BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_MASTER = 18; // big mem vm get numa info message to master
 constexpr uint32_t BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_DEST = 19;   // big mem vm get numa info message to dest
+constexpr uint32_t BIG_MEM_VM_GET_NODE_VM_INFO_TO_MASTER = 20;   // big mem vm get vm info message to master
+constexpr uint32_t BIG_MEM_VM_GET_NODE_VM_INFO_TO_DEST = 21;     // big mem vm get vm info message to dest
 constexpr uint32_t MAX_NUMA_NUM = 512;                           // 512 for max numa number;
 constexpr uint32_t MAX_VM_NUM = 300;                             // 300 for max VM number;
 constexpr uint32_t MAX_BORROW_ID_COUNT = 100;
@@ -35,6 +37,8 @@ constexpr uint32_t MAX_UUID_LENGTH = 37;
 constexpr uint32_t MAX_CONTAINER_NUM = 64;
 constexpr int MB_TO_BYTES = 1048576;
 constexpr int GB_TO_BYTES = 1073741824;
+constexpr uint64_t HUGE_PAGE_SIZE_2M_KB = 2048;
+constexpr uint64_t HUGE_PAGE_SIZE_1G_KB = 1048576;
 
 // Numeric constant definitions representing the values 0, 1, 2, 3, etc.
 constexpr int16_t NO_0 = 0;

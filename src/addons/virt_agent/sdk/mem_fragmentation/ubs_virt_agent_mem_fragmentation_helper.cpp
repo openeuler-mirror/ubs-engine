@@ -29,6 +29,28 @@ void StringToCharArr(const std::string& src, char* dest, const size_t& destSize)
     dest[destSize - 1] = '\0';
 }
 
+static void StringToCharPtr(const std::string& src, char*& dest, uint32_t& destLen)
+{
+    dest = nullptr;
+    destLen = 0;
+    if (src.empty()) {
+        return;
+    }
+    const std::string capped = src.substr(0, VIRT_MEM_MAX_POD_ID_LENGTH - 1);
+    dest = static_cast<char*>(malloc(capped.size() + 1));
+    if (dest == nullptr) {
+        return;
+    }
+    if (const auto ret = strncpy_s(dest, capped.size() + 1, capped.c_str(), capped.size()); ret != EOK) {
+        IPC_LOG_ERROR << "Failed to copy pod id string. Error code: " << ret;
+        free(dest);
+        dest = nullptr;
+        return;
+    }
+    dest[capped.size()] = '\0';
+    destLen = static_cast<uint32_t>(capped.size());
+}
+
 void CharArrToString(const char* src, const size_t& maxLength, std::string& str)
 {
     if (src == nullptr || maxLength == 0) {
@@ -266,11 +288,13 @@ VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_in
     }
 
     for (uint32_t i = 0; i < node_info_list.node_len; ++i) {
-        const auto& [nodeId, numaInfos, isCurrent] = nodeInfoList[i];
-        auto& [node_id, numa_infos, numa_len, is_current] = node_info_list.node_infos[i];
+        const auto& [nodeId, numaInfos, isCurrent, isMaster, podId] = nodeInfoList[i];
+        auto& [node_id, numa_infos, numa_len, is_current, is_master, pod_id, pod_id_len] = node_info_list.node_infos[i];
 
         StringToCharArr(nodeId, reinterpret_cast<char*>(&node_id), VIRT_MEM_MAX_NODE_ID_LENGTH);
         is_current = isCurrent;
+        is_master = isMaster;
+        StringToCharPtr(podId, pod_id, pod_id_len);
         numa_len = static_cast<uint32_t>(numaInfos.size());
         if (numa_len > MAX_NUMA_NUM) {
             IPC_LOG_ERROR << "numa_len " << numa_len << " exceeds MAX_NUMA_NUM " << MAX_NUMA_NUM;
@@ -321,6 +345,90 @@ VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_in
     return VM_OK;
 }
 
+VmResult VmNodeInfoListToCStyle(const std::vector<VmNodeInfo>& vmNodeInfoList, vm_info_list_s& vm_info_list)
+{
+    vm_info_list.node_len = vmNodeInfoList.size();
+    if (vm_info_list.node_len > MAX_NODE_NUM) {
+        vm_info_list.node_len = 0;
+        vm_info_list.vm_node_infos = nullptr;
+        return VM_ERROR;
+    }
+    if (vm_info_list.node_len == 0) {
+        vm_info_list.vm_node_infos = nullptr;
+        return VM_OK;
+    }
+
+    vm_info_list.vm_node_infos = static_cast<vm_node_info_s*>(malloc(vm_info_list.node_len * sizeof(vm_node_info_s)));
+    if (!vm_info_list.vm_node_infos) {
+        vm_info_list.node_len = 0;
+        return VM_ERROR;
+    }
+
+    for (uint32_t i = 0; i < vm_info_list.node_len; ++i) {
+        const auto& [nodeId, vmInfos, isCurrent, isMaster, podId] = vmNodeInfoList[i];
+        auto& [node_id, vm_infos, vm_len, is_current, is_master, pod_id, pod_id_len] = vm_info_list.vm_node_infos[i];
+
+        StringToCharArr(nodeId, reinterpret_cast<char*>(&node_id), VIRT_MEM_MAX_NODE_ID_LENGTH);
+        is_current = isCurrent;
+        is_master = isMaster;
+        StringToCharPtr(podId, pod_id, pod_id_len);
+        vm_len = static_cast<uint32_t>(vmInfos.size());
+        if (vm_len > MAX_VM_NUM) {
+            IPC_LOG_ERROR << "vm_len " << vm_len << " exceeds MAX_VM_NUM " << MAX_VM_NUM;
+            vm_len = 0;
+            vm_infos = nullptr;
+            continue;
+        }
+        if (vm_len == 0) {
+            vm_infos = nullptr;
+            continue;
+        }
+        vm_infos = static_cast<vm_domain_info_for_c*>(malloc(vm_len * sizeof(vm_domain_info_for_c)));
+        if (vm_infos == nullptr) {
+            vm_len = 0;
+            continue;
+        }
+        for (uint32_t j = 0; j < vm_len; ++j) {
+            const auto& info = vmInfos[j];
+            vm_infos[j].timestamp = info.timestamp;
+            StringToCharArr(info.metaData.nodeId, reinterpret_cast<char*>(&vm_infos[j].metadata.nodeId),
+                            VIRT_MEM_MAX_NODE_ID_LENGTH);
+            StringToCharArr(info.metaData.hostName, reinterpret_cast<char*>(&vm_infos[j].metadata.hostName),
+                            UBS_VA_HOST_NAME_MAX);
+            StringToCharArr(info.metaData.uuid, reinterpret_cast<char*>(&vm_infos[j].metadata.uuid),
+                            VIRT_MAX_UUID_LENGTH);
+            StringToCharArr(info.metaData.name, reinterpret_cast<char*>(&vm_infos[j].metadata.name),
+                            VIRT_MAX_NAME_LENGTH);
+            StringToCharArr(info.metaData.state, reinterpret_cast<char*>(&vm_infos[j].metadata.state),
+                            VIRT_MAX_STATE_LENGTH);
+            vm_infos[j].metadata.vmCreateTime = info.metaData.vmCreateTime;
+            vm_infos[j].metadata.maxMem = info.metaData.maxMem;
+            vm_infos[j].metadata.pid = info.metaData.pid;
+            vm_infos[j].numaInfoCount = info.numaInfo.size();
+            if (vm_infos[j].numaInfoCount == 0) {
+                vm_infos[j].numaInfo = nullptr;
+                continue;
+            }
+            vm_infos[j].numaInfo =
+                static_cast<vm_numa_info_for_c*>(malloc(vm_infos[j].numaInfoCount * sizeof(vm_numa_info_for_c)));
+            if (vm_infos[j].numaInfo == nullptr) {
+                vm_infos[j].numaInfoCount = 0;
+                continue;
+            }
+            uint64_t k = 0;
+            for (const auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
+                vm_infos[j].numaInfo[k].numaId = vmDomainNumaInfo.numaId;
+                vm_infos[j].numaInfo[k].socketId = vmDomainNumaInfo.socketId;
+                vm_infos[j].numaInfo[k].isLocal = vmDomainNumaInfo.isLocal;
+                vm_infos[j].numaInfo[k].pageSize = vmDomainNumaInfo.pageSize;
+                vm_infos[j].numaInfo[k].usedMem = vmDomainNumaInfo.usedMem;
+                k++;
+            }
+        }
+    }
+    return VM_OK;
+}
+
 VmResult BorrowParamFromCStyle(const mem_borrow_param_s* src, BorrowParam& borrowParam)
 {
     if (src == nullptr) {
@@ -334,6 +442,7 @@ VmResult BorrowParamFromCStyle(const mem_borrow_param_s* src, BorrowParam& borro
         return VM_ERROR;
     }
     borrowParam.borrowSize = src->borrow_size;
+    borrowParam.pageSize = src->page_size;
     if (borrowParam.borrowSize == 0) {
         return VM_OK;
     }

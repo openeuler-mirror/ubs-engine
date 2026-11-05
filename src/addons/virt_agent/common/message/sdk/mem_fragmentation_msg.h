@@ -22,6 +22,7 @@ namespace vm {
 using namespace vm::mempooling;
 
 constexpr uint32_t VIRT_MEM_MAX_NODE_ID_LENGTH = 48;
+constexpr uint32_t VIRT_MEM_MAX_POD_ID_LENGTH = 48;
 constexpr uint32_t VIRT_MAX_UUID_LENGTH = 37;
 constexpr uint32_t VIRT_MAX_NAME_LENGTH = 128;
 constexpr uint32_t VIRT_MAX_STATE_LENGTH = 128;
@@ -62,7 +63,7 @@ typedef struct {
     int16_t numaId;   // CPU NUMA ID
     int16_t socketId; // CPU socket ID
     bool isLocal;
-    uint64_t pageSize; // VM page size, default is 2 MB huge pages (2048 KBytes)
+    uint64_t pageSize; // VM page size in kB, only 2048 (2M) or 1048576 (1G) is valid; 0 when not configured
     int64_t usedMem;
 } vm_numa_info_for_c;
 
@@ -259,6 +260,9 @@ typedef struct {
 typedef struct {
     borrow_strategy_c borrow_strategy;
     bool isAsync;
+    // Page size in kB. Required: only 2048 (2M) or 1048576 (1G) is valid;
+    // 0 or any other value is rejected with VA_ERROR_INVALID_PARAM.
+    uint64_t page_size;
 } borrow_setting_c;
 
 class MemBorrowSettingMsg : public BaseMessage {
@@ -480,6 +484,9 @@ typedef struct {
     numa_info_t* numa_infos;
     uint32_t numa_len;
     bool is_current;
+    bool is_master;
+    char* pod_id;        // super pod ID (second-level super-node ID), NUL-terminated, nullptr when unavailable
+    uint32_t pod_id_len; // length of pod_id in bytes, excluding the NUL terminator
 } node_info_s;
 
 typedef struct {
@@ -487,12 +494,29 @@ typedef struct {
     uint32_t node_len;
 } node_info_list_s;
 
+typedef struct {
+    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
+    vm_domain_info_for_c* vm_infos;
+    uint32_t vm_len;
+    bool is_current;
+    bool is_master;
+    char* pod_id;        // super pod ID (second-level super-node ID), NUL-terminated, nullptr when unavailable
+    uint32_t pod_id_len; // length of pod_id in bytes, excluding the NUL terminator
+} vm_node_info_s;
+
+typedef struct {
+    vm_node_info_s* vm_node_infos;
+    uint32_t node_len;
+} vm_info_list_s;
+
 struct NodeInfo {
     NodeInfo() = default;
 
     std::string nodeId{};
     std::vector<NumaInfo> numaInfos{};
     bool isCurrent{};
+    bool isMaster{};
+    std::string podId{}; // super pod ID (second-level super-node ID), empty when unavailable
 };
 
 class MemFragmentationNodeInfoListMsg : public BaseMessage {
@@ -521,6 +545,44 @@ private:
     std::vector<NodeInfo> nodeInfoList{};
 };
 
+struct VmNodeInfo {
+    VmNodeInfo() = default;
+
+    std::string nodeId{};
+    std::vector<mempooling::VmDomainInfo> vmInfos{};
+    bool isCurrent{};
+    bool isMaster{};
+    std::string podId{}; // super pod ID (second-level super-node ID), empty when unavailable
+};
+
+class MemFragmentationVmInfoListMsg : public BaseMessage {
+public:
+    MemFragmentationVmInfoListMsg() = default;
+    ~MemFragmentationVmInfoListMsg() override = default;
+
+    explicit MemFragmentationVmInfoListMsg(std::vector<VmNodeInfo> vmNodeInfoList)
+        : vmNodeInfoList(std::move(vmNodeInfoList))
+    {
+    }
+
+    explicit MemFragmentationVmInfoListMsg(uint8_t* rawData, uint32_t size)
+    {
+        SetInputRawData(rawData, size);
+    }
+
+    VmResult Serialize() override;
+
+    VmResult Deserialize() override;
+
+    [[nodiscard]] std::vector<VmNodeInfo> GetVmNodeInfoList() const
+    {
+        return vmNodeInfoList;
+    }
+
+private:
+    std::vector<VmNodeInfo> vmNodeInfoList{};
+};
+
 typedef struct {
     int16_t numa_id;
 } numa_meta_info_s;
@@ -530,6 +592,9 @@ typedef struct {
     numa_meta_info_s* numa_meta_infos;
     uint32_t numa_len;
     uint64_t borrow_size;
+    // Page size in kB. Required: only 2048 (2M) or 1048576 (1G) is valid;
+    // 0 or any other value is rejected with VA_ERROR_INVALID_PARAM.
+    uint64_t page_size;
 } mem_borrow_param_s;
 
 struct NumaMetaInfo {
@@ -551,6 +616,7 @@ struct BorrowParam {
     std::string nodeId{};
     std::vector<NumaMetaInfo> numaMetaInfos{};
     uint64_t borrowSize{}; // MB
+    uint64_t pageSize{};
 
     [[nodiscard]] std::string ToString() const
     {
@@ -560,6 +626,7 @@ struct BorrowParam {
             oss << numaMetaInfo.ToString() << ",";
         }
         oss << " borrowSize=" << borrowSize;
+        oss << " pageSize=" << pageSize;
         return oss.str();
     }
 };

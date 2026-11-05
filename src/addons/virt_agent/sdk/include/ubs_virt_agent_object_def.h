@@ -37,6 +37,7 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
          "ubs_virt_agent_mem_fragmentation_node_info",
          "ubs_virt_agent_mem_fragmentation_vm_info",
          "ubs_virt_agent_mem_fragmentation_node_info_list",
+         "ubs_virt_agent_mem_fragmentation_vm_info_list",
      }},
     {UBS_VA_FRAGMENTATION_PERMISSION,
      {
@@ -50,6 +51,7 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
          "ubs_virt_agent_sync_task_query",
          "ubs_virt_agent_mem_borrow",
          "ubs_virt_agent_page_swap_enable",
+         "ubs_virt_agent_mem_fragmentation_heartbeat",
      }},
     {UBS_VA_CASE_CONF_PERMISSION,
      {

@@ -32,8 +32,10 @@ typedef enum
 
 typedef enum
 {
-    UBS_VA_NUMA_INFO = 0x0001, // Op code for NUMA information
-    UBS_VA_VM_INFO = 0x0002,   // Op code for VM information
+    UBS_VA_NUMA_INFO = 0x0001,    // Op code for NUMA information
+    UBS_VA_VM_INFO = 0x0002,      // Op code for VM information
+    UBS_VA_VM_INFO_LIST = 0x0003, // Op code for global VM information list
+    UBS_VA_HEARTBEAT = 0x0004,    // Op code for heartbeat (service alive detection)
 } ubs_virt_agent_query_op_code_t;
 
 typedef enum
