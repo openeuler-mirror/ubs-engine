@@ -23,7 +23,8 @@ import ctypes
 from typing import List
 from ubse.models.ubs_virt_agent_model import BorrowParamT, MemBorrowResultT
 from ubse.ffi.ubs_virt_agent_base import UbsVirtAgentBase
-from ubse.ffi.ubs_virt_agent_types import MemBorrowParamC, MemBorrowResultC, NumaMetaInfoC
+from ubse.ffi.ubs_virt_agent_types import MemBorrowParamC, MemBorrowResultC, NumaMetaInfoC, \
+    HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB
 
 
 class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
@@ -105,6 +106,11 @@ class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
 
         borrow_param_c.src_nid = param.node_id.encode('utf-8')
         borrow_param_c.borrow_size = param.borrow_size
+        page_size = getattr(param, 'page_size', None)
+        if page_size not in (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB):
+            raise ValueError(
+                "page_size must be %d or %d (kB)" % (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB))
+        borrow_param_c.page_size = page_size
         borrow_param_c.numa_len = len(param.numa_meta_infos)
 
         if param.numa_meta_infos:

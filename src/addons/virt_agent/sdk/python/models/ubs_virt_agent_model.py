@@ -309,10 +309,14 @@ class NodeInfoT:
         node_id: Node ID
         numa_infos: NUMA information list
         is_current: Whether it is the current node
+        is_master: Whether it is the master node
+        pod_id: super pod ID (second-level super-node ID), empty when unavailable
     """
     node_id: str
     numa_infos: List[NumaInfoT]
     is_current: bool
+    is_master: bool
+    pod_id: str = ""
 
     @staticmethod
     def from_c_struct(c_struct: NodeInfoC) -> "NodeInfoT":
@@ -335,12 +339,14 @@ class NodeInfoT:
         return NodeInfoT(
             node_id=c_struct.node_id.decode('utf-8', errors='ignore'),
             numa_infos=numa_infos_list,
-            is_current=c_struct.is_current
+            is_current=c_struct.is_current,
+            is_master=c_struct.is_master,
+            pod_id=ctypes.string_at(c_struct.pod_id, c_struct.pod_id_len).decode('utf-8', errors='ignore') if c_struct.pod_id else ""
         )
 
     def __str__(self) -> str:
         numa_info_strs = [str(info) for info in self.numa_infos]
-        return f"nodeId={self.node_id}, isCurrent={self.is_current}, numaInfos=[{', '.join(numa_info_strs)}]"
+        return f"nodeId={self.node_id}, isCurrent={self.is_current}, isMaster={self.is_master}, podId={self.pod_id}, numaInfos=[{', '.join(numa_info_strs)}]"
 
 
 @dataclass
@@ -355,10 +361,12 @@ class BorrowParamT:
         node_id: Source node ID
         numa_meta_infos: NUMA meta information list
         borrow_size: Borrow size (MB)
+        page_size: Huge page size in kB, only 2048 or 1048576, required
     """
     node_id: str
     numa_meta_infos: List[NumaMetaInfoT]
     borrow_size: int
+    page_size: int = None
 
     @staticmethod
     def from_c_struct(c_struct: MemBorrowParamC) -> "BorrowParamT":
