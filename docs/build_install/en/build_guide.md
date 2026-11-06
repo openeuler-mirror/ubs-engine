@@ -66,17 +66,20 @@ Build dependencies fall into two categories:
 - **Packaging dependencies**: Listed in the `BuildRequires` section of the spec file (`ubs-engine.spec`). Install them all at once by running `dnf builddep -y ubs-engine.spec`.
 - **Development and unit test dependencies**: In addition to the packaging dependencies, the GTest and GMock frameworks are required for development and unit testing. Install them by running `yum install -y gtest gtest-devel gmock gmock-devel`. These dependencies are needed only when running `bash build.sh ut`.
 
-The currently required version of `ubs-comm-devel` is available only for openEuler 24.03 LTS SP3 and SP4. Check your build system version by running `cat /etc/openEuler-release`, then follow the corresponding instructions below:
+The currently required version of `ubs-comm-devel` (>= 1.0.3-3, the C API adaptation) has been merged only into the openEuler-24.03-LTS-Next branch of the source repository and has not yet been synced to the openEuler-24.03-LTS-SP3/SP4 branches, so it is not yet available in the official SP3/SP4 repositories. This repository follows the same sync strategy for this change:
 
-- **For openEuler 24.03 LTS SP3 or SP4** (`openEuler release 24.03 (LTS-SP3)` or `openEuler release 24.03 (LTS-SP4)`), see [3.1.1 Installing Dependencies for openEuler 24.03 LTS SP3/SP4](#311-installing-dependencies-for-openeuler-2403-lts-sp3sp4).
-- **For other openEuler versions**, see [3.1.2 Installing Dependencies for Other openEuler Versions](#312-installing-dependencies-for-other-openeuler-versions).
+- If the repositories configured on your build system can provide a qualifying `ubs-comm-devel`, see [3.1.1 Installing Dependencies from a Repository](#311-installing-dependencies-from-a-repository).
+- Otherwise, build `ubs-comm` from source as described in [3.1.2 Installing Dependencies for Other openEuler Versions](#312-installing-dependencies-for-other-openeuler-versions).
 
-#### 3.1.1 Installing Dependencies for openEuler 24.03 LTS-SP3/SP4
+#### 3.1.1 Installing Dependencies from a Repository
 
-| openEuler Version | Required ubs-comm-devel Version |
-|----------------|------------------------|
-| 24.03 LTS SP3  | >= 1.0.0-27            |
-| 24.03 LTS SP4  | >= 1.0.1-7             |
+| Required ubs-comm-devel Version |
+|------------------------|
+| >= 1.0.3-3             |
+
+> [!NOTE]
+>
+> ubs-comm (>= 1.0.3-3) is currently merged only into the openEuler-24.03-LTS-Next branch of the source repository and is not synced to the SP3/SP4 branches; it is not available in the official SP3/SP4 repositories on repo.openeuler.org. If the version shown by `dnf list ubs-comm-devel` does not meet the requirement, build `ubs-comm` from source as described in [3.1.2 Installing Dependencies for Other openEuler Versions](#312-installing-dependencies-for-other-openeuler-versions).
 
 Before installation, verify that the version of `ubs-comm-devel` available in the repository meets the requirements specified in the table above by running `dnf list ubs-comm-devel`.
 
@@ -91,10 +94,10 @@ Before installation, verify that the version of `ubs-comm-devel` available in th
 - **Option 2: Install dependencies manually with YUM**
 
     ```shell
-    yum install -y libboundscheck libxml2-devel numactl-libs openssl-devel rapidjson-devel patch libvirt-devel kernel-devel 'cpp-httplib-devel >= 0.40.0''ubs-comm-devel >= <version required by the corresponding SP>' ...
+    yum install -y libboundscheck libxml2-devel numactl-libs openssl-devel rapidjson-devel patch libvirt-devel kernel-devel 'cpp-httplib-devel >= 0.40.0' 'ubs-comm-devel >= 1.0.3-3' ...
     ```
 
-> If the version in the repository does not meet the requirements for the corresponding SP release, or the package is unavailable, go to [3.1.2 Installing Dependencies for Other openEuler Versions](#312-installing-dependencies-for-other-openeuler-versions).
+> If the version in the repository does not meet the requirement, or the package is unavailable (the official SP3/SP4 repositories do not provide this version yet), go to [3.1.2 Installing Dependencies for Other openEuler Versions](#312-installing-dependencies-for-other-openeuler-versions).
 
 #### 3.1.2 Installing Dependencies for Other openEuler Versions
 
@@ -120,7 +123,7 @@ Build `ubs-comm-devel` and `ubs-comm-lib` from source.
 2. Download the `ubs-comm` source code.
 
     ```shell
-    git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+    git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
     ```
 
 3. Initialize the `rpmbuild` directory structure.

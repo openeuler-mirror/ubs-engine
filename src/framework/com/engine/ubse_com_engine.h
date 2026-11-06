@@ -24,8 +24,6 @@
 #include <condition_variable>
 
 namespace ubse::com {
-using ock::hcom::UBSHcomNewCallback;
-using ock::hcom::UBSHcomService;
 using ubse::common::def::UbseResult;
 using ubse::utils::PairMap;
 const uint16_t MODULES_SIZE = 1000; // 最大模块数
@@ -123,7 +121,7 @@ private:
 
 class UbseComEngine {
 public:
-    UbseComEngine(UbseComEngineInfo engineInfo, UBSHcomService* hcomNetService, UbseComLinkStateNotify linkStateNotify,
+    UbseComEngine(UbseComEngineInfo engineInfo, ubs_hcom_service hcomNetService, UbseComLinkStateNotify linkStateNotify,
                   UbseComLinkManager linkManager);
 
     /* *
@@ -141,7 +139,8 @@ public:
      */
     UbseResult RegUbseComMsgHandler(const UbseComMsgHandler& handle);
 
-    UbseResult DoConnect(UbseComChannelConnectInfo& info, UBSHcomConnectOptions options, UBSHcomChannelPtr& channelPtr);
+    UbseResult DoConnect(UbseComChannelConnectInfo& info, ubs_hcom_service_connect_options options,
+                         ubs_hcom_channel& channel);
 
     /* *
      * @brief 创建一个信息通道
@@ -188,7 +187,7 @@ public:
      */
     void RemoveChannel(std::string remoteNodeId, UbseChannelType type);
 
-    void DestroyChannel(const UBSHcomChannelPtr& ch);
+    void DestroyChannel(ubs_hcom_channel ch);
 
     /* *
      * @brief 启动引擎
@@ -204,9 +203,17 @@ public:
 
     std::string GetNodeIdByIp(const std::string& ip);
 
-    UBSHcomService* GetHcomService() const;
+    ubs_hcom_service GetHcomService() const;
 
 protected:
+    /* C回调适配器（转调受保护的处理函数，定义在ubse_com_engine.cpp） */
+    static int BindNewChannelAdapter(ubs_hcom_channel channel, const char* ipPort, uint64_t usrCtx,
+                                     const char* payLoad);
+    static int BrokenChannelAdapter(ubs_hcom_channel channel, const char* ipPort, uint64_t usrCtx, const char* payLoad);
+    static int RequestedAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx);
+    static int SentAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx);
+    static int OneSideAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx);
+
     void InitEngineOptions();
     /* *
      * @brief 注册引擎消息处理函数
@@ -215,57 +222,57 @@ protected:
     /* *
      * @brief 注册tls认证处理函数
      */
-    void RegisterTLSCallbacks(UBSHcomTlsOptions& tlsOptions);
+    void RegisterTLSCallbacks();
 
     /* *
      * @brief 新连接建立消息处理函数
-     * @param[in] ipPort: 远端ip，端口信息
-     * @param[in] ch: 通道指针
+     * @param[in] ipPort: 对端地址（"ip:port"）
+     * @param[in] ch: 通道句柄
      * @param[in] payload: 远端标识
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult NewChannel(const std::string& ipPort, const UBSHcomChannelPtr& ch, const std::string& payload);
+    UbseResult NewChannel(const std::string& ipPort, ubs_hcom_channel ch, const std::string& payload);
 
     /* *
      * @brief 通道断开消息处理函数
-     * @param[in] ch: 通道指针
+     * @param[in] ch: 通道句柄
      */
-    void BrokenChannel(const UBSHcomChannelPtr& ch);
+    void BrokenChannel(ubs_hcom_channel ch);
 
     /* *
      * @brief 通信消息处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult ReceivedRequest(UBSHcomServiceContext& context);
+    UbseResult ReceivedRequest(ubs_hcom_service_context context);
 
-    UbseResult HandleRemoteCall(UBSHcomServiceContext& context);
+    UbseResult HandleRemoteCall(ubs_hcom_service_context context);
 
-    UbseResult NormalRequestHandle(UBSHcomServiceContext& context);
+    UbseResult NormalRequestHandle(ubs_hcom_service_context context);
 
-    void ParseContextMsg(UBSHcomServiceContext& context, UbseComMessage* msg, UbseComMessageCtx& msgCtx);
+    void ParseContextMsg(ubs_hcom_service_context context, UbseComMessage* msg, UbseComMessageCtx& msgCtx);
 
-    UbseResult GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseChannelType chType,
-                               const UBSHcomChannelPtr& channelPtr, std::string& engineName, std::string& remoteNodeId);
+    UbseResult GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseChannelType chType, ubs_hcom_channel channel,
+                               std::string& engineName, std::string& remoteNodeId);
 
     /* *
      * @brief 通信消息发送完成处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult SendRequest(const UBSHcomServiceContext& context);
+    UbseResult SendRequest(ubs_hcom_service_context context);
 
     /* *
      * @brief 单边消息发送完成处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult OneSideDoneRequest(const UBSHcomServiceContext& context);
+    UbseResult OneSideDoneRequest(ubs_hcom_service_context context);
 
     /* *
      * @brief 添加引擎监听信息
      */
-    void AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler);
+    void AddListenOptions(ubs_hcom_service_channel_handler newChannelHandler);
 
     bool AddConnectingNode(const std::string& remoteNodeIp, UbseChannelType channelType);
 
@@ -279,14 +286,14 @@ protected:
     bool ResolvePeerConnectInfo(const std::string& ipPort, const std::pair<std::string, UbseChannelType>& payLoadPair,
                                 UbseComChannelConnectInfo& connectInfo);
     bool VerifyMsg(UbseComMessageCtx& msgCtx);
-    void HandleGetLocalNodeId(const UBSHcomServiceContext& context);
+    void HandleGetLocalNodeId(ubs_hcom_service_context context);
     void DoEngineStart();
 
 protected:
-    UbseComEngineInfo engineInfo_;             // 引擎信息
-    UBSHcomService* hcomNetService_ = nullptr; // hcom service实例
-    UbseComLinkStateNotify linkStateNotify_;   // 通道状态变更回调函数
-    std::atomic<bool> deleted_{false};         // 引擎是否销毁
+    UbseComEngineInfo engineInfo_;           // 引擎信息
+    ubs_hcom_service hcomNetService_ = 0;    // hcom service实例
+    UbseComLinkStateNotify linkStateNotify_; // 通道状态变更回调函数
+    std::atomic<bool> deleted_{false};       // 引擎是否销毁
     std::mutex serviceMutex_;
     UbseComLinkManager linkManager_;    // 连接通道管理器
     HandlerMap handlerMap_{};           // 操作函数映射表，一个引擎一个表
@@ -415,12 +422,12 @@ public:
     static std::string GetNodeIdByIp(const std::string& engineName, const std::string& ip);
 };
 
-bool CertCallback(const std::string& name, std::string& value);
-bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyPass, int& len,
-                        UBSHcomTLSEraseKeypass& erase);
-bool CACallback(const std::string& name, std::string& caPath, std::string& crlPath,
-                UBSHcomPeerCertVerifyType& verifyType, UBSHcomTLSCertVerifyCallback& cb);
-void KeyPassErase(void* pass, int len);
-int CertVerifyCallback(void* x509ctx, const char* crlPath);
+int CertCallback(const char* name, char** certPath);
+int PrivateKeyCallback(const char* name, char** priKeyPath, char** keyPass, int* keyPassLen,
+                       ubs_hcom_tls_keypass_erase* erase);
+int CACallback(const char* name, char** caPath, char** crlPath, ubs_hcom_peer_cert_verify_type* verifyType,
+               ubs_hcom_tls_cert_verify* verify);
+void KeyPassErase(char* pass, int len);
+int CertVerifyCallback(void* x509, const char* crlPath);
 } // namespace ubse::com
 #endif // UBSE_COM_ENGINE_H

@@ -38,21 +38,23 @@ const uint16_t MOCK_PORT = 1590;
 void TestUbseComEngine::SetUp()
 {
     Test::SetUp();
-    UbseProtocol hcomProtocol = UbseProtocol::TCP;
     std::string engineName = "MockTcpServer";
-    UBSHcomServiceOptions options{};
-    mockService = UBSHcomService::Create(static_cast<UBSHcomServiceProtocol>(hcomProtocol), engineName, options);
+    ubs_hcom_service_options options{};
+    (void)ubs_hcom_service_create(UbseProtocolToHcomProtocol(UbseProtocol::TCP), engineName.c_str(), options,
+                                  &mockService);
 }
 
 void TestUbseComEngine::TearDown()
 {
-    UBSHcomService::Destroy("MockTcpServer");
+    (void)ubs_hcom_service_destroy(mockService, "MockTcpServer");
+    mockService = 0;
     Test::TearDown();
     GlobalMockObject::verify();
 }
 
-void MockNotify(const UbseComEngineInfo&, const std::string&, const UBSHcomChannelPtr& ch, UbseLinkState)
+void MockNotify(const UbseComEngineInfo&, const std::string&, ubs_hcom_channel ch, UbseLinkState)
 {
+    (void)ch;
     return;
 }
 
@@ -85,14 +87,13 @@ TEST_F(TestUbseComEngine, TestRegUbseComMsgHandler)
 TEST_F(TestUbseComEngine, TestGetRemoteNodeId)
 {
     UbseComChannelConnectInfo ubseComChannelConnectInfo;
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComEngineInfo ubseComEngineInfo;
     UbseComLinkManager linkManager;
     UbseComLinkStateNotify linkStateNotify = [](const UbseComEngineInfo& engineInfo, const std::string& str,
-                                                const UBSHcomChannelPtr& ch, UbseLinkState state) {
+                                                ubs_hcom_channel ch, UbseLinkState state) {
     };
-    UbseComEngine engine(ubseComEngineInfo, nullptr, linkStateNotify, linkManager);
+    UbseComEngine engine(ubseComEngineInfo, 0, linkStateNotify, linkManager);
     std::string engineName = "engine";
     std::string remoteNodeId = "1";
     EXPECT_EQ(UBSE_OK, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL, channelPtr,
@@ -120,8 +121,7 @@ TEST_F(TestUbseComEngine, TestCreateChannelSuccess)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     UbseComChannelConnectInfo chInfo;
     UbseChannelType chType;
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     std::string remoteNodeId;
     MOCKER(&UbseComEngine::DoConnect).stubs().with(_, _, outBound(channelPtr)).will(returnValue(UBSE_OK));
     MOCKER(&UbseComEngine::GetRemoteNodeId).stubs().will(returnValue(UBSE_OK));
@@ -138,8 +138,7 @@ TEST_F(TestUbseComEngine, TestCreateChannelDoConnectFail)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     UbseComChannelConnectInfo chInfo;
     UbseChannelType chType;
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     std::string remoteNodeId;
     MOCKER(&UbseComEngine::DoConnect).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, mockengine.CreateChannel(chInfo, chType, remoteNodeId));
@@ -176,8 +175,7 @@ TEST_F(TestUbseComEngine, TestGetNodeIdByIp)
     std::string ip = "127.0.0.1";
     EXPECT_EQ("", mockengine.GetNodeIdByIp(ip));
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, ip, 0, "MockNode", "MockNode");
     UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
     mockengine.linkManager_.InsertChannel(channelInfo);
@@ -228,8 +226,7 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
     GlobalMockObject::verify();
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, "127.0.0.1", 0, "OtherNode", "MockNode");
     UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
     mockengine.linkManager_.channelIdMap_[1] = channelInfo;
@@ -321,7 +318,7 @@ TEST_F(TestUbseComEngine, TestSplitIp)
     EXPECT_EQ(false, mockengine.SplitIp(wrongIpPortStr, ip));
 }
 
-void keyPassFunc(void* value1, int value2)
+void keyPassFunc(char* value1, int value2)
 {
     return;
 }
@@ -333,26 +330,25 @@ int tlsVerifyCb(void* value1, const char* value2)
 
 TEST_F(TestUbseComEngine, TestTlsFuncs)
 {
-    std::string name = "ManBo";
-    std::string value;
-    void* keyPass;
-    int len;
-    UBSHcomTLSEraseKeypass erase = keyPassFunc;
-    EXPECT_EQ(true, CertCallback(name, value));
-    EXPECT_EQ(false, PrivateKeyCallback(name, value, keyPass, len, erase));
-    std::string caPath;
-    std::string crlPath;
-    UBSHcomPeerCertVerifyType type = UBSHcomPeerCertVerifyType::VERIFY_BY_NONE;
-    UBSHcomTLSCertVerifyCallback cb = tlsVerifyCb;
-    EXPECT_EQ(true, CACallback(name, caPath, crlPath, type, cb));
-    void* pass = nullptr;
-    KeyPassErase(pass, len);
+    const char* name = "ManBo";
+    char* value = nullptr;
+    char* keyPass = nullptr;
+    int keyPassLen = 0;
+    ubs_hcom_tls_keypass_erase erase = keyPassFunc;
+    EXPECT_EQ(true, CertCallback(name, &value));
+    EXPECT_EQ(false, PrivateKeyCallback(name, &value, &keyPass, &keyPassLen, &erase));
+    char* caPath = nullptr;
+    char* crlPath = nullptr;
+    ubs_hcom_peer_cert_verify_type type = C_VERIFY_BY_NONE;
+    ubs_hcom_tls_cert_verify cb = tlsVerifyCb;
+    EXPECT_EQ(true, CACallback(name, &caPath, &crlPath, &type, &cb));
+    char* pass = nullptr;
+    KeyPassErase(pass, keyPassLen);
 }
 
 TEST_F(TestUbseComEngine, TestInsertChannelToMap)
 {
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, "0.0", 0, "MockNode", "MockNode");
     UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
     UbseComEngineInfo info;
@@ -365,8 +361,7 @@ TEST_F(TestUbseComEngine, TestInsertChannelToMap)
 
 TEST_F(TestUbseComEngine, TestRemoveChannelByChannelIdForBroken)
 {
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, "0.0", 0, "MockNode", "MockNode");
     UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
     UbseComLinkManager linkManager;
@@ -381,11 +376,11 @@ TEST_F(TestUbseComEngine, TestNewChannel)
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    std::string ipPortStr = "192.168.1.1:100";
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
+    std::string ipPort = "192.168.1.1:100";
     std::string payload = "1@Normal";
-    EXPECT_EQ(UBSE_OK, mockengine.NewChannel(ipPortStr, channelPtr, payload));
+    mockengine.RegisterQueryCb(QueryEid);
+    EXPECT_EQ(UBSE_OK, mockengine.NewChannel(ipPort, channelPtr, payload));
 }
 
 TEST_F(TestUbseComEngine, TestBrokenChannel)
@@ -394,8 +389,7 @@ TEST_F(TestUbseComEngine, TestBrokenChannel)
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     mockengine.BrokenChannel(channelPtr);
 }
 
@@ -405,7 +399,7 @@ TEST_F(TestUbseComEngine, TestSendRequest)
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    UBSHcomServiceContext context;
+    ubs_hcom_service_context context = 0;
     EXPECT_EQ(UBSE_OK, mockengine.SendRequest(context));
 }
 
@@ -415,15 +409,14 @@ TEST_F(TestUbseComEngine, TestOneSideDoneRequest)
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    UBSHcomServiceContext context;
+    ubs_hcom_service_context context = 0;
     EXPECT_EQ(UBSE_OK, mockengine.OneSideDoneRequest(context));
 }
 
 void TestUbseComLinkManager::SetUp()
 {
     Test::SetUp();
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, "192.168.100.100", 0, "MockNode", "MockNode");
     UbseComChannelInfo channelInfoNormal(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
     manager.InsertChannel(channelInfoNormal);
@@ -451,10 +444,9 @@ TEST_F(TestUbseComEngine, TestRemoveChannelByChannelId)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     EXPECT_NO_THROW(linkManager.RemoveChannelByChannelId(0, &mockengine, false));
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, "192.168.100.100", 0, "MockNode", "MockNode");
-    UbseComChannelInfo ubseComChannelInfo(false, UbseChannelType::NORMAL, "engine", nullptr, connectInfo);
+    UbseComChannelInfo ubseComChannelInfo(false, UbseChannelType::NORMAL, "engine", 0, connectInfo);
     linkManager.channelIdMap_.insert(std::pair<uint64_t, UbseComChannelInfo>(0, ubseComChannelInfo));
     EXPECT_NO_THROW(linkManager.RemoveChannelByChannelId(0, &mockengine, false));
 
@@ -552,7 +544,7 @@ TEST_F(TestUbseCommunication, TestUbseComRpcConnect)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     MOCKER(&UbseComEngine::CreateChannel).stubs().will(returnValue(UBSE_OK));
@@ -568,16 +560,15 @@ TEST_F(TestUbseCommunication, TestRegUbseComMsgHandler)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ(UbseCommunication::RegUbseComMsgHandler(engineName, handle), UBSE_OK);
 }
 
-const UBSHcomChannelPtr MockGetChannel()
+ubs_hcom_channel MockGetChannel()
 {
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     return channelPtr;
 }
 
@@ -595,7 +586,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgSend)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
@@ -618,7 +609,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComCallback usrCb;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
@@ -643,7 +634,7 @@ TEST_F(TestUbseCommunication, TestGetChannel)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ(UbseCommunication::UbseComMsgSend(engineName, message, retData), UBSE_COM_ERROR_CHANNEL_NOT_FOUND);
@@ -666,7 +657,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgReply)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngineInfo info;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
@@ -688,10 +679,10 @@ TEST_F(TestUbseCommunication, TestNormalRequestHandle)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngineInfo info;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    UBSHcomServiceContext ubsHcomServiceContext;
+    ubs_hcom_service_context ubsHcomServiceContext = 0;
     EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID, mockengine.NormalRequestHandle(ubsHcomServiceContext));
     UbseComMessage ubseComMessage;
     // ASAN 下 mockcpp 对 SoftCrc32 打桩不可靠，真实 SoftCrc32 会以 GetMessageBodyLen()
@@ -732,9 +723,8 @@ TEST_F(TestUbseComEngine, TestHandleGetLocalNodeId)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     mockengine.RegisterQueryCb(QueryEid);
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
-    UBSHcomServiceContext context;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
+    ubs_hcom_service_context context = 0;
     MOCKER_CPP(ubse::mti::UbseGetLocalNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NO_THROW(mockengine.HandleGetLocalNodeId(context));
 
@@ -764,7 +754,7 @@ TEST_F(TestUbseComEngine, TestHandleRemoteCall)
     info.SetName("MockEngine");
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomServiceContext context;
+    ubs_hcom_service_context context = 0;
     UbseComMessage ubseComMessage;
 
     {
@@ -829,7 +819,7 @@ TEST_F(TestUbseComEngine, TestCreateChannelEngineNotInit)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UbseComEngine mockengine(info, nullptr, linkStateNotify, linkManager);
+    UbseComEngine mockengine(info, 0, linkStateNotify, linkManager);
     UbseComChannelConnectInfo chInfo;
     UbseChannelType chType;
     std::string remoteNodeId;
@@ -863,11 +853,11 @@ TEST_F(TestUbseComEngine, TestCreateChannelAddConnectingNodeFail)
 TEST_F(TestUbseComEngine, TestGetRemoteNodeIdChannelPtrNull)
 {
     UbseComChannelConnectInfo ubseComChannelConnectInfo;
-    UBSHcomChannelPtr channelPtr = nullptr;
+    ubs_hcom_channel channelPtr = 0;
     UbseComEngineInfo ubseComEngineInfo;
     UbseComLinkManager linkManager;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
-    UbseComEngine engine(ubseComEngineInfo, nullptr, linkStateNotify, linkManager);
+    UbseComEngine engine(ubseComEngineInfo, 0, linkStateNotify, linkManager);
     std::string engineName = "engine";
     std::string remoteNodeId;
     EXPECT_EQ(UBSE_ERROR_NULLPTR, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL, channelPtr,
@@ -906,7 +896,7 @@ TEST_F(TestUbseComEngine, TestVarifyFailReply)
  * 用例描述：
  * CreateEngine异常分支测试
  * 测试步骤：
- * 1.UBSHcomService::Create返回nullptr（难以mock，暂时跳过）
+ * 1.ubs_hcom_service_create失败（难以mock，暂时跳过）
  * 2.engine->Start失败
  * 预期结果：
  * 1.返回UBSE_COM_ERROR_ENGINE_CREATE_FAIL
@@ -914,7 +904,7 @@ TEST_F(TestUbseComEngine, TestVarifyFailReply)
  */
 TEST_F(TestUbseComEngineManager, TestCreateEngineServiceNull)
 {
-    GTEST_SKIP() << "Cannot mock UBSHcomService::Create static member function";
+    GTEST_SKIP() << "Cannot mock ubs_hcom_service_create without breaking the real service used by SetUp";
 }
 
 TEST_F(TestUbseComEngineManager, TestCreateEngineStartFail)
@@ -953,13 +943,12 @@ TEST_F(TestUbseCommunication, TestGetNodeIdByIp)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ("", UbseCommunication::GetNodeIdByIp(engineName, ip));
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
+    ubs_hcom_channel channelPtr = TEST_CHANNEL_HANDLE;
     UbseComChannelConnectInfo connectInfo(false, ip, 0, "MockNode", "LocalNode");
     UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "engine", channelPtr, connectInfo);
     mockengine.linkManager_.InsertChannel(channelInfo);

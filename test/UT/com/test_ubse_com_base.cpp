@@ -267,7 +267,7 @@ TEST_F(TestUbseComBase, TestGetLinkInfoFromMap)
     engineInfo.name_ = "TestGetLinkInfoFromMap";
     std::string curNodeId1 = "1";
     std::string curNodeId2 = "2";
-    UBSHcomChannelPtr ch;
+    ubs_hcom_channel ch = 0;
     mockUbseComBase.LinkNotify(engineInfo, curNodeId1, ch, UbseLinkState::LINK_UP);
     mockUbseComBase.LinkNotify(engineInfo, curNodeId2, ch, UbseLinkState::LINK_DOWN);
     std::vector<UbseLinkInfo> result = mockUbseComBase.GetAllLinkInfo();
@@ -288,7 +288,7 @@ TEST_F(TestUbseComBase, TestQueryLinkInfoNull)
     MockUbseComBase mockUbseComBase(testName, testName);
     std::string engineName = "rpc";
     std::string changeNodeId = "1";
-    UBSHcomChannelPtr ch;
+    ubs_hcom_channel ch = 0;
     std::vector<UbseLinkInfo> result = mockUbseComBase.QueryLinkInfo(engineName, changeNodeId, ch);
     EXPECT_EQ(0, result.size());
 }
@@ -312,7 +312,7 @@ TEST_F(TestUbseComBase, TestQueryLinkInfo)
     UbseComEngineInfo engineInfo;
     engineInfo.name_ = "TestQueryLinkInfo";
     std::string curNodeId = "1";
-    UBSHcomChannelPtr ch;
+    ubs_hcom_channel ch = 0;
     std::string engineName = "TestQueryLinkInfo";
     std::string changeNodeId = "1";
 
@@ -330,7 +330,7 @@ TEST_F(TestUbseComBase, TestCheckSdkEventAndNotify)
     std::string testName = "TestCheckSdkEventAndNotify";
     MockUbseComBase mockUbseComBase(testName, testName);
     std::string curNodeId = FAKE_CUR_NODE_ID + "_";
-    UBSHcomChannelPtr ch = new TestChannel();
+    ubs_hcom_channel ch = TEST_CHANNEL_HANDLE;
     EXPECT_NO_THROW(mockUbseComBase.CheckSdkEventAndNotify(testName, curNodeId, ch, UbseLinkState::LINK_DOWN));
 }
 
@@ -356,7 +356,7 @@ TEST_F(TestUbseComBase, TestLinkNotify)
     UbseLinkState state2 = UbseLinkState::LINK_DOWN;
     UbseLinkState state3 = UbseLinkState::LINK_STATE_UNKNOWN;
     MockUbseComBase mockUbseComBase(testName, testName);
-    UBSHcomChannelPtr ch;
+    ubs_hcom_channel ch = 0;
     LinkNotifyFunction func = [](const std::vector<UbseLinkInfo>& linkInfoList) {
     };
     mockUbseComBase.AddLinkNotifyFunc(func);
@@ -553,7 +553,7 @@ TEST_F(TestUbseComBase, TestDefaultHandlerExecutor)
  */
 TEST_F(TestUbseComBase, TestDefaultSdkLinkDownEventHandler)
 {
-    UBSHcomNetUdsIdInfo idInfo;
+    UbseUdsIdInfo idInfo;
     UbseLinkState state = UbseLinkState::LINK_UP;
     EXPECT_NO_THROW(DefaultSdkLinkDownEventHandler(idInfo, state));
 }

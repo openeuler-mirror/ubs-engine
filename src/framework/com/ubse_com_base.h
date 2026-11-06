@@ -52,6 +52,12 @@ class UbseComBaseMessageHandlerCtx {
 public:
     UbseComBaseMessageHandlerCtx(std::string engineName, uint64_t channelId, uintptr_t rspCtx, std::string dstId_);
 
+    ~UbseComBaseMessageHandlerCtx();
+
+    // channelPtr_由析构derefer管理，默认拷贝会双重derefer；当前仅堆分配+指针传递，禁用拷贝
+    UbseComBaseMessageHandlerCtx(const UbseComBaseMessageHandlerCtx&) = delete;
+    UbseComBaseMessageHandlerCtx& operator=(const UbseComBaseMessageHandlerCtx&) = delete;
+
     uint64_t GetChannelId() const;
 
     uintptr_t GetResponseCtx();
@@ -68,9 +74,9 @@ public:
 
     void SetCrc(uint32_t dataCrc);
 
-    const UBSHcomChannelPtr& GetChannelPtr() const;
+    ubs_hcom_channel GetChannelPtr() const;
 
-    void SetChannelPtr(const UBSHcomChannelPtr& chPtr);
+    void SetChannelPtr(ubs_hcom_channel chPtr);
     // 用于设置收到请求是否为发送大消息请求的标志位
     void SetRemoteCall(bool callOrNot);
 
@@ -82,7 +88,7 @@ private:
     uintptr_t rspCtx_;
     uint32_t crc_;
     UbseUdsIdInfo udsIdInfo_;
-    UBSHcomChannelPtr channelPtr_;
+    ubs_hcom_channel channelPtr_ = 0;
     bool isRemoteCall_ = false;
     std::string dstId_;
 };
@@ -231,13 +237,13 @@ using LinkNotifyFunctionMap = std::map<std::string, std::vector<LinkNotifyFuncti
 
 using HandlerExecutor = std::function<void(const std::function<void()>& task, const executorType& type)>;
 using LinkEventHandler = std::function<void(const std::vector<UbseLinkInfo>& linkInfoList)>;
-using SdkLinkDownEventHandler = std::function<void(UBSHcomNetUdsIdInfo& idInfo, UbseLinkState& state)>;
+using SdkLinkDownEventHandler = std::function<void(UbseUdsIdInfo& idInfo, UbseLinkState& state)>;
 
 void DefaultHandlerExecutor(const std::function<void()>& task, const executorType& type);
 
 void DefaultLinkEventHandler(const std::vector<UbseLinkInfo>& linkInfoList);
 
-void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo& idInfo, UbseLinkState& state);
+void DefaultSdkLinkDownEventHandler(UbseUdsIdInfo& idInfo, UbseLinkState& state);
 
 class UbseComBase : public Referable {
 public:
@@ -409,10 +415,10 @@ public:
     std::string GetNodeIdByIp(const std::string& ip);
 
 protected:
-    static void CheckSdkEventAndNotify(const std::string& engineName, const std::string& curNodeId,
-                                       const UBSHcomChannelPtr& ch, UbseLinkState state);
+    static void CheckSdkEventAndNotify(const std::string& engineName, const std::string& curNodeId, ubs_hcom_channel ch,
+                                       UbseLinkState state);
 
-    static void LinkNotify(const UbseComEngineInfo& info, const std::string& curNodeId, const UBSHcomChannelPtr& ch,
+    static void LinkNotify(const UbseComEngineInfo& info, const std::string& curNodeId, ubs_hcom_channel ch,
                            UbseLinkState state);
 
 protected:
@@ -423,7 +429,7 @@ private:
     static std::vector<UbseLinkInfo> GetLinkInfoFromMap(const std::string& engineName);
 
     static std::vector<UbseLinkInfo> QueryLinkInfo(const std::string& engineName, const std::string& changeNodeId,
-                                                   const UBSHcomChannelPtr& ch);
+                                                   ubs_hcom_channel ch);
 
     static int16_t timeout_;
     static int16_t heartBeatTimeout_;

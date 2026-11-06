@@ -46,7 +46,7 @@ stages:
               ref: refs/merge-requests/${{ env.pr_id }}/merge
               allow-unsafe-pr-checkout: true
           - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
           - name: Install System pre-commit
             run: | 
                 set -eux
@@ -78,7 +78,7 @@ stages:
           image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
+            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
           - name: Checkout Source Code
             uses: checkout
             with:
@@ -98,7 +98,7 @@ stages:
           image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
         steps:
           - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-SP4 https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
+            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
           - name: Checkout Source Code
             uses: checkout
             with:

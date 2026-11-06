@@ -15,7 +15,7 @@ find_library(HCOM_SHARED_LIBRARY
 
 if (NOT HCOM_INCLUDE_DIR OR NOT HCOM_SHARED_LIBRARY)
     message(FATAL_ERROR "hcom not found! Please execute:
-                sudo yum install 'ubs-comm-devel >= 1.0.0-27'")
+                sudo yum install 'ubs-comm-devel >= 1.0.3-3'")
 endif()
 
 message(STATUS "Found hcom: ${HCOM_INCLUDE_DIR}, ${HCOM_SHARED_LIBRARY}")
