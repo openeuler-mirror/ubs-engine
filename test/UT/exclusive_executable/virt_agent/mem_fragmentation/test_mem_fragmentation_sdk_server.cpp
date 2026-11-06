@@ -15,12 +15,16 @@
 #include <ubse_api_server.h>
 #include <ubse_com.h>
 #include <ubse_election.h>
+#include <ubse_error.h>
 #include <ubse_security.h>
 #include <chrono>
+#include <iostream>
 #include <mockcpp/mockcpp.hpp>
+#include <string>
 #include <thread>
 #include <vector>
 
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "gmock/gmock-actions.h"
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
@@ -35,12 +39,29 @@
 #include "vm_error.h"
 
 using namespace api::server;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::election;
 using namespace ubse::security;
 using namespace ubse::com;
 using namespace vm;
 using namespace vm::mempooling;
 namespace ubse::ut::vm {
+
+std::string HugePagesText(const std::unordered_map<uint64_t, ::vm::mempooling::NumaPageData>& pages)
+{
+    std::string text = "[";
+    bool first = true;
+    for (const auto& entry : pages) {
+        if (!first) {
+            text += "; ";
+        }
+        text += "pageSize=" + std::to_string(entry.second.pageSize) +
+                "kB,total=" + std::to_string(entry.second.hugePageTotal) +
+                ",free=" + std::to_string(entry.second.hugePageFree);
+        first = false;
+    }
+    return text + "]";
+}
 
 void TestMemFragmentationSdkServer::SetUp()
 {
@@ -128,6 +149,7 @@ UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeOK()
     return [](std::vector<NumaInfo>& numaInfos) {
         NumaInfo numaInfo;
         numaInfo.metaData.nodeId = "1";
+        numaInfo.metaData.hostName = "host1";
         numaInfo.metaData.numaId = 0;
         numaInfo.metaData.isLocal = true;
         numaInfo.metaData.memTotal = globalDefaultMemTotal;
@@ -141,6 +163,23 @@ UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeOK()
 
         numaInfo.metaData.socketId = 0;
         numaInfos.push_back(numaInfo);
+
+        NumaInfo numaInfo2;
+        numaInfo2.metaData.nodeId = "1";
+        numaInfo2.metaData.hostName = "host1";
+        numaInfo2.metaData.numaId = 1;
+        numaInfo2.metaData.isLocal = true;
+        numaInfo2.metaData.memTotal = globalDefaultMemTotal;
+        numaInfo2.metaData.memFree = globalDefaultMemTotal;
+
+        NumaPageData pageData2;
+        pageData2.pageSize = 1048576;
+        pageData2.hugePageTotal = globalDefaultHugePage;
+        pageData2.hugePageFree = globalDefaultHugePage;
+        numaInfo2.metaData.numaPageInfo[1048576] = pageData2;
+
+        numaInfo2.metaData.socketId = 1;
+        numaInfos.push_back(numaInfo2);
         return VM_OK;
     };
 }
@@ -274,9 +313,127 @@ UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeOK()
         vmDomainInfo.metaData.state = "RUNNING";
         vmDomainInfo.metaData.vmCreateTime = globalDefaultTimestamp;
         vmDomainInfo.metaData.maxMem = globalDefaultMemTotal;
+
+        mempooling::VmDomainNumaInfo vmNumaInfo0;
+        vmNumaInfo0.numaId = 0;
+        vmNumaInfo0.pageSize = globalDefaultPageSize;
+        vmNumaInfo0.usedMem = globalDefaultMemSize;
+        vmNumaInfo0.socketId = 0;
+        vmNumaInfo0.isLocal = true;
+        vmDomainInfo.numaInfo[0] = vmNumaInfo0;
+        mempooling::VmDomainNumaInfo vmNumaInfo1;
+        vmNumaInfo1.numaId = 1;
+        vmNumaInfo1.pageSize = 1048576;
+        vmNumaInfo1.usedMem = globalDefaultMemSize;
+        vmNumaInfo1.socketId = 1;
+        vmNumaInfo1.isLocal = true;
+        vmDomainInfo.numaInfo[1] = vmNumaInfo1;
+
         vmDomainInfos.push_back(vmDomainInfo);
         return VM_OK;
     };
+}
+
+std::vector<uint8_t> g_capturedRespBuffer;
+std::string g_currentNodeRole = ELECTION_ROLE_MASTER;
+
+uint32_t MockSendResponseCapture(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)
+{
+    if (response.buffer != nullptr) {
+        g_capturedRespBuffer.assign(response.buffer, response.buffer + response.length);
+    }
+    return VM_OK;
+}
+
+uint32_t MockUbseGetCurrentNodeId(std::string& currentNodeId)
+{
+    currentNodeId = "node1";
+    return VM_OK;
+}
+
+uint32_t MockUbseGetAllNodeInfosDouble(std::vector<UbseRoleInfo>& roleInfos)
+{
+    roleInfos.clear();
+    roleInfos.push_back(UbseRoleInfo("node1", g_currentNodeRole, ELECTION_NODE_ONLINE));
+    roleInfos.push_back(UbseRoleInfo("node2", ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE));
+    return VM_OK;
+}
+
+uint16_t g_mockSuperPodId = 7;
+
+uint32_t MockGetNumaInfoFromRemote(const std::string& nodeId, std::vector<mem_fragmentation::NodeInfo>& nodeInfoList)
+{
+    mem_fragmentation::NodeInfo remoteNode;
+    remoteNode.nodeId = nodeId;
+
+    NumaInfo numaInfo0;
+    numaInfo0.metaData.nodeId = nodeId;
+    numaInfo0.metaData.hostName = "host2";
+    numaInfo0.metaData.numaId = 0;
+    numaInfo0.metaData.isLocal = false;
+    numaInfo0.metaData.memTotal = globalDefaultMemTotal;
+    numaInfo0.metaData.memFree = globalDefaultMemTotal;
+    NumaPageData pageData0;
+    pageData0.pageSize = NO_2048;
+    pageData0.hugePageTotal = globalDefaultHugePage;
+    pageData0.hugePageFree = globalDefaultHugePage;
+    numaInfo0.metaData.numaPageInfo[NO_2048] = pageData0;
+    numaInfo0.metaData.socketId = 0;
+    remoteNode.numaInfos.push_back(numaInfo0);
+
+    NumaInfo numaInfo1;
+    numaInfo1.metaData.nodeId = nodeId;
+    numaInfo1.metaData.hostName = "host2";
+    numaInfo1.metaData.numaId = 1;
+    numaInfo1.metaData.isLocal = false;
+    numaInfo1.metaData.memTotal = globalDefaultMemTotal;
+    numaInfo1.metaData.memFree = globalDefaultMemTotal;
+    NumaPageData pageData1;
+    pageData1.pageSize = 1048576;
+    pageData1.hugePageTotal = globalDefaultHugePage;
+    pageData1.hugePageFree = globalDefaultHugePage;
+    numaInfo1.metaData.numaPageInfo[1048576] = pageData1;
+    numaInfo1.metaData.socketId = 1;
+    remoteNode.numaInfos.push_back(numaInfo1);
+
+    nodeInfoList.push_back(remoteNode);
+    return VM_OK;
+}
+
+uint32_t MockGetVmInfoFromRemote(const std::string& nodeId, std::vector<mem_fragmentation::VmNodeInfo>& vmNodeInfoList)
+{
+    mem_fragmentation::VmNodeInfo remoteNode;
+    remoteNode.nodeId = nodeId;
+
+    mempooling::VmDomainInfo vmDomainInfo;
+    vmDomainInfo.timestamp = globalDefaultTimestamp;
+    vmDomainInfo.metaData.hostName = "controller";
+    vmDomainInfo.metaData.nodeId = nodeId;
+    vmDomainInfo.metaData.pid = globalDefaultPid;
+    vmDomainInfo.metaData.uuid = "5f3a21b8-0e66-11f0-a3d2-0007c6034b7d";
+    vmDomainInfo.metaData.name = "test_2u2g_2";
+    vmDomainInfo.metaData.state = "RUNNING";
+    vmDomainInfo.metaData.vmCreateTime = globalDefaultTimestamp;
+    vmDomainInfo.metaData.maxMem = globalDefaultMemTotal;
+
+    mempooling::VmDomainNumaInfo vmNumaInfo0;
+    vmNumaInfo0.numaId = 0;
+    vmNumaInfo0.pageSize = globalDefaultPageSize;
+    vmNumaInfo0.usedMem = globalDefaultMemSize;
+    vmNumaInfo0.socketId = 0;
+    vmNumaInfo0.isLocal = false;
+    vmDomainInfo.numaInfo[0] = vmNumaInfo0;
+    mempooling::VmDomainNumaInfo vmNumaInfo1;
+    vmNumaInfo1.numaId = 1;
+    vmNumaInfo1.pageSize = 1048576;
+    vmNumaInfo1.usedMem = globalDefaultMemSize;
+    vmNumaInfo1.socketId = 1;
+    vmNumaInfo1.isLocal = false;
+    vmDomainInfo.numaInfo[1] = vmNumaInfo1;
+
+    remoteNode.vmInfos.push_back(vmDomainInfo);
+    vmNodeInfoList.push_back(remoteNode);
+    return VM_OK;
 }
 
 /**
@@ -355,6 +512,289 @@ TEST_F(TestMemFragmentationSdkServer, GetVmInfo_ShouldReturnOK_WhenEverythingIsO
     EXPECT_EQ(VirtMemFragSdk::GetVmInfo(req, context), VM_OK);
     MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).reset();
     MOCKER(SendResponse).reset();
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetNodeInfoList_ShouldReturnOK_WhenCurrentNodeIsMaster)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    g_currentNodeRole = ELECTION_ROLE_MASTER;
+    g_capturedRespBuffer.clear();
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfosDouble));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetNumaInfoListOnNodeOK));
+    MOCKER(VirtMemFragSdk::GetNumaInfoFromRemote).stubs().will(invoke(MockGetNumaInfoFromRemote));
+    MOCKER(SendResponse).stubs().will(invoke(MockSendResponseCapture));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetNodeInfoList(req, context), VM_OK);
+    MOCKER(UbseGetAllNodeInfos).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
+    MOCKER(VirtMemFragSdk::GetNumaInfoFromRemote).reset();
+    MOCKER(SendResponse).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_FALSE(g_capturedRespBuffer.empty());
+    std::cout << "[GetNodeInfoList][master] respBytes=" << g_capturedRespBuffer.size() << std::endl;
+    mem_fragmentation::MemFragmentationNodeInfoListMsg msg(g_capturedRespBuffer.data(), g_capturedRespBuffer.size());
+    EXPECT_EQ(msg.Deserialize(), VM_OK);
+    auto nodeInfoList = msg.GetNodeInfoList();
+    ASSERT_EQ(nodeInfoList.size(), 2);
+    for (const auto& node : nodeInfoList) {
+        std::cout << "[GetNodeInfoList][master] nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent
+                  << " isMaster=" << node.isMaster << " numaCount=" << node.numaInfos.size() << std::endl;
+        for (const auto& numa : node.numaInfos) {
+            std::cout << "[GetNodeInfoList][master]   numaId=" << numa.metaData.numaId
+                      << " socketId=" << numa.metaData.socketId << " isLocal=" << numa.metaData.isLocal
+                      << " nodeId=" << numa.metaData.nodeId << " hostName=" << numa.metaData.hostName
+                      << " timestamp=" << numa.timestamp << " memTotal=" << numa.metaData.memTotal
+                      << "kB memFree=" << numa.metaData.memFree
+                      << "kB hugePages=" << HugePagesText(numa.metaData.numaPageInfo) << std::endl;
+        }
+    }
+    EXPECT_EQ(nodeInfoList[0].nodeId, "node1");
+    EXPECT_EQ(nodeInfoList[0].isCurrent, true);
+    EXPECT_EQ(nodeInfoList[0].isMaster, true);
+    EXPECT_EQ(nodeInfoList[0].numaInfos.size(), 2);
+    EXPECT_EQ(nodeInfoList[0].podId, "7");
+    EXPECT_EQ(nodeInfoList[1].nodeId, "node2");
+    EXPECT_EQ(nodeInfoList[1].isCurrent, false);
+    EXPECT_EQ(nodeInfoList[1].isMaster, false);
+    EXPECT_EQ(nodeInfoList[1].numaInfos.size(), 2);
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetNodeInfoList_ShouldReturnOK_WhenCurrentNodeIsAgent)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    g_currentNodeRole = ELECTION_ROLE_AGENT;
+    g_capturedRespBuffer.clear();
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfosDouble));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetNumaInfoListOnNodeOK));
+    MOCKER(VirtMemFragSdk::GetNumaInfoFromRemote).stubs().will(invoke(MockGetNumaInfoFromRemote));
+    MOCKER(SendResponse).stubs().will(invoke(MockSendResponseCapture));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetNodeInfoList(req, context), VM_OK);
+    MOCKER(UbseGetAllNodeInfos).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
+    MOCKER(VirtMemFragSdk::GetNumaInfoFromRemote).reset();
+    MOCKER(SendResponse).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_FALSE(g_capturedRespBuffer.empty());
+    std::cout << "[GetNodeInfoList][agent] respBytes=" << g_capturedRespBuffer.size() << std::endl;
+    mem_fragmentation::MemFragmentationNodeInfoListMsg msg(g_capturedRespBuffer.data(), g_capturedRespBuffer.size());
+    EXPECT_EQ(msg.Deserialize(), VM_OK);
+    auto nodeInfoList = msg.GetNodeInfoList();
+    ASSERT_EQ(nodeInfoList.size(), 2);
+    for (const auto& node : nodeInfoList) {
+        std::cout << "[GetNodeInfoList][agent] nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent
+                  << " isMaster=" << node.isMaster << " numaCount=" << node.numaInfos.size() << std::endl;
+        for (const auto& numa : node.numaInfos) {
+            std::cout << "[GetNodeInfoList][agent]   numaId=" << numa.metaData.numaId
+                      << " socketId=" << numa.metaData.socketId << " isLocal=" << numa.metaData.isLocal
+                      << " nodeId=" << numa.metaData.nodeId << " hostName=" << numa.metaData.hostName
+                      << " timestamp=" << numa.timestamp << " memTotal=" << numa.metaData.memTotal
+                      << "kB memFree=" << numa.metaData.memFree
+                      << "kB hugePages=" << HugePagesText(numa.metaData.numaPageInfo) << std::endl;
+        }
+    }
+    EXPECT_EQ(nodeInfoList[0].nodeId, "node1");
+    EXPECT_EQ(nodeInfoList[0].isCurrent, true);
+    EXPECT_EQ(nodeInfoList[0].isMaster, false);
+    EXPECT_EQ(nodeInfoList[0].numaInfos.size(), 2);
+    EXPECT_EQ(nodeInfoList[0].podId, "7");
+    EXPECT_EQ(nodeInfoList[1].nodeId, "node2");
+    EXPECT_EQ(nodeInfoList[1].isCurrent, false);
+    EXPECT_EQ(nodeInfoList[1].isMaster, false);
+    EXPECT_EQ(nodeInfoList[1].numaInfos.size(), 2);
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetVmInfoList_ShouldReturnOK_WhenCurrentNodeIsMaster)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    g_currentNodeRole = ELECTION_ROLE_MASTER;
+    g_capturedRespBuffer.clear();
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfosDouble));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetVmInfoListOnNodeOK));
+    MOCKER(VirtMemFragSdk::GetVmInfoFromRemote).stubs().will(invoke(MockGetVmInfoFromRemote));
+    MOCKER(SendResponse).stubs().will(invoke(MockSendResponseCapture));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetVmInfoList(req, context), VM_OK);
+    MOCKER(UbseGetAllNodeInfos).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).reset();
+    MOCKER(VirtMemFragSdk::GetVmInfoFromRemote).reset();
+    MOCKER(SendResponse).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_FALSE(g_capturedRespBuffer.empty());
+    std::cout << "[GetVmInfoList][master] respBytes=" << g_capturedRespBuffer.size() << std::endl;
+    mem_fragmentation::MemFragmentationVmInfoListMsg msg(g_capturedRespBuffer.data(), g_capturedRespBuffer.size());
+    EXPECT_EQ(msg.Deserialize(), VM_OK);
+    auto vmNodeInfoList = msg.GetVmNodeInfoList();
+    ASSERT_EQ(vmNodeInfoList.size(), 2);
+    for (const auto& node : vmNodeInfoList) {
+        std::cout << "[GetVmInfoList][master] nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent
+                  << " isMaster=" << node.isMaster << " vmCount=" << node.vmInfos.size() << std::endl;
+        for (const auto& vmInfo : node.vmInfos) {
+            std::cout << "[GetVmInfoList][master]   name=" << vmInfo.metaData.name << " uuid=" << vmInfo.metaData.uuid
+                      << " state=" << vmInfo.metaData.state << " hostName=" << vmInfo.metaData.hostName
+                      << " vmCreateTime=" << vmInfo.metaData.vmCreateTime << " maxMem=" << vmInfo.metaData.maxMem
+                      << "kB pid=" << vmInfo.metaData.pid << " timestamp=" << vmInfo.timestamp << std::endl;
+            for (const auto& entry : vmInfo.numaInfo) {
+                const auto& numa = entry.second;
+                std::cout << "[GetVmInfoList][master]     numaId=" << numa.numaId << " pageSize=" << numa.pageSize
+                          << "kB socketId=" << numa.socketId << " isLocal=" << numa.isLocal
+                          << " usedMem=" << numa.usedMem << "kB" << std::endl;
+            }
+        }
+    }
+    EXPECT_EQ(vmNodeInfoList[0].nodeId, "node1");
+    EXPECT_EQ(vmNodeInfoList[0].isCurrent, true);
+    EXPECT_EQ(vmNodeInfoList[0].isMaster, true);
+    ASSERT_EQ(vmNodeInfoList[0].vmInfos.size(), 1);
+    EXPECT_EQ(vmNodeInfoList[0].vmInfos[0].numaInfo.size(), 2);
+    EXPECT_EQ(vmNodeInfoList[0].podId, "7");
+    EXPECT_EQ(vmNodeInfoList[1].nodeId, "node2");
+    EXPECT_EQ(vmNodeInfoList[1].isCurrent, false);
+    EXPECT_EQ(vmNodeInfoList[1].isMaster, false);
+    ASSERT_EQ(vmNodeInfoList[1].vmInfos.size(), 1);
+    EXPECT_EQ(vmNodeInfoList[1].vmInfos[0].numaInfo.size(), 2);
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetVmInfoList_ShouldReturnOK_WhenCurrentNodeIsStandby)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    g_currentNodeRole = ELECTION_ROLE_STANDBY;
+    g_capturedRespBuffer.clear();
+    MOCKER(UbseGetAllNodeInfos).stubs().will(invoke(MockUbseGetAllNodeInfosDouble));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetVmInfoListOnNodeOK));
+    MOCKER(VirtMemFragSdk::GetVmInfoFromRemote).stubs().will(invoke(MockGetVmInfoFromRemote));
+    MOCKER(SendResponse).stubs().will(invoke(MockSendResponseCapture));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetVmInfoList(req, context), VM_OK);
+    MOCKER(UbseGetAllNodeInfos).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).reset();
+    MOCKER(VirtMemFragSdk::GetVmInfoFromRemote).reset();
+    MOCKER(SendResponse).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_FALSE(g_capturedRespBuffer.empty());
+    std::cout << "[GetVmInfoList][standby] respBytes=" << g_capturedRespBuffer.size() << std::endl;
+    mem_fragmentation::MemFragmentationVmInfoListMsg msg(g_capturedRespBuffer.data(), g_capturedRespBuffer.size());
+    EXPECT_EQ(msg.Deserialize(), VM_OK);
+    auto vmNodeInfoList = msg.GetVmNodeInfoList();
+    ASSERT_EQ(vmNodeInfoList.size(), 2);
+    for (const auto& node : vmNodeInfoList) {
+        std::cout << "[GetVmInfoList][standby] nodeId=" << node.nodeId << " isCurrent=" << node.isCurrent
+                  << " isMaster=" << node.isMaster << " vmCount=" << node.vmInfos.size() << std::endl;
+        for (const auto& vmInfo : node.vmInfos) {
+            std::cout << "[GetVmInfoList][standby]   name=" << vmInfo.metaData.name << " uuid=" << vmInfo.metaData.uuid
+                      << " state=" << vmInfo.metaData.state << " hostName=" << vmInfo.metaData.hostName
+                      << " vmCreateTime=" << vmInfo.metaData.vmCreateTime << " maxMem=" << vmInfo.metaData.maxMem
+                      << "kB pid=" << vmInfo.metaData.pid << " timestamp=" << vmInfo.timestamp << std::endl;
+            for (const auto& entry : vmInfo.numaInfo) {
+                const auto& numa = entry.second;
+                std::cout << "[GetVmInfoList][standby]     numaId=" << numa.numaId << " pageSize=" << numa.pageSize
+                          << "kB socketId=" << numa.socketId << " isLocal=" << numa.isLocal
+                          << " usedMem=" << numa.usedMem << "kB" << std::endl;
+            }
+        }
+    }
+    EXPECT_EQ(vmNodeInfoList[0].nodeId, "node1");
+    EXPECT_EQ(vmNodeInfoList[0].isCurrent, true);
+    EXPECT_EQ(vmNodeInfoList[0].isMaster, false);
+    ASSERT_EQ(vmNodeInfoList[0].vmInfos.size(), 1);
+    EXPECT_EQ(vmNodeInfoList[0].vmInfos[0].numaInfo.size(), 2);
+    EXPECT_EQ(vmNodeInfoList[0].podId, "7");
+    EXPECT_EQ(vmNodeInfoList[1].nodeId, "node2");
+    EXPECT_EQ(vmNodeInfoList[1].isCurrent, false);
+    EXPECT_EQ(vmNodeInfoList[1].isMaster, false);
+    ASSERT_EQ(vmNodeInfoList[1].vmInfos.size(), 1);
+    EXPECT_EQ(vmNodeInfoList[1].vmInfos[0].numaInfo.size(), 2);
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetRemoteNodeInfoDestReceiver_ShouldFillPodId_WhenSmbiosAvailable)
+{
+    UbseByteBuffer req{};
+    UbseByteBuffer rep{};
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetNumaInfoListOnNodeOK));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetRemoteNodeInfoDestReceiver(req, rep), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_NE(rep.data, nullptr);
+    {
+        mem_fragmentation::MemFragmentationNodeInfoListMsg msg(rep.data, rep.len);
+        EXPECT_EQ(msg.Deserialize(), VM_OK);
+        auto nodeInfoList = msg.GetNodeInfoList();
+        ASSERT_EQ(nodeInfoList.size(), 1);
+        EXPECT_EQ(nodeInfoList[0].nodeId, "node1");
+        EXPECT_EQ(nodeInfoList[0].podId, "7");
+    }
+    delete[] rep.data;
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetRemoteNodeInfoDestReceiver_ShouldLeavePodIdEmpty_WhenSmbiosUnavailable)
+{
+    UbseByteBuffer req{};
+    UbseByteBuffer rep{};
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetNumaInfoListOnNodeOK));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::GetRemoteNodeInfoDestReceiver(req, rep), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSGetNumaInfoListOnNode).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_NE(rep.data, nullptr);
+    {
+        mem_fragmentation::MemFragmentationNodeInfoListMsg msg(rep.data, rep.len);
+        EXPECT_EQ(msg.Deserialize(), VM_OK);
+        auto nodeInfoList = msg.GetNodeInfoList();
+        ASSERT_EQ(nodeInfoList.size(), 1);
+        EXPECT_EQ(nodeInfoList[0].podId, "");
+    }
+    delete[] rep.data;
+}
+
+TEST_F(TestMemFragmentationSdkServer, GetRemoteVmInfoDestReceiver_ShouldFillPodId_WhenSmbiosAvailable)
+{
+    UbseByteBuffer req{};
+    UbseByteBuffer rep{};
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetVmInfoListOnNodeOK));
+    MOCKER(UbseGetCurrentNodeId).stubs().will(invoke(MockUbseGetCurrentNodeId));
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).stubs().with(outBound(g_mockSuperPodId)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(VirtMemFragSdk::GetRemoteVmInfoDestReceiver(req, rep), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).reset();
+    MOCKER(UbseGetCurrentNodeId).reset();
+    MOCKER_CPP(&UbseSmbios::GetSuperPodId).reset();
+
+    ASSERT_NE(rep.data, nullptr);
+    {
+        mem_fragmentation::MemFragmentationVmInfoListMsg msg(rep.data, rep.len);
+        EXPECT_EQ(msg.Deserialize(), VM_OK);
+        auto vmNodeInfoList = msg.GetVmNodeInfoList();
+        ASSERT_EQ(vmNodeInfoList.size(), 1);
+        EXPECT_EQ(vmNodeInfoList[0].nodeId, "node1");
+        EXPECT_EQ(vmNodeInfoList[0].podId, "7");
+    }
+    if (rep.freeFunc != nullptr) {
+        rep.freeFunc(rep.data);
+    } else {
+        delete[] rep.data;
+    }
 }
 
 /**
@@ -876,6 +1316,13 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenG
     MOCKER(MemHandler::GetBorrowedSizeMap).reset();
 }
 
+TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenPageSizeInvalid)
+{
+    MemBorrowExecuteResult result{};
+    result.presentNumaIds.push_back(1);
+    EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, 4096), VM_ERROR_INVAL);
+}
+
 VmResult MockGetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
                                 std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
 {
@@ -914,7 +1361,7 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnOK_WhenEver
     MOCKER(ChangeOverrideCapability).stubs().will(returnValue(VM_OK));
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
     MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_OK));
-    EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_2M_KB), VM_OK);
+    EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_1G_KB), VM_OK);
     MOCKER(MemHandler::GetBorrowedSizeMap).reset();
     MOCKER(HugePageHandler::SetHugePages).reset();
 }
@@ -2417,6 +2864,34 @@ TEST_F(TestMemFragmentationSdkServer, PageSwapEnableTest)
     MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::PageSwapEnable(req, context), VM_OK);
     MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+    MOCKER(SendResponse).reset();
+}
+
+/**
+ * @tc.name  : Heartbeat_ShouldReturnOK_WhenSendResponseOK
+ * @tc.number: Heartbeat_001
+ * @tc.desc  : 当SendResponse成功时，心跳处理函数返回成功
+ */
+TEST_F(TestMemFragmentationSdkServer, Heartbeat_ShouldReturnOK_WhenSendResponseOK)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
+    EXPECT_EQ(VirtMemFragSdk::Heartbeat(req, context), VM_OK);
+    MOCKER(SendResponse).reset();
+}
+
+/**
+ * @tc.name  : Heartbeat_ShouldReturnError_WhenSendResponseFailed
+ * @tc.number: Heartbeat_002
+ * @tc.desc  : 当SendResponse失败时，心跳处理函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, Heartbeat_ShouldReturnError_WhenSendResponseFailed)
+{
+    UbseIpcMessage req;
+    UbseRequestContext context;
+    MOCKER(SendResponse).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::Heartbeat(req, context), VM_ERROR);
     MOCKER(SendResponse).reset();
 }
 } // namespace ubse::ut::vm
