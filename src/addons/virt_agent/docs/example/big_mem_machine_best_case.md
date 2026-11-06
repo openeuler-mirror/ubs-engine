@@ -56,6 +56,8 @@ if (ret != 0) {
 //            ],
 //            "numa_len": 4,
 //            "is_current": True, // 是否为当前查询节点
+//            "is_master": True, // 是否为主节点
+//            "pod_id": "1", // 物理节点所在二层超节点ID（superPodId，十进制），读取失败时为空串
 //        }, ...
 //    ],
 //    "node_len": 4
@@ -76,19 +78,20 @@ if (ret != 0) {
 
 ```c++
 mem_borrow_param_s *param = (mem_borrow_param_s *)malloc(sizeof(mem_borrow_param_s));
-param -> src_nid = "node0";
+memcpy(param -> src_nid, "node0", sizeof("node0"));
 param -> numa_len = 4;
 param -> borrow_size = 3145728; // 单位MB, 此处借用3TB内存
+param -> page_size = 2048; // 单位kB, 仅支持2048或1048576
 numa_meta_info_s *numa_meta_infos = (numa_meta_info_s *)malloc(sizeof(numa_meta_info_s) * param -> numa_len);
 
 // 根据实际情况填写 or 根据ubs_virt_agent_mem_fragmentation_node_info_list查询结果填写
 // 此处按照如下numa关系配置
-// NUMA0 - socketId: 0; NUMA1 - socketId: 0; NUMA2 - socketId: 1; NUMA3 - socketId: 1
+// NUMA0; NUMA1; NUMA2; NUMA3
 for (int i = 0; i < param -> numa_len; ++i) {
     numa_meta_infos[i].numa_id = i;
 }
-mem_borrow_result_s* result = null;
-const virt_agent_ret_t ret = ubs_virt_agent_mem_borrow(param, true, result);
+mem_borrow_result_s result;
+const virt_agent_ret_t ret = ubs_virt_agent_mem_borrow(param, true, &result);
 if (ret != 0) {
     return ret;
 }
@@ -119,8 +122,8 @@ if (ret != 0) {
 //下面, 将以一个任务举例 "mem_fragmentation_borrow_1"
 char *task_id = "mem_fragmentation_borrow_1";
 uint32_t task_id_len;
-async_task_info_c *result = null;
-const virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(task_id, 26,  result);
+async_task_info_c result;
+const virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(task_id, 26, &result);
 if (ret != 0) {
     return ret;
 }
