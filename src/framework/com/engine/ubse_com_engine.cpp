@@ -13,6 +13,7 @@
 #include "ubse_com_engine.h"
 #include <fcntl.h>
 #include <grp.h>
+#include <securec.h>
 #include <sys/stat.h>
 #include <ubse_context.h>
 #include <unistd.h>
@@ -34,7 +35,7 @@
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
-#include "hcom/hcom_service_context.h"
+#include "hcom/hcom_err.h"
 #include "trace_context.h"
 
 namespace ubse::com {
@@ -43,7 +44,6 @@ using namespace ubse::config;
 using namespace ubse::security;
 using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::utils;
-using namespace ock::hcom;
 using namespace ubse::common::def;
 using namespace ubse::message;
 using namespace ubse::module;
@@ -58,8 +58,8 @@ ubse::utils::ReadWriteLock rwHanldeMapLock;
 const std::string GET_NODE_ID_FAIL_MSG = "ERROR";
 static const size_t MAX_KEY_PASS_LENGTH = 1024;
 
-static UBSHcomPeerCertVerifyType peerCertVerifyType = VERIFY_BY_DEFAULT;
-static UBSHcomTLSCertVerifyCallback certVerifyCb = nullptr;
+static ubs_hcom_peer_cert_verify_type peerCertVerifyType = C_VERIFY_BY_DEFAULT;
+static ubs_hcom_tls_cert_verify certVerifyCb = nullptr;
 
 void UbseComLinkManager::LogChannelInfo()
 {
@@ -170,7 +170,7 @@ void UbseComLinkManager::InsertChannel(UbseComChannelInfo& channelInfo)
     } else {
         iter->second.emplace(chType, channelInfo);
     }
-    auto channelId = channelInfo.GetChannel()->GetId();
+    auto channelId = ubs_hcom_channel_get_id(channelInfo.GetChannel());
     channelIdMap_.emplace(channelId, channelInfo);
     nodeIpIdMap_.emplace(remoteIp, remoteNodeId);
     UBSE_LOG_INFO << "Insert channel_id=" << channelId << ", curnode_id=" << channelInfo.GetConnectInfo().GetCurNodeId()
@@ -187,7 +187,6 @@ void UbseComLinkManager::RemoveChannelByChannelIdForBroken(uint64_t id)
         LogChannelInfo();
         return;
     }
-    UBSHcomChannelPtr chPtr = iter->second.GetChannel();
     auto remoteId = iter->second.GetConnectInfo().GetRemoteNodeId();
     auto chType = iter->second.GetChannelType();
     auto engineName = iter->second.GetEngineName();
@@ -208,7 +207,7 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine* en
         LogChannelInfo();
         return;
     }
-    UBSHcomChannelPtr chPtr = iter->second.GetChannel();
+    ubs_hcom_channel chPtr = iter->second.GetChannel();
     auto remoteId = iter->second.GetConnectInfo().GetRemoteNodeId();
     auto chType = iter->second.GetChannelType();
     auto engineName = iter->second.GetEngineName();
@@ -216,21 +215,24 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine* en
     if (chTypeIter != nodeChannelMap_.end()) {
         chTypeIter->second.erase(chType);
     }
+    // 对应C++侧UBSHcomChannelPtr的NetRef拷贝：erase后map中channelInfo析构会derefer，
+    // 此处先refer保活，供后续DestroyChannel(内含Disconnect+DecreaseRef)消耗
+    ubs_hcom_channel_refer(chPtr);
     channelIdMap_.erase(id);
-    if (chPtr == nullptr) {
+    if (chPtr == 0) {
         UBSE_LOG_ERROR << "Channel " << id << " hcom ChannelPtr is nullptr";
         LogChannelInfo();
         return;
     }
     if (isSync) {
-        engine->DestroyChannel(const_cast<UBSHcomChannelPtr&>(chPtr));
+        engine->DestroyChannel(chPtr);
     } else {
         try {
-            std::thread t([chPtr, id, engine]() { engine->DestroyChannel(const_cast<UBSHcomChannelPtr&>(chPtr)); });
+            std::thread t([chPtr, id, engine]() { engine->DestroyChannel(chPtr); });
             t.detach();
         } catch (const std::bad_alloc& e) {
             UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for" << e.what();
-            engine->DestroyChannel(const_cast<UBSHcomChannelPtr&>(chPtr));
+            engine->DestroyChannel(chPtr);
         }
     }
     UBSE_LOG_INFO << "Remove channel by user, channel_id=" << id;
@@ -260,7 +262,7 @@ void UbseComLinkManager::RemoveAllChannel(UbseComEngine* engine)
 std::map<std::string, UbseComEngine*> UbseComEngineManager::G_ENGINE_MAP_;
 std::mutex UbseComEngineManager::G_MUTEX_;
 
-UbseComEngine::UbseComEngine(UbseComEngineInfo engineInfo, UBSHcomService* hcomNetService,
+UbseComEngine::UbseComEngine(UbseComEngineInfo engineInfo, ubs_hcom_service hcomNetService,
                              UbseComLinkStateNotify linkStateNotify, UbseComLinkManager linkManager)
     : engineInfo_(std::move(engineInfo)),
       hcomNetService_(hcomNetService),
@@ -307,7 +309,7 @@ const std::string DEFAULT_DEVICE_IP_MASK = "127.0.0.1/24";
 const uint16_t DEFAULT_WORKER_GROUP = 8;
 constexpr int WORKER_THREAD_PRIORITY = -20;
 
-static void AssignServiceOptions(const UbseComEngineInfo& engineInfo, UBSHcomServiceOptions& options)
+static void AssignServiceOptions(const UbseComEngineInfo& engineInfo, ubs_hcom_service_options& options)
 {
     if (engineInfo.GetProtocol() == UbseProtocol::TCP) {
         options.maxSendRecvDataSize = TCP_SEND_RECEIVE_SIZE;
@@ -315,7 +317,7 @@ static void AssignServiceOptions(const UbseComEngineInfo& engineInfo, UBSHcomSer
         options.maxSendRecvDataSize = SEND_RECEIVE_SIZE;
     }
     options.workerGroupThreadCount = DEFAULT_WORKER_GROUP;
-    options.workerGroupMode = static_cast<UBSHcomWorkerMode>(engineInfo.GetWorkerMode());
+    options.workerGroupMode = static_cast<ubs_hcom_service_worker_mode>(engineInfo.GetWorkerMode());
     options.workerThreadPriority = WORKER_THREAD_PRIORITY;
 }
 
@@ -331,34 +333,36 @@ bool GetEnableTlsValue()
     return enableTlsValue;
 }
 
-void SetChannelThreshold(UBSHcomChannelPtr channelPtr)
+void SetChannelThreshold(ubs_hcom_channel channel)
 {
-    UBSHcomTwoSideThreshold th;
+    ubs_hcom_twoside_threshold th{};
     // hcom拆包阈值，需要预留TLS加密的空间，splitThreshold不能超过maxSendRecvDataSize
     th.splitThreshold = SEND_RECEIVE_SIZE - NO_1024;
-    channelPtr->SetTwoSideThreshold(th);
+    ubs_hcom_channel_set_twoside_threshold(channel, th);
 }
 
-void SetChannelTimeout(UBSHcomChannelPtr channelPtr, int16_t timeout)
+void SetChannelTimeout(ubs_hcom_channel channel, int16_t timeout)
 {
-    SetChannelThreshold(channelPtr);
-    channelPtr->SetChannelTimeOut(timeout, timeout);
+    SetChannelThreshold(channel);
+    ubs_hcom_channel_set_timeout(channel, timeout, timeout);
 }
 
-UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo& info, UBSHcomConnectOptions options,
-                                    UBSHcomChannelPtr& channelPtr)
+UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo& info, ubs_hcom_service_connect_options options,
+                                    ubs_hcom_channel& channel)
 {
-    return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
-                                    options);
+    std::string url = "tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort());
+    return ubs_hcom_service_connect(hcomNetService_, url.c_str(), &channel, options);
 }
 
-UbseResult GetRemoteNodeIdByCall(const std::string& remoteIP, const UBSHcomChannelPtr& channelPtr,
-                                 std::string& remoteNodeId)
+UbseResult GetRemoteNodeIdByCall(const std::string& remoteIP, ubs_hcom_channel channel, std::string& remoteNodeId)
 {
     std::string data = "GetRemoteNodeId";
-    const UBSHcomRequest reqMsg{data.data(), static_cast<uint32_t>(data.length()), OpCodeType::GET_REMOTE_ID};
-    UBSHcomResponse rspMsg;
-    auto ret = channelPtr->Call(reqMsg, rspMsg);
+    ubs_hcom_channel_request reqMsg{};
+    reqMsg.address = data.data();
+    reqMsg.size = static_cast<uint32_t>(data.length());
+    reqMsg.opcode = OpCodeType::GET_REMOTE_ID;
+    ubs_hcom_channel_response rspMsg{};
+    auto ret = ubs_hcom_channel_call(channel, reqMsg, &rspMsg, NULL);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Call remote node id for " << UbseNetUtil::MaskIp(remoteIP) << " failed, "
                        << FormatRetCode(ret);
@@ -380,10 +384,11 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo& info, UbseCha
         UBSE_LOG_WARN << "There is connecting channel";
         return UBSE_ERROR;
     }
-    UBSHcomConnectOptions options{};
+    ubs_hcom_service_connect_options options{};
+    (void)memset_s(&options, sizeof(options), 0, sizeof(options));
     options.linkCount = info.GetLinkNum();
     auto engineName = engineInfo_.GetName();
-    if (hcomNetService_ == nullptr) {
+    if (hcomNetService_ == 0) {
         UBSE_LOG_ERROR << "Create channel fail, engine " << engineName << " not init";
         RemoveConnectingNode(info.GetIp(), chType);
         return UBSE_COM_ERROR_ENGINE_NOT_INIT;
@@ -399,8 +404,15 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo& info, UbseCha
         return UBSE_OK;
     }
     rwLock_.UnLock();
-    UBSHcomChannelPtr channelPtr;
-    options.payload = ChannelTypeToPayload(info.GetCurNodeId(), chType);
+    ubs_hcom_channel channelPtr = 0;
+    std::string payloadStr = ChannelTypeToPayload(info.GetCurNodeId(), chType);
+    if (payloadStr.size() >= sizeof(options.payLoad)) {
+        UBSE_LOG_WARN << "Connect payload too long, size=" << payloadStr.size()
+                      << ", max=" << (sizeof(options.payLoad) - 1) << ", nodeId=" << info.GetCurNodeId();
+        RemoveConnectingNode(info.GetIp(), chType);
+        return UBSE_ERROR;
+    }
+    (void)strncpy_s(options.payLoad, sizeof(options.payLoad), payloadStr.c_str(), payloadStr.size());
     auto ret = DoConnect(info, options, channelPtr);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_WARN << "Create channel failed, nodeId=" << info.GetCurNodeId() << ", peer info is "
@@ -412,18 +424,17 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo& info, UbseCha
 }
 
 UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseChannelType chType,
-                                          const UBSHcomChannelPtr& channelPtr, std::string& engineName,
-                                          std::string& remoteNodeId)
+                                          ubs_hcom_channel channel, std::string& engineName, std::string& remoteNodeId)
 {
-    if (channelPtr == nullptr) {
+    if (channel == 0) {
         UBSE_LOG_ERROR << "Create channel fail, channelPtr is null";
         RemoveConnectingNode(info.GetIp(), chType);
         return UBSE_ERROR_NULLPTR;
     }
-    SetChannelTimeout(channelPtr, timeout_);
-    if (GetRemoteNodeIdByCall(info.GetIp(), channelPtr, remoteNodeId) != UBSE_OK) {
-        auto chId = channelPtr->GetId();
-        DestroyChannel(channelPtr);
+    SetChannelTimeout(channel, timeout_);
+    if (GetRemoteNodeIdByCall(info.GetIp(), channel, remoteNodeId) != UBSE_OK) {
+        auto chId = ubs_hcom_channel_get_id(channel);
+        DestroyChannel(channel);
         RemoveConnectingNode(info.GetIp(), chType);
         UBSE_LOG_ERROR << "Get remote node id for nodeId=" << info.GetCurNodeId()
                        << ", ip=" << UbseNetUtil::MaskIp(info.GetIp()) << " fail, destroy current channel:" << chId;
@@ -431,15 +442,17 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
     }
     info.SetRemoteNodeId(remoteNodeId);
 
-    UbseComChannelInfo chInfo(false, chType, engineName, channelPtr, info);
+    UbseComChannelInfo chInfo(false, chType, engineName, channel, info);
     rwLock_.LockWrite();
     linkManager_.InsertChannel(chInfo);
     rwLock_.UnLock();
     UBSE_LOG_INFO << "Create channel remote=" << info.GetRemoteNodeId() << " successfully, engine=" << engineName
-                  << ", channel id=" << channelPtr->GetId() << ", type=" << ChannelTypeToString(chType);
+                  << ", channel id=" << ubs_hcom_channel_get_id(channel) << ", type=" << ChannelTypeToString(chType);
     RemoveConnectingNode(info.GetIp(), chType);
+    // connect返回的句柄自带一次引用(T4)，chInfo构造已refer持有，此处消耗connect的引用
+    ubs_hcom_channel_derefer(channel);
 
-    linkStateNotify_(engineInfo_, remoteNodeId, channelPtr, UbseLinkState::LINK_UP);
+    linkStateNotify_(engineInfo_, remoteNodeId, channel, UbseLinkState::LINK_UP);
     return UBSE_OK;
 }
 
@@ -465,12 +478,12 @@ std::optional<UbseComMsgHandler> UbseComEngine::GetMessageHandler(uint16_t modul
     return hdl;
 }
 
-void UbseComEngine::DestroyChannel(const UBSHcomChannelPtr& ch)
+void UbseComEngine::DestroyChannel(ubs_hcom_channel ch)
 {
-    if (hcomNetService_ == nullptr) {
+    if (hcomNetService_ == 0) {
         return;
     }
-    hcomNetService_->Disconnect(ch);
+    ubs_hcom_service_disconnect(hcomNetService_, ch);
 }
 
 void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type)
@@ -484,7 +497,7 @@ void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type
         return;
     }
     rwLock_.LockWrite();
-    linkManager_.RemoveChannelByChannelId(channelInfo.GetChannel()->GetId(), this);
+    linkManager_.RemoveChannelByChannelId(ubs_hcom_channel_get_id(channelInfo.GetChannel()), this);
     rwLock_.UnLock();
 }
 
@@ -498,12 +511,12 @@ void UbseComEngine::DoEngineStart()
             break;
         }
         std::lock_guard<std::mutex> lock(serviceMutex_);
-        if (!hcomNetService_) {
+        if (hcomNetService_ == 0) {
             break;
         }
         std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        res = hcomNetService_->Start();
+        res = ubs_hcom_service_start(hcomNetService_);
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     }
     UBSE_LOG_INFO << "Create engine " << engineInfo_.GetName() << "successfully";
@@ -521,7 +534,7 @@ UbseResult UbseComEngine::Start()
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_OK;
     }
-    auto ret = hcomNetService_->Start();
+    auto ret = ubs_hcom_service_start(hcomNetService_);
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
         UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, " << FormatRetCode(ret)
@@ -548,18 +561,21 @@ void UbseComEngine::Stop()
     }
     std::lock_guard<std::mutex> lock(serviceMutex_);
     auto engineName = engineInfo_.GetName();
-    if (hcomNetService_ != nullptr) {
+    if (hcomNetService_ != 0) {
         while (reconnectThreadNum_ > 0) {
             UBSE_LOG_INFO << "stoping reconnect thread num=" << reconnectThreadNum_;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         linkManager_.RemoveAllChannel(this);
-        auto ret = UBSHcomService::Destroy(engineName);
-        hcomNetService_ = nullptr;
+        auto ret = ubs_hcom_service_destroy(hcomNetService_, engineName.c_str());
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Destroy hcom service fail, " << FormatRetCode(ret);
+        }
+        hcomNetService_ = 0;
     }
 }
 
-void UbseComEngine::ParseContextMsg(UBSHcomServiceContext& context, UbseComMessage* msg, UbseComMessageCtx& msgCtx)
+void UbseComEngine::ParseContextMsg(ubs_hcom_service_context context, UbseComMessage* msg, UbseComMessageCtx& msgCtx)
 {
     auto remoteNodeid = linkManager_.GetNodeIdByChannelId(GetChannelIdFromNetServiceContext(context));
     UbseUdsIdInfo udsIdInfo;
@@ -572,54 +588,94 @@ void UbseComEngine::ParseContextMsg(UBSHcomServiceContext& context, UbseComMessa
     msgCtx.SetEngineName(engineInfo_.GetName());
     msgCtx.SetChannelId(GetChannelIdFromNetServiceContext(context));
     msgCtx.SetMessage(msgPtr);
-    msgCtx.SetRspCtx(context.RspCtx());
+    ubs_hcom_channel_reply_context rspCtx{};
+    (void)ubs_hcom_context_get_rspctx(context, &rspCtx);
+    msgCtx.SetRspCtx(reinterpret_cast<uintptr_t>(rspCtx.rspCtx));
     msgCtx.SetTraceId(msg->GetMessageHead().GetTraceId());
-    msgCtx.SetChannelPtr(context.Channel());
+    ubs_hcom_channel ch = 0;
+    (void)ubs_hcom_context_get_channel(context, &ch);
+    msgCtx.SetChannelPtr(ch);
 }
 
 void UbseComEngine::InitEngineOptions()
 {
     if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
-        hcomNetService_->SetMaxSendRecvDataCount(TCP_SEND_RECEIVE_COUNT);
+        ubs_hcom_service_set_max_send_recv_data_cnt(hcomNetService_, TCP_SEND_RECEIVE_COUNT);
     } else {
-        hcomNetService_->SetMaxSendRecvDataCount(SEND_RECEIVE_COUNT);
+        ubs_hcom_service_set_max_send_recv_data_cnt(hcomNetService_, SEND_RECEIVE_COUNT);
     }
-    hcomNetService_->SetSendQueueSize(SEND_QUEUE_SIZE);
-    hcomNetService_->SetRecvQueueSize(QUEUE_SIZE);
-    hcomNetService_->SetQueuePrePostSize(POST_RECEIVE_SIZE);
-    hcomNetService_->SetPollingBatchSize(POLLING_SIZE);
-    hcomNetService_->SetConnectLBPolicy(NET_ROUND_ROBIN);
-    std::vector<std::string> ipMasks;
+    ubs_hcom_service_set_sq_size(hcomNetService_, SEND_QUEUE_SIZE);
+    ubs_hcom_service_set_rq_size(hcomNetService_, QUEUE_SIZE);
+    ubs_hcom_service_set_prepost_size(hcomNetService_, POST_RECEIVE_SIZE);
+    ubs_hcom_service_set_polling_batchsize(hcomNetService_, POLLING_SIZE);
+    ubs_hcom_service_set_lbpolicy(hcomNetService_, SERVICE_ROUND_ROBIN);
+    std::string ipMask;
     if ((engineInfo_.GetEngineType() == UbseEngineType::SERVER) &&
         (engineInfo_.GetProtocol() == UbseProtocol::TCP || engineInfo_.GetProtocol() == UbseProtocol::HCCS)) {
-        ipMasks.push_back(engineInfo_.GetIpInfo().first + "/24");
+        ipMask = engineInfo_.GetIpInfo().first + "/24";
     } else {
-        ipMasks.push_back(DEFAULT_DEVICE_IP_MASK);
+        ipMask = DEFAULT_DEVICE_IP_MASK;
     }
-    hcomNetService_->SetDeviceIpMask(ipMasks);
-    UBSHcomTlsOptions tlsOptions;
-    RegisterTLSCallbacks(tlsOptions);
-    hcomNetService_->SetTlsOptions(tlsOptions);
-    UBSHcomHeartBeatOptions hbOption;
-    hbOption.heartBeatIdleSec = engineInfo_.GetHcomHbTimeOut();
-    hcomNetService_->SetHeartBeatOptions(hbOption);
-    hcomNetService_->SetMaxConnectionCount(NO_500);
-    hcomNetService_->SetEnableMrCache(true);
-    hcomNetService_->SetCtxStoreCapacity(NO_2048);
+    ubs_hcom_service_set_ipmask(hcomNetService_, ipMask.c_str());
+    RegisterTLSCallbacks();
+    // 对应C++默认心跳参数：probeTimes=7, intervalSec=2
+    ubs_hcom_service_set_heartbeat_opt(hcomNetService_, engineInfo_.GetHcomHbTimeOut(), NO_7, NO_2);
+    ubs_hcom_service_set_max_connection_cnt(hcomNetService_, NO_500);
+    ubs_hcom_service_set_enable_mrcache(hcomNetService_, true);
+    ubs_hcom_service_set_ctx_store_capacity(hcomNetService_, NO_2048);
     // 仿真环境（QEMU虚拟机）不支持hcom主备倒换；物理环境默认开启主备倒换。
     // 注意：制造商信息获取失败与仿真环境分开处理，失败时打WARN便于现场区分高可用降级原因。
     std::string manufacturer;
     auto ret = UbseSmbios::GetInstance().GetSystemManufacturer(manufacturer);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "get system manufacturer failed, close hcom backup.";
-        hcomNetService_->SetActiveBackup(false);
+        ubs_hcom_service_set_active_backup(hcomNetService_, false);
     } else if (UbseSmbios::GetInstance().IsQemuVm()) {
         UBSE_LOG_INFO << "current system manufacturer is " << manufacturer << ", simulation env, close hcom backup.";
-        hcomNetService_->SetActiveBackup(false);
+        ubs_hcom_service_set_active_backup(hcomNetService_, false);
     } else {
         UBSE_LOG_INFO << "current system manufacturer is " << manufacturer << ", active hcom backup.";
-        hcomNetService_->SetActiveBackup(true);
+        ubs_hcom_service_set_active_backup(hcomNetService_, true);
     }
+}
+
+// bind回调的usrCtx由C层固定传0，无法透传this，用静态引擎指针分发（当前为单engine场景）
+static std::atomic<UbseComEngine*> g_bindEngine{nullptr};
+
+int UbseComEngine::BindNewChannelAdapter(ubs_hcom_channel channel, const char* ipPort, uint64_t usrCtx,
+                                         const char* payLoad)
+{
+    (void)usrCtx;
+    auto* engine = g_bindEngine.load(std::memory_order_acquire);
+    if (engine == nullptr || channel == 0) {
+        return UBSE_COM_ERROR_CHANNEL_NULL;
+    }
+    return engine->NewChannel(ipPort != nullptr ? ipPort : "", channel, payLoad != nullptr ? payLoad : "");
+}
+
+int UbseComEngine::BrokenChannelAdapter(ubs_hcom_channel channel, const char* ipPort, uint64_t usrCtx,
+                                        const char* payLoad)
+{
+    // 断链回调的对端地址固定为空串（hcom_service_c.h），此处无需使用
+    (void)ipPort;
+    (void)payLoad;
+    reinterpret_cast<UbseComEngine*>(usrCtx)->BrokenChannel(channel);
+    return UBSE_OK;
+}
+
+int UbseComEngine::RequestedAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx)
+{
+    return reinterpret_cast<UbseComEngine*>(usrCtx)->ReceivedRequest(ctx);
+}
+
+int UbseComEngine::SentAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx)
+{
+    return reinterpret_cast<UbseComEngine*>(usrCtx)->SendRequest(ctx);
+}
+
+int UbseComEngine::OneSideAdapter(ubs_hcom_service_context ctx, uint64_t usrCtx)
+{
+    return reinterpret_cast<UbseComEngine*>(usrCtx)->OneSideDoneRequest(ctx);
 }
 
 void UbseComEngine::RegisterEngineHandlers()
@@ -627,86 +683,52 @@ void UbseComEngine::RegisterEngineHandlers()
     bool isOobSvr = engineInfo_.GetEngineType() != UbseEngineType::CLIENT;
     bool isUbc = engineInfo_.GetProtocol() == UbseProtocol::UBC;
     if (isOobSvr || isUbc) {
-        UBSHcomServiceNewChannelHandler newChannelHandler = [this](const std::string& addr, const UBSHcomChannelPtr& ch,
-                                                                   const std::string& payload) -> UbseResult {
-            if (UBSE_UNLIKELY(ch == nullptr)) {
-                return UBSE_COM_ERROR_CHANNEL_NULL;
-            }
-            return NewChannel(addr, ch, payload);
-        };
-        AddListenOptions(newChannelHandler);
+        UbseComEngine* expected = nullptr;
+        if (!g_bindEngine.compare_exchange_strong(expected, this)) {
+            UBSE_LOG_WARN << "Multiple bind engines detected, engine " << engineInfo_.GetName()
+                          << " overrides previous bind engine; new-channel callback dispatch may be wrong";
+            g_bindEngine.store(this, std::memory_order_release);
+        }
+        AddListenOptions(BindNewChannelAdapter);
     }
-    UBSHcomServiceChannelBrokenHandler channelBrokenHandler = [this](const UBSHcomChannelPtr& ch) {
-        BrokenChannel(ch);
-    };
-    hcomNetService_->RegisterChannelBrokenHandler(channelBrokenHandler, UBSHcomChannelBrokenPolicy::BROKEN_ALL);
-    UBSHcomServiceRecvHandler receivedHandler = [this](UBSHcomServiceContext& context) -> UbseResult {
-        return ReceivedRequest(context);
-    };
-    hcomNetService_->RegisterRecvHandler(receivedHandler);
-    UBSHcomServiceSendHandler serviceSentHandler = [this](const UBSHcomServiceContext& context) -> UbseResult {
-        return SendRequest(context);
-    };
-    hcomNetService_->RegisterSendHandler(serviceSentHandler);
-    UBSHcomServiceOneSideDoneHandler oneSideDoneRequest = [this](const UBSHcomServiceContext& context) -> UbseResult {
-        return OneSideDoneRequest(context);
-    };
-    hcomNetService_->RegisterOneSideHandler(oneSideDoneRequest);
+    ubs_hcom_service_register_broken_handler(hcomNetService_, BrokenChannelAdapter, C_CHANNEL_BROKEN_ALL,
+                                             reinterpret_cast<uint64_t>(this));
+    ubs_hcom_service_register_handler(hcomNetService_, C_SERVICE_REQUEST_RECEIVED, RequestedAdapter,
+                                      reinterpret_cast<uint64_t>(this));
+    ubs_hcom_service_register_handler(hcomNetService_, C_SERVICE_REQUEST_POSTED, SentAdapter,
+                                      reinterpret_cast<uint64_t>(this));
+    ubs_hcom_service_register_handler(hcomNetService_, C_SERVICE_READWRITE_DONE, OneSideAdapter,
+                                      reinterpret_cast<uint64_t>(this));
 }
 
-bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string& ip)
+void UbseComEngine::RegisterTLSCallbacks()
 {
-    size_t pos = 0;
-    size_t colonPos;
-    std::vector<std::string> result;
-    while ((colonPos = ipPortStr.find(':', pos)) != std::string::npos) {
-        auto token = ipPortStr.substr(pos, colonPos - pos);
-        result.push_back(token);
-        pos = colonPos + 1;
-    }
-
-    result.push_back(ipPortStr.substr(pos));
-
-    if (result.size() != NO_2) {
-        return false;
-    }
-    ip = result[0];
-    return true;
-}
-
-void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions& tlsOptions)
-{
-    tlsOptions.enableTls = GetEnableTlsValue();
-
-    tlsOptions.cfCb = std::bind(&CertCallback, std::placeholders::_1, std::placeholders::_2);
-
-    tlsOptions.caCb = std::bind(&CACallback, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                                std::placeholders::_4, std::placeholders::_5);
-
-    tlsOptions.pkCb = std::bind(&PrivateKeyCallback, std::placeholders::_1, std::placeholders::_2,
-                                std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
-
-    peerCertVerifyType = VERIFY_BY_CUSTOM_FUNC;
+    peerCertVerifyType = C_VERIFY_BY_CUSTOM_FUNC;
     certVerifyCb = CertVerifyCallback;
 
     // 缓存本节点 nodeid，供 CertVerifyCallback 在握手时校验本端证书 otherName 是否与之匹配。
     // TLS 开关仅由配置项 cert.use 控制，证书自校验不在初始化阶段做，而是放到握手回调中。
     SetExpectedLocalNodeId(engineInfo_.GetNodeId());
 
+    ubs_hcom_service_set_tls_opt(hcomNetService_, GetEnableTlsValue(), C_SERVICE_TLS_1_3, engineInfo_.GetCipherSuite(),
+                                 CertCallback, PrivateKeyCallback, CACallback, NULL, NULL);
+
     UBSE_LOG_INFO << "RegisterTLSCallbacks: configured custom cert verification, localNodeId="
                   << engineInfo_.GetNodeId();
 }
 
-bool CertCallback(const std::string& name, std::string& value)
+int CertCallback(const char* name, char** certPath)
 {
+    (void)name;
     UBSE_LOG_INFO << "Start to load server cert";
-    value = SERVER_CERT_FILENAME;
-    return true;
+    *certPath = const_cast<char*>(SERVER_CERT_FILENAME);
+    return 1;
 }
 
-bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyPass, int& len,
-                        UBSHcomTLSEraseKeypass& erase)
+int PrivateKeyCallback(const char* name, char** priKeyPath, char** keyPass, int* keyPassLen,
+                       ubs_hcom_tls_keypass_erase* erase)
 {
+    (void)name;
     UBSE_LOG_INFO << "Start to load private key";
     std::string keyPassPath = PASSWORD_FILENAME;
     std::string keyPassContent;
@@ -714,7 +736,7 @@ bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyP
 
     if (!keyPassFile.is_open()) {
         UBSE_LOG_WARN << "Failed to open password file"; // 不打印文件路径，避免泄露敏感文件位置
-        return false;
+        return 0;
     }
 
     std::getline(keyPassFile, keyPassContent);
@@ -723,56 +745,65 @@ bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyP
     size_t contentLen = keyPassContent.length();
     if (contentLen == 0 || contentLen > MAX_KEY_PASS_LENGTH) {
         UBSE_LOG_ERROR << "Invalid key pass content size=" << contentLen;
-        return false;
+        explicit_bzero(keyPassContent.data(), keyPassContent.size());
+        keyPassContent.clear();
+        return 0;
     }
 
     size_t allocSize = contentLen + 1;
     if (allocSize > MAX_KEY_PASS_LENGTH + 1) {
         UBSE_LOG_ERROR << "Invalid key pass alloc size=" << allocSize;
-        return false;
+        explicit_bzero(keyPassContent.data(), keyPassContent.size());
+        keyPassContent.clear();
+        return 0;
     }
 
-    keyPass = malloc(allocSize);
-    if (keyPass == nullptr) {
+    char* pass = static_cast<char*>(malloc(allocSize));
+    if (pass == nullptr) {
         UBSE_LOG_WARN << "Memory allocation failed";
-        return false;
+        explicit_bzero(keyPassContent.data(), keyPassContent.size());
+        keyPassContent.clear();
+        return 0;
     }
 
-    errno_t cpyRet = memcpy_s(keyPass, allocSize, keyPassContent.c_str(), contentLen);
+    errno_t cpyRet = memcpy_s(pass, allocSize, keyPassContent.c_str(), contentLen);
     if (cpyRet != EOK) {
         UBSE_LOG_ERROR << "Failed to translate keyPass file, " << FormatRetCode(cpyRet);
-        KeyPassErase(keyPass, static_cast<int>(allocSize));
-        keyPass = nullptr;
-        return false;
+        KeyPassErase(pass, static_cast<int>(allocSize));
+        explicit_bzero(keyPassContent.data(), keyPassContent.size());
+        keyPassContent.clear();
+        return 0;
     }
 
-    static_cast<char*>(keyPass)[contentLen] = '\0';
-    len = static_cast<int>(allocSize);
-
-    value = SERVER_KEY_FILENAME;
-    erase = std::bind(KeyPassErase, std::placeholders::_1, std::placeholders::_2);
+    pass[contentLen] = '\0';
+    *keyPass = pass;
+    *keyPassLen = static_cast<int>(allocSize);
+    *priKeyPath = const_cast<char*>(SERVER_KEY_FILENAME);
+    *erase = KeyPassErase;
 
     // 立即清除栈上的明文密码
     explicit_bzero(keyPassContent.data(), keyPassContent.size());
     keyPassContent.clear();
 
-    return true;
+    return 1;
 }
 
-bool CACallback(const std::string& name, std::string& caPath, std::string& crlPath,
-                UBSHcomPeerCertVerifyType& verifyType, UBSHcomTLSCertVerifyCallback& cb)
+int CACallback(const char* name, char** caPath, char** crlPath, ubs_hcom_peer_cert_verify_type* verifyType,
+               ubs_hcom_tls_cert_verify* verify)
 {
-    caPath = TRUST_CERT_FILENAME;
+    (void)name;
+    *caPath = const_cast<char*>(TRUST_CERT_FILENAME);
+    *crlPath = nullptr;
     if (access(CA_CRL_FILENAME, F_OK | R_OK) == 0) {
-        crlPath = CA_CRL_FILENAME;
+        *crlPath = const_cast<char*>(CA_CRL_FILENAME);
     }
 
-    verifyType = peerCertVerifyType;
-    cb = certVerifyCb;
-    return true;
+    *verifyType = peerCertVerifyType;
+    *verify = certVerifyCb;
+    return 1;
 }
 
-void KeyPassErase(void* pass, int len)
+void KeyPassErase(char* pass, int len)
 {
     if (pass == nullptr) {
         UBSE_LOG_INFO << "Pass is nullptr";
@@ -802,7 +833,7 @@ std::string UbseComEngine::GetNodeIdByIp(const std::string& ip)
     return id;
 }
 
-UBSHcomService* UbseComEngine::GetHcomService() const
+ubs_hcom_service UbseComEngine::GetHcomService() const
 {
     return hcomNetService_;
 }
@@ -821,7 +852,7 @@ UbseResult UbseComEngine::AddConnectingNodeForServer(UbseComChannelInfo& chInfo)
     }
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(chInfo.GetConnectInfo().GetIp(), chInfo.GetChannelType())) {
-        UBSE_LOG_WARN << "channel exists, id=" << chInfo.GetChannel()->GetId()
+        UBSE_LOG_WARN << "channel exists, id=" << ubs_hcom_channel_get_id(chInfo.GetChannel())
                       << ", remoteId=" << chInfo.GetConnectInfo().GetRemoteNodeId();
         conMutex_.unlock();
         rwLock_.UnLock();
@@ -837,7 +868,7 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo& chInfo)
 {
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(chInfo.GetConnectInfo().GetIp(), chInfo.GetChannelType())) {
-        UBSE_LOG_WARN << "channel exists, id=" << chInfo.GetChannel()->GetId()
+        UBSE_LOG_WARN << "channel exists, id=" << ubs_hcom_channel_get_id(chInfo.GetChannel())
                       << ", remoteId=" << chInfo.GetConnectInfo().GetRemoteNodeId();
         rwLock_.UnLock();
         return UBSE_ERROR;
@@ -851,19 +882,45 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo& chInfo)
 
 void UbseComEngine::UpdateNewChannelIdMap(const std::string& nodeId, UbseComChannelInfo& channelInfo)
 {
-    if (channelInfo.GetChannel() == nullptr) {
+    if (channelInfo.GetChannel() == 0) {
         UBSE_LOG_WARN << "channel does not exist, "
                       << "remote nodeId = " << nodeId;
         return;
     }
     std::unique_lock<std::mutex> lock(newChannelMutex_);
-    if (NewChannelIdMap_.find(nodeId) != NewChannelIdMap_.end()) {
-        UBSE_LOG_WARN << "new channel has been received, remote nodeId = " << nodeId
-                      << ", channel id = " << NewChannelIdMap_[nodeId].GetChannel()->GetId()
-                      << " and will be destroyed";
-        DestroyChannel(NewChannelIdMap_[nodeId].GetChannel());
+    auto iter = NewChannelIdMap_.find(nodeId);
+    if (iter != NewChannelIdMap_.end()) {
+        ubs_hcom_channel oldChannel = iter->second.GetChannel();
+        if (oldChannel != 0) {
+            UBSE_LOG_WARN << "new channel has been received, remote nodeId = " << nodeId
+                          << ", channel id = " << ubs_hcom_channel_get_id(oldChannel) << " and will be destroyed";
+            // 对齐RemoveChannelByChannelId保活模式：条目自身引用由DestroyChannel消耗，
+            // 此处refer供operator=中的derefer抵消，避免引用计数下溢
+            ubs_hcom_channel_refer(oldChannel);
+            DestroyChannel(oldChannel);
+        }
     }
     NewChannelIdMap_[nodeId] = channelInfo;
+}
+
+bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string& ip)
+{
+    size_t pos = 0;
+    size_t colonPos;
+    std::vector<std::string> result;
+    while ((colonPos = ipPortStr.find(':', pos)) != std::string::npos) {
+        auto token = ipPortStr.substr(pos, colonPos - pos);
+        result.push_back(token);
+        pos = colonPos + 1;
+    }
+
+    result.push_back(ipPortStr.substr(pos));
+
+    if (result.size() != NO_2) {
+        return false;
+    }
+    ip = result[0];
+    return true;
 }
 
 bool UbseComEngine::ResolvePeerConnectInfo(const std::string& ipPort,
@@ -891,29 +948,36 @@ bool UbseComEngine::ResolvePeerConnectInfo(const std::string& ipPort,
     return true;
 }
 
-UbseResult UbseComEngine::NewChannel(const std::string& ipPort, const UBSHcomChannelPtr& ch, const std::string& payload)
+UbseResult UbseComEngine::NewChannel(const std::string& ipPort, ubs_hcom_channel ch, const std::string& payload)
 {
     if (ubse::context::g_globalStop.load(std::memory_order_acquire)) {
         UBSE_LOG_WARN << "Engine is stopped, reject new channel, ipPort=" << ipPort;
+        ubs_hcom_channel_derefer(ch);
         return UBSE_COM_ERROR_ENGINE_NOT_INIT;
     }
-    if (ch == nullptr) {
+    if (ch == 0) {
         UBSE_LOG_ERROR << "HcomChannelPtr of NewChannel is nullptr, ipPort=" << ipPort << ", payload=" << payload;
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
-    UBSE_LOG_INFO << "New channel=" << ch.Get()->GetId() << " receive from " << ipPort << ", payload=" << payload;
+    // bind回调句柄自带一次引用(T3)，本函数每条返回路径(含成功)都需消耗
+    UBSE_LOG_INFO << "New channel=" << ubs_hcom_channel_get_id(ch) << " receive from " << ipPort
+                  << ", payload=" << payload;
     auto payLoadPair = SplitPayload(payload);
     if (payLoadPair.first == engineInfo_.GetNodeId()) {
         UBSE_LOG_ERROR << "reject self connecting channel, payload =" << payload;
+        ubs_hcom_channel_derefer(ch);
         return UBSE_ERROR;
     }
     UbseComChannelConnectInfo connectInfo;
     if (!ResolvePeerConnectInfo(ipPort, payLoadPair, connectInfo)) {
+        ubs_hcom_channel_derefer(ch);
         return UBSE_COM_ERROR_GET_PEER_IP_PORT_FAIL;
     }
     if (engineInfo_.GetNewChannelCb() != nullptr) {
         if (engineInfo_.GetNewChannelCb()(connectInfo.GetIp(), payLoadPair.first) != UBSE_OK) {
-            UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload << ", refused by HA";
+            UBSE_LOG_WARN << "New channel=" << ubs_hcom_channel_get_id(ch) << ", payload=" << payload
+                          << ", refused by HA";
+            ubs_hcom_channel_derefer(ch);
             return UBSE_ERROR;
         }
     }
@@ -923,30 +987,36 @@ UbseResult UbseComEngine::NewChannel(const std::string& ipPort, const UBSHcomCha
     UpdateNewChannelIdMap(payLoadPair.first, chInfo);
     auto ret = AddConnectingNodeForServer(chInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload
+        UBSE_LOG_WARN << "New channel=" << ubs_hcom_channel_get_id(ch) << ", payload=" << payload
                       << " , refused because channel already exists";
+        ubs_hcom_channel_derefer(ch);
         return UBSE_ERROR;
     }
+    ubs_hcom_channel_derefer(ch);
     return UBSE_OK;
 }
 
-void UbseComEngine::BrokenChannel(const UBSHcomChannelPtr& ch)
+void UbseComEngine::BrokenChannel(ubs_hcom_channel ch)
 {
     const auto& engineName = engineInfo_.GetName();
     UBSE_LOG_INFO << "Engine=" << engineName << " channel broken";
-    if (ch == nullptr) {
+    if (ch == 0) {
         UBSE_LOG_WARN << "Engine=" << engineName << " channel broken, and channel is nullptr";
         return;
     }
-    auto channelId = ch->GetId();
-    UBSE_LOG_INFO << "Engine=" << engineName << " channel broken, id=" << ch->GetId()
-                  << ", payload=" << ch->GetPeerConnectPayload();
-    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
+    const uint32_t HCOM_CONNECT_PAYLOAD_LEN = 512;
+    char payLoadBuf[HCOM_CONNECT_PAYLOAD_LEN] = {0};
+    uint32_t payLoadLen = HCOM_CONNECT_PAYLOAD_LEN;
+    (void)ubs_hcom_channel_get_peer_connect_payload(ch, payLoadBuf, &payLoadLen);
+    std::string payLoad(payLoadBuf);
+    auto channelId = ubs_hcom_channel_get_id(ch);
+    UBSE_LOG_INFO << "Engine=" << engineName << " channel broken, id=" << channelId << ", payload=" << payLoad;
+    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(payLoad);
     rwLock_.LockWrite();
     UbseComChannelInfo channelInfo;
     auto ret = linkManager_.GetChannelByChannelId(channelId, channelInfo);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_WARN << "Breaking Channel=" << ch->GetId() << " not found in UbseTransLinkManager.";
+        UBSE_LOG_WARN << "Breaking Channel=" << channelId << " not found in UbseTransLinkManager.";
         rwLock_.UnLock();
         return;
     }
@@ -978,11 +1048,17 @@ void NoHandlerReply(UbseComMessageCtx& message)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
 }
 
-void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
+static void EmptyDone(void* arg, ubs_hcom_service_context context)
+{
+    (void)arg;
+    (void)context;
+}
+
+void UbseComEngine::HandleGetLocalNodeId(ubs_hcom_service_context context)
 {
     mti::UbseMtiNodeInfo localNodeInfo;
     const auto ret = mti::UbseGetLocalNodeInfo(localNodeInfo);
-    UBSHcomRequest request;
+    ubs_hcom_channel_request request{};
     std::string respData = GET_NODE_ID_FAIL_MSG;
     if (ret == UBSE_OK) {
         respData = localNodeInfo.nodeId;
@@ -992,24 +1068,32 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
     request.address = respData.data();
     request.size = respData.length();
     request.opcode = 0;
-    UBSHcomReplyContext replyContext;
-    replyContext.rspCtx = context.RspCtx();
+    ubs_hcom_channel_reply_context replyContext{};
+    ubs_hcom_channel_reply_context rspCtx{};
+    (void)ubs_hcom_context_get_rspctx(context, &rspCtx);
+    replyContext.rspCtx = rspCtx.rspCtx;
     replyContext.errorCode = 0;
-    Callback* done = UBSHcomNewCallback([](UBSHcomServiceContext& context) {}, std::placeholders::_1);
-    auto ch = context.Channel();
-    auto replyRet = ch->Reply(replyContext, request, done);
+    ubs_hcom_channel_callback done{EmptyDone, nullptr};
+    ubs_hcom_channel ch = 0;
+    (void)ubs_hcom_context_get_channel(context, &ch);
+    auto replyRet = ubs_hcom_channel_reply(ch, request, replyContext, &done);
     if (replyRet != UBSE_OK) {
         UBSE_LOG_ERROR << "Reply local node id fail";
     }
-    auto payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
+    const uint32_t HCOM_CONNECT_PAYLOAD_LEN = 512;
+    char payLoadBuf[HCOM_CONNECT_PAYLOAD_LEN] = {0};
+    uint32_t payLoadLen = HCOM_CONNECT_PAYLOAD_LEN;
+    (void)ubs_hcom_channel_get_peer_connect_payload(ch, payLoadBuf, &payLoadLen);
+    auto payLoadPair = SplitPayload(std::string(payLoadBuf));
     std::string ip;
     UbseComChannelConnectInfo connectInfo;
     auto queryRet = queryCb_(payLoadPair.first, ip);
     if (!queryRet || ip.empty()) {
-        // 查询失败或IP为空时拒绝插入空IP映射，断开该通道
+        // 查询失败或IP为空时拒绝插入空IP映射，断开该通道；context获取的是借用句柄，disconnect前需refer
         UBSE_LOG_ERROR << "Query ip by nodeId=" << payLoadPair.first << " fail, will disconnect channel "
-                       << ch.Get()->GetId();
-        hcomNetService_->Disconnect(ch);
+                       << ubs_hcom_channel_get_id(ch);
+        ubs_hcom_channel_refer(ch);
+        ubs_hcom_service_disconnect(hcomNetService_, ch);
         return;
     }
     connectInfo.SetPort(TCP_LISTEN_PORT);
@@ -1021,16 +1105,17 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
     auto res = InsertChannelToMap(chInfo);
     RemoveConnectingNode(ip, payLoadPair.second);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "Insert channel " << ch.Get()->GetId() << " receive from [" << UbseNetUtil::MaskIp(ip) << ","
-                       << ch->GetPeerConnectPayload() << "] fail, will disconnect";
-        hcomNetService_->Disconnect(ch);
+        UBSE_LOG_ERROR << "Insert channel " << ubs_hcom_channel_get_id(ch) << " receive from ["
+                       << UbseNetUtil::MaskIp(ip) << "," << payLoadBuf << "] fail, will disconnect";
+        ubs_hcom_channel_refer(ch);
+        ubs_hcom_service_disconnect(hcomNetService_, ch);
         return;
     }
-    UBSE_LOG_INFO << "Insert channel " << ch.Get()->GetId() << " receive from [" << UbseNetUtil::MaskIp(ip) << ","
-                  << ch->GetPeerConnectPayload() << "] successfully";
+    UBSE_LOG_INFO << "Insert channel " << ubs_hcom_channel_get_id(ch) << " receive from [" << UbseNetUtil::MaskIp(ip)
+                  << "," << payLoadBuf << "] successfully";
 }
 
-UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext& context)
+UbseResult UbseComEngine::HandleRemoteCall(ubs_hcom_service_context context)
 {
     UBSE_LOG_DEBUG << "Get remote call";
     auto msg = GetMessageFromNetServiceContext(context);
@@ -1103,7 +1188,7 @@ bool UbseComEngine::VerifyMsg(UbseComMessageCtx& msgCtx)
     return true;
 }
 
-UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext& context)
+UbseResult UbseComEngine::NormalRequestHandle(ubs_hcom_service_context context)
 {
     auto msg = GetMessageFromNetServiceContext(context);
     if (UBSE_UNLIKELY(msg == nullptr)) {
@@ -1153,14 +1238,14 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext& context)
     return UBSE_OK;
 }
 
-UbseResult UbseComEngine::ReceivedRequest(UBSHcomServiceContext& context)
+UbseResult UbseComEngine::ReceivedRequest(ubs_hcom_service_context context)
 {
-    if (context.OpCode() == OpCodeType::GET_REMOTE_ID) {
+    auto opCode = ubs_hcom_context_get_opcode(context);
+    if (opCode == OpCodeType::GET_REMOTE_ID) {
         HandleGetLocalNodeId(context);
         return UBSE_OK;
     }
-    if (context.OpCode() > OpCodeType::ASK_REMOTE_INFO_OFFSET &&
-        context.OpCode() < OpCodeType::REMOTE_INFO_CALL_BACK_OFFSET) {
+    if (opCode > OpCodeType::ASK_REMOTE_INFO_OFFSET && opCode < OpCodeType::REMOTE_INFO_CALL_BACK_OFFSET) {
         return HandleRemoteCall(context);
     }
     return NormalRequestHandle(context);
@@ -1174,24 +1259,25 @@ UbseResult UbseComEngine::GetChannelById(uint64_t channelId, UbseComChannelInfo&
     return ret;
 }
 
-UbseResult UbseComEngine::SendRequest(const UBSHcomServiceContext& context)
+UbseResult UbseComEngine::SendRequest(ubs_hcom_service_context context)
 {
-    int32_t ret = context.Result();
+    int ret = 0;
+    (void)ubs_hcom_context_get_result(context, &ret);
     UBSE_LOG_INFO << "Send request finish, result=" << ret;
     return UBSE_OK;
 }
 
-UbseResult UbseComEngine::OneSideDoneRequest(const UBSHcomServiceContext& context)
+UbseResult UbseComEngine::OneSideDoneRequest(ubs_hcom_service_context context)
 {
-    int32_t ret = context.Result();
+    int ret = 0;
+    (void)ubs_hcom_context_get_result(context, &ret);
     UBSE_LOG_INFO << "One side done finish, result=" << ret;
     return UBSE_OK;
 }
-void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler)
+void UbseComEngine::AddListenOptions(ubs_hcom_service_channel_handler newChannelHandler)
 {
-    hcomNetService_->Bind(
-        "tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
-        newChannelHandler);
+    std::string url = "tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second);
+    (void)ubs_hcom_service_bind(hcomNetService_, url.c_str(), newChannelHandler);
 }
 
 bool UbseComEngine::AddConnectingNode(const std::string& remoteNodeIp, UbseChannelType channelType)
@@ -1222,20 +1308,22 @@ UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo& engineInf
         return UBSE_OK;
     }
     locker.unlock();
-    NetLogger::Instance()->SetExternalLogFunction(engineInfo.GetLogFunc());
-    UBSHcomServiceOptions options{};
-    UBSHcomServiceProtocol hcomProtocol = UbseProtocolToHcomProtocol(engineInfo.GetProtocol());
+    ubs_hcom_set_log_handler(engineInfo.GetLogFunc());
+    ubs_hcom_service_options options{};
+    (void)memset_s(&options, sizeof(options), 0, sizeof(options));
+    ubs_hcom_service_type hcomProtocol = UbseProtocolToHcomProtocol(engineInfo.GetProtocol());
     AssignServiceOptions(engineInfo, options);
-    auto service = UBSHcomService::Create(hcomProtocol, engineName, options);
-    if (UBSE_UNLIKELY(service == nullptr)) {
-        UBSE_LOG_ERROR << "Create engine " << engineName << " service instance failed";
+    ubs_hcom_service service = 0;
+    auto createRet = ubs_hcom_service_create(hcomProtocol, engineName.c_str(), options, &service);
+    if (UBSE_UNLIKELY(createRet != 0 || service == 0)) {
+        UBSE_LOG_ERROR << "Create engine " << engineName << " service instance failed, " << FormatRetCode(createRet);
         return UBSE_COM_ERROR_ENGINE_CREATE_FAIL;
     }
     UbseComLinkManager linkManager;
     auto engine = new (std::nothrow) UbseComEngine(engineInfo, service, notify, linkManager);
     if (engine == nullptr) {
         UBSE_LOG_ERROR << "New engine " << engineName << " failed";
-        UBSHcomService::Destroy(engineName);
+        (void)ubs_hcom_service_destroy(service, engineName.c_str());
         return UBSE_COM_ERROR_ENGINE_CREATE_FAIL;
     }
     engine->RegisterQueryCb(engineInfo.GetQueryEidByNodeIdCb());
@@ -1243,7 +1331,7 @@ UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo& engineInf
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Engine " << engineName << " start failed, " << FormatRetCode(ret) << std::endl;
         UBSE_LOG_ERROR << "Engine " << engineName << " start failed, " << FormatRetCode(ret);
-        UBSHcomService::Destroy(engineName);
+        engine->Stop();
         SafeDelete(engine);
         return ret;
     }
@@ -1344,37 +1432,50 @@ UbseResult CheckReplyResult(const UbseComDataDesc& retData)
     return UBSE_OK;
 }
 
-UbseResult CreateCallBack(const UbseComCallback& usrCb, Callback*& done)
+// 异步call完成回调的堆分配上下文，由AsyncCallDone内释放
+struct AsyncCallCbCtx {
+    UbseComCallback usrCb;
+    std::string traceId;
+};
+
+static void AsyncCallDone(void* arg, ubs_hcom_service_context context)
+{
+    auto* cbCtx = static_cast<AsyncCallCbCtx*>(arg);
+    TraceContext::SetTraceId(cbCtx->traceId);
+    int ret = 0;
+    (void)ubs_hcom_context_get_result(context, &ret);
+    if (ret != 0) {
+        UBSE_LOG_ERROR << "callback return failed, " << FormatRetCode(ret);
+    }
+    UbseComDataDesc data{static_cast<uint8_t*>(ubs_hcom_context_get_data(context)),
+                         ubs_hcom_context_get_datalen(context)};
+    if (CheckReplyResult(data) != UBSE_OK) {
+        ret = UBSE_COM_ERROR_ASYNC_CALL_FAIL;
+    }
+    if (cbCtx->usrCb.cb != nullptr) {
+        cbCtx->usrCb.cb(cbCtx->usrCb.cbCtx, ubs_hcom_context_get_data(context), ubs_hcom_context_get_datalen(context),
+                        ret);
+    }
+    delete cbCtx;
+}
+
+UbseResult CreateCallBack(const UbseComCallback& usrCb, ubs_hcom_channel_callback& done)
 {
     std::string traceId = TraceContext::GetTraceId();
-    done = UBSHcomNewCallback(
-        [usrCb, traceId](UBSHcomServiceContext& context) {
-            TraceContext::SetTraceId(traceId);
-            if (context.Result() != 0) {
-                UBSE_LOG_ERROR << "callback return failed, " << FormatRetCode(context.Result());
-            }
-            auto ret = context.Result();
-            UbseComDataDesc data{static_cast<uint8_t*>(context.MessageData()), context.MessageDataLen()};
-            if (CheckReplyResult(data) != UBSE_OK) {
-                ret = UBSE_COM_ERROR_ASYNC_CALL_FAIL;
-            }
-            if (usrCb.cb != nullptr) {
-                usrCb.cb(usrCb.cbCtx, context.MessageData(), context.MessageDataLen(), ret);
-            }
-            return;
-        },
-        std::placeholders::_1);
-    if (done == nullptr) {
+    auto* cbCtx = new (std::nothrow) AsyncCallCbCtx{usrCb, traceId};
+    if (cbCtx == nullptr) {
         UBSE_LOG_ERROR << "New net callback failed.";
         if (usrCb.cb != nullptr) {
             usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_NEW_NET_CALLBACK_FAIL);
         }
         return UBSE_COM_ERROR_NEW_NET_CALLBACK_FAIL;
     }
+    done.cb = AsyncCallDone;
+    done.arg = cbCtx;
     return UBSE_OK;
 }
 
-UbseResult GetChannel(const std::string& engineName, UbseComMessageCtx& message, UBSHcomChannelPtr& channel)
+UbseResult GetChannel(const std::string& engineName, UbseComMessageCtx& message, ubs_hcom_channel& channel)
 {
     auto* transMsg = static_cast<UbseComMessage*>(static_cast<void*>(message.GetMessage()));
     if (transMsg == nullptr) {
@@ -1394,7 +1495,7 @@ UbseResult GetChannel(const std::string& engineName, UbseComMessageCtx& message,
         return UBSE_COM_ERROR_CHANNEL_NOT_FOUND;
     }
     channel = channelInfo.GetChannel();
-    if (channel == nullptr) {
+    if (channel == 0) {
         UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << nodeId;
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
@@ -1460,7 +1561,7 @@ UbseResult UbseCommunication::RegUbseComMsgHandler(const std::string& engineName
 UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, UbseComMessageCtx& message,
                                              UbseComDataDesc& retData)
 {
-    UBSHcomChannelPtr channel;
+    ubs_hcom_channel channel = 0;
     uint32_t sendLen;
     UbseResult channelRes = GetChannel(engineName, message, channel);
     if (channelRes != UBSE_OK) {
@@ -1471,12 +1572,15 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, Ubse
         return getLenRes;
     }
     UbseComDataDesc sendData = {message.GetMessage(), sendLen};
-    UBSHcomRequest reqMsg{(sendData.data), sendData.len, 0};
-    UBSHcomResponse rspMsg;
+    ubs_hcom_channel_request reqMsg{};
+    reqMsg.address = sendData.data;
+    reqMsg.size = sendData.len;
+    reqMsg.opcode = 0;
+    ubs_hcom_channel_response rspMsg{};
     std::string traceId = TraceContext::GetTraceId();
-    channel->SetTraceId(traceId);
-    auto ret = channel->Call(reqMsg, rspMsg, nullptr);
-    if (ret == NNCode::NN_URMA_ACK_TIMEOUT) {
+    ubs_hcom_channel_set_trace_id(channel, traceId.c_str());
+    auto ret = ubs_hcom_channel_call(channel, reqMsg, &rspMsg, NULL);
+    if (ret == ock::hcom::NN_URMA_ACK_TIMEOUT) {
         UBSE_LOG_ERROR << "Channel syncCall failed, for urma ack timeout";
         return UBSE_COM_ERROR_RESOURCE_TEMPORARILY_UNAVAILABLE;
     }
@@ -1495,7 +1599,7 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, Ubse
 UbseResult UbseCommunication::UbseComMsgAsyncSend(const std::string& engineName, UbseComMessageCtx& message,
                                                   const UbseComCallback& usrCb)
 {
-    UBSHcomChannelPtr channel;
+    ubs_hcom_channel channel = 0;
     uint32_t sendLen;
     UbseResult ret = GetChannel(engineName, message, channel);
     if (ret != UBSE_OK) {
@@ -1506,17 +1610,20 @@ UbseResult UbseCommunication::UbseComMsgAsyncSend(const std::string& engineName,
         return getLenRes;
     }
     UbseComDataDesc sendData = {message.GetMessage(), sendLen};
-    UBSHcomRequest reqMsg{(sendData.data), sendData.len, 0};
-    UBSHcomResponse rspMsg;
-    Callback* done = nullptr;
+    ubs_hcom_channel_request reqMsg{};
+    reqMsg.address = sendData.data;
+    reqMsg.size = sendData.len;
+    reqMsg.opcode = 0;
+    ubs_hcom_channel_response rspMsg{};
+    ubs_hcom_channel_callback done{};
     ret = CreateCallBack(usrCb, done);
     if (ret != UBSE_OK) {
         return ret;
     }
     std::string traceId = TraceContext::GetTraceId();
-    channel->SetTraceId(traceId);
-    auto result = channel->Call(reqMsg, rspMsg, done);
-    if (result == NNCode::NN_URMA_ACK_TIMEOUT) {
+    ubs_hcom_channel_set_trace_id(channel, traceId.c_str());
+    auto result = ubs_hcom_channel_call(channel, reqMsg, &rspMsg, &done);
+    if (result == ock::hcom::NN_URMA_ACK_TIMEOUT) {
         UBSE_LOG_ERROR << "Channel syncCall failed, for urma ack timeout";
         return UBSE_COM_ERROR_RESOURCE_TEMPORARILY_UNAVAILABLE;
     }
@@ -1537,24 +1644,24 @@ void ReplyWhenChannelNotInMap(UbseComMessageCtx& message, const UbseComCallback&
 {
     UBSE_LOG_ERROR << "Reply fail, channel info is abnormal, channel id=" << message.GetChannelId()
                    << ", moduleCode=" << message.GetModuleCode() << ", opCode=" << message.GetOpCode();
-    UBSHcomRequest reqMsg;
+    ubs_hcom_channel_request reqMsg{};
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_CH_NOT_IN_MAP));
     reqMsg.address = reinterpret_cast<uint8_t*>(res.data()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     reqMsg.size = res.length();
     reqMsg.opcode = 0;
-    Callback* done = nullptr;
+    ubs_hcom_channel_callback done{};
     if (CreateCallBack(usrCb, done) != UBSE_OK) {
         return;
     }
-    UBSHcomReplyContext replyContext(message.GetRspCtx(), 0);
+    ubs_hcom_channel_reply_context replyContext{reinterpret_cast<void*>(message.GetRspCtx()), 0};
     std::string traceId = TraceContext::GetTraceId();
-    if (message.GetChannelPtr() == nullptr) {
+    if (message.GetChannelPtr() == 0) {
         UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << message.GetDstId();
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
         return;
     }
-    message.GetChannelPtr()->SetTraceId(traceId);
-    auto ret = message.GetChannelPtr()->Reply(replyContext, reqMsg, done);
+    ubs_hcom_channel_set_trace_id(message.GetChannelPtr(), traceId.c_str());
+    auto ret = ubs_hcom_channel_reply(message.GetChannelPtr(), reqMsg, replyContext, &done);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Channel reply failed, " << FormatRetCode(ret) << ", moduleCode=" << message.GetModuleCode()
                        << ", opCode=" << message.GetOpCode();
@@ -1581,27 +1688,27 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx& message, const UbseCo
     if (UBSE_RESULT_FAIL(res)) {
         return ReplyWhenChannelNotInMap(message, usrCb);
     }
-    const UBSHcomChannelPtr& channel = channelInfo.GetChannel();
-    if (channel == nullptr) {
+    ubs_hcom_channel channel = channelInfo.GetChannel();
+    if (channel == 0) {
         UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << message.GetDstId();
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
         return;
     }
-    UBSHcomRequest reqMsg;
+    ubs_hcom_channel_request reqMsg{};
     if (data.len > TCP_SEND_RECEIVE_SIZE) {
         UBSE_LOG_CRIT << "Too large msg for tcp reply, msg_size=" << data.len;
     }
     reqMsg.address = data.data;
     reqMsg.size = data.len;
     reqMsg.opcode = 0;
-    Callback* done = nullptr;
+    ubs_hcom_channel_callback done{};
     if (CreateCallBack(usrCb, done) != UBSE_OK) {
         return;
     }
-    UBSHcomReplyContext replyContext(message.GetRspCtx(), 0);
+    ubs_hcom_channel_reply_context replyContext{reinterpret_cast<void*>(message.GetRspCtx()), 0};
     std::string traceId = TraceContext::GetTraceId();
-    channel->SetTraceId(traceId);
-    res = channel->Reply(replyContext, reqMsg, done);
+    ubs_hcom_channel_set_trace_id(channel, traceId.c_str());
+    res = ubs_hcom_channel_reply(channel, reqMsg, replyContext, &done);
     if (UBSE_RESULT_FAIL(res)) {
         UBSE_LOG_ERROR << "Channel reply failed, " << FormatRetCode(res) << ", moduleCode=" << message.GetModuleCode()
                        << ", opCode=" << message.GetOpCode();

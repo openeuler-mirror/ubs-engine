@@ -56,10 +56,8 @@ using ubse::it::infra::GetComStubControl;
 namespace ubse::com {
 
 // ====== 1. TLS mock (original behavior) ======
-void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions& tlsOptions)
-{
-    tlsOptions.enableTls = false;
-}
+// 真实实现会调用ubs_hcom_service_set_tls_opt注册TLS选项；此处空实现即不注册，等效禁用TLS
+void UbseComEngine::RegisterTLSCallbacks() {}
 
 // ====== 2. RPC fault injection via shared memory ======
 // Uses GetComStubControl() from it_com_stub_loader.h (shared with other IT mocks).
@@ -113,7 +111,7 @@ static UbseResult ItCheckReplyResult(const UbseComDataDesc& retData)
 }
 
 // Mirror of GetChannel in ubse_com_engine.cpp
-static UbseResult ItGetChannel(const std::string& engineName, UbseComMessageCtx& message, UBSHcomChannelPtr& channel)
+static UbseResult ItGetChannel(const std::string& engineName, UbseComMessageCtx& message, ubs_hcom_channel& channel)
 {
     const std::string& nodeId = message.GetDstId();
     UbseComChannelInfo channelInfo;
@@ -126,7 +124,7 @@ static UbseResult ItGetChannel(const std::string& engineName, UbseComMessageCtx&
         return UBSE_COM_ERROR_CHANNEL_NOT_FOUND;
     }
     channel = channelInfo.GetChannel();
-    if (channel == nullptr) {
+    if (channel == 0) {
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
     return UBSE_OK;
@@ -159,7 +157,7 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, Ubse
     }
 
     // --- Real send logic (mirror of ubse_com_engine.cpp) ---
-    UBSHcomChannelPtr channel;
+    ubs_hcom_channel channel = 0;
     uint32_t sendLen;
     UbseResult channelRes = ItGetChannel(engineName, message, channel);
     if (channelRes != UBSE_OK) {
@@ -170,11 +168,13 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, Ubse
         return getLenRes;
     }
     UbseComDataDesc sendData = {message.GetMessage(), sendLen};
-    UBSHcomRequest reqMsg{sendData.data, sendData.len, 0};
-    UBSHcomResponse rspMsg;
+    ubs_hcom_channel_request reqMsg{};
+    reqMsg.address = sendData.data;
+    reqMsg.size = sendData.len;
+    ubs_hcom_channel_response rspMsg{};
     std::string traceId = TraceContext::GetTraceId();
-    channel->SetTraceId(traceId);
-    auto ret = channel->Call(reqMsg, rspMsg, nullptr);
+    ubs_hcom_channel_set_trace_id(channel, traceId.c_str());
+    auto ret = ubs_hcom_channel_call(channel, reqMsg, &rspMsg, NULL);
     // Simplification: real code checks NN_URMA_ACK_TIMEOUT separately; this mock
     // treats all failures as SYNC_CALL_FAIL. Business retry logic still triggers.
     if (UBSE_RESULT_FAIL(ret)) {

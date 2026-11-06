@@ -123,7 +123,7 @@ int16_t GetTimeOutValue()
         UBSE_LOG_WARN << "Unable to get timeout config info, set to default value which is 60";
         return DEFAULTTIMEOUT;
     }
-    if (time < NN_NO0 || time > INT16_MAX) {
+    if (time < NO_0 || time > INT16_MAX) {
         UBSE_LOG_WARN << "Timeout config range should be 0 to 65535, set to default value which is 60";
         return DEFAULTTIMEOUT;
     }

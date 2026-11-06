@@ -132,12 +132,19 @@ void Log(int level, const char* str)
     UbseLogOutput(MODULE_LOG_NAME, static_cast<UbseLogLevel>(level), str);
 }
 
-std::string GetChannelType(const UBSHcomChannelPtr& ch)
+const uint32_t HCOM_CONNECT_PAYLOAD_LEN = 512; // hcom connect options中payLoad固定长度
+
+std::string GetChannelType(ubs_hcom_channel ch)
 {
-    if (ch == nullptr) {
+    if (ch == 0) {
         return "NoChannel";
     }
-    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
+    char payLoad[HCOM_CONNECT_PAYLOAD_LEN] = {0};
+    uint32_t len = sizeof(payLoad);
+    if (ubs_hcom_channel_get_peer_connect_payload(ch, payLoad, &len) != 0) {
+        return "NoChannel";
+    }
+    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(std::string(payLoad));
     return ChannelTypeToString(std::get<1>(payLoadPair));
 }
 
@@ -162,7 +169,7 @@ std::vector<UbseLinkInfo> UbseComBase::GetLinkInfoFromMap(const std::string& eng
 }
 
 std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string& engineName, const std::string& changeNodeId,
-                                                     const UBSHcomChannelPtr& ch)
+                                                     ubs_hcom_channel ch)
 {
     std::vector<UbseLinkInfo> info;
     auto iter = g_linkStateMap_.find(engineName);
@@ -187,23 +194,23 @@ std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string& engineNa
 }
 
 void UbseComBase::CheckSdkEventAndNotify(const std::string& engineName, const std::string& curNodeId,
-                                         const UBSHcomChannelPtr& ch, UbseLinkState state)
+                                         ubs_hcom_channel ch, UbseLinkState state)
 {
-    if (ch.Get() == nullptr) {
+    if (ch == 0) {
         UBSE_LOG_ERROR << "Channel is nullptr";
         return;
     }
     if (curNodeId.compare(0, FAKE_CUR_NODE_ID.length(), FAKE_CUR_NODE_ID) != 0) {
         return;
     }
-    UBSHcomNetUdsIdInfo idInfo;
-    ch->GetRemoteUdsIdInfo(idInfo);
+    ubs_hcom_uds_id_info idInfo{};
+    (void)ubs_hcom_channel_get_remote_uds_id_info(ch, &idInfo);
     if (state == UbseLinkState::LINK_DOWN) {
         g_linkStateMap_.erase(engineName);
     }
 }
 
-void UbseComBase::LinkNotify(const UbseComEngineInfo& info, const std::string& curNodeId, const UBSHcomChannelPtr& ch,
+void UbseComBase::LinkNotify(const UbseComEngineInfo& info, const std::string& curNodeId, ubs_hcom_channel ch,
                              UbseLinkState state)
 {
     WriteLocker<ReadWriteLock> lock(&g_lock_);
@@ -354,7 +361,7 @@ const UbseUdsIdInfo& UbseComBaseMessageHandlerCtx::GetUdsIdInfo() const
     return udsIdInfo_;
 }
 
-const UBSHcomChannelPtr& UbseComBaseMessageHandlerCtx::GetChannelPtr() const
+ubs_hcom_channel UbseComBaseMessageHandlerCtx::GetChannelPtr() const
 {
     return channelPtr_;
 }
@@ -364,9 +371,25 @@ const std::string& UbseComBaseMessageHandlerCtx::GetDstId() const
     return dstId_;
 }
 
-void UbseComBaseMessageHandlerCtx::SetChannelPtr(const UBSHcomChannelPtr& chPtr)
+void UbseComBaseMessageHandlerCtx::SetChannelPtr(ubs_hcom_channel chPtr)
 {
+    if (chPtr == channelPtr_) {
+        return;
+    }
+    if (chPtr != 0) {
+        ubs_hcom_channel_refer(chPtr);
+    }
+    if (channelPtr_ != 0) {
+        ubs_hcom_channel_derefer(channelPtr_);
+    }
     channelPtr_ = chPtr;
+}
+
+UbseComBaseMessageHandlerCtx::~UbseComBaseMessageHandlerCtx()
+{
+    if (channelPtr_ != 0) {
+        ubs_hcom_channel_derefer(channelPtr_);
+    }
 }
 
 void UbseComBaseMessageHandlerCtx::SetUdsIdInfo(const UbseUdsIdInfo& uds)
@@ -413,7 +436,7 @@ void DefaultHandlerExecutor(const std::function<void()>& task, const executorTyp
 
 void DefaultLinkEventHandler(const std::vector<UbseLinkInfo>& linkInfoList) {}
 
-void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo& idInfo, UbseLinkState& state) {}
+void DefaultSdkLinkDownEventHandler(UbseUdsIdInfo& idInfo, UbseLinkState& state) {}
 
 void UbseComBase::SetTimeOut(int16_t time, int16_t hbTime)
 {

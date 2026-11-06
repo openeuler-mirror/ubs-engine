@@ -27,7 +27,7 @@ public:
 
     void TearDown() override;
 
-    UBSHcomService* mockService;
+    ubs_hcom_service mockService = 0;
 };
 
 class TestUbseComLinkManager : public testing::Test {

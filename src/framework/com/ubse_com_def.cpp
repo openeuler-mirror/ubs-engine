@@ -31,7 +31,6 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::utils;
 using namespace ubse::log;
-using namespace ock::hcom;
 using namespace ubse::common::def;
 using namespace ubse::message;
 UbseEngineType UbseComEngineInfo::GetEngineType() const
@@ -204,12 +203,12 @@ void UbseComEngineInfo::SetQueryEidByNodeIdCb(QueryEidByNodeIdCb queryEidByNodeI
     UbseComEngineInfo::queryEidByNodeIdCb_ = queryEidByNodeIdCb;
 }
 
-const UBSHcomNetCipherSuite& UbseComEngineInfo::GetCipherSuite() const
+ubs_hcom_service_cipher_suite UbseComEngineInfo::GetCipherSuite() const
 {
     return cipherSuite_;
 }
 
-void UbseComEngineInfo::SetCipherSuite(const UBSHcomNetCipherSuite& suite)
+void UbseComEngineInfo::SetCipherSuite(ubs_hcom_service_cipher_suite suite)
 {
     cipherSuite_ = suite;
 }
@@ -284,14 +283,24 @@ void UbseComChannelInfo::SetIsServer(bool isServerSide)
     UbseComChannelInfo::isServer_ = isServerSide;
 }
 
-const UBSHcomChannelPtr& UbseComChannelInfo::GetChannel() const
+ubs_hcom_channel UbseComChannelInfo::GetChannel() const
 {
     return channel_;
 }
 
-void UbseComChannelInfo::SetChannel(const UBSHcomChannelPtr& ch)
+void UbseComChannelInfo::SetChannel(ubs_hcom_channel ch)
 {
-    UbseComChannelInfo::channel_ = ch;
+    if (ch == channel_) {
+        return;
+    }
+    ubs_hcom_channel oldChannel = channel_;
+    channel_ = ch;
+    if (channel_ != 0) {
+        ubs_hcom_channel_refer(channel_);
+    }
+    if (oldChannel != 0) {
+        ubs_hcom_channel_derefer(oldChannel);
+    }
 }
 
 const UbseComChannelConnectInfo& UbseComChannelInfo::GetConnectInfo() const
@@ -327,7 +336,7 @@ std::string UbseComChannelInfo::ConvertUbseComChannelInfoToString()
 {
     std::string infoStr = "engine_name=" + engineName_ + "; ";
     infoStr = infoStr + "channel_type=" + std::to_string(static_cast<int>(channelType_)) + "; ";
-    infoStr = infoStr + "channel_id=" + std::to_string(channel_->GetId()) + "; ";
+    infoStr = infoStr + "channel_id=" + std::to_string(ubs_hcom_channel_get_id(channel_)) + "; ";
     infoStr = infoStr + "cur_node_id=" + connectInfo_.GetCurNodeId() + "; ";
     infoStr = infoStr + "remote_node_id=" + connectInfo_.GetRemoteNodeId() + "; ";
     return infoStr;
@@ -509,14 +518,78 @@ uint64_t UbseComMessageCtx::GetOpCode() const
     return ctxOpCode_;
 }
 
-const UBSHcomChannelPtr& UbseComMessageCtx::GetChannelPtr() const
+ubs_hcom_channel UbseComMessageCtx::GetChannelPtr() const
 {
     return channelPtr_;
 }
 
-void UbseComMessageCtx::SetChannelPtr(const UBSHcomChannelPtr& chPtr)
+void UbseComMessageCtx::SetChannelPtr(ubs_hcom_channel chPtr)
 {
+    if (chPtr == channelPtr_) {
+        return;
+    }
+    ubs_hcom_channel oldChannel = channelPtr_;
     channelPtr_ = chPtr;
+    if (channelPtr_ != 0) {
+        ubs_hcom_channel_refer(channelPtr_);
+    }
+    if (oldChannel != 0) {
+        ubs_hcom_channel_derefer(oldChannel);
+    }
+}
+
+UbseComMessageCtx::UbseComMessageCtx(const UbseComMessageCtx& other)
+    : message_(other.message_),
+      channelPtr_(other.channelPtr_),
+      srcId_(other.srcId_),
+      dstId_(other.dstId_),
+      rspCtx_(other.rspCtx_),
+      channelType_(other.channelType_),
+      channelId_(other.channelId_),
+      engineName_(other.engineName_),
+      udsInfo_(other.udsInfo_),
+      traceId_(other.traceId_),
+      ctxModuleCode_(other.ctxModuleCode_),
+      ctxOpCode_(other.ctxOpCode_),
+      isRemoteCall_(other.isRemoteCall_)
+{
+    if (channelPtr_ != 0) {
+        ubs_hcom_channel_refer(channelPtr_);
+    }
+}
+
+UbseComMessageCtx& UbseComMessageCtx::operator=(const UbseComMessageCtx& other)
+{
+    if (this != &other) {
+        ubs_hcom_channel oldChannel = channelPtr_;
+        message_ = other.message_;
+        channelPtr_ = other.channelPtr_;
+        srcId_ = other.srcId_;
+        dstId_ = other.dstId_;
+        rspCtx_ = other.rspCtx_;
+        channelType_ = other.channelType_;
+        channelId_ = other.channelId_;
+        engineName_ = other.engineName_;
+        udsInfo_ = other.udsInfo_;
+        traceId_ = other.traceId_;
+        ctxModuleCode_ = other.ctxModuleCode_;
+        ctxOpCode_ = other.ctxOpCode_;
+        isRemoteCall_ = other.isRemoteCall_;
+        if (channelPtr_ != 0) {
+            ubs_hcom_channel_refer(channelPtr_);
+        }
+        if (oldChannel != 0) {
+            ubs_hcom_channel_derefer(oldChannel);
+        }
+    }
+    return *this;
+}
+
+UbseComMessageCtx::~UbseComMessageCtx()
+{
+    if (channelPtr_ != 0) {
+        ubs_hcom_channel_derefer(channelPtr_);
+    }
 }
 
 bool UbseComMessageCtx::IsRemoteCall() const
@@ -707,34 +780,36 @@ std::pair<std::string, UbseChannelType> SplitPayload(const std::string& payload)
     return std::make_pair(payloadPair[0], StringToChannelType(payloadPair[1]));
 }
 
-UbseComMessage* GetMessageFromNetServiceContext(UBSHcomServiceContext& context)
+UbseComMessage* GetMessageFromNetServiceContext(ubs_hcom_service_context context)
 {
-    return static_cast<UbseComMessage*>(context.MessageData());
+    return static_cast<UbseComMessage*>(ubs_hcom_context_get_data(context));
 }
 
-bool CheckMessageBodyLen(UBSHcomServiceContext& context, UbseComMessage& msg)
+bool CheckMessageBodyLen(ubs_hcom_service_context context, UbseComMessage& msg)
 {
-    return context.MessageDataLen() == (sizeof(UbseComMessage) + msg.GetMessageBodyLen());
+    return ubs_hcom_context_get_datalen(context) == (sizeof(UbseComMessage) + msg.GetMessageBodyLen());
 }
 
-uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext& context)
+uint64_t GetChannelIdFromNetServiceContext(ubs_hcom_service_context context)
 {
-    if (context.Channel() == nullptr) {
+    ubs_hcom_channel channel = 0;
+    if (ubs_hcom_context_get_channel(context, &channel) != 0 || channel == 0) {
         UBSE_LOG_DEBUG << "Channel is nullptr";
         return 0;
     }
-    return context.Channel()->GetId();
+    return ubs_hcom_channel_get_id(channel);
 }
 
-void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext& context, UbseUdsIdInfo& udsIdInfo)
+void GetUdsInfoFromNetServiceContext(ubs_hcom_service_context context, UbseUdsIdInfo& udsIdInfo)
 {
-    UBSHcomNetUdsIdInfo uds;
-    if (context.Channel() == nullptr) {
+    ubs_hcom_uds_id_info uds{};
+    ubs_hcom_channel channel = 0;
+    if (ubs_hcom_context_get_channel(context, &channel) != 0 || channel == 0) {
         UBSE_LOG_DEBUG << "Uds channel is nullptr ";
         return;
     }
-    auto ret = context.Channel()->GetRemoteUdsIdInfo(uds);
-    if (UBSE_RESULT_OK(ret)) {
+    auto ret = ubs_hcom_channel_get_remote_uds_id_info(channel, &uds);
+    if (ret == 0) {
         UBSE_LOG_DEBUG << "Uds info is " << uds.pid << "," << uds.uid << "," << uds.gid;
         udsIdInfo.pid = uds.pid;
         udsIdInfo.uid = uds.uid;
@@ -848,17 +923,17 @@ std::unordered_map<std::string, std::string> GetClusterIpListFromConf()
     return ipMap;
 }
 
-UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol)
+ubs_hcom_service_type UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol)
 {
     if (LocalProtocol == UbseProtocol::TCP) {
-        return UBSHcomServiceProtocol::TCP;
+        return C_SERVICE_TCP;
     }
     if (LocalProtocol == UbseProtocol::UDS) {
-        return UBSHcomServiceProtocol::UDS;
+        return C_SERVICE_UDS;
     }
     if (LocalProtocol == UbseProtocol::UBC) {
-        return UBSHcomServiceProtocol::UBC;
+        return C_SERVICE_UBC;
     }
-    return UBSHcomServiceProtocol::UNKNOWN;
+    return C_SERVICE_UNKNOWN;
 }
 } // namespace ubse::com

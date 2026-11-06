@@ -296,8 +296,8 @@ TEST_F(TestUbseComDef, TestSetGetQueryEidByNodeIdCb)
 TEST_F(TestUbseComDef, TestSetGetCipherSuite)
 {
     UbseComEngineInfo ubseComEngineInfo;
-    EXPECT_NO_THROW(ubseComEngineInfo.SetCipherSuite(UBSHcomNetCipherSuite::AES_CCM_128));
-    EXPECT_EQ(UBSHcomNetCipherSuite::AES_CCM_128, ubseComEngineInfo.GetCipherSuite());
+    EXPECT_NO_THROW(ubseComEngineInfo.SetCipherSuite(C_SERVICE_AES_CCM_128));
+    EXPECT_EQ(C_SERVICE_AES_CCM_128, ubseComEngineInfo.GetCipherSuite());
 }
 
 /*
@@ -434,7 +434,7 @@ TEST_F(TestUbseComDef, TestConvertUbseComChannelInfoToString)
     UbseComChannelInfo channelInfo;
     channelInfo.engineName_ = "RpcServer";
     channelInfo.channelType_ = UbseChannelType::NORMAL;
-    UBSHcomChannelPtr chPtr = new TestChannel();
+    ubs_hcom_channel chPtr = TEST_CHANNEL_HANDLE;
     channelInfo.channel_ = chPtr;
     UbseComChannelConnectInfo connectInfo;
     connectInfo.curNodeId_ = "0";
@@ -641,11 +641,12 @@ TEST_F(TestUbseComDef, TestSetGetUdsInfo_2)
  */
 TEST_F(TestUbseComDef, TestGetUdsInfoFromNetServiceContext)
 {
-    UBSHcomServiceContext context;
-    UBSHcomChannelPtr chPtr = new TestChannel();
-    context.mCh = chPtr;
+    ubs_hcom_service_context context = 0;
+    // 模拟原context.mCh成员：通过mock开关让context查出测试channel
+    g_mockContextChannel = TEST_CHANNEL_HANDLE;
     UbseUdsIdInfo udsIdInfo;
     GetUdsInfoFromNetServiceContext(context, udsIdInfo);
+    g_mockContextChannel = 0;
     EXPECT_EQ(1, udsIdInfo.pid);
     EXPECT_EQ(1, udsIdInfo.uid);
     EXPECT_EQ(1, udsIdInfo.gid);
@@ -762,8 +763,8 @@ TEST_F(TestUbseComDef, UbseComChannelInfo)
     UbseComChannelInfo channelInfo;
     channelInfo.SetIsServer(true);
     EXPECT_TRUE(channelInfo.IsServerSide());
-    channelInfo.SetChannel(nullptr);
-    EXPECT_TRUE(channelInfo.GetChannel() == nullptr);
+    channelInfo.SetChannel(0);
+    EXPECT_TRUE(channelInfo.GetChannel() == 0);
     UbseComChannelConnectInfo connectInfo;
     EXPECT_NO_THROW(channelInfo.SetConnectInfo(connectInfo));
     channelInfo.SetChannelType(UbseChannelType::NORMAL);
