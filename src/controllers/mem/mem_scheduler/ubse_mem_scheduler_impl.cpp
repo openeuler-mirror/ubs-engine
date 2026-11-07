@@ -11,6 +11,7 @@
  */
 #include <algorithm>
 
+#include "ubse_init_ledger_state.h"
 #include "ubse_math_util.h"
 #include "ubse_mem_scheduler_impl.h"
 #include "ubse_node_controller.h"
@@ -170,11 +171,15 @@ UbseResult SchedulerImpl::ScheduleBorrow(const SchedulerRequest& request,
         return ret;
     }
     if (nodes.empty()) {
+        // 只要还有节点未完成初始化对账，就保守地返回 RECONCILE，
+        // 若该节点长期无法完成初始化对账，上层会持续收到可重试错误。
         auto allNodes = nodeInfo_->GetAllNodes();
         for (const auto& node : allNodes) {
             auto nodePtr = nodeInfo_->GetNodeInfo(node.nodeId);
-            if (nodePtr && nodePtr->GetClusterState() == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-                UBSE_LOG_INFO << "Node " << node.nodeId << " is in SMOOTHING state, will retry";
+            if (nodePtr && nodePtr->GetClusterState() == UbseNodeClusterState::UBSE_NODE_SMOOTHING &&
+                !controller::UbseInitLedgerState::GetInstance().IsInitLedgerDone(node.nodeId)) {
+                UBSE_LOG_INFO << "Node " << node.nodeId
+                              << " is in SMOOTHING state and initial ledger is not complete, will retry";
                 return UBSE_SCHEDULER_ERROR_NODE_RECONCILE;
             }
         }
