@@ -12,6 +12,8 @@
 
 #include "ubse_mem_scheduler_node_state_filter.h"
 
+#include "ubse_init_ledger_state.h"
+
 namespace ubse::mem::scheduler {
 
 UbseResult NodeStateFilter::FilterNodes(std::vector<NodeInfo>& nodes, const SchedulerNodeManager& nodeInfo,
@@ -23,13 +25,16 @@ UbseResult NodeStateFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sche
             RecordWarning(std::string("GetNodeInfo failed, node=") + node.nodeId);
             return true;
         }
-        if (memNode->GetClusterState() != nodeController::UbseNodeClusterState::UBSE_NODE_WORKING) {
-            RecordReject(node.nodeId, std::string("clusterState=") +
-                                          std::to_string(static_cast<int>(memNode->GetClusterState())) +
-                                          ", not WORKING");
-            return true;
+        const auto state = memNode->GetClusterState();
+        // 已完成初始化对账的节点在周期对账期间仍可参与决策。
+        if (state == UbseNodeClusterState::UBSE_NODE_WORKING ||
+            (state == UbseNodeClusterState::UBSE_NODE_SMOOTHING &&
+             controller::UbseInitLedgerState::GetInstance().IsInitLedgerDone(node.nodeId))) {
+            return false;
         }
-        return false;
+        RecordReject(node.nodeId, std::string("clusterState=") + std::to_string(static_cast<int>(state)) +
+                                      ", not ready for scheduling");
+        return true;
     });
     return UBSE_OK;
 }

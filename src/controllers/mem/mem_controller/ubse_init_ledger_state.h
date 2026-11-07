@@ -14,6 +14,7 @@
 #define UBS_ENGINE_UBSE_INIT_LEDGER_STATE_H
 
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <unordered_set>
@@ -21,7 +22,7 @@
 namespace ubse::mem::controller {
 
 /**
- * UbseInitLedgerState 用于维护各节点是否已完成初始对账的状态。
+ * UbseInitLedgerState 维护各节点是否已完成初始对账的状态，供控制器和调度器共享。
  * 状态变更由 LedgerHandler（集群状态通知处理器）驱动：
  * - 收到 INIT   -> SetInitLedgerDone(nodeId, false)：标记初始对账未完成
  * - 收到 WORKING -> SetInitLedgerDone(nodeId, true)：标记初始对账已完成，唤醒等待线程

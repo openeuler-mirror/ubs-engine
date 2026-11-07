@@ -12,6 +12,8 @@
 
 #include "ubse_init_ledger_state.h"
 
+#include <chrono>
+
 namespace ubse::mem::controller {
 
 void UbseInitLedgerState::SetInitLedgerDone(const std::string& nodeId, bool done)
