@@ -21,6 +21,7 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_migrate_session.h"
 #include "ubse_str_util.h"
 #include "ubs_engine_topo.h"
 namespace ubse::mem::controller::debt {
@@ -33,6 +34,46 @@ using namespace ubse::utils;
 using namespace ubse::adapter_plugins::mmi;
 
 constexpr size_t MAX_MEM_DESC_COUNT = 2000; // 查询内存信息列表返回的最大数据量
+
+static UbseMemStage ShmStageWithMigration(const std::string& name, UbseMemStage stage)
+{
+    if (stage != UbseMemStage::UBSE_CREATING && stage != UbseMemStage::UBSE_EXIST) {
+        return stage;
+    }
+    UbseMemShmMigrateSession session{};
+    if (!UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(name, session)) {
+        return stage;
+    }
+    if (!IsMigrateTerminalState(session.state)) {
+        return UbseMemStage::UBSE_MIGRATING;
+    }
+    if (session.rebuildRequired) {
+        return UbseMemStage::UBSE_ERR_ABNORMAL;
+    }
+    return stage;
+}
+
+void WarnShmSwitchingQuery(const char* query, const std::string& name, const std::string& nodeId,
+                           const std::vector<UbseMemObmmInfo>& blocks)
+{
+    size_t first = 0;
+    size_t count = 0;
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        if (blocks[i].memIdStatus == UB_MEM_SWITCHING) {
+            if (count == 0) {
+                first = i;
+            }
+            ++count;
+        }
+    }
+    if (count != 0) {
+        // 每个查询对象汇总一次，避免大量待迁移块逐条刷日志。
+        UBSE_LOG_WARN << "Query shared memory with migrating blocks, query=" << query << ", name=" << name
+                      << ", nodeId=" << nodeId << ", memIdStatus=" << static_cast<uint32_t>(UB_MEM_SWITCHING)
+                      << ", switchingBlocks=" << count << ", firstBlockIndex=" << first
+                      << ", firstMemId=" << blocks[first].memId;
+    }
+}
 
 std::vector<uint32_t> ConvertNodelistToRegion(const std::vector<UbseNodeInfo>& nodelist)
 {
@@ -56,6 +97,10 @@ UbseMemResult GetShmExportStageByObj(const std::shared_ptr<const UbseMemShareBor
 {
     UbseMemResult result{};
     result.name = exportObjPtr->req.name;
+    WarnShmSwitchingQuery(
+        "shm export stage", result.name,
+        exportObjPtr->algoResult.exportNumaInfos.empty() ? "" : exportObjPtr->algoResult.exportNumaInfos.front().nodeId,
+        exportObjPtr->status.exportObmmInfo);
     if (exportObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
         result.stage = UbseMemStage::UBSE_CREATING;
     }
@@ -68,6 +113,7 @@ UbseMemResult GetShmExportStageByObj(const std::shared_ptr<const UbseMemShareBor
     if (exportObjPtr->status.state == UBSE_MEM_EXPORT_SUCCESS) {
         result.stage = UbseMemStage::UBSE_EXIST;
     }
+    result.stage = ShmStageWithMigration(result.name, result.stage);
     return result;
 }
 
@@ -75,6 +121,7 @@ UbseMemResult GetShmImportStageByObj(const std::shared_ptr<const UbseMemShareBor
 {
     UbseMemResult result{};
     result.name = importObjPtr->req.name;
+    WarnShmSwitchingQuery("shm import stage", result.name, importObjPtr->importNodeId, importObjPtr->exportObmmInfo);
     if (importObjPtr->status.state == UBSE_MEM_IMPORT_RUNNING) {
         result.stage = UbseMemStage::UBSE_CREATING;
     }
@@ -90,6 +137,7 @@ UbseMemResult GetShmImportStageByObj(const std::shared_ptr<const UbseMemShareBor
     if (importObjPtr->status.state == UBSE_MEM_IMPORT_ABNORMAL) {
         result.stage = UbseMemStage::UBSE_ERR_ABNORMAL;
     }
+    result.stage = ShmStageWithMigration(result.name, result.stage);
     return result;
 }
 
@@ -335,6 +383,10 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest& request, def::UbseMe
         return UBSE_ERR_NOT_EXIST;
     }
 
+    WarnShmSwitchingQuery(
+        "shm_fault_get", name,
+        exportObjPtr->algoResult.exportNumaInfos.empty() ? "" : exportObjPtr->algoResult.exportNumaInfos.front().nodeId,
+        exportObjPtr->status.exportObmmInfo);
     for (const auto& obmmInfo : exportObjPtr->status.exportObmmInfo) {
         if (obmmInfo.memIdStatus == UB_MEM_HEALTHY) {
             continue;

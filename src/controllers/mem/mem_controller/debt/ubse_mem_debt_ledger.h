@@ -339,7 +339,7 @@ public:
             if (it != nodeMap_.end()) {
                 auto allResources = it->second->GetAll();
                 for (const auto& [resId, _] : allResources) {
-                    exportResIdToNodeId_.erase(resId);
+                    RemoveExportIndexIfOwned(nodeId, resId);
                 }
             }
         }
@@ -360,7 +360,7 @@ public:
                 if constexpr (IsExportObjTypeV<T>) {
                     auto allResources = it->second->GetAll();
                     for (const auto& [resId, _] : allResources) {
-                        exportResIdToNodeId_.erase(resId);
+                        RemoveExportIndexIfOwned(it->first, resId);
                     }
                 }
                 it = nodeMap_.erase(it);
@@ -494,7 +494,7 @@ public:
             std::unique_lock<std::shared_mutex> lock(mutex_);
             auto it = nodeMap_.find(nodeId);
             if (it != nodeMap_.end() && it->second && it->second->Remove(resId)) {
-                exportResIdToNodeId_.erase(resId);
+                RemoveExportIndexIfOwned(nodeId, resId);
                 return true;
             }
             return false;
@@ -531,6 +531,26 @@ public:
     }
 
 private:
+    // 调用方持有 mutex_ 写锁；迁移期间同名导出可跨节点共存，删除不得破坏仍存在资源的可见性：
+    // 索引指向被删节点时，先探测其余节点是否仍持有同名导出，持有则重指，否则才清除索引。
+    void RemoveExportIndexIfOwned(const std::string& nodeId, const std::string& resId)
+    {
+        auto it = exportResIdToNodeId_.find(resId);
+        if (it == exportResIdToNodeId_.end() || it->second != nodeId) {
+            return;
+        }
+        for (const auto& [otherNodeId, nodePtr] : nodeMap_) {
+            if (otherNodeId == nodeId || !nodePtr) {
+                continue;
+            }
+            if (nodePtr->Get(resId) != nullptr) {
+                it->second = otherNodeId;
+                return;
+            }
+        }
+        exportResIdToNodeId_.erase(it);
+    }
+
     mutable std::shared_mutex mutex_;
     NodeMap nodeMap_;
     std::unordered_map<std::string, std::string> exportResIdToNodeId_;

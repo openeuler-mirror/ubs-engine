@@ -900,6 +900,131 @@ int32_t ubs_mem_shm_delete(const char* name)
     return ubse_map_daemon_error(ipc_ret);
 }
 
+int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id)
+{
+    ubs_error_t ret = ubse_mem_name_is_valid(name);
+    if (ret != UBS_SUCCESS) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    if (target_slot_id == 0 || target_slot_id > UBS_MEM_MAX_SLOT_NUM) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    ubse_api_buffer_t request_buffer{nullptr, 0};
+    ret = ubse_mem_shm_migrate_req_build(name, target_slot_id, &request_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    ret = ubse_mem_shm_migrate_req_pack(name, target_slot_id, request_buffer.buffer);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack shm migrate request, error" << ret;
+        ubse_api_buffer_free(&request_buffer);
+        return static_cast<int32_t>(ret);
+    }
+    ubse_api_buffer_t response_buffer{nullptr, 0};
+    uint32_t ipc_ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_SHM_MIGRATE, &request_buffer, &response_buffer);
+    ubse_api_buffer_free(&request_buffer);
+    if (ipc_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ipc_ret;
+        ubse_api_buffer_free(&response_buffer);
+        return ubse_map_daemon_error(ipc_ret);
+    }
+    uint32_t err_code = 0;
+    ret = ubse_mem_shm_migrate_resp_unpack(response_buffer.buffer, response_buffer.length, &err_code);
+    ubse_api_buffer_free(&response_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    return (err_code == 0) ? UBS_SUCCESS : static_cast<int32_t>(ubse_map_daemon_error(err_code));
+}
+
+int32_t ubs_mem_shm_migrate_get(const char* name, ubs_mem_shm_migrate_desc_t** desc)
+{
+    ubs_error_t ret = ubse_mem_name_is_valid(name);
+    if (ret != UBS_SUCCESS) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    if (desc == nullptr) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    *desc = nullptr;
+    ubse_api_buffer_t request_buffer{nullptr, 0};
+    ret = ubse_mem_shm_migrate_get_req_build(name, &request_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    ret = ubse_mem_shm_migrate_get_req_pack(name, request_buffer.buffer);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack shm migrate get request, error" << ret;
+        ubse_api_buffer_free(&request_buffer);
+        return static_cast<int32_t>(ret);
+    }
+    ubse_api_buffer_t response_buffer{nullptr, 0};
+    uint32_t ipc_ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_SHM_MIGRATE_GET, &request_buffer, &response_buffer);
+    ubse_api_buffer_free(&request_buffer);
+    if (ipc_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ipc_ret;
+        ubse_api_buffer_free(&response_buffer);
+        return ubse_map_daemon_error(ipc_ret);
+    }
+    // 解包(NOT_EXIST 等业务错误码进 payload, 走正常回包)
+    ubs_mem_shm_migrate_desc_t tmp_desc{};
+    uint32_t err_code = 0;
+    ret = ubse_mem_shm_migrate_get_resp_unpack(response_buffer.buffer, response_buffer.length, &tmp_desc, &err_code);
+    ubse_api_buffer_free(&response_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    if (err_code != 0) {
+        return static_cast<int32_t>(ubse_map_daemon_error(err_code));
+    }
+    // desc 由 SDK malloc 填充, 调用方 free
+    auto out = static_cast<ubs_mem_shm_migrate_desc_t*>(malloc(sizeof(ubs_mem_shm_migrate_desc_t)));
+    if (out == nullptr) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    *out = tmp_desc;
+    *desc = out;
+    return UBS_SUCCESS;
+}
+
+int32_t ubs_mem_shm_migrate_cancel(const char* name)
+{
+    ubs_error_t ret = ubse_mem_name_is_valid(name);
+    if (ret != UBS_SUCCESS) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    ubse_api_buffer_t request_buffer{nullptr, 0};
+    ret = ubse_mem_shm_migrate_cancel_req_build(name, &request_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    ret = ubse_mem_shm_migrate_cancel_req_pack(name, request_buffer.buffer);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack shm migrate cancel request, error" << ret;
+        ubse_api_buffer_free(&request_buffer);
+        return static_cast<int32_t>(ret);
+    }
+    ubse_api_buffer_t response_buffer{nullptr, 0};
+    uint32_t ipc_ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_SHM_MIGRATE_CANCEL, &request_buffer, &response_buffer);
+    ubse_api_buffer_free(&request_buffer);
+    if (ipc_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code: " << ipc_ret;
+        ubse_api_buffer_free(&response_buffer);
+        return ubse_map_daemon_error(ipc_ret);
+    }
+    // 解包(取消受理结果进 payload: 0=受理成功; NOT_EXIST/NOT_ALLOWED 走正常回包)
+    uint32_t err_code = 0;
+    ret = ubse_mem_shm_migrate_cancel_resp_unpack(response_buffer.buffer, response_buffer.length, &err_code);
+    ubse_api_buffer_free(&response_buffer);
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    if (err_code != 0) {
+        return static_cast<int32_t>(ubse_map_daemon_error(err_code));
+    }
+    return UBS_SUCCESS;
+}
+
 int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault)
 {
     // 参数校验

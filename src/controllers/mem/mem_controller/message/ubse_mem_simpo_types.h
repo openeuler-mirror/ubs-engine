@@ -14,7 +14,7 @@
 #define UBSE_MEM_SIMPO_TYPES_H
 
 #include "ubse_mem_auto_serial.h"
-#include "src/framework/misc/ubse_auto_simpo.hpp"
+#include "ubse_auto_simpo.hpp"
 
 namespace ubse::mem::controller::message {
 namespace ap_mmi = ubse::adapter_plugins::mmi; // ap = adapter_plugins
@@ -46,6 +46,33 @@ using UbseMemShareAttachReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi
 
 using UbseMemShareDetachReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemShareDetachReq>;
 using UbseMemShareDetachReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemShareDetachReq>;
+
+using UbseMemMigrateSwitchBeginImportReqSimpo =
+    ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateSwitchBeginImportReq>;
+using UbseMemMigrateSwitchBeginImportReqSimpoPtr =
+    ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateSwitchBeginImportReq>;
+
+using UbseMemMigrateBeginExportReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateBeginExportReq>;
+using UbseMemMigrateBeginExportRespSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateBeginExportResp>;
+using UbseMemMigrateEndExportReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateEndExportReq>;
+using UbseMemMigrateSwitchEndImportReqSimpo =
+    ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateSwitchEndImportReq>;
+using UbseMemMigrateSwitchEndImportReqSimpoPtr =
+    ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateSwitchEndImportReq>;
+using UbseMemMigrateDataCopyReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateDataCopyReq>;
+using UbseMemMigrateDataCopyReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateDataCopyReq>;
+using UbseMemMigrateOpRespSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateOpResp>;
+using UbseMemMigrateOpRespSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateOpResp>;
+
+using UbseMemShmMigrateGetReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemShmMigrateGetReq>;
+using UbseMemShmMigrateGetReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemShmMigrateGetReq>;
+using UbseMemShmMigrateGetRespSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemShmMigrateGetResp>;
+using UbseMemShmMigrateGetRespSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemShmMigrateGetResp>;
+
+using UbseMemMigrateCancelReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateCancelReq>;
+using UbseMemMigrateCancelReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateCancelReq>;
+using UbseMemMigrateCancelRespSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateCancelResp>;
+using UbseMemMigrateCancelRespSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateCancelResp>;
 
 using UbseMemFdBorrowImportobjSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemFdBorrowImportObj>;
 using UbseMemFdBorrowImportobjSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemFdBorrowImportObj>;

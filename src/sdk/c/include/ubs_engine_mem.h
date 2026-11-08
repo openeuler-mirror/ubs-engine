@@ -48,7 +48,8 @@ typedef enum
     UBSE_ERR_ONLY_IMPORT = 4,   // 只存在借入
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
     UBSE_ERR_ABNORMAL = 6,      // 删除导入失败，账本与实际状态不一致
-    UBSE_END = 7                // 类型转换边界值,不表示任何内存状态
+    UBSE_MIGRATING = 7,         // 共享内存迁移中，详细进度通过migrate_get查询
+    UBSE_END = 8                // 类型转换边界值,不表示任何内存状态
 } ubs_mem_stage;
 
 typedef struct {
@@ -605,6 +606,76 @@ int32_t ubs_mem_shm_delete(const char* name);
 
 typedef enum
 {
+    UBS_MEM_MIGRATE_STATE_INIT = 0,         // 已受理, 预检通过
+    UBS_MEM_MIGRATE_STATE_EXPORTING = 1,    // 目标节点新借出执行中
+    UBS_MEM_MIGRATE_STATE_DATA_COPYING = 2, // 逐块数据搬迁中
+    UBS_MEM_MIGRATE_STATE_FINISHING = 3,    // 迁移全部完成, 账本收敛中
+    UBS_MEM_MIGRATE_STATE_SUCCESS = 4,      // 迁移成功
+    UBS_MEM_MIGRATE_STATE_FAILED = 5,       // 失败(已完成块保留)
+    UBS_MEM_MIGRATE_STATE_CANCELED = 6,     // 已取消
+} ubs_mem_migrate_state_t;
+
+// 查询描述: 进度字段由会话派生
+typedef struct {
+    char name[UBS_MEM_MAX_NAME_LENGTH]; // 共享内存名(会话唯一键)
+    uint32_t src_slot_id;               // 故障导出节点
+    uint32_t dst_slot_id;               // 新借出节点
+    ubs_mem_migrate_state_t state;
+    uint32_t total_memids;    // 需迁移块数
+    uint32_t migrated_memids; // 已完成块数
+    uint64_t total_size;      // 总大小(字节)
+    int32_t error_code;
+    char error_msg[128];
+} ubs_mem_shm_migrate_desc_t;
+
+/* 以下迁移受理/查询/取消接口共用权限规则：
+ * SDK server 先按 mem.shm.migrate 做接口级 RBAC（创建者同样需要）。
+ * master 再校验资源用户：创建者无需配置；非创建者须加入 ubse_auth_default.conf 中
+ * [auth.shm.migrate] allowedUsers（逗号分隔用户名，默认不配置）。
+ * root/ubse 仅豁免接口级 RBAC，操作他人资源仍须加入名单。
+ * 查询/取消按会话保留的原创建者校验。
+ */
+/**
+ * @brief 发起共享内存故障迁移, 建立迁移任务后直接返回
+ *        迁移由 master 异步执行，进度用 ubs_mem_shm_migrate_get 轮询。
+ * @param name           [in] 共享内存名（迁移会话唯一键）
+ * @param target_slot_id [in] 目标节点（迁到哪个节点，uint32_t slotId）
+ * @return 0 受理成功；
+ *         UBS_ERR_INVALID_ARG（name/target_slot_id 非法）；
+ *         UBS_ENGINE_ERR_NOT_EXIST（name 借用关系不存在）；
+ *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（ExportObj 状态不允许/目标节点非法或容量不足）；
+ *         UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS（同name存在非终态迁移任务）；
+ *         UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED（禁止新增使用/重新迁移，需detach/delete后重建）
+ */
+int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id);
+
+/**
+ * @brief 查询迁移进度：先查活跃会话（非终态），无活跃会话返回同 name 最近 1 条
+ *        终态留存记录（新受理后覆盖），均无返回 UBS_ENGINE_ERR_NOT_EXIST。
+ *        终态（SUCCESS/FAILED/CANCELED）后调用方停止轮询即可，无需删除会话。
+ * @param name [in]  共享内存名
+ * @param desc [out] 会话快照，由接口 malloc 分配，调用方 free
+ * @return 0；
+ *         UBS_ERR_INVALID_ARG（name 空）；
+ *         UBS_ENGINE_ERR_NOT_EXIST（无任何会话记录，含 master 重启后）
+ */
+int32_t ubs_mem_shm_migrate_get(const char* name, ubs_mem_shm_migrate_desc_t** desc);
+
+/**
+ * @brief 取消迁移：仅 INIT/EXPORTING（新借出完成前）允许；DATA_COPYING 开始后拒绝
+ *        （begin 下发后老页已移除、使用方阻塞，老链路不可回退，取消无意义）。
+ *        回包 0 仅表示取消受理成功，清理由执行体异步完成（INIT 在 CP1 跳过执行、
+ *        EXPORTING 在 CP2 回收目标节点半成品），调用方轮询 get 至 CANCELED 终态确认。
+ * @param name [in] 共享内存名
+ * @return 0 取消受理成功（重复取消幂等返回 0）；
+ *         UBS_ERR_INVALID_ARG（name 空）；
+ *         UBS_ENGINE_ERR_NOT_EXIST（无会话记录）；
+ *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（DATA_COPYING 及之后，含终态）
+ */
+int32_t ubs_mem_shm_migrate_cancel(const char* name);
+
+typedef enum
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,
@@ -626,7 +697,8 @@ typedef enum
     MEM_EXPORT_FAULT,
     MEM_LINK_DOWN,
     MEM_LINK_UP,
-    UB_MEM_HEALTHY = 1000, // 无故障
+    UB_MEM_HEALTHY = 1000,   // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不代表会话进度
 } ubs_mem_fault_type_t;
 
 typedef struct {

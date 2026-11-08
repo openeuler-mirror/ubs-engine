@@ -98,6 +98,9 @@
 #define UBSE_ERR_NODE_FAULT UBSE_ERROR_DEF(1028)                   /* 节点故障 */
 #define UBSE_ENGINE_ERR_EXPORT_LEDGERING UBSE_ERROR_DEF(1029)      /* 导出节点对账中 */
 #define UBSE_ENGINE_ERR_IMPORT_LEDGERING UBSE_ERROR_DEF(1041)      /* 导入节点对账中 */
+#define UBSE_ERR_MIGRATE_IN_PROGRESS UBSE_ERROR_DEF(1042)          /* 迁移执行中 */
+#define UBSE_ERR_MIGRATE_NOT_ALLOWED UBSE_ERROR_DEF(1043)          /* 迁移预检不通过 */
+#define UBSE_ERR_MIGRATE_REBUILD_REQUIRED UBSE_ERROR_DEF(1044) /* 不能再次迁移/新增使用，需归还重建 */
 
 /* ****************************************************** */
 /* Node Controller模块错误码定义，全局唯一，范围1100~1199，记录系统的标准错误返回 */
@@ -128,6 +131,7 @@
 #define UBSE_ERROR_PARSE_ARGS_FAILED UBSE_INTERNAL_ERROR_DEF(13)  /* 解析参数失败 */
 #define UBSE_ERROR_SERIALIZE_FAILED UBSE_INTERNAL_ERROR_DEF(14)   /* 序列化失败 */
 #define UBSE_ERROR_DESERIALIZE_FAILED UBSE_INTERNAL_ERROR_DEF(15) /* 反序列化失败 */
+#define UBSE_ERROR_BUSY UBSE_INTERNAL_ERROR_DEF(16)               /* 资源忙（如切换已在进行中） */
 
 /* ====================== COM错误码 (10200~10299) ====================== */
 #define UBSE_COM_ERROR_CHANNEL_NULL UBSE_INTERNAL_ERROR_DEF(200)            /* Hcom channel 空指针 */
@@ -215,6 +219,7 @@
 #define UBSE_MMI_DAEMON_FAILED UBSE_INTERNAL_ERROR_DEF(701)   /* UBSE 接口调用失败 */
 #define UBSE_MMI_OPEN_FAILED UBSE_INTERNAL_ERROR_DEF(702)     /* 文件打不开 */
 #define UBSE_MMI_OBMM_OP_TIMEOUT UBSE_INTERNAL_ERROR_DEF(703) /* OBMM 接口调用超时 */
+#define UBSE_MMI_OBMM_SWITCH_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(704) /* OBMM 切换不存在（未发起或已超时中止） */
 
 /* ====================== Mem Scheduler错误码 (10800~10899) ====================== */
 #define UBSE_SCHEDULER_ERROR_INVAL UBSE_INTERNAL_ERROR_DEF(800)            /* 借用参数不合法错误 */

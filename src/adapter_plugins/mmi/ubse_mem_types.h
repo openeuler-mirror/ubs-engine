@@ -112,6 +112,10 @@ struct ObmmCustomMetaV1 {
     uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
     uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
     adapter_plugins::mti::mami::UbseMamiMemImportResult decoderResult{};
+    // 共享标记[isExport:1|originExportNodeId:15|version:4|index:12]，随priv写入内核sysfs；
+    // isExport: 导出1/导入0；普通创建version=0/origin=0，迁移新导出version=源+1(4bit回绕)、origin=源nodeId；
+    // gap可读的是旧priv，B的导出身份位在end(1)后生效；该位不表示切换状态。
+    uint32_t migrateInfo{};
 } __attribute__((packed));
 
 // V2 wire layout. Changes to a published layout require a new metadata version.
@@ -245,6 +249,10 @@ struct ObmmOpParam {
     UbseMemLocalObmmCustomMeta customMeta{};
     UbMemPrivData privData;
     mode_t mode;
+    // 每块一个迁移标记（布局同 UbseMemLocalObmmCustomMeta::migrateInfo），与导出/导入块一一对应；
+    // 为空时 ObmmExport/ObmmImport 按普通创建兜底生成 version=0,index=i、各自身份位；ObmmExport 入口校验
+    // 导出身份位、块数≤4096(index 12bit容量)、数量与块数相等、index==下标、块间 version 一致，违例拒绝导出
+    std::vector<uint32_t> migrateInfos{};
     std::string toString() const
     {
         std::string devType;
@@ -305,8 +313,32 @@ struct obmm_mem_desc {
     uint8_t priv[];
 } __attribute__((aligned(8)));
 
-using mem_id = uint64_t;
+/* obmm_switch_begin_* 的切换选项：
+ * 置位表示旧链路预期仍有效，切换中止时内核尝试回退恢复 pa0。 */
+constexpr unsigned long OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE = 0x1UL;
+constexpr uint32_t OBMM_MAX_PRIV_LEN = 512;
+static_assert(sizeof(UbMemPrivData) + sizeof(UbseMemLocalObmmCustomMeta) <= OBMM_MAX_PRIV_LEN,
+              "obmm priv metadata exceeds kernel limit");
 constexpr uint32_t OBMM_MAX_LOCAL_NUMA_NODES = 16;
+/* obmm 共享内存设备路径前缀，按 memId 绑定具体设备：/dev/obmm_shmdev{memId} */
+constexpr const char* OBMM_SHM_DEV_PATH_PREFIX = "/dev/obmm_shmdev";
+
+struct obmm_switch_import_target {
+    uint64_t pa;
+    uint32_t scna;
+    uint32_t dcna;
+    uint8_t seid[UBSE_EID_LENGTH];
+    uint8_t deid[UBSE_EID_LENGTH];
+    int base_dist;
+};
+
+struct obmm_switch_export_target {
+    size_t size[OBMM_MAX_LOCAL_NUMA_NODES];
+    int node_count;
+    unsigned long export_flags;
+};
+
+using mem_id = uint64_t;
 constexpr uint32_t MAX_NUMA_NODES = 16;
 constexpr uint32_t OBMM_EXPORT_FLAG_ALLOW_MMAP = 0x1UL;
 constexpr uint32_t OBMM_IMPORT_FLAG_ALLOW_MMAP = 0x1UL;

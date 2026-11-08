@@ -104,7 +104,10 @@ typedef enum
     UBS_ENGINE_ERR_URMA_DEV_NOT_EXIST = 1039,             // URMA设备在内存中不存在
     UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID = 1040,          // URMA设备名称无效
 
-    UBS_ENGINE_ERR_IMPORT_LEDGERING = 1041, // 导入节点对账中
+    UBS_ENGINE_ERR_IMPORT_LEDGERING = 1041,         // 导入节点对账中
+    UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS = 1042,      // 迁移执行中
+    UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED = 1043,      // 迁移预检不通过
+    UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED = 1044, // 不允许再次迁移/新增使用，需归还重建
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */

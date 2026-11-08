@@ -17,11 +17,11 @@
 
 #include "ubse_mem_controller.h"
 #include "ubse_node_controller_def.h"
+#include "../ubse_mem_controller_def.h"
 #include "adapter_plugins/mmi/ubse_mmi_interface.h"
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
-#include "src/controllers/mem/mem_controller/ubse_mem_controller_def.h"
-#include "src/framework/misc/ubse_auto_serial_util.hpp"
 #include "ubs_engine_topo.h"
+#include "ubse_auto_serial_util.hpp"
 
 // Trait specializations for raw_memcopy / bitfield types.
 namespace ubse::serial::util {
@@ -269,6 +269,68 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShareAttachReq, ::ubse::adap
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShareDetachReq, ::ubse::adapter_plugins::mmi::UbseMemBaseBorrowReq,
                &::ubse::adapter_plugins::mmi::UbseMemShareDetachReq::unImportNodeId)
 
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShmMigrateReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemShmMigrateReq::name,
+               &::ubse::adapter_plugins::mmi::UbseMemShmMigrateReq::targetNodeId,
+               &::ubse::adapter_plugins::mmi::UbseMemShmMigrateReq::caller)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShmMigrateResp, void,
+               &::ubse::adapter_plugins::mmi::UbseMemShmMigrateResp::errCode)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::name,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::blockIndex,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::srcNodeId,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::exportMemId,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::migrateInfo,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateRpcInfo::rollback)
+
+// 当前块资源数据与结束决定随原有账本和结果消息序列化，不保存 RPC 返回缓存。
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateBlockData, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBlockData::exportInfo,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBlockData::decoder,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBlockData::targetLayout)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext::blockIndex,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext::exportMemId,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext::migrateInfo,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext::target,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchContext::endDecision)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq::targetBlock,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq::targetLayout,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq::trustRingData,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq::oldExportMemId,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportReq::exportObj,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportReq::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportResp, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportResp::errCode,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportResp::block,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportResp::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateEndExportReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateEndExportReq::success,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateEndExportReq::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchEndImportReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchEndImportReq::success,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchEndImportReq::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateDataCopyReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateDataCopyReq::rpcInfo)
+
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::errCode,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::block,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::rpcInfo,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::committed)
+
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemOperationResp, void,
                &::ubse::adapter_plugins::mmi::UbseMemOperationResp::name,
                &::ubse::adapter_plugins::mmi::UbseMemOperationResp::requestNodeId,
@@ -343,9 +405,10 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::req,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::returnReq,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::algoResult,
-               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::status)
+               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::status,
+               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj::migrateInfos)
 
-// SHARE import: wire order is realExe → importNodeId → shareAttr → req → returnReq → base fields
+// SHARE import: wire order is realExe → importNodeId → shareAttr → req → returnReq → base fields → migrate fields
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::realExe,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::importNodeId,
@@ -355,7 +418,9 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::errorCode,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::algoResult,
                &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::exportObmmInfo,
-               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::status)
+               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::status,
+               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::migrateInfos,
+               &::ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj::switchContext)
 
 // ============================================================
 // UbseNode (from node controller def) — has C arrays

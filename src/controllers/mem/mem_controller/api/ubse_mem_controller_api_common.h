@@ -246,6 +246,12 @@ uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePai
                                  const decoder::utils::ImportDecoderParam& importDecoderParam,
                                  UbseMemImportStatus& status);
 
+/* decoder 下发主体(Attach 导入链路与迁移 SwitchBeginImport 共用): chipDiePair 由调用方按
+ * attachSocketId 预先算好; 内部 GetChipAndDieId 校验 + SetImportDecoderParam + ImportToAddDecoderEntry
+ * (新表项直接覆盖 status.decoderResult), 失败 UnimportToDelDecoderEntry 回退; 不含 ShmImportExecutor
+ * 及后置清理/审计/SEI(留在 Attach 侧) */
+uint32_t RealImportDecoder(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemShareBorrowImportObj& importObj);
+
 void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId);
 

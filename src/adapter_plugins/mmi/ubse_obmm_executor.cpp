@@ -10,9 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_obmm_executor.h"
+#include <fcntl.h>
+#include <securec.h>
+#include <sys/mman.h>
 #include <unistd.h>
+#include <algorithm>
 #include <array>
 #include <csignal>
+#include <cstring>
 #include "ubse_conf_module.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
@@ -24,8 +29,15 @@ namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::security;
 using namespace ubse::context;
+using ubse::adapter_plugins::mmi::MakeShmMigrateInfo;
+using ubse::adapter_plugins::mmi::SHM_MIGRATE_MAX_BLOCKS;
+using ubse::adapter_plugins::mmi::ShmMigrateImportInfo;
+using ubse::adapter_plugins::mmi::ShmMigrateIndex;
+using ubse::adapter_plugins::mmi::ShmMigrateIsExport;
+using ubse::adapter_plugins::mmi::ShmMigrateVersion;
 
 std::vector<__u32> overrideCap = {CAP_DAC_OVERRIDE};
+static std::vector<__u32> switchCap = {CAP_SYS_ADMIN};
 static const std::string OBMM_LOG_INFO = "#######UB[OBMM]########";
 static constexpr uint64_t OFFLINE_TIMEOUT_MIN_S = 10;
 static constexpr uint64_t OFFLINE_TIMEOUT_MAX_S = 1800;
@@ -33,6 +45,20 @@ static constexpr int OBMM_IMPORT_BASE_DIST = 40;
 
 uint64_t RmObmmExecutor::offlineTimeoutMs_ = DEFAULT_UNIMPORT_TIMEOUT_MS;
 bool RmObmmExecutor::offlineTimeoutConfigured_ = false;
+
+UbseResult RmObmmExecutor::MemcpyMt(void* dst, const void* src, size_t size)
+{
+    constexpr unsigned int COPY_THREADS = 8;
+    if (memcpyMtFunc == nullptr || dst == nullptr || src == nullptr || size == 0) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_mt unavailable or invalid arguments, size=" << size;
+        return UBSE_ERROR_INVAL;
+    }
+    if (memcpyMtFunc(dst, src, size, COPY_THREADS) != dst) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_mt returned unexpected destination, size=" << size;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
 
 UbseResult RmObmmExecutor::Init()
 {
@@ -81,6 +107,14 @@ void RmObmmExecutor::RegisterSigusr1Handler()
 UbseResult RmObmmExecutor::Exit()
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "Close obmm executor.";
+    memcpyMtFunc = nullptr;
+    if (accelHandle != nullptr) {
+        if (dlclose(accelHandle) != 0) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Close libobmm-accel.so.1 failed, error is " << dlerror();
+            return UBSE_ERROR;
+        }
+        accelHandle = nullptr;
+    }
     return UBSE_OK;
 }
 
@@ -122,6 +156,45 @@ UbseResult RmObmmExecutor::DlOpenLib(const std::string& obmmPath)
     ret = DlOpenFunName(obmmUnPreImportFunc, "obmm_unpreimport");
     if (UBSE_RESULT_FAIL(ret)) {
         return ret;
+    }
+    ret = DlOpenFunName(obmmSwitchBeginImportFunc, "obmm_switch_begin_import");
+    if (UBSE_RESULT_FAIL(ret)) {
+        return ret;
+    }
+    ret = DlOpenFunName(obmmSwitchBeginExportFunc, "obmm_switch_begin_export");
+    if (UBSE_RESULT_FAIL(ret)) {
+        return ret;
+    }
+    ret = DlOpenFunName(obmmSwitchEndFunc, "obmm_switch_end");
+    if (UBSE_RESULT_FAIL(ret)) {
+        return ret;
+    }
+    // memcpy_mt 本次暂不启用，避免 libobmm-accel 加载失败影响其他 OBMM 功能启动。
+    // ret = LoadMemcpyMt();
+    return UBSE_OK;
+}
+
+UbseResult RmObmmExecutor::LoadMemcpyMt()
+{
+    if (memcpyMtFunc != nullptr) {
+        return UBSE_OK;
+    }
+    constexpr auto ACCEL_PATH = "libobmm-accel.so.1";
+    accelHandle = dlopen(ACCEL_PATH, RTLD_NOW | RTLD_LOCAL);
+    if (accelHandle == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Dlopen " << ACCEL_PATH << " failed, error is " << dlerror();
+        return UBSE_ERROR;
+    }
+    dlerror();
+    memcpyMtFunc = reinterpret_cast<MemcpyMtPtr>(dlsym(accelHandle, "memcpy_mt"));
+    const auto error = dlerror();
+    if (error != nullptr || memcpyMtFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memcpy_mt from " << ACCEL_PATH << " failed, error is "
+                       << (error != nullptr ? error : "null symbol");
+        memcpyMtFunc = nullptr;
+        dlclose(accelHandle);
+        accelHandle = nullptr;
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -376,6 +449,139 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id, uint64_t timeoutMs)
     return UBSE_OK;
 }
 
+/**
+ * 开始切换引入内存的物理后端（两阶段切换第一阶段，契约见 obmm_switch.md）。
+ * flags 固定置 KEEP_OLD_ALIVE：迁移场景旧链路预期仍有效，中止时可回退 pa0（Step1 设计 §5.3）。
+ */
+UbseResult RmObmmExecutor::ObmmSwitchBeginImport(const ObmmSwitchParam& param)
+{
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO
+                   << "Start to use Obmm SwitchBeginImport interface, memId=" << param.oldImportMemId;
+    if (obmmSwitchBeginImportFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmSwitchBeginImportFunc is nullptr, please check.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (param.priv.size() > OBMM_MAX_PRIV_LEN) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmSwitchBeginImport priv len " << param.priv.size()
+                       << " exceeds OBMM_MAX_PRIV_LEN " << OBMM_MAX_PRIV_LEN << ", memId=" << param.oldImportMemId;
+        return UBSE_ERROR_INVAL;
+    }
+    obmm_switch_import_target target{};
+    const uint16_t privLen = static_cast<uint16_t>(param.priv.size());
+    target.pa = param.newPa;
+    target.scna = param.newScna;
+    target.dcna = param.newDcna;
+    target.base_dist = param.baseDist;
+    std::copy(param.newSeid.begin(), param.newSeid.end(), target.seid);
+    std::copy(param.newDeid.begin(), param.newDeid.end(), target.deid);
+    const void* priv = param.priv.empty() ? nullptr : param.priv.data();
+    errno = 0;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
+    int ret = obmmSwitchBeginImportFunc(param.oldImportMemId, OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE, &target, priv, privLen);
+    const int switchErrno = errno;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    if (ret != 0) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "obmm_switch_begin_import error! memId=" << param.oldImportMemId << ", ret=" << ret
+                       << ", errno=" << switchErrno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(switchErrno, buf, STR_ERROR_BUF_SIZE);
+        if (switchErrno == EBUSY) {
+            // 该内存已有切换进行中：不是失败，说明上一轮 begin 已生效，编排层按"begin 已完成"处理
+            return UBSE_ERROR_BUSY;
+        }
+        return UBSE_MMI_OBMM_OP_FAILED;
+    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_begin_import success, memId=" << param.oldImportMemId
+                  << ", privLen=" << privLen;
+    return UBSE_OK;
+}
+
+UbseResult RmObmmExecutor::ObmmSwitchBeginExport(const ObmmSwitchExportParam& param, struct obmm_mem_desc& desc)
+{
+    if (obmmSwitchBeginExportFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "ObmmSwitchBeginExportFunc is nullptr, memId=" << param.importMemId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (param.importMemId == INVALID_MEM_ID || param.priv.size() > OBMM_MAX_PRIV_LEN || param.target.node_count < 1 ||
+        param.target.node_count > static_cast<int>(OBMM_MAX_LOCAL_NUMA_NODES)) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "ObmmSwitchBeginExport invalid parameters, memId=" << param.importMemId
+                       << ", nodeCount=" << param.target.node_count << ", privLen=" << param.priv.size();
+        return UBSE_ERROR_INVAL;
+    }
+    for (int i = param.target.node_count; i < static_cast<int>(OBMM_MAX_LOCAL_NUMA_NODES); ++i) {
+        if (param.target.size[i] != 0) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                           << "ObmmSwitchBeginExport nonzero unused NUMA size, memId=" << param.importMemId
+                           << ", numaIndex=" << i << ", size=" << param.target.size[i];
+            return UBSE_ERROR_INVAL;
+        }
+    }
+    auto memsetRet = memset_s(&desc, sizeof(desc), 0, sizeof(desc));
+    if (memsetRet != EOK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmSwitchBeginExport memset desc failed.";
+        return UBSE_MMI_OBMM_OP_FAILED;
+    }
+    std::copy(param.seid.begin(), param.seid.end(), desc.seid);
+    std::copy(param.deid.begin(), param.deid.end(), desc.deid);
+    const void* priv = param.priv.empty() ? nullptr : param.priv.data();
+    errno = 0;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
+    const int ret = obmmSwitchBeginExportFunc(param.importMemId, OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE, &param.target, &desc,
+                                              priv, static_cast<uint16_t>(param.priv.size()));
+    const int switchErrno = errno;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    if (ret == 0) {
+        UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_begin_export end, memId=" << param.importMemId
+                      << ", ret=" << ret << ", hasAddress=" << (desc.addr != 0);
+        return UBSE_OK;
+    }
+    char buf[STR_ERROR_BUF_SIZE] = {0};
+    UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_begin_export error, memId=" << param.importMemId
+                   << ", ret=" << ret << ", errno=" << switchErrno
+                   << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(switchErrno, buf, STR_ERROR_BUF_SIZE);
+    if (switchErrno == EBUSY) {
+        return UBSE_ERROR_BUSY;
+    }
+    return UBSE_MMI_OBMM_OP_FAILED;
+}
+
+UbseResult RmObmmExecutor::ObmmSwitchEnd(mem_id oldImportMemId, bool success)
+{
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm SwitchEnd interface, memId=" << oldImportMemId
+                   << ", success=" << success;
+    if (obmmSwitchEndFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmSwitchEndFunc is nullptr, please check.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    errno = 0;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
+    int ret = obmmSwitchEndFunc(oldImportMemId, success ? 1 : 0);
+    const int switchErrno = errno;
+    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    if (ret != 0) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_end error! memId=" << oldImportMemId
+                       << ", ret=" << ret << ", success=" << success << ", errno=" << switchErrno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(switchErrno, buf, STR_ERROR_BUF_SIZE);
+        if (switchErrno == EAGAIN) {
+            // 保留内核错误分类；迁移层按单次失败策略处理，不重试业务。
+            return UBSE_ERROR_AGAIN;
+        }
+        if (switchErrno == ESTALE) {
+            // 无进行中的切换（典型：内核 30s 兜底已自动中止，KEEP_OLD_ALIVE 下大概率已回退 pa0），
+            // 不推断已提交；迁移层保留未知资源，不执行probe。
+            return UBSE_MMI_OBMM_SWITCH_NOT_EXIST;
+        }
+        return UBSE_MMI_OBMM_OP_FAILED;
+    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_end memId=" << oldImportMemId
+                  << ", success=" << success;
+    return UBSE_OK;
+}
+
 mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam& opParam)
 {
     if (opParam.borrowType == UbseBorrowType::NUMA_BORROW || opParam.borrowType == UbseBorrowType::ADDR_BORROW) {
@@ -406,11 +612,24 @@ std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The mem desc is invalid.";
         return {};
     }
+    if (opParam.borrowType == UbseBorrowType::SHARE_BORROW &&
+        (desc.size() > SHM_MIGRATE_MAX_BLOCKS ||
+         (!opParam.migrateInfos.empty() && opParam.migrateInfos.size() != desc.size()))) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmImport migrate marker check failed, descSize=" << desc.size()
+                       << ", maxBlocks=" << SHM_MIGRATE_MAX_BLOCKS
+                       << ", migrateInfoSize=" << opParam.migrateInfos.size();
+        return {};
+    }
     std::vector<mem_id> result;
     result.reserve(desc.size());
     for (int i = 0; i < desc.size(); i++) {
         opParam.customMeta.memidCount = desc.size();
         opParam.customMeta.exportMemid = desc[i].memId;
+        if (opParam.borrowType == UbseBorrowType::SHARE_BORROW) {
+            opParam.customMeta.migrateInfo = opParam.migrateInfos.empty() ?
+                                                 MakeShmMigrateInfo(0, i, 0, false) :
+                                                 ShmMigrateImportInfo(opParam.migrateInfos[i]);
+        }
         opParam.customMeta.decoderResult = status.decoderResult[i];
         auto importMemid = ObmmImport(desc[i].desc, opParam, numa);
         if (importMemid == 0) {
@@ -510,10 +729,35 @@ std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int 
                        << ", The resultTemp.size=" << resultTemp.size();
         return {};
     }
+    if (opParam.borrowType == UbseBorrowType::SHARE_BORROW) {
+        if (resultTemp.size() > SHM_MIGRATE_MAX_BLOCKS ||
+            (!opParam.migrateInfos.empty() && opParam.migrateInfos.size() != resultTemp.size())) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmExport migrate marker check failed, blockCount=" << resultTemp.size()
+                           << ", maxBlocks=" << SHM_MIGRATE_MAX_BLOCKS
+                           << ", migrateInfoSize=" << opParam.migrateInfos.size();
+            return {};
+        }
+        if (opParam.migrateInfos.empty()) {
+            for (size_t i = 0; i < resultTemp.size(); ++i) {
+                opParam.migrateInfos.push_back(MakeShmMigrateInfo(0, i, 0, true));
+            }
+        }
+    }
+    for (size_t i = 0; i < opParam.migrateInfos.size(); ++i) {
+        if ((opParam.borrowType == UbseBorrowType::SHARE_BORROW && !ShmMigrateIsExport(opParam.migrateInfos[i])) ||
+            ShmMigrateIndex(opParam.migrateInfos[i]) != i ||
+            ShmMigrateVersion(opParam.migrateInfos[i]) != ShmMigrateVersion(opParam.migrateInfos.front())) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmExport migrate marker invariant broken, index=" << i
+                           << ", marker=" << opParam.migrateInfos[i] << ", expectIndex=" << i
+                           << ", expectVersion=" << ShmMigrateVersion(opParam.migrateInfos.front());
+            return {};
+        }
+    }
     std::vector<mem_id> result;
     result.reserve(resultTemp.size());
     for (int i = 0; i < resultTemp.size(); ++i) {
         opParam.customMeta.memidCount = resultTemp.size();
+        opParam.customMeta.migrateInfo = opParam.migrateInfos.empty() ? 0 : opParam.migrateInfos[i];
         auto id = ObmmExport(resultTemp[i].data(), MAX_NUMA_NODES, opParam, desc[i]);
         if (id == 0) {
             ObmmUnExport(result);

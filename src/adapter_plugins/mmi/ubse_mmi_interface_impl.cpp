@@ -159,6 +159,45 @@ UbseResult UbseMmiInterfaceDefaultImpl::ShmUnExportExecutor(const UbseMemShareBo
     return mmiModule->UbseMemShmUnExportExecutor(exportObj);
 }
 
+UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj)
+{
+    const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
+    if (mmiModule == nullptr) {
+        UBSE_LOG_ERROR << "mmi module is nullptr.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    return mmiModule->UbseMemShmSwitchBeginImportExecutor(switchObj);
+}
+
+UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
+                                                                     ubse_mem_obmm_mem_desc& desc)
+{
+    const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
+    if (mmiModule == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    return mmiModule->UbseMemShmSwitchBeginExportExecutor(switchObj, desc);
+}
+
+UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success)
+{
+    const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
+    if (mmiModule == nullptr) {
+        UBSE_LOG_ERROR << "mmi module is nullptr.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    return mmiModule->UbseMemShmSwitchEndExecutor(switchObj, success);
+}
+
+UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
+{
+    const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
+    if (mmiModule == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    return mmiModule->UbseMemShmMigrateCopyExecutor(memId, size, cacheable);
+}
+
 UbseResult UbseMmiInterfaceDefaultImpl::AddrImportExecutor(UbseMemAddrBorrowImportObj& importObj)
 {
     const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();

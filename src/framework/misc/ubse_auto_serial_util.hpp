@@ -12,6 +12,7 @@
 #ifndef UBSE_AUTO_SERIAL_UTIL_H
 #define UBSE_AUTO_SERIAL_UTIL_H
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
@@ -172,6 +173,12 @@ bool SerializeField(UbseSerialization& out, const std::unordered_set<T>& v);
 template <class T>
 bool DeSerializeField(UbseDeSerialization& in, std::unordered_set<T>& v);
 
+template <class T>
+bool SerializeField(UbseSerialization& out, const std::optional<T>& value);
+
+template <class T>
+bool DeSerializeField(UbseDeSerialization& in, std::optional<T>& value);
+
 // === 5. 容器支持 vector ===
 template <class T>
 bool SerializeField(UbseSerialization& out, const std::vector<T>& v)
@@ -199,6 +206,32 @@ bool DeSerializeField(UbseDeSerialization& in, std::vector<T>& v)
             return false;
         }
     }
+    return true;
+}
+
+// 可选资源只在有值时传输；空值反序列化会清除原对象。
+template <class T>
+bool SerializeField(UbseSerialization& out, const std::optional<T>& value)
+{
+    return SerializeField(out, value.has_value()) && (!value || SerializeField(out, *value));
+}
+
+template <class T>
+bool DeSerializeField(UbseDeSerialization& in, std::optional<T>& value)
+{
+    bool present = false;
+    value.reset();
+    if (!DeSerializeField(in, present)) {
+        return false;
+    }
+    if (!present) {
+        return true;
+    }
+    T decoded{};
+    if (!DeSerializeField(in, decoded)) {
+        return false;
+    }
+    value = std::move(decoded);
     return true;
 }
 

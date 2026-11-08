@@ -2210,3 +2210,231 @@ ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t* buffer, uint32_t l
     }
     return UBS_SUCCESS;
 }
+
+size_t ubse_mem_shm_migrate_req_calc_size(const char* name)
+{
+    size_t len = 0;
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += sizeof(uint32_t);
+    return len;
+}
+
+ubs_error_t ubse_mem_shm_migrate_req_build(const char* name, uint32_t target_slot_id, ubse_api_buffer_t* ptr)
+{
+    if (!ptr) {
+        IPC_LOG_ERROR << "ptr is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    size_t total_len = ubse_mem_shm_migrate_req_calc_size(name);
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
+    if (!ptr->buffer) {
+        IPC_LOG_ERROR << "Failed to allocate memory for shm migrate request with size " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    ptr->length = total_len;
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_req_pack(const char* name, uint32_t target_slot_id, uint8_t* buffer)
+{
+    if (buffer == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint8_t* ptr = buffer;
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
+        return ret;
+    }
+    pack_uint32(&ptr, target_slot_id);
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_resp_unpack(uint8_t* buffer, uint32_t len, uint32_t* err_code)
+{
+    if (!buffer || !err_code) {
+        IPC_LOG_ERROR << "shm migrate resp unpack param is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+
+    ubs_error_t ret = unpack_uint32(&ctx, err_code);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack err_code. Error code: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
+}
+
+size_t ubse_mem_shm_migrate_get_req_calc_size(const char* name)
+{
+    size_t len = 0;
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += sizeof(uint32_t);
+    return len;
+}
+
+ubs_error_t ubse_mem_shm_migrate_get_req_build(const char* name, ubse_api_buffer_t* ptr)
+{
+    if (!ptr) {
+        IPC_LOG_ERROR << "ptr is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    size_t total_len = ubse_mem_shm_migrate_get_req_calc_size(name);
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
+    if (!ptr->buffer) {
+        IPC_LOG_ERROR << "Failed to allocate memory for shm migrate get request with size " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    ptr->length = total_len;
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_get_req_pack(const char* name, uint8_t* buffer)
+{
+    if (buffer == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint8_t* ptr = buffer;
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
+        return ret;
+    }
+    pack_uint32(&ptr, 0);
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_shm_migrate_desc_t* desc,
+                                                 uint32_t* err_code)
+{
+    if (!buffer || !desc || !err_code) {
+        IPC_LOG_ERROR << "shm migrate get resp unpack param is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+
+    ubs_error_t ret = unpack_uint32(&ctx, err_code);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack err_code. Error code: " << ret;
+        return ret;
+    }
+    ret = unpack_string(&ctx, desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
+        return ret;
+    }
+    ret = unpack_uint32(&ctx, &desc->src_slot_id);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack src_slot_id. Error code: " << ret;
+        return ret;
+    }
+    ret = unpack_uint32(&ctx, &desc->dst_slot_id);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack dst_slot_id. Error code: " << ret;
+        return ret;
+    }
+    uint32_t state = 0;
+    ret = unpack_uint32(&ctx, &state);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack state. Error code: " << ret;
+        return ret;
+    }
+    desc->state = static_cast<ubs_mem_migrate_state_t>(state);
+    ret = unpack_uint32(&ctx, &desc->total_memids);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack total_memids. Error code: " << ret;
+        return ret;
+    }
+    ret = unpack_uint32(&ctx, &desc->migrated_memids);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack migrated_memids. Error code: " << ret;
+        return ret;
+    }
+    ret = unpack_uint64(&ctx, &desc->total_size);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack total_size. Error code: " << ret;
+        return ret;
+    }
+    uint32_t fail_reason = 0;
+    ret = unpack_uint32(&ctx, &fail_reason);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack fail_reason. Error code: " << ret;
+        return ret;
+    }
+    desc->error_code = static_cast<int32_t>(fail_reason);
+    char err_msg[128] = {0};
+    ret = unpack_string(&ctx, err_msg, sizeof(err_msg) - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack err_msg. Error code: " << ret;
+        return ret;
+    }
+    if (memcpy_s(desc->error_msg, sizeof(desc->error_msg), err_msg, sizeof(err_msg)) != EOK) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    return UBS_SUCCESS;
+}
+
+size_t ubse_mem_shm_migrate_cancel_req_calc_size(const char* name)
+{
+    size_t len = 0;
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += sizeof(uint32_t);
+    return len;
+}
+
+ubs_error_t ubse_mem_shm_migrate_cancel_req_build(const char* name, ubse_api_buffer_t* ptr)
+{
+    if (!ptr) {
+        IPC_LOG_ERROR << "ptr is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    size_t total_len = ubse_mem_shm_migrate_cancel_req_calc_size(name);
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
+    if (!ptr->buffer) {
+        IPC_LOG_ERROR << "Failed to allocate memory for shm migrate cancel request with size " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    ptr->length = total_len;
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_cancel_req_pack(const char* name, uint8_t* buffer)
+{
+    if (buffer == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint8_t* ptr = buffer;
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
+        return ret;
+    }
+    pack_uint32(&ptr, 0);
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_mem_shm_migrate_cancel_resp_unpack(uint8_t* buffer, uint32_t len, uint32_t* err_code)
+{
+    if (!buffer || !err_code) {
+        IPC_LOG_ERROR << "shm migrate cancel resp unpack param is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+
+    ubs_error_t ret = unpack_uint32(&ctx, err_code);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack err_code. Error code: " << ret;
+        return ret;
+    }
+    uint32_t reserved = 0;
+    ret = unpack_uint32(&ctx, &reserved);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack reserved. Error code: " << ret;
+        return ret;
+    }
+    return UBS_SUCCESS;
+}

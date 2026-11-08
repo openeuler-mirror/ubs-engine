@@ -267,7 +267,8 @@ void GetHandleFromNumaDebtInfo(const std::unordered_map<uint32_t, std::pair<uint
     }
 }
 
-UbseResult MemDecoderUtils::GetAllHandleFromImportObj(DecoderLocTohandleMap& handleMap)
+UbseResult MemDecoderUtils::GetAllHandleFromImportObj(DecoderLocTohandleMap& handleMap,
+                                                      std::unordered_set<uint64_t>* temporaryHandles)
 {
     ubse::adapter_plugins::mmi::NodeMemDebtInfo memDebtInfo{};
     auto curNode = nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
@@ -285,6 +286,17 @@ UbseResult MemDecoderUtils::GetAllHandleFromImportObj(DecoderLocTohandleMap& han
         return res;
     }
     GetHandleFromDebtInfo(socketIdToChipDie, memDebtInfo, handleMap);
+    // 临时 decoder 尚未进入正式表，不依赖正式或目标布局中的 socket 信息。
+    if (temporaryHandles != nullptr) {
+        for (const auto& [name, obj] : memDebtInfo.shareImportObjMap) {
+            if (obj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED) {
+                continue;
+            }
+            if (obj.switchContext && obj.switchContext->target && obj.switchContext->target->decoder) {
+                temporaryHandles->insert(obj.switchContext->target->decoder->handle);
+            }
+        }
+    }
     return UBSE_OK;
 }
 

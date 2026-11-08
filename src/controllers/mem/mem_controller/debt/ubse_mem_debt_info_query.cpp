@@ -509,6 +509,17 @@ uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest& request, def:
             auto exportObj =
                 UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(
                     request.name);
+            if (importObj) {
+                WarnShmSwitchingQuery("shm_get_memid_by_import(import)", request.name, request.importNodeId,
+                                      importObj->exportObmmInfo);
+            }
+            if (exportObj) {
+                WarnShmSwitchingQuery("shm_get_memid_by_import(export)", request.name,
+                                      exportObj->algoResult.exportNumaInfos.empty() ?
+                                          "" :
+                                          exportObj->algoResult.exportNumaInfos.front().nodeId,
+                                      exportObj->status.exportObmmInfo);
+            }
             return ProcessImportObjByPtr<UbseMemShareBorrowImportObj, UbseMemShareBorrowExportObj>(
                 {importObj, exportObj}, request, memDesc);
         }

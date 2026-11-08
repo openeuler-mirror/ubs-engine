@@ -10,6 +10,7 @@
 #include "ubse_error.h"
 #include "ubse_ipc_server.h"
 #include "ubse_mmi_interface.h"
+#include "message/ubse_mem_callback_message.h"
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
@@ -119,20 +120,6 @@ public:
     uint16_t GetModuleCode() override;
 };
 
-class UbseMemCallbackMessage : public UbseBaseMessage {
-public:
-    UbseMemCallbackMessage();
-
-    explicit UbseMemCallbackMessage(std::string dataRaw);
-
-    UbseResult Serialize() override;
-
-    UbseResult Deserialize() override;
-
-    std::string data;
-};
-
-using UbseMemCallbackMessagePtr = Ref<UbseMemCallbackMessage>;
 class UbseMemFdBorrowExportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
     UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,

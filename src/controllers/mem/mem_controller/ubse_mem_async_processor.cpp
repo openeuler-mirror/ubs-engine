@@ -6,7 +6,10 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
+#include "api/ubse_mem_controller_share_api.h"
 #include "message/ubse_mem_simpo_types.h"
+#include "migrate/ubse_mem_controller_migrate_api.h"
+#include "trace_context.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -194,6 +197,25 @@ UbseResult DoReturnRespAsync(const UbseMemOperationResp& resp)
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([resp]() { UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(resp); });
+    return UBSE_OK;
+}
+
+UbseResult AsyncMemShmMigrateProcessor(const std::string& name)
+{
+    const auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto traceId = TraceContext::GetTraceId();
+    if (!resourceExecutor->Execute([name, traceId]() {
+            TraceContext::SetTraceId(traceId);
+            UbseMemShmMigrateService::GetInstance().Execute(name);
+            TraceContext::Clear();
+        })) {
+        UBSE_LOG_ERROR << "Submit shm migrate task failed, name=" << name;
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
