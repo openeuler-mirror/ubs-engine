@@ -26,7 +26,7 @@ using namespace api::server;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::def;
 using namespace ubse::adapter_plugins::mmi;
-constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 48;
+constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 64;
 
 void TestUbseMemApiConvert::SetUp()
 {

@@ -250,14 +250,14 @@ int32_t ubs_mem_fd_get(const char* name, ubs_mem_fd_desc_t* mem_desc)
         return UBS_ERR_NULL_POINTER;
     }
     // 打包
-    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     ubse_api_buffer_t request_buffer;
     request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
     }
-    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH - 1, request_buffer.buffer);
+    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH, request_buffer.buffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack fd get request, error" << ret;
         ubse_api_buffer_free(&request_buffer);
@@ -315,7 +315,7 @@ int32_t ubs_mem_fd_delete(const char* name)
         return static_cast<int32_t>(ret);
     }
     // 申请内存
-    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     ubse_api_buffer_t request_buffer;
     request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
@@ -323,7 +323,7 @@ int32_t ubs_mem_fd_delete(const char* name)
         return UBS_ERR_OUT_OF_MEMORY;
     }
     // 打包
-    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH - 1, request_buffer.buffer);
+    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH, request_buffer.buffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack fd delete request, error" << ret;
         ubse_api_buffer_free(&request_buffer);
@@ -492,7 +492,7 @@ int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc)
         return UBS_ERR_NULL_POINTER;
     }
     // 申请内存
-    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     ubse_api_buffer_t request_buffer;
     request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
@@ -500,7 +500,7 @@ int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc)
         return UBS_ERR_OUT_OF_MEMORY;
     }
     // 打包
-    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH - 1, request_buffer.buffer);
+    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH, request_buffer.buffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack numa get request, error" << ret;
         ubse_api_buffer_free(&request_buffer);
@@ -559,7 +559,7 @@ int32_t ubs_mem_numa_delete(const char* name)
         return static_cast<int32_t>(ret);
     }
     // 申请内存
-    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     ubse_api_buffer_t request_buffer;
     request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
@@ -567,7 +567,7 @@ int32_t ubs_mem_numa_delete(const char* name)
         return UBS_ERR_OUT_OF_MEMORY;
     }
     // 打包
-    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH - 1, request_buffer.buffer);
+    ret = ubse_string_pack(name, UBS_MEM_MAX_NAME_LENGTH, request_buffer.buffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack numa delete request, error" << ret;
         ubse_api_buffer_free(&request_buffer);

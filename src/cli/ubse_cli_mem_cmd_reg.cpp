@@ -36,13 +36,13 @@ using namespace ubse::mem::controller;
 
 constexpr const char* PUBLIC_NAME_OPTION = "name";
 constexpr const char* PUBLIC_NAME_OPTION_TIP =
-    "Input a unique name. The name must not exceed 47 characters "
+    "Input a unique name. The name must not exceed 64 bytes "
     "and can only include English letters, numbers, dots, colons, underscores, and hyphens.";
 constexpr const char* PUBLIC_NAME_OPTION_REQUIRED =
-    "ERROR: The request option -n or --name is required, and the supported name must not exceed 47 characters and can "
+    "ERROR: The request option -n or --name is required, and the supported name must not exceed 64 bytes and can "
     "only include English letters, numbers, dots, colons, underscores, and hyphens.";
 constexpr const char* PUBLIC_NAME_PARAM_INVALID =
-    "ERROR: Invalid name. The name must not exceed 47 characters and can only include English letters, numbers, dots, "
+    "ERROR: Invalid name. The name must not exceed 64 bytes and can only include English letters, numbers, dots, "
     "colons, underscores, and hyphens.";
 
 constexpr const char* DISPLAY_MEM_T_OPTION = "type";
@@ -55,7 +55,7 @@ constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
     "Input the borrow-type to filter memory account. The option is as follows: "
     "fd, numa, share. Supported only when the type parameter is borrow_detail.";
 constexpr const char* DISPLAY_MEM_NAME_OPTION_TIP =
-    "Input a unique name to filter memory account. The name must not exceed 47 characters and can only include English "
+    "Input a unique name to filter memory account. The name must not exceed 64 bytes and can only include English "
     "letters, numbers, dots, colons, underscores, and hyphens. Supported only when the type parameter is "
     "borrow_detail.";
 constexpr const char* DISPLAY_MEM_TYPE_OPTION_REQUIRED =
@@ -161,7 +161,7 @@ static const uint16_t MEM_NODE_BORROW_OP_CODE = UBSE_MEM_CLI_NODE_BORROW;
 static const uint16_t MEMORY_DELETE_OP_CODE = UBSE_MEM_CLI_DELETE_MEMORY;
 static const uint16_t MEMORY_NUMA_STATE_QUERY_OP_CODE = UBSE_MEM_CLI_NUMA_STATE_QUERY;
 const int8_t MEM_SUCCESS_CODE = UBSE_OK;
-const int MAX_NAME_LENGTH = 47;
+const int MAX_NAME_LENGTH = 64;
 const uint32_t REQUEST_BUFFER_CAPACITY = 8;
 const int8_t RETRY_WAIT_TIME = 10;
 constexpr size_t NODE_LENGTH = 80;

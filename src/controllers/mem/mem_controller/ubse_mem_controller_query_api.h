@@ -61,7 +61,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMem
 /* *
 * @brief 查询共享内存状态
 *
-* @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name在节点内保持唯一性
+* @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name在节点内保持唯一性
 * @param fd_desc [OUT] fd内存信息
 * @return UBSE_OK:操作成功;
 * UBS_ERR_NULL_POINTER:空指针;

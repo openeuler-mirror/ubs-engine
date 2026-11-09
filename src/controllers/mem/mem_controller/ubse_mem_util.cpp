@@ -59,7 +59,7 @@ UbseTaskExecutorPtr GetExecutor(const std::string& name)
 
 bool CheckName(const std::string& name)
 {
-    if (name.empty() || name.size() >= UBS_MEM_MAX_NAME_LENGTH) {
+    if (name.empty() || name.size() > UBS_MEM_MAX_NAME_LENGTH) {
         UBSE_LOG_ERROR << "Invalid name length:" << name.size();
         return false;
     }

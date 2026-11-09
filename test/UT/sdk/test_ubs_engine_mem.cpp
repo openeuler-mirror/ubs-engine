@@ -22,10 +22,40 @@
 #include "ubse_ipc_common.h"
 #include "ubse_mem_buffer_convert.h"
 #include "ubse_node_api_convert.h"
+#include "src/sdk/c/libubse_helper.h"
 #include "ubs_engine_mem.h"
 #include "ubs_error.h"
 
 namespace ubse::sdk::ut {
+
+TEST_F(TestUbsEngineMem, MemoryNameSupports64BytesExcludingTerminator)
+{
+    for (const size_t length : {47UL, 48UL, 63UL, 64UL}) {
+        const std::string name(length, 'a');
+        EXPECT_EQ(ubse_mem_name_is_valid(name.c_str()), UBS_SUCCESS);
+    }
+    const std::string tooLong(65, 'a');
+    EXPECT_EQ(ubse_mem_name_is_valid(tooLong.c_str()), UBS_ERR_INVALID_ARG);
+    char unterminated[65];
+    std::memset(unterminated, 'a', sizeof(unterminated));
+    EXPECT_EQ(ubse_mem_name_is_valid(unterminated), UBS_ERR_INVALID_ARG);
+    EXPECT_EQ(ubse_mem_name_is_valid(""), UBS_ERR_INVALID_ARG);
+}
+
+TEST_F(TestUbsEngineMem, MemoryName64ByteSerializationPreservesEveryByte)
+{
+    const std::string name(UBS_MEM_MAX_NAME_LENGTH, 'n');
+    std::vector<uint8_t> buffer(ubse_string_calc_size(name.c_str(), UBS_MEM_MAX_NAME_LENGTH));
+    ASSERT_EQ(buffer.size(), sizeof(uint32_t) + name.size());
+    ASSERT_EQ(ubse_string_pack(name.c_str(), UBS_MEM_MAX_NAME_LENGTH, buffer.data()), UBS_SUCCESS);
+    uint32_t encodedLength{};
+    ASSERT_EQ(memcpy_s(&encodedLength, sizeof(encodedLength), buffer.data(), sizeof(encodedLength)), EOK);
+    EXPECT_EQ(encodedLength, 64);
+    EXPECT_EQ(std::memcmp(buffer.data() + sizeof(encodedLength), name.data(), name.size()), 0);
+    EXPECT_EQ(sizeof(ubs_mem_fd_desc_t::name), 65);
+    EXPECT_EQ(sizeof(ubs_mem_numa_desc_t::name), 65);
+    EXPECT_EQ(sizeof(ubs_mem_shm_desc_t::name), 65);
+}
 using namespace node::api;
 using namespace mem::controller;
 using namespace ubse::common::def;
@@ -135,7 +165,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_create(longName.c_str(), size, owner, mode, distance, fd_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -249,7 +279,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWithLenderWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_create_with_lender(longName.c_str(), owner, mode, lender, lender_cnt, fd_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -352,7 +382,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdCreateWithCandidateWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_create_with_candidate(longName.c_str(), size, owner, mode, slot_ids, slot_cnt, null_fd_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -441,7 +471,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdPermissionWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_permission(longName.c_str(), &owner, mode);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 }
@@ -480,7 +510,7 @@ TEST_F(TestUbsEngineMem, UbseMemFdGetWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_get(longName.c_str(), null_mem_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -621,7 +651,7 @@ TEST_F(TestUbsEngineMem, UbsMemFdDeleteWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_fd_delete(longName.c_str());
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 }
@@ -656,7 +686,7 @@ TEST_F(TestUbsEngineMem, UbsMemNumaCreateWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_numa_create(longName.c_str(), size, distance, numa_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -760,7 +790,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaCreateWithLenderWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_numa_create_with_lender(longName.c_str(), lender, lender_cnt, numa_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -853,7 +883,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaCreateWithCandidateWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_numa_create_with_candidate(longName.c_str(), size, slot_ids, slot_cnt, null_numa_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -934,7 +964,7 @@ TEST_F(TestUbsEngineMem, UbseMemNumaGetWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_numa_get(longName.c_str(), null_mem_desc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -1075,7 +1105,7 @@ TEST_F(TestUbsEngineMem, UbsMemNumaDeleteWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_numa_delete(longName.c_str());
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 }
@@ -1112,7 +1142,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmCreateWhenInvalidParameters)
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // name长度非法
-    std::string longName(UBS_MEM_MAX_NAME_LENGTH, '0');
+    std::string longName(UBS_MEM_MAX_NAME_LENGTH + 1, '0');
     ret = ubs_mem_shm_create(longName.c_str(), size, usr_info, flag, &region, &provider);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
 
@@ -1182,7 +1212,8 @@ TEST_F(TestUbsEngineMem, UbsMemShmCreateWhenSuccess)
 
 const char* g_nullName = nullptr;
 const char* g_emptyName = "";
-const char* g_invalidName = "111111111111111111111111111111111111111111111111";
+const std::string INVALID_MEMORY_NAME(UBS_MEM_MAX_NAME_LENGTH + 1, '1');
+const char* g_invalidName = INVALID_MEMORY_NAME.c_str();
 const char* g_validName = "global_valid_name";
 ubs_mem_memids_fault_t* g_nullFault = nullptr;
 ubs_mem_memids_fault_t g_validFault = {};

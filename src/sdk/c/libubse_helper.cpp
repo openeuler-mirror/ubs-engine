@@ -306,8 +306,8 @@ ubs_error_t ubse_mem_name_is_valid(const char* name)
         IPC_LOG_ERROR << "Name pointer is null";
         return UBS_ERR_NULL_POINTER;
     }
-    auto name_len = strlen(name);
-    if (name_len == 0 || name_len > UBS_MEM_MAX_NAME_LENGTH - 1) {
+    auto name_len = strnlen(name, UBS_MEM_NAME_BUFFER_SIZE);
+    if (name_len == 0 || name_len > UBS_MEM_MAX_NAME_LENGTH) {
         IPC_LOG_ERROR << "Invalid name length: " << name_len;
         return UBS_ERR_INVALID_ARG;
     }
@@ -436,7 +436,7 @@ size_t ubse_mem_fd_create_req_calc_size(const char* name)
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
 
     // 2. 计算size参数长度
     len += sizeof(uint64_t); // size是uint64_t
@@ -468,7 +468,7 @@ ubs_error_t ubse_mem_fd_create_req_pack(const char* name, uint64_t size, const u
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -506,7 +506,7 @@ ubs_error_t ubse_mem_fd_create_with_lender_req_pack(const char* name, const ubs_
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -528,7 +528,7 @@ ubs_error_t ubse_mem_fd_create_with_candidate_req_pack(const char* name, uint64_
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -555,7 +555,7 @@ ubs_error_t ubse_mem_fd_permission_req_pack(const char* name, const ubs_mem_fd_o
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -573,7 +573,7 @@ ubs_error_t ubse_mem_numa_create_req_pack(const char* name, uint64_t size, ubs_m
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -590,7 +590,7 @@ ubs_error_t ubse_mem_numa_create_with_lender_req_pack(const char* name, const ub
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -604,7 +604,7 @@ ubs_error_t ubse_mem_numa_create_with_candidate_req_pack(const char* name, uint6
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -640,7 +640,7 @@ ubs_error_t ubse_mem_shm_create_req_pack(const char* name, uint64_t size, uint8_
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -671,7 +671,7 @@ ubs_error_t ubse_mem_shm_create_with_affinity_req_pack(const char* name, uint64_
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -700,7 +700,7 @@ ubs_error_t ubse_mem_shm_attach_req_pack(const char* name, const ubs_mem_fd_owne
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -718,7 +718,7 @@ ubs_error_t ubse_mem_shm_common_pack(const char* name, uint8_t* buffer)
 {
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -824,7 +824,7 @@ ubs_error_t ubse_state_unpack_inner(unpack_ctx_t* ctx, ubs_mem_fd_desc_t* fd_des
 ubs_error_t ubse_mem_fd_desc_unpack_inner(unpack_ctx_t* ctx, ubs_mem_fd_desc_t* fd_desc)
 {
     // 解包name
-    ubs_error_t ret = unpack_string(ctx, fd_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = unpack_string(ctx, fd_desc->name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
         return ret;
@@ -898,7 +898,7 @@ size_t ubse_mem_fd_create_with_lender_req_calc_size(const char* name, uint32_t l
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     // 2. 计算owner结构体长度
     len += sizeof(uint32_t); // uid
     len += sizeof(uint32_t); // gid
@@ -921,7 +921,7 @@ size_t ubse_mem_fd_create_with_candidate_req_calc_size(const char* name, uint32_
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     // 2. 计算size参数长度
     len += sizeof(uint64_t); // size是uint64_t
     // 3. 计算owner结构体长度
@@ -940,7 +940,7 @@ size_t ubse_mem_fd_permission_req_calc_size(const char* name)
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     // 2. 计算owner结构体长度
     len += sizeof(uint32_t); // uid
     len += sizeof(uint32_t); // gid
@@ -955,7 +955,7 @@ size_t ubse_mem_numa_create_req_calc_size(const char* name)
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
 
     // 2. 计算size参数长度
     len += sizeof(uint64_t); // size是uint64_t
@@ -970,7 +970,7 @@ size_t ubse_mem_numa_create_with_lender_req_calc_size(const char* name, uint32_t
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
 
     // 2. 计算lender_cnt 长度
     len += sizeof(uint32_t);
@@ -987,7 +987,7 @@ size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char* name, uint3
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     // 2. 计算size参数长度
     len += sizeof(uint64_t); // size是uint64_t
     // 3. 计算slot_ids长度
@@ -1000,7 +1000,7 @@ size_t ubse_mem_get_memid_by_import_req_calc_size(const char* name)
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     // 2. 计算import_memid参数长度
     len += sizeof(uint64_t);
     return len;
@@ -1011,7 +1011,7 @@ size_t ubse_mem_shm_create_req_calc_size(const char* name, const ubs_mem_nodes_t
 {
     size_t len = 0;
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
 
     // 2. 计算size参数长度
     len += sizeof(uint64_t);
@@ -1055,7 +1055,7 @@ size_t ubse_mem_shm_create_with_lender_req_calc_size(const char* name, const ubs
                                                      const ubs_mem_lender_t* lender)
 {
     size_t len = 0;
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     len += UBS_MEM_MAX_USR_INFO_LEN;
     len += sizeof(uint64_t);
     len += sizeof(uint32_t);
@@ -1096,7 +1096,7 @@ ubs_error_t ubse_mem_shm_create_with_lender_req_pack(const char* name, const uin
                                                      const ubs_mem_lender_t* lender, uint8_t* buffer)
 {
     uint8_t* ptr = buffer;
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -1121,7 +1121,7 @@ size_t ubse_mem_shm_attach_req_calc_size(const char* name)
     size_t len = 0;
 
     // 1. 计算name参数的长度
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
 
     // 2. 计算owner结构体长度
     len += sizeof(uint32_t); // uid
@@ -1175,7 +1175,7 @@ ubs_error_t ubse_mem_shm_attach_req_build(ubse_api_buffer_t* ptr, const char* na
 }
 ubs_error_t ubse_mem_shm_common_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
-    size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1); // name
+    size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH); // name
     ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm common request with size " << total_len;
@@ -1250,7 +1250,7 @@ ubs_error_t ubse_mem_fd_desc_list_unpack(const uint8_t* buffer, uint32_t len, ub
 ubs_error_t ubse_mem_numa_desc_unpack_inner(unpack_ctx_t* ctx, ubs_mem_numa_desc_t* numa_desc)
 {
     // 解包name
-    ubs_error_t ret = unpack_string(ctx, numa_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = unpack_string(ctx, numa_desc->name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
         return ret;
@@ -1553,7 +1553,7 @@ ubs_error_t ubse_mem_shm_import_desc_unpack(unpack_ctx_t* ctx, ubs_mem_shm_impor
 ubs_error_t ubse_mem_shm_desc_export_unpack(unpack_ctx_t* ctx, ubs_mem_shm_desc_t* shm_desc)
 {
     // 解包name
-    ubs_error_t ret = unpack_string(ctx, shm_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = unpack_string(ctx, shm_desc->name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
         return ret;
@@ -1923,7 +1923,7 @@ ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t* buffer, uint32_t len, 
 }
 ubs_error_t ubse_mem_shm_fault_get_req_build(const char* name, ubse_api_buffer_t* ptr)
 {
-    size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1); // name
+    size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH); // name
     ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         ubse_api_buffer_free(ptr);
@@ -1939,7 +1939,7 @@ ubs_error_t ubse_mem_shm_fault_get_req_pack(const char* name, uint8_t* buffer)
     }
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -2174,7 +2174,7 @@ ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char* name, uint64_t imp
     }
     uint8_t* ptr = buffer;
     // 打包name
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -2214,7 +2214,7 @@ ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t* buffer, uint32_t l
 size_t ubse_mem_shm_migrate_req_calc_size(const char* name)
 {
     size_t len = 0;
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     len += sizeof(uint32_t);
     return len;
 }
@@ -2246,7 +2246,7 @@ ubs_error_t ubse_mem_shm_migrate_req_pack(const char* name, uint32_t target_slot
         return UBS_ERR_NULL_POINTER;
     }
     uint8_t* ptr = buffer;
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -2274,7 +2274,7 @@ ubs_error_t ubse_mem_shm_migrate_resp_unpack(uint8_t* buffer, uint32_t len, uint
 size_t ubse_mem_shm_migrate_get_req_calc_size(const char* name)
 {
     size_t len = 0;
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     len += sizeof(uint32_t);
     return len;
 }
@@ -2306,7 +2306,7 @@ ubs_error_t ubse_mem_shm_migrate_get_req_pack(const char* name, uint8_t* buffer)
         return UBS_ERR_NULL_POINTER;
     }
     uint8_t* ptr = buffer;
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;
@@ -2329,7 +2329,7 @@ ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, 
         IPC_LOG_ERROR << "Failed to unpack err_code. Error code: " << ret;
         return ret;
     }
-    ret = unpack_string(&ctx, desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ret = unpack_string(&ctx, desc->name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
         return ret;
@@ -2388,7 +2388,7 @@ ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, 
 size_t ubse_mem_shm_migrate_cancel_req_calc_size(const char* name)
 {
     size_t len = 0;
-    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH);
     len += sizeof(uint32_t);
     return len;
 }
@@ -2420,7 +2420,7 @@ ubs_error_t ubse_mem_shm_migrate_cancel_req_pack(const char* name, uint8_t* buff
         return UBS_ERR_NULL_POINTER;
     }
     uint8_t* ptr = buffer;
-    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
         return ret;

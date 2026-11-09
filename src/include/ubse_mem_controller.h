@@ -208,7 +208,7 @@ UbseResult UbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<Ub
 /**
  * @brief 指定借出信息，提供给插件使用numa借用 碎片场景使用
  *
- * @param name [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower [IN] 必填，借用方信息
  * @param lenders [IN] 必填，借出方信息
  * @param usrInfo [IN] 选填，调用方私有数据，UBSE只负责保存，get时原样返回
@@ -228,7 +228,7 @@ struct UbseMemNumaCreateOpt {
 
 /**
  * @brief 提供给插件使用numa借用， virAgent透传给超分场景使用
- * @param name [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower [IN] 必填，借用方信息
  * @param param [IN] 必填，借出方信息
  * @param usrInfo [IN] 选填，调用方私有数据，UBSE只负责保存，get时原样返回
@@ -243,7 +243,7 @@ struct UbseMemNumaCandidateOpt : UbseMemNumaCreateOpt {
 };
 /**
  * @brief 指定候选借出节点,提供给插件使用numa借用， virAgent透传给超分场景使用
- * @param name [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower [IN] 必填，借用方信息
  * @param opt [IN] 必填，可选项
  * @param desc [OUT] 借用形成的远端numa信息
@@ -255,7 +255,7 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMem
 /**
  * @brief 删除指定numa远端内存;
  *
- * @param name  [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name  [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower  [IN] 必填，借用方信息
  * @return UbseResult
  */
@@ -287,7 +287,7 @@ struct UbseMemAddrDesc {
 /**
  * @brief 提供给插件使用addr借用
  *
- * @param name [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower [IN] 必填，借用方信息
  * @param lenders [IN] 必填，借出方信息
  * @param flag [IN] 额外的内存借用属性，1为非接力模式，0为接力模式
@@ -300,7 +300,7 @@ UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& bor
 /**
  * @brief 删除addr借用;
  *
- * @param name  [IN] 必填，借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name  [IN] 必填，借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param borrower  [IN] 必填，借用方信息
  * @return UbseResult;
  */

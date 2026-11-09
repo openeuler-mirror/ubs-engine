@@ -24,7 +24,8 @@ extern "C" {
 
 #define UBS_MEM_MAX_SLOT_NUM 16
 #define UBS_MEM_MAX_MEMID_NUM 2048
-#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_NAME_LENGTH 64                             // 内存name最大长度, 不含结尾字符\0
+#define UBS_MEM_NAME_BUFFER_SIZE (UBS_MEM_MAX_NAME_LENGTH + 1) // name定长缓冲区大小, 含结尾字符\0
 #define UBSE_MAX_USR_INFO_LENGTH 32
 #define UBS_MEM_MIN_SIZE (4ULL * 1024ULL * 1024ULL)
 #define UBS_MEM_MAX_LENDER_CNT 4
@@ -111,7 +112,7 @@ typedef struct {
 #define UBS_MEM_DEV_NAME_PREFIX "obmm_shmdev"
 #define UBS_MEM_DEV_PATH "/dev/" UBS_MEM_DEV_NAME_PREFIX
 typedef struct {
-    char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
+    char name[UBS_MEM_NAME_BUFFER_SIZE];    // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
     uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
     uint64_t mem_size;                      // 借用大小
@@ -125,7 +126,7 @@ typedef struct {
  * @brief  在本节点创建fd形态的远端内存，该资源的管理权限属于调用者
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name在节点内保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param owner [IN] 内存资源使用者属主信息, 可选参数, Null不关注该字段
  * @param mode [IN] 内存资源使用者访问权限, 可选参数, 0则不关注该字段
@@ -147,7 +148,7 @@ int32_t ubs_mem_fd_create(const char* name, uint64_t size, const ubs_mem_fd_owne
  * @brief  指定借出信息，在本节点创建fd形态的远端内存，该资源的管理权限属于调用者
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";  name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";  name在节点内保持唯一性
  * @param owner [IN] 内存资源属主信息, 可选参数, Null不关注该字段
  * @param mode [IN] 内存资源的访问权限, 可选参数, 0则不关注该字段
  * @param lender [IN] 借出信息
@@ -171,7 +172,7 @@ int32_t ubs_mem_fd_create_with_lender(const char* name, const ubs_mem_fd_owner_t
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  * 候选节点与当前借入节点，必须满足直连要求
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param owner [IN] 内存资源属主信息, 可选参数, Null不关注该字段
  * @param mode [IN] 内存资源的访问权限, 可选参数, 0则不关注该字段
@@ -194,7 +195,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char* name, uint64_t size, const 
  * @brief 改变本节点fd形态远端内存的permission信息; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param owner [IN] 内存资源属主信息, 必选参数, 不允许为Null
  * @param mode [IN] 内存资源的访问权限, 必选参数, 不允许为0
  * @return UBS_SUCCESS:操作成功;
@@ -212,7 +213,7 @@ int32_t ubs_mem_fd_permission(const char* name, const ubs_mem_fd_owner_t* owner,
  * @brief 查询本节点fd形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param fd_desc [OUT] fd内存信息
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -246,7 +247,7 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** fd_descs, uint32_t* fd_desc_cnt);
  * @brief 删除本节点指定fd远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name  [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name  [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -263,7 +264,7 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** fd_descs, uint32_t* fd_desc_cnt);
 int32_t ubs_mem_fd_delete(const char* name);
 
 typedef struct {
-    char name[UBS_MEM_MAX_NAME_LENGTH];        // 借用标识
+    char name[UBS_MEM_NAME_BUFFER_SIZE];       // 借用标识
     int64_t numaid;                            // 形成远端numa对应的numaid
     ubs_topo_node_t export_node;               // 借出节点, 其中ips字段无效, 需通过topo接口获取
     ubs_topo_node_t import_node;               // 借入节点, 其中ips字段无效, 需通过topo接口获取
@@ -276,7 +277,7 @@ typedef struct {
  * @brief 在本节点创建numa形态的远端内存，该资源的管理权限属于调用者
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param distance [IN] 内存访问跳数
  * @param numa_desc [OUT] 借用形成的远端numa信息
@@ -296,7 +297,7 @@ int32_t ubs_mem_numa_create(const char* name, uint64_t size, ubs_mem_distance_t 
  * @brief  指定借出信息，在本节点创建numa形态的远端内存，该资源的管理权限属于调用者
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param lender [IN] 借出信息
  * @param lender_cnt [IN] 借出信息个数, 最大为UBS_MEM_MAX_LENDER_CNT
  * @param numa_desc [OUT] 借用形成的远端numa信息
@@ -317,7 +318,7 @@ int32_t ubs_mem_numa_create_with_lender(const char* name, const ubs_mem_lender_t
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  * 候选节点与当前借入节点，必须满足直连要求
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param slot_ids [IN] 候选借出节点范围
  * @param slot_cnt [IN] 候选借出节点个数, 最大为16
@@ -338,7 +339,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char* name, uint64_t size, cons
  * @brief 查询本节点numa形态远端内存信息; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @param numa_desc [OUT] 借用形成的远端numa信息
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -372,7 +373,7 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** numa_descs, uint32_t* numa_desc_
  * @brief 删除本节点指定numa远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name  [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
+ * @param name  [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name在节点内保持唯一性
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -402,7 +403,7 @@ typedef struct {
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  * 算法决策借出节点，指定资源提供方，则从中选择，没有指定，则从region中选择；确保所有节点均能使用共享内存
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), UBSE只负责保存，get时原样返回
  * @param flag [IN] 额外的内存借用属性，目前支持写接力
@@ -426,7 +427,7 @@ int32_t ubs_mem_shm_create(const char* name, uint64_t size, uint8_t usr_info[32]
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  * 算法决策借出节点，指定资源提供方，则从中选择，没有指定，则从region中选择；确保所有节点均能使用共享内存
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param affinity_socket_id [IN] 亲和的cpu socket_id
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), UBSE只负责保存，get时原样返回
@@ -453,7 +454,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size, uint32
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  * 算法决策借出节点，指定资源提供方，则从中选择，没有指定，则从region中选择；确保所有节点均能使用共享内存
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), usr_info应为32字节大小，UBSE只负责保存，get时原样返回,
  * @param flag [IN] 额外的内存借用属性，目前支持写接力
  * 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
@@ -478,10 +479,10 @@ typedef struct {
     ubs_mem_stage mem_stage;                // 内存状态
 } ubs_mem_shm_import_desc_t;
 typedef struct {
-    char name[UBS_MEM_MAX_NAME_LENGTH]; // 借用标识
-    uint64_t mem_size;                  // 借用大小
-    size_t unit_size;                   // 芯片表项拆分粒度, 单位Byte
-    ubs_topo_node_t export_node;        // 借出节点, 其中ips字段无效, 需通过topo接口获取
+    char name[UBS_MEM_NAME_BUFFER_SIZE]; // 借用标识
+    uint64_t mem_size;                   // 借用大小
+    size_t unit_size;                    // 芯片表项拆分粒度, 单位Byte
+    ubs_topo_node_t export_node;         // 借出节点, 其中ips字段无效, 需通过topo接口获取
     uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN];
     uint32_t import_desc_cnt;               // 导入内存描述符信息的数量, 范围 [0, UBS_TOPO_MAX_NODE_NUM]
     ubs_mem_stage mem_stage;                // 内存状态
@@ -494,7 +495,7 @@ typedef struct {
  * 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param owner [IN] 内存资源属主信息, 可选参数, Null不关注该字段
  * @param mode [IN] 内存资源的访问权限, 可选参数, 0则不关注该字段
  * @param shm_desc [OUT] 内存描述信息, 调用方需要使用free接口主动释放内存
@@ -516,7 +517,7 @@ int32_t ubs_mem_shm_attach(const char* name, const ubs_mem_fd_owner_t* owner, mo
  * @brief 查询指定共享形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识前缀, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识前缀, 最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param shm_desc [OUT] 借用形成的远端fd信息, 调用方需要使用free接口主动释放内存
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -569,7 +570,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char* name_prefix, ubs_mem_shm_desc_t
  * @brief 删除导入共享形态的远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -590,7 +591,7 @@ int32_t ubs_mem_shm_detach(const char* name);
  * 标记删除后，原有attach能继续使用，新的attach返回失败；
  * 标记删除后，借出节点重启，即使attach还存在，也会完成真正删除
  *
- * @param name  [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name  [IN] 借用标识, name最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -713,7 +714,7 @@ typedef int32_t (*ubs_mem_numa_fault_handler)(const char* name, uint64_t numaid,
  * @brief 查询指定共享远端内存的状态; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
- * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
+ * @param name [IN] 借用标识, 最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
  * @param shm_status [OUT] 内存块的健康状态
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -756,7 +757,7 @@ typedef struct {
   * @brief 通过指定fd形态导入端memid查询导出端memid;
   * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
   *
-  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param name [IN] 借用标识, 最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
   * @param import_memid [IN] 导入memid
   * @param mem_info [OUT] 导出mem信息
   * @return UBS_SUCCESS:操作成功;
@@ -777,7 +778,7 @@ int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid, 
   * @brief 通过指定numa形态导入端memid查询导出端memid;
   * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
   *
-  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param name [IN] 借用标识, 最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
   * @param import_memid [IN] 导入memid
   * @param mem_info [OUT] 导出mem信息
   * @return UBS_SUCCESS:操作成功;
@@ -798,7 +799,7 @@ int32_t ubs_mem_numa_get_memid_by_import(const char* name, uint64_t import_memid
   * @brief 通过指定shm形态导入端memid查询导出端memid;
   * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
   *
-  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param name [IN] 借用标识, 最大长度64字节, 不含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
   * @param import_memid [IN] 导入memid
   * @param mem_info [OUT] 导出mem信息
   * @return UBS_SUCCESS:操作成功;
