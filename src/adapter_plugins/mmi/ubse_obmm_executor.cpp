@@ -170,7 +170,6 @@ UbseResult RmObmmExecutor::DlOpenLib(const std::string& obmmPath)
         return ret;
     }
     // memcpy_mt 本次暂不启用，避免 libobmm-accel 加载失败影响其他 OBMM 功能启动。
-    // ret = LoadMemcpyMt();
     return UBSE_OK;
 }
 
@@ -475,11 +474,16 @@ UbseResult RmObmmExecutor::ObmmSwitchBeginImport(const ObmmSwitchParam& param)
     std::copy(param.newSeid.begin(), param.newSeid.end(), target.seid);
     std::copy(param.newDeid.begin(), param.newDeid.end(), target.deid);
     const void* priv = param.priv.empty() ? nullptr : param.priv.data();
+    CapabilityGuard switchCapGuard(switchCap);
+    if (!switchCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "SwitchImport enable capability failed, memId=" << param.oldImportMemId;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     errno = 0;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
     int ret = obmmSwitchBeginImportFunc(param.oldImportMemId, OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE, &target, priv, privLen);
     const int switchErrno = errno;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    switchCapGuard.Disable();
     if (ret != 0) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
@@ -527,12 +531,17 @@ UbseResult RmObmmExecutor::ObmmSwitchBeginExport(const ObmmSwitchExportParam& pa
     std::copy(param.seid.begin(), param.seid.end(), desc.seid);
     std::copy(param.deid.begin(), param.deid.end(), desc.deid);
     const void* priv = param.priv.empty() ? nullptr : param.priv.data();
+    CapabilityGuard switchCapGuard(switchCap);
+    if (!switchCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "SwitchExport enable capability failed, memId=" << param.importMemId;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     errno = 0;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
     const int ret = obmmSwitchBeginExportFunc(param.importMemId, OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE, &param.target, &desc,
                                               priv, static_cast<uint16_t>(param.priv.size()));
     const int switchErrno = errno;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    switchCapGuard.Disable();
     if (ret == 0) {
         UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_begin_export end, memId=" << param.importMemId
                       << ", ret=" << ret << ", hasAddress=" << (desc.addr != 0);
@@ -556,23 +565,25 @@ UbseResult RmObmmExecutor::ObmmSwitchEnd(mem_id oldImportMemId, bool success)
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmSwitchEndFunc is nullptr, please check.";
         return UBSE_ERROR_NULLPTR;
     }
+    CapabilityGuard switchCapGuard(switchCap);
+    if (!switchCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "SwitchEnd enable capability failed, memId=" << oldImportMemId;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     errno = 0;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, true);
     int ret = obmmSwitchEndFunc(oldImportMemId, success ? 1 : 0);
     const int switchErrno = errno;
-    UbseSecurityModule::ModifyEffectiveCapabilities(switchCap, false);
+    switchCapGuard.Disable();
     if (ret != 0) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_end error! memId=" << oldImportMemId
                        << ", ret=" << ret << ", success=" << success << ", errno=" << switchErrno
                        << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(switchErrno, buf, STR_ERROR_BUF_SIZE);
         if (switchErrno == EAGAIN) {
-            // 保留内核错误分类；迁移层按单次失败策略处理，不重试业务。
             return UBSE_ERROR_AGAIN;
         }
         if (switchErrno == ESTALE) {
-            // 无进行中的切换（典型：内核 30s 兜底已自动中止，KEEP_OLD_ALIVE 下大概率已回退 pa0），
-            // 不推断已提交；迁移层保留未知资源，不执行probe。
             return UBSE_MMI_OBMM_SWITCH_NOT_EXIST;
         }
         return UBSE_MMI_OBMM_OP_FAILED;

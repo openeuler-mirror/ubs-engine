@@ -98,6 +98,9 @@ public:
     // 终态落定：state + failReason
     void FinishSession(const std::string& name, ubs_mem_migrate_state_t state, uint32_t failReason = 0);
 
+    // 同名资源全部释放后移除终态记录；非终态会话保留。
+    void EraseTerminalSession(const std::string& name);
+
     // 仅测试使用：清空会话表
     void ClearSessions();
 

@@ -103,6 +103,10 @@ UbseResult UbseMemShmMigrateGetRespMessage::Deserialize()
 
 UbseResult RegisterMigrateGetHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "get UbseComModule failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
     UbseComBaseMessageHandlerPtr hdl = new (std::nothrow) UbseMemShmMigrateGetHandler();
     auto ret = comModule->RegRpcService<UbseMemShmMigrateGetReqMessage, UbseMemShmMigrateGetRespMessage>(hdl);
     if (ret != UBSE_OK) {

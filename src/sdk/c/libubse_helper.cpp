@@ -2226,6 +2226,10 @@ ubs_error_t ubse_mem_shm_migrate_req_build(const char* name, uint32_t target_slo
         return UBS_ERR_NULL_POINTER;
     }
     size_t total_len = ubse_mem_shm_migrate_req_calc_size(name);
+    if (total_len == 0 || total_len > UINT32_MAX) {
+        IPC_LOG_ERROR << "Invalid shm migrate request buffer size: " << total_len;
+        return UBS_ERR_INVALID_ARG;
+    }
     ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm migrate request with size " << total_len;
@@ -2282,6 +2286,10 @@ ubs_error_t ubse_mem_shm_migrate_get_req_build(const char* name, ubse_api_buffer
         return UBS_ERR_NULL_POINTER;
     }
     size_t total_len = ubse_mem_shm_migrate_get_req_calc_size(name);
+    if (total_len == 0 || total_len > UINT32_MAX) {
+        IPC_LOG_ERROR << "Invalid shm migrate request buffer size: " << total_len;
+        return UBS_ERR_INVALID_ARG;
+    }
     ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm migrate get request with size " << total_len;
@@ -2371,7 +2379,7 @@ ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, 
         IPC_LOG_ERROR << "Failed to unpack err_msg. Error code: " << ret;
         return ret;
     }
-    if (memcpy_s(desc->error_msg, sizeof(desc->error_msg), err_msg, sizeof(err_msg)) != EOK) {
+    if (memcpy_s(desc->error_msg, sizeof(desc->error_msg), err_msg, strnlen(err_msg, sizeof(err_msg)) + 1) != EOK) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     return UBS_SUCCESS;
@@ -2392,6 +2400,10 @@ ubs_error_t ubse_mem_shm_migrate_cancel_req_build(const char* name, ubse_api_buf
         return UBS_ERR_NULL_POINTER;
     }
     size_t total_len = ubse_mem_shm_migrate_cancel_req_calc_size(name);
+    if (total_len == 0 || total_len > UINT32_MAX) {
+        IPC_LOG_ERROR << "Invalid shm migrate request buffer size: " << total_len;
+        return UBS_ERR_INVALID_ARG;
+    }
     ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm migrate cancel request with size " << total_len;

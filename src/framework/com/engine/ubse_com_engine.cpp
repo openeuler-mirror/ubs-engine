@@ -290,9 +290,9 @@ UbseResult UbseComEngine::RegUbseComMsgHandler(const UbseComMsgHandler& handle)
     rwHanldeMapLock.UnLock();
     return UBSE_OK;
 }
-// TODO 只是临时规避,禁止合入
-constexpr uint32_t SEND_RECEIVE_SIZE = 32 * 1024;
-constexpr uint32_t TCP_SEND_RECEIVE_SIZE = 32 * 1024;
+
+constexpr uint32_t SEND_RECEIVE_SIZE = 16 * 1024;
+constexpr uint32_t TCP_SEND_RECEIVE_SIZE = 16 * 1024;
 constexpr uint32_t SEND_RECEIVE_COUNT = 256;
 constexpr uint32_t TCP_SEND_RECEIVE_COUNT = 256;
 constexpr uint32_t SEND_QUEUE_SIZE = 4096;

@@ -207,6 +207,11 @@ uint32_t PrepareMigrateExport(const ConstExportObjPtr& oldObj, const std::string
 
 void DiscardPreparedExport(const UbseMemShareBorrowExportObj& exportObj)
 {
+    if (exportObj.algoResult.exportNumaInfos.empty()) {
+        UBSE_LOG_ERROR << "Cannot discard prepared migrate export: exportNumaInfos empty, name=" << exportObj.req.name
+                       << ", state=" << exportObj.status.state;
+        return;
+    }
     auto failed = exportObj;
     failed.status.state = UBSE_MEM_STATE_FAILED;
     SchedulerImpl::GetInstance().MemoryObjChangeHandler(failed);

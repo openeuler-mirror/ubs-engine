@@ -1514,6 +1514,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateDispatcher(const UbseIpcMessa
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
     // errCode 放 payload 回传，幂等命中(MIGRATE_IN_PROGRESS)也能正常回传错误码
     UbseIpcMessage resp{};
     ret = UbseMemShmMigrateRespPack(response->migrateResp, resp);
@@ -1581,6 +1585,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateGetDispatcher(const UbseIpcMe
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateGetRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
     // errCode 放 payload 回传(NOT_EXIST 也走正常回包), SDK 侧映射错误码
     UbseIpcMessage resp{};
     ret = UbseMemShmMigrateGetRespPack(response->getResp, resp);
@@ -1648,6 +1656,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIp
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemMigrateCancelRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
     // errCode 放 payload 回传(NOT_EXIST/NOT_ALLOWED 也走正常回包), SDK 侧映射错误码
     UbseIpcMessage resp{};
     ret = UbseMemMigrateCancelRespPack(response->cancelResp, resp);

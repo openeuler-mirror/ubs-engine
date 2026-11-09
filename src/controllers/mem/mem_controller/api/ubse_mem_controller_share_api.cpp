@@ -1104,6 +1104,7 @@ static uint32_t ShareExportReturnCallback(const std::string& exportNodeId, UbseM
             return ret;
         }
         EraseShareExport(exportObj);
+        UbseMemShmMigrateSessionManager::GetInstance().EraseTerminalSession(exportObj.req.name);
         UBSE_LOG_INFO << "shm return, name=" << exportObj.req.name << ", requestId=" << exportObj.req.requestId;
         // requestNodeId为空则当前场景为对账删除导出账本
         if (requestNodeId.empty()) {

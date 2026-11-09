@@ -93,7 +93,9 @@ uint32_t SendMigrateMessage(const std::string& nodeId, UbseMemBorrowCallbackOpCo
         UBSE_LOG_WARN << "Send migrate request failed, targetNodeId=" << nodeId
                       << ", opCode=" << static_cast<uint16_t>(opCode) << ", attempt=" << attempt + 1
                       << ", ret=" << FormatRetCode(ret);
-        sleep(SEND_RETRY_DURATION);
+        if (attempt + 1 < SEND_RETRY_TIMES) {
+            sleep(SEND_RETRY_DURATION); // 最后一次发送失败后不再休眠
+        }
     }
     return ret;
 }
@@ -270,13 +272,14 @@ struct MigrationStep {
     uint64_t timeoutSeconds{MIGRATE_PHASE_TIMEOUT_S};
     void (*onComplete)(const std::shared_ptr<MigrationTask>&, const std::shared_ptr<MigrationStep>&);
     std::vector<MigrationNodeResult> nodeResults;
+    std::string timerName{};
     uint32_t failReason{UBSE_OK}; // 所有失败路径均记录首错；完成回调中为OK即表示本阶段全部成功。
 };
 
 struct MigrationTask {
     MigrationRunContext ctx{};
     std::mutex mutex{};
-    std::string timerName{};
+    uint64_t stepSequence{0};
     bool finished{false};
     std::optional<uint32_t> cleanupReason; // 无值=未清理，0=取消，非0=失败原因
     std::string failureDetail; // 仅诊断：保存清理前的失败阶段，避免最终日志只剩回退阶段。
@@ -311,9 +314,12 @@ std::shared_ptr<MigrationTask> CreateMigrationTask(MigrationRunContext&& ctx)
 {
     auto task = std::make_shared<MigrationTask>();
     task->ctx = std::move(ctx);
-    task->timerName = "ShmMigrate_" + task->ctx.name + "_" + std::to_string(reinterpret_cast<uintptr_t>(task.get()));
     std::lock_guard<std::mutex> lock(g_migrateTasksMutex);
-    g_migrateTasks[task->ctx.name] = task;
+    if (!g_migrateTasks.emplace(task->ctx.name, task).second) {
+        UBSE_LOG_ERROR << "Reject duplicate migrate task, name=" << task->ctx.name
+                       << ", dstNodeId=" << task->ctx.dstNodeId;
+        return nullptr;
+    }
     return task;
 }
 
@@ -336,9 +342,13 @@ void OnExportRollbackCompleted(const std::shared_ptr<MigrationTask>& task, const
 
 void FinishMigrationTask(const std::shared_ptr<MigrationTask>& task)
 {
+    std::string timerName;
     {
         std::lock_guard<std::mutex> lock(task->mutex);
         task->finished = true;
+        if (task->step) {
+            timerName = task->step->timerName;
+        }
     }
     {
         std::lock_guard<std::mutex> lock(g_migrateTasksMutex);
@@ -347,13 +357,14 @@ void FinishMigrationTask(const std::shared_ptr<MigrationTask>& task)
             g_migrateTasks.erase(it);
         }
     }
-    timer::UbseTimerHandlerUnregister(task->timerName);
+    if (!timerName.empty()) {
+        timer::UbseTimerHandlerUnregister(timerName);
+    }
 }
 
-// 在线程池中处理当前步骤的结果；同名迁移串行推进。
+// Accept阶段已通过会话占用资源；完成处理仅用任务锁领取阶段结果，不再竞争同名资源锁。
 void ProcessMigrationCompletion(const std::shared_ptr<MigrationTask>& task, const std::shared_ptr<MigrationStep>& step)
 {
-    auto nameLock = LoggingLockGuard(task->ctx.name);
     if (!IsCurrentMigration(task->ctx)) {
         UBSE_LOG_WARN << "Ignore completion of replaced migration, name=" << task->ctx.name
                       << ", indexId=" << task->blockIndex;
@@ -376,7 +387,7 @@ void ProcessMigrationCompletion(const std::shared_ptr<MigrationTask>& task, cons
         // 锁内领取后，结果/超时/发送失败入口均禁止再修改此step，回调直接读取冻结结果。
         step->state = MigrationStepState::CALLBACK_STARTED;
     }
-    timer::UbseTimerHandlerUnregister(task->timerName);
+    timer::UbseTimerHandlerUnregister(step->timerName);
     step->onComplete(task, step);
 }
 
@@ -684,11 +695,10 @@ static uint64_t MigrationOperationTimeout(const MigrationTask& task, MigrationOp
 static void StartMigrationStepMonitor(const std::shared_ptr<MigrationTask>& task,
                                       const std::shared_ptr<MigrationStep>& step)
 {
-    timer::UbseTimerHandlerUnregister(task->timerName);
     {
         const auto traceId = TraceContext::GetTraceId();
         const auto ret = timer::UbseTimerHandlerRegister(
-            task->timerName,
+            step->timerName,
             [task, step, traceId]() {
                 TraceContext::SetTraceId(traceId);
                 const auto result = MigratePhaseTimeout(task, step);
@@ -757,6 +767,8 @@ std::shared_ptr<MigrationStep> StartMigrationOperation(
                           operation == MigrationOperation::ROLLBACK_EXPORT;
     const auto step = task->step = std::make_shared<MigrationStep>(
         MigrationStep{operation, b, MigrationStepState::WAITING_RESULT, timeoutSeconds, onComplete});
+    step->timerName = ctx.name + "_" + std::to_string(reinterpret_cast<uintptr_t>(task.get())) + "_" +
+                      std::to_string(b) + "_" + std::to_string(++task->stepSequence);
     step->nodeResults.assign(nodes.size(), {});
     for (size_t n = 0; n < nodes.size(); ++n) {
         auto& info = step->nodeResults[n].request;
@@ -1225,6 +1237,14 @@ void FinishCleanup(const std::shared_ptr<MigrationTask>& task, CleanupConclusion
 
 bool AllImportsRolledBack(const MigrationRunContext& ctx, uint32_t blockIndex)
 {
+    const bool mappedTarget = ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE;
+    if (blockIndex >= ctx.newExportObj.migrateInfos.size() ||
+        (mappedTarget && (!ctx.targetImportObj || blockIndex >= ctx.targetImportObj->status.importResults.size())) ||
+        (!mappedTarget && blockIndex >= ctx.newExportObj.status.exportObmmInfo.size())) {
+        UBSE_LOG_ERROR << "Cannot verify import rollback: missing block identity, name=" << ctx.name
+                       << ", dstNodeId=" << ctx.dstNodeId << ", indexId=" << blockIndex;
+        return false;
+    }
     for (const auto& nodeId : ctx.importNodes) {
         const auto obj =
             UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, ctx.name);
@@ -1436,6 +1456,9 @@ void OnExportRollbackCompleted(const std::shared_ptr<MigrationTask>& task, const
 static uint32_t StartBlockMigration(MigrationRunContext&& ctx)
 {
     auto task = CreateMigrationTask(std::move(ctx));
+    if (!task) {
+        return UBSE_ERR_MIGRATE_IN_PROGRESS;
+    }
     StartAsyncBeginImport(task);
     return UBSE_OK;
 }
@@ -1443,6 +1466,9 @@ static uint32_t StartBlockMigration(MigrationRunContext&& ctx)
 static uint32_t StartMappedMigration(MigrationRunContext&& ctx)
 {
     auto task = CreateMigrationTask(std::move(ctx));
+    if (!task) {
+        return UBSE_ERR_MIGRATE_IN_PROGRESS;
+    }
     StartMappedBeginExport(task);
     return UBSE_OK;
 }

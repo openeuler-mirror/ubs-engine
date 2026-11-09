@@ -1159,6 +1159,8 @@ uint32_t UbseMemShmMigrateGetRespPack(const UbseMemShmMigrateGetResp& resp, Ubse
     UbsePackUtil packUtil(buffer.buffer, len);
     packUtil.UbsePackUint32(resp.errCode);
     if (!packUtil.UbsePackString(resp.name, resp.name.length())) {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
         UBSE_LOG_ERROR << "pack name failed.";
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
@@ -1170,6 +1172,8 @@ uint32_t UbseMemShmMigrateGetRespPack(const UbseMemShmMigrateGetResp& resp, Ubse
     packUtil.UbsePackUint64(resp.totalSize);
     packUtil.UbsePackUint32(resp.failReason);
     if (!packUtil.UbsePackString(resp.errMsg, resp.errMsg.length())) {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
         UBSE_LOG_ERROR << "pack errMsg failed.";
         return UBSE_ERROR_SERIALIZE_FAILED;
     }

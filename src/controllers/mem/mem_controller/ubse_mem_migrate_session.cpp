@@ -202,6 +202,22 @@ void UbseMemShmMigrateSessionManager::FinishSession(const std::string& name, ubs
     }
 }
 
+void UbseMemShmMigrateSessionManager::EraseTerminalSession(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = sessions_.find(name);
+    if (it == sessions_.end()) {
+        return;
+    }
+    if (!IsMigrateTerminalState(it->second->state)) {
+        UBSE_LOG_WARN << "Cannot erase active migrate session, name=" << name
+                      << ", state=" << static_cast<uint32_t>(it->second->state);
+        return;
+    }
+    sessions_.erase(it);
+    UBSE_LOG_INFO << "Erased terminal migrate session after resource release, name=" << name;
+}
+
 void UbseMemShmMigrateSessionManager::ClearSessions()
 {
     std::lock_guard<std::mutex> lock(mutex_);

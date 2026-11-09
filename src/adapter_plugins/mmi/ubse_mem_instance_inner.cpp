@@ -590,7 +590,6 @@ uint32_t MemInstanceInnerShm::MemShmMigrateCopyExecutor(uint64_t memId, uint64_t
         return UBSE_ERROR;
     }
     // 临时按 obmm_switch 示例使用 memcpy，排查 libobmm-accel 多线程拷贝崩溃。
-    // const auto copyRet = RmObmmExecutor::GetInstance().MemcpyMt(newMap, oldMap, length);
     std::memcpy(newMap, oldMap, length);
     const int dstUnmapRet = munmap(newMap, length);
     const int srcUnmapRet = munmap(oldMap, length);

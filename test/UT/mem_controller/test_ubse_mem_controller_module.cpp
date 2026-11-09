@@ -121,7 +121,8 @@ TEST_F(TestUbseMemControllerModule, DelHandleByMapDiff)
 
 void MockDelHandleByMapDiffFaultInfoNotEmpty([[maybe_unused]] const DecoderLocTohandleValueMap& allHandleValues,
                                              [[maybe_unused]] const DecoderLocTohandleMap& handleMap,
-                                             std::vector<UbseMamiMemWithdraw>& outFaultInfo)
+                                             std::vector<UbseMamiMemWithdraw>& outFaultInfo,
+                                             [[maybe_unused]] const std::unordered_set<uint64_t>& temporaryHandles)
 {
     UbseMamiMemWithdraw handleInfo{.ubpuId = 1, .iouId = 2, .marId = 3, .decoderIdx = 4, .handle = 5};
     std::vector<UbseMamiMemWithdraw> faultInfo{handleInfo};
@@ -130,7 +131,8 @@ void MockDelHandleByMapDiffFaultInfoNotEmpty([[maybe_unused]] const DecoderLocTo
 
 void MockDelHandleByMapDiffFaultInfoEmpty([[maybe_unused]] const DecoderLocTohandleValueMap& allHandleValues,
                                           [[maybe_unused]] const DecoderLocTohandleMap& handleMap,
-                                          [[maybe_unused]] std::vector<UbseMamiMemWithdraw>& outFaultInfo)
+                                          [[maybe_unused]] std::vector<UbseMamiMemWithdraw>& outFaultInfo,
+                                          [[maybe_unused]] const std::unordered_set<uint64_t>& temporaryHandles)
 {
 }
 

@@ -88,8 +88,15 @@ const char* AgentOperationName(AgentOperation operation)
     return "unknown";
 }
 
-// 校验只发生在同名锁内的执行入口。内部执行函数消费此处取得的同一账本快照。
-// 仅在本次同名锁内使用；context 指向 local 快照中已匹配的当前块。
+// 所有块操作使用同一锁键；不同块不竞争资源级name锁。
+// '/'不是合法资源名字符，避免与普通资源锁重名。
+std::string MigrateBlockLockKey(const UbseMemMigrateRpcInfo& info)
+{
+    return "ShmMigrateBlock/" + info.name + "/" + std::to_string(info.blockIndex);
+}
+
+// 校验只发生在name+blockIndex锁内的执行入口。内部执行函数消费此处取得的同一账本快照。
+// 仅在本次块锁内使用；context 指向 local 快照中已匹配的当前块。
 struct CheckedMigrateBlock {
     ConstImportObjPtr local;
     const UbseMemMigrateSwitchContext* context = nullptr;
@@ -626,7 +633,7 @@ uint32_t UbseMemShmMigrateService::SwitchBeginImport(const UbseMemMigrateSwitchB
                                                      UbseMemMigrateOpResp& result)
 {
     const auto& info = req.rpcInfo;
-    auto lock = LoggingLockGuard(info.name);
+    auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     UBSE_LOG_INFO << "name=" << info.name << ", indexId=" << info.blockIndex
                   << ", operation=begin_import, Migrate begin import request";
     CheckedMigrateBlock block;
@@ -677,7 +684,7 @@ uint32_t UbseMemShmMigrateService::SwitchBeginExport(const UbseMemMigrateBeginEx
                   << ", operation=begin_export, Migrate begin export request";
     const auto& info = req.rpcInfo;
     const auto b = info.blockIndex;
-    auto lock = LoggingLockGuard(info.name);
+    auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     CheckedMigrateBlock block;
     const auto& local = block.local;
     const auto check = CheckMigrateRequest(info, requestMasterNodeId, AgentOperation::BEGIN_EXPORT, 1, block);
@@ -729,7 +736,7 @@ uint32_t UbseMemShmMigrateService::DataCopy(const UbseMemMigrateDataCopyReq& req
                                             const std::string& requestMasterNodeId)
 {
     const auto& info = req.rpcInfo;
-    auto lock = LoggingLockGuard(info.name);
+    auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     CheckedMigrateBlock block;
     const auto& local = block.local;
     const auto check = CheckMigrateRequest(info, requestMasterNodeId, AgentOperation::COPY, 1, block);
@@ -751,7 +758,7 @@ uint32_t UbseMemShmMigrateService::SwitchEndImport(const UbseMemMigrateSwitchEnd
                                                    const std::string& requestMasterNodeId, UbseMemMigrateOpResp& result)
 {
     const auto& info = req.rpcInfo;
-    auto lock = LoggingLockGuard(info.name);
+    auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     CheckedMigrateBlock block;
     const auto& local = block.local;
     const auto ret = CheckMigrateRequest(info, requestMasterNodeId, AgentOperation::END_IMPORT, req.success, block);
@@ -782,7 +789,7 @@ uint32_t UbseMemShmMigrateService::SwitchEndExport(const UbseMemMigrateEndExport
 {
     const auto& info = req.rpcInfo;
     const auto b = info.blockIndex;
-    auto lock = LoggingLockGuard(info.name);
+    auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     CheckedMigrateBlock block;
     const auto& local = block.local;
     const auto ret = CheckMigrateRequest(info, requestMasterNodeId, AgentOperation::END_EXPORT, req.success, block);

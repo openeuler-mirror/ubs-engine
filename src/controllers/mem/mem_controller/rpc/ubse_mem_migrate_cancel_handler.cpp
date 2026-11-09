@@ -101,6 +101,10 @@ UbseResult UbseMemMigrateCancelRespMessage::Deserialize()
 
 UbseResult RegisterMigrateCancelHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "get UbseComModule failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
     UbseComBaseMessageHandlerPtr hdl = new (std::nothrow) UbseMemShmMigrateCancelHandler();
     auto ret = comModule->RegRpcService<UbseMemMigrateCancelReqMessage, UbseMemMigrateCancelRespMessage>(hdl);
     if (ret != UBSE_OK) {
