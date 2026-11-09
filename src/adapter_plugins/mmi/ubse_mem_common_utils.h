@@ -14,6 +14,7 @@
 #define UBSE_MEM_COMMON_UTILS_H
 
 #include <securec.h>
+#include <array>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -32,6 +33,12 @@ using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
 using ubse::adapter_plugins::mmi::UbseMemPrivData;
 using ubse::common::def::UbseResult;
 constexpr uint32_t BASE_16 = 16;
+
+using ObmmEncodedMeta = std::array<uint8_t, OBMM_CUSTOM_META_MAX_LENGTH>;
+UbseResult EncodeObmmCustomMeta(const UbseMemLocalObmmCustomMeta& meta, const UbMemPrivData& privData,
+                                ObmmEncodedMeta& buffer, uint32_t& length);
+UbseResult DecodeObmmCustomMeta(const uint8_t* buffer, uint64_t length, UbseMemLocalObmmCustomMeta& meta,
+                                UbMemPrivData& privData);
 
 void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc& src, obmm_mem_desc* des, uint64_t hpa);
 void CopyObmmMemDescValue(const obmm_mem_desc* src, ubse_mem_obmm_mem_desc& des);
@@ -84,11 +91,12 @@ inline std::string GenerateExportKey(const std::string& name, const std::string&
 UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std::string& name,
                                  UbseMemLocalObmmCustomMeta& customMeta, const bool isAppendNodeId);
 
-UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint32_t& mask);
+UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex,
+                                  uint8_t (&mask)[OBMM_REGION_MASK_BYTES]);
 
-inline bool IsBitSet(uint32_t mask, int bit)
+inline bool IsBitSet(const uint8_t (&mask)[OBMM_REGION_MASK_BYTES], int bit)
 {
-    return (mask & (1u << bit)) != 0;
+    return bit >= 0 && bit < MAX_NODE_NUM && (mask[bit / 8] & (1u << (bit % 8))) != 0;
 }
 class RmCommonUtils {
 public:

@@ -216,25 +216,11 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(const uint
                                                                       UbseMemLocalObmmCustomMeta& customMeta,
                                                                       UbMemPrivData& privData)
 {
-    if (buffer == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Buffer is nullptr.";
-        return UBSE_ERROR_NULLPTR;
+    const auto ret = DecodeObmmCustomMeta(buffer, length, customMeta, privData);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid OBMM private metadata, length=" << length << ", ret=" << ret;
     }
-    if (length != sizeof(customMeta) + sizeof(UbMemPrivData)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "The buffer length not equals to size of customMeta.";
-        return UBSE_ERROR_INVAL;
-    }
-    auto ret = memcpy_s(&customMeta, sizeof(customMeta), buffer + sizeof(UbMemPrivData), sizeof(customMeta));
-    if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed: customMeta.";
-        return UBSE_ERROR_INVAL;
-    }
-    ret = memcpy_s(&privData, sizeof(privData), buffer, sizeof(privData));
-    if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed: privData.";
-        return UBSE_ERROR_INVAL;
-    }
-    return UBSE_OK;
+    return ret;
 }
 
 UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& path,
@@ -472,8 +458,8 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string& path, UbseMemLocalObm
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert str to long error, tmpPrivLen=" << tmpPrivLen;
         return UBSE_ERROR_INVAL;
     }
-    if (length == 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get the priv_len is 0.";
+    if (length <= sizeof(UbMemPrivData) || length > OBMM_CUSTOM_META_MAX_LENGTH) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid OBMM priv_len=" << length;
         return UBSE_ERROR_INVAL;
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);

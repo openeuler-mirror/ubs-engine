@@ -15,6 +15,7 @@
 
 #include <adapter_plugins/mti/ubse_mti_mami_def.h>
 #include <sys/types.h>
+#include <cstddef>
 #include <ostream>
 #include <set>
 #include <string>
@@ -30,7 +31,8 @@ inline constexpr char const* MMI_LOG_INFO = "[MMI] ";
 
 constexpr uint16_t INVALID_VALUE16 = 0xFFFF;
 constexpr uint64_t DEFAULT_BLOCK_SIZE = 128;
-constexpr int MAX_NODE_NUM = 32;
+constexpr int MAX_NODE_NUM = 256;
+constexpr size_t OBMM_REGION_MASK_BYTES = MAX_NODE_NUM / 8;
 constexpr uint64_t MIN_BLOCK_SIZE = 2u;
 constexpr uint64_t MAX_BLOCK_SIZE = 1024u;
 constexpr uint16_t MOVE20_BIT = 20;
@@ -48,6 +50,10 @@ using NumaId = int64_t;
 using PortId = uint32_t;
 
 constexpr uint32_t UBSE_MEM_MAX_NAME_LENGTH = 52u;
+constexpr uint32_t UBSE_MEM_INTERNAL_KEY_CAPACITY = 69u;
+// Published wire capacities are version-specific and must remain unchanged.
+constexpr size_t OBMM_CUSTOM_META_V1_NAME_CAPACITY = 52;
+constexpr size_t OBMM_CUSTOM_META_V2_NAME_CAPACITY = 69;
 constexpr uint32_t UBSE_MEM_MAX_NODE_ID_LENGTH = 16u;
 constexpr uint32_t UB_MAX_USR_INFO_LEN = 32u;
 constexpr uint32_t UBSE_EID_LENGTH = 16u;
@@ -61,9 +67,18 @@ constexpr uint16_t SEID_INDEX = 7u;
 constexpr uint16_t NUMAID_INDEX = 8u;
 constexpr uint16_t LINE_STR_NUM = 9u;
 
-// obmm自定义存储空间，最大512字节
-struct UbseMemLocalObmmCustomMeta {
-    uint8_t version{0}; // 版本，当前为1，只有版本号有效，才继续check其他字段,如果memcpy不成功，说明不是mmi申请的
+// Only the V2 wire decoder is packed; keep the MAMI API type and historical V1 layout unchanged.
+struct ObmmDecoderResultV2 {
+    uint32_t marId;
+    uint64_t hpa;
+    uint64_t handle;
+    uint64_t staticHandle;
+    decltype(adapter_plugins::mti::mami::UbseMamiMemImportResult::state) state;
+} __attribute__((packed));
+
+// Historical V1 wire layout. Keep published fields and their order unchanged.
+struct ObmmCustomMetaV1 {
+    uint8_t version{0}; // 持久化版本：旧版为1，新版为2
     uint8_t type{};     // 应用设备借用0，水线触发remote numa 借用1，共享2，进程借用3
     uint32_t uid{};     // 鉴权
     uint32_t gid{};     // 鉴权
@@ -79,11 +94,87 @@ struct UbseMemLocalObmmCustomMeta {
     // 用于判断一个obmm设备有没有被使用，存储pid可以快速判断，没有pid用lsof判断
     char exportNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
     char requestNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
-    uint64_t exportMemid{};                // 在导入端填，恢复对象的时候使用, 有memid就足够
-    uint32_t attachSocket{};               // 导入时实际挂载的socketId
-    char name[UBSE_MEM_MAX_NAME_LENGTH]{}; // 全局uuid，控制面需要！
+    uint64_t exportMemid{};                         // 在导入端填，恢复对象的时候使用, 有memid就足够
+    uint32_t attachSocket{};                        // 导入时实际挂载的socketId
+    char name[OBMM_CUSTOM_META_V1_NAME_CAPACITY]{}; // 全局uuid，控制面需要！
     uint16_t memidCount{}; // memid的总个数，芯片表项碎片导致一次借用，会有多个memid，决策完之后就能知道，用于回滚
     uint32_t regionMask{0};                                // 共享域的bit位
+    uint8_t importNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{}; // 共享没有import numaid
+    uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
+    int32_t importSocket{};
+    int32_t exportSocket{};
+    uint32_t chipId{}; // 导入端chipId
+    uint32_t portId{}; // 导入端portId
+    uint64_t numaSizes[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
+    uint8_t usrInfo[UB_MAX_USR_INFO_LEN]{};
+    int dstSocket{-1};      // 内存申请借出方节点socket信息 -1 无效
+    int dstNuma{-1};        // 内存申请借出方节点NUMA信息  -1 无效
+    uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
+    uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
+    adapter_plugins::mti::mami::UbseMamiMemImportResult decoderResult{};
+} __attribute__((packed));
+
+// V2 wire layout. Changes to a published layout require a new metadata version.
+struct ObmmCustomMetaV2 {
+    uint8_t version{0}; // 持久化版本：旧版为1，新版为2
+    uint8_t type{};     // 应用设备借用0，水线触发remote numa 借用1，共享2，进程借用3
+    uint32_t uid{};     // 鉴权
+    uint32_t gid{};     // 鉴权
+    uint32_t pid{};     // 可靠性处理
+    char username[UBSE_MEM_MAX_NAME_LENGTH]{}; // 用户名
+
+    // addr借用使用
+    char importNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{}; // 导入端的nodeId
+    uint64_t srcPid{};  // 进程借用 导出端存储 src pid, 应用借用时为应用进程的Pid
+    uint64_t dstPid{};  // 进程借用 导出端存储 dst pid
+    uint64_t virAddr{}; // 进程借用 虚拟地址
+
+    // 用于判断一个obmm设备有没有被使用，存储pid可以快速判断，没有pid用lsof判断
+    char exportNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
+    char requestNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
+    uint64_t exportMemid{};                         // 在导入端填，恢复对象的时候使用, 有memid就足够
+    uint32_t attachSocket{};                        // 导入时实际挂载的socketId
+    char name[OBMM_CUSTOM_META_V2_NAME_CAPACITY]{}; // 全局uuid，控制面需要！
+    uint16_t memidCount{}; // memid的总个数，芯片表项碎片导致一次借用，会有多个memid，决策完之后就能知道，用于回滚
+    uint8_t regionMask[OBMM_REGION_MASK_BYTES]{};          // 共享域的bit位
+    uint8_t importNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{}; // 共享没有import numaid
+    uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
+    int32_t importSocket{};
+    int32_t exportSocket{};
+    uint32_t chipId{}; // 导入端chipId
+    uint32_t portId{}; // 导入端portId
+    uint64_t numaSizes[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
+    uint8_t usrInfo[UB_MAX_USR_INFO_LEN]{};
+    int dstSocket{-1};      // 内存申请借出方节点socket信息 -1 无效
+    int dstNuma{-1};        // 内存申请借出方节点NUMA信息  -1 无效
+    uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
+    uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
+    ObmmDecoderResultV2 decoderResult{};
+} __attribute__((packed));
+
+// Internal business object, converted explicitly to and from the wire layouts.
+struct UbseMemLocalObmmCustomMeta {
+    uint8_t version{0}; // 持久化版本：旧版为1，新版为2
+    uint8_t type{};     // 应用设备借用0，水线触发remote numa 借用1，共享2，进程借用3
+    uint32_t uid{};     // 鉴权
+    uint32_t gid{};     // 鉴权
+    uint32_t pid{};     // 可靠性处理
+    char username[UBSE_MEM_MAX_NAME_LENGTH]{}; // 用户名
+
+    // addr借用使用
+    char importNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{}; // 导入端的nodeId
+    uint64_t srcPid{};  // 进程借用 导出端存储 src pid, 应用借用时为应用进程的Pid
+    uint64_t dstPid{};  // 进程借用 导出端存储 dst pid
+    uint64_t virAddr{}; // 进程借用 虚拟地址
+
+    // 用于判断一个obmm设备有没有被使用，存储pid可以快速判断，没有pid用lsof判断
+    char exportNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
+    char requestNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
+    uint64_t exportMemid{};                      // 在导入端填，恢复对象的时候使用, 有memid就足够
+    uint32_t attachSocket{};                     // 导入时实际挂载的socketId
+    char name[UBSE_MEM_INTERNAL_KEY_CAPACITY]{}; // 全局uuid，控制面需要！
+    uint16_t memidCount{}; // memid的总个数，芯片表项碎片导致一次借用，会有多个memid，决策完之后就能知道，用于回滚
+    uint8_t regionMask[OBMM_REGION_MASK_BYTES]{};          // 共享域的bit位
     uint8_t importNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{}; // 共享没有import numaid
     uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
     int32_t importSocket{};
@@ -110,6 +201,15 @@ struct UbMemPrivData {
     uint16_t mar_id : 3;
     uint16_t rsv0 : 6;
 };
+
+constexpr size_t OBMM_CUSTOM_META_MAX_LENGTH = 512;
+constexpr uint8_t OBMM_CUSTOM_META_V1 = 1;
+constexpr uint8_t OBMM_CUSTOM_META_V2 = 2;
+
+static_assert(sizeof(ObmmCustomMetaV1) == 360, "Historical V1 metadata size changed");
+static_assert(sizeof(ObmmCustomMetaV2) == 387, "V2 metadata size changed");
+static_assert(sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV2) <= OBMM_CUSTOM_META_MAX_LENGTH,
+              "OBMM private data exceeds driver limit");
 
 struct UbseMemLocalObmmMetaData {
     uint8_t memIdType{};      // 导出1或者导入0

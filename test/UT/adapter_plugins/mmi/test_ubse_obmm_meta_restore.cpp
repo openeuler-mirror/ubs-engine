@@ -20,6 +20,7 @@
 #include "ubse_mem_def.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
+#include "obmm_v1_fixture.h"
 namespace ubse::ut::mmi {
 using namespace ubse::mmi;
 using namespace ubse::election;
@@ -278,8 +279,8 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
 {
     std::string path = "/sys/devices/obmm/obmm_shm111/";
     ubse_mem_obmm_mem_desc ubMemInfo{};
-    MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1)); // get uba fail
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);         // 1 means export
+    MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1u)); // get uba fail
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);          // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -289,8 +290,8 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 1))                                        // get uba success
-        .then(returnValue(1));                                     // get length fail
+        .will(repeat(0u, 1))                                       // get uba success
+        .then(returnValue(1u));                                    // get length fail
     auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
@@ -301,8 +302,8 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 2))    // get uba success
-        .then(returnValue(1)); // get tokenId fail
+        .will(repeat(0u, 2))    // get uba success
+        .then(returnValue(1u)); // get tokenId fail
 
     auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
@@ -314,8 +315,8 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 3))                                        // get uba success
-        .then(returnValue(1));                                     // get cacheable fail
+        .will(repeat(0u, 3))                                       // get uba success
+        .then(returnValue(1u));                                    // get cacheable fail
     auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
@@ -493,11 +494,9 @@ TEST_F(TestUbseObmmMetaRestore, testcase_ReadAllObmmShmDevPathFail)
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
     delete[] buffer;
 
-    size = sizeof(customMeta) + sizeof(UbMemPrivData);
-    uint8_t* buffer1 = new uint8_t[size];
-    ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(buffer1, size, customMeta, privData);
+    ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(OBMM_V1_FIXTURE.data(), OBMM_V1_FIXTURE.size(),
+                                                                     customMeta, privData);
     EXPECT_EQ(ret, UBSE_OK);
-    delete[] buffer1;
 }
 
 TEST_F(TestUbseObmmMetaRestore, testcase_ReadAgentLocalObmmMetaDataOk)

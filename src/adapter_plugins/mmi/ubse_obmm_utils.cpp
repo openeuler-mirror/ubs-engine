@@ -41,7 +41,14 @@ constexpr int CNA_PER_SHIFT = 8;
 
 obmm_mem_desc* ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& ubMemPrivData)
 {
-    uint32_t priLen = sizeof(ubMemPrivData) + sizeof(customMeta);
+    ObmmEncodedMeta encoded{};
+    uint32_t priLen{};
+    const auto encodeRet = EncodeObmmCustomMeta(customMeta, ubMemPrivData, encoded, priLen);
+    if (encodeRet != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Encoding OBMM export metadata failed, type=" << unsigned(customMeta.type)
+                       << ", exportSocket=" << customMeta.exportSocket << ", ret=" << encodeRet;
+        return nullptr;
+    }
     auto obmmMemDesc = static_cast<obmm_mem_desc*>(malloc(sizeof(obmm_mem_desc) + priLen));
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Malloc return null.";
@@ -54,13 +61,7 @@ obmm_mem_desc* ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta& customMe
     obmmMemDesc->dcna = 0;
     obmmMemDesc->priv_len = priLen;
 
-    auto ret = memcpy_s(obmmMemDesc->priv, priLen, &ubMemPrivData, sizeof(ubMemPrivData));
-    if (ret != EOK) {
-        RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed.";
-        return nullptr;
-    }
-    ret = memcpy_s(obmmMemDesc->priv + sizeof(ubMemPrivData), sizeof(customMeta), &customMeta, sizeof(customMeta));
+    auto ret = memcpy_s(obmmMemDesc->priv, priLen, encoded.data(), priLen);
     if (ret != EOK) {
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed.";
@@ -94,7 +95,14 @@ obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "The marId=" << marId;
     UbMemPrivData ubMemPrivData = opParam.privData;
     ubMemPrivData.mar_id = marId;
-    uint32_t priLen = sizeof(ubMemPrivData) + sizeof(customMeta);
+    ObmmEncodedMeta encoded{};
+    uint32_t priLen{};
+    const auto encodeRet = EncodeObmmCustomMeta(customMeta, ubMemPrivData, encoded, priLen);
+    if (encodeRet != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Encoding OBMM import metadata failed, type=" << unsigned(customMeta.type)
+                       << ", attachSocket=" << customMeta.attachSocket << ", ret=" << encodeRet;
+        return nullptr;
+    }
     auto obmmMemDesc = static_cast<obmm_mem_desc*>(malloc(sizeof(obmm_mem_desc) + priLen));
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Malloc return null.";
@@ -115,13 +123,7 @@ obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem
         return nullptr;
     }
     obmmMemDesc->priv_len = priLen;
-    ret = memcpy_s(obmmMemDesc->priv, priLen, &ubMemPrivData, sizeof(ubMemPrivData));
-    if (ret != EOK) {
-        RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed.";
-        return nullptr;
-    }
-    ret = memcpy_s(obmmMemDesc->priv + sizeof(ubMemPrivData), sizeof(customMeta), &customMeta, sizeof(customMeta));
+    ret = memcpy_s(obmmMemDesc->priv, priLen, encoded.data(), priLen);
     if (ret != EOK) {
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory copy failed.";
@@ -133,7 +135,7 @@ obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem
 UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& exportObj,
                                           UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = exportObj.req.requestNodeId;
     std::string peerNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::NUMA_BORROW);
@@ -145,7 +147,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& expo
         return UBSE_ERROR_INVAL;
     }
     std::string name = exportObj.req.name;
-    if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, name.c_str()) != EOK ||
+    if (strcpy_s(customMeta.name, UBSE_MEM_INTERNAL_KEY_CAPACITY, name.c_str()) != EOK ||
         strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, peerNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, exportObj.req.udsInfo.username.c_str()) != EOK) {
@@ -185,7 +187,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& expo
 UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& importObj,
                                           UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = importObj.req.requestNodeId;
     std::string peerNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::NUMA_BORROW);
@@ -197,7 +199,7 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& impo
         return UBSE_ERROR_INVAL;
     }
     std::string name = importObj.req.name;
-    if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, name.c_str()) != EOK ||
+    if (strcpy_s(customMeta.name, UBSE_MEM_INTERNAL_KEY_CAPACITY, name.c_str()) != EOK ||
         strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, peerNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
@@ -238,7 +240,7 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& impo
 UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj& exportObj,
                                         UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = exportObj.req.requestNodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::FD_BORROW);
     customMeta.uid = exportObj.req.udsInfo.uid;
@@ -259,7 +261,7 @@ UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj& exportOb
 UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj& importObj,
                                         UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = importObj.req.requestNodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::FD_BORROW);
     customMeta.uid = importObj.req.udsInfo.uid;
@@ -280,7 +282,7 @@ UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj& importOb
 UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& exportObj,
                                          UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1u;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = exportObj.req.requestNodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::SHARE_BORROW);
     customMeta.uid = exportObj.req.udsInfo.uid;
@@ -295,13 +297,11 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& expo
     for (auto i = 0; i < exportObj.req.shmRegion.nodeNum; i++) {
         regionNodeIndex.push_back(exportObj.req.shmRegion.nodelist[i].index);
     }
-    uint32_t regionMask = 0;
-    auto ret = SetMaskFromRegionIndex(regionNodeIndex, regionMask);
+    auto ret = SetMaskFromRegionIndex(regionNodeIndex, customMeta.regionMask);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Construct shmExportObj failed, shm exportObj name=" << exportObj.req.name;
         return ret;
     }
-    customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
@@ -325,7 +325,7 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& expo
 UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& importObj,
                                          UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1u;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = importObj.req.requestNodeId;
     customMeta.type = static_cast<uint8_t>(UbseBorrowType::SHARE_BORROW);
     customMeta.uid = importObj.req.udsInfo.uid;
@@ -336,13 +336,11 @@ UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& impo
     for (size_t i = 0; i < importObj.req.shmRegion.nodelist.size(); i++) {
         regionNodeIndex.push_back(importObj.req.shmRegion.nodelist[i].index);
     }
-    uint32_t regionMask = 0;
-    auto ret = SetMaskFromRegionIndex(regionNodeIndex, regionMask);
+    auto ret = SetMaskFromRegionIndex(regionNodeIndex, customMeta.regionMask);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Construct shmExportObj failed, shmObj name=" << importObj.req.name;
         return ret;
     }
-    customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
@@ -366,7 +364,7 @@ UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& impo
 UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& exportObj,
                                           UbseMemLocalObmmCustomMeta& customMeta)
 {
-    customMeta.version = 1u;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = exportObj.req.requestNodeId;
     std::string exportNodeId = exportObj.req.exportNodeId;
     std::string importNodeId = exportObj.req.importNodeId;
@@ -376,7 +374,7 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& expo
     customMeta.importSocket = exportObj.req.srcSocket;
     customMeta.exportSocket = exportObj.req.dstSocket;
     const std::string name = GenerateExportKey(exportObj.req.name, importNodeId);
-    if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, name.c_str()) != EOK ||
+    if (strcpy_s(customMeta.name, UBSE_MEM_INTERNAL_KEY_CAPACITY, name.c_str()) != EOK ||
         strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, exportNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK ||
@@ -409,7 +407,7 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& expo
 UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj& importObj,
                                           UbseMemLocalObmmCustomMeta& customMeta, int index)
 {
-    customMeta.version = 1u;
+    customMeta.version = OBMM_CUSTOM_META_V2;
     std::string requestNodeId = importObj.req.requestNodeId;
     std::string exportNodeId = importObj.req.exportNodeId;
     std::string importNodeId = importObj.req.importNodeId;
@@ -423,7 +421,7 @@ UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj& impo
         return UBSE_ERROR_INVAL;
     }
 
-    if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, name.c_str()) != EOK ||
+    if (strcpy_s(customMeta.name, UBSE_MEM_INTERNAL_KEY_CAPACITY, name.c_str()) != EOK ||
         strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, exportNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK ||
