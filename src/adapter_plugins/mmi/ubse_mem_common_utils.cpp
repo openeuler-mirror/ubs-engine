@@ -11,6 +11,7 @@
  */
 
 #include "ubse_mem_common_utils.h"
+#include <cstring>
 #include "ubse_common_def.h"
 #include "ubse_logger.h"
 #include "ubse_mem_def.h"
@@ -107,7 +108,7 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std:
     if (isAppendNodeId) {
         copyName = GenerateExportKey(name, importNodeId);
     }
-    if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, copyName.c_str()) != EOK ||
+    if (strcpy_s(customMeta.name, UBSE_MEM_INTERNAL_KEY_CAPACITY, copyName.c_str()) != EOK ||
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, exportNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
@@ -139,18 +140,18 @@ UbseResult RmCommonUtils::GetFileFirstLine(const std::string& path, std::string&
     return UBSE_OK;
 }
 
-UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint32_t& mask)
+UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint8_t (&mask)[OBMM_REGION_MASK_BYTES])
 {
     for (int i = 0; i < regionNodeIndex.size(); i++) {
-        if (regionNodeIndex[i] >= 0 && regionNodeIndex[i] < 32u) {
+        if (regionNodeIndex[i] < MAX_NODE_NUM) {
             UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
-            mask |= (1u << regionNodeIndex[i]); // 1 << bit 转为无符号操作
+            mask[regionNodeIndex[i] / 8] |= (1u << (regionNodeIndex[i] % 8)); // 1 << bit 转为无符号操作
         } else {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
             return UBSE_ERROR_INVAL;
         }
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit=" << mask;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Constructed shared region bitmap, nodeCount=" << regionNodeIndex.size();
     return UBSE_OK;
 }
 
@@ -169,5 +170,148 @@ void RmCommonUtils::GenerateNodeChipPortStr(const NodeId& lendNodeId, const Chip
     str << lendNodeId << "-" << lendChipId << "-" << portId;
     nodeChipPortStr = str.str();
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "GenerateNodeChipPortStr=" << nodeChipPortStr;
+}
+namespace {
+template <typename Meta>
+bool HasValidName(const Meta& meta)
+{
+    return std::memchr(meta.name, '\0', sizeof(meta.name)) != nullptr;
+}
+
+UbseResult ConvertV1(const ObmmCustomMetaV1& source, UbseMemLocalObmmCustomMeta& target)
+{
+    // Copy the packed business fields separately from the aligned decoder result.
+    constexpr size_t prefixLength = offsetof(ObmmCustomMetaV1, name);
+    constexpr size_t oldTail = offsetof(ObmmCustomMetaV1, importNumaIds);
+    constexpr size_t newTail = offsetof(UbseMemLocalObmmCustomMeta, importNumaIds);
+    static_assert(prefixLength == offsetof(UbseMemLocalObmmCustomMeta, name), "Metadata prefix changed");
+    constexpr size_t tailLength = offsetof(ObmmCustomMetaV1, requestSize) + sizeof(source.requestSize) - oldTail;
+    static_assert(
+        tailLength == offsetof(UbseMemLocalObmmCustomMeta, requestSize) + sizeof(target.requestSize) - newTail,
+        "Metadata business fields changed");
+    errno_t ret{};
+    if ((ret = memcpy_s(&target, sizeof(target), &source, prefixLength)) != EOK ||
+        (ret = memcpy_s(target.name, sizeof(target.name), source.name, sizeof(source.name))) != EOK ||
+        (ret = memcpy_s(reinterpret_cast<uint8_t*>(&target) + newTail, sizeof(target) - newTail,
+                        reinterpret_cast<const uint8_t*>(&source) + oldTail, tailLength)) != EOK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying V1 metadata into V2 layout failed, ret=" << ret;
+        return UBSE_ERROR_INVAL;
+    }
+    target.memidCount = source.memidCount;
+    for (size_t index = 0; index < OBMM_REGION_MASK_BYTES; ++index) {
+        target.regionMask[index] =
+            index < sizeof(source.regionMask) ? static_cast<uint8_t>(source.regionMask >> (index * 8)) : 0;
+    }
+    target.decoderResult = source.decoderResult;
+    return UBSE_OK;
+}
+template <typename Source, typename Target>
+UbseResult CopyV2Fields(const Source& source, Target& target)
+{
+    constexpr size_t fieldsSize = offsetof(Source, requestSize) + sizeof(source.requestSize);
+    static_assert(fieldsSize == offsetof(Target, requestSize) + sizeof(target.requestSize),
+                  "V2 business fields changed");
+    const auto ret = memcpy_s(&target, sizeof(target), &source, fieldsSize);
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying V2 metadata fields failed, ret=" << ret;
+        return UBSE_ERROR_INVAL;
+    }
+    target.decoderResult.marId = source.decoderResult.marId;
+    target.decoderResult.hpa = source.decoderResult.hpa;
+    target.decoderResult.handle = source.decoderResult.handle;
+    target.decoderResult.staticHandle = source.decoderResult.staticHandle;
+    target.decoderResult.state = source.decoderResult.state;
+    return UBSE_OK;
+}
+} // namespace
+
+UbseResult EncodeObmmCustomMeta(const UbseMemLocalObmmCustomMeta& meta, const UbMemPrivData& privData,
+                                ObmmEncodedMeta& buffer, uint32_t& length)
+{
+    length = 0;
+    if (!HasValidName(meta)) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Unterminated OBMM metadata name, capacity=" << sizeof(meta.name);
+        return UBSE_ERROR_INVAL;
+    }
+    ObmmCustomMetaV2 v2{};
+    const auto convertRet = CopyV2Fields(meta, v2);
+    if (convertRet != UBSE_OK) {
+        return convertRet;
+    }
+    v2.version = OBMM_CUSTOM_META_V2;
+    buffer.fill(0);
+    errno_t ret{};
+    if ((ret = memcpy_s(buffer.data(), buffer.size(), &privData, sizeof(privData))) != EOK ||
+        (ret = memcpy_s(buffer.data() + sizeof(privData), buffer.size() - sizeof(privData), &v2, sizeof(v2))) != EOK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying V2 metadata into OBMM private buffer failed, ret=" << ret;
+        return UBSE_ERROR_INVAL;
+    }
+    length = sizeof(privData) + sizeof(v2);
+    return UBSE_OK;
+}
+
+UbseResult DecodeObmmCustomMeta(const uint8_t* buffer, uint64_t length, UbseMemLocalObmmCustomMeta& meta,
+                                UbMemPrivData& privData)
+{
+    if (buffer == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Cannot decode OBMM metadata: null buffer, length=" << length;
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (length <= sizeof(UbMemPrivData) || length > OBMM_CUSTOM_META_MAX_LENGTH) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid OBMM metadata length=" << length
+                       << ", prefixLength=" << sizeof(UbMemPrivData) << ", maxLength=" << OBMM_CUSTOM_META_MAX_LENGTH;
+        return UBSE_ERROR_INVAL;
+    }
+    const auto version = buffer[sizeof(UbMemPrivData)];
+    UbseMemLocalObmmCustomMeta restored{};
+    if (version == OBMM_CUSTOM_META_V1 && length == sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV1)) {
+        ObmmCustomMetaV1 v1{};
+        const auto ret = memcpy_s(&v1, sizeof(v1), buffer + sizeof(UbMemPrivData), sizeof(v1));
+        if (ret != EOK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying OBMM V1 metadata from private buffer failed, ret=" << ret;
+            return UBSE_ERROR_INVAL;
+        }
+        if (!HasValidName(v1)) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Unterminated OBMM metadata name, version=" << unsigned(version)
+                           << ", length=" << length << ", capacity=" << sizeof(v1.name);
+            return UBSE_ERROR_INVAL;
+        }
+        const auto convertRet = ConvertV1(v1, restored);
+        if (convertRet != UBSE_OK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Converting OBMM V1 metadata failed, ret=" << convertRet;
+            return convertRet;
+        }
+    } else if (version == OBMM_CUSTOM_META_V2 && length == sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV2)) {
+        ObmmCustomMetaV2 v2{};
+        const auto ret = memcpy_s(&v2, sizeof(v2), buffer + sizeof(UbMemPrivData), sizeof(v2));
+        if (ret != EOK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying OBMM V2 metadata from private buffer failed, ret=" << ret;
+            return UBSE_ERROR_INVAL;
+        }
+        if (!HasValidName(v2)) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Unterminated OBMM metadata name, version=" << unsigned(version)
+                           << ", length=" << length << ", capacity=" << sizeof(v2.name);
+            return UBSE_ERROR_INVAL;
+        }
+        const auto convertRet = CopyV2Fields(v2, restored);
+        if (convertRet != UBSE_OK) {
+            return convertRet;
+        }
+    } else {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid OBMM metadata version or length, version=" << unsigned(version)
+                       << ", length=" << length
+                       << ", expectedV1Length=" << sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV1)
+                       << ", expectedV2Length=" << sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV2);
+        return UBSE_ERROR_INVAL;
+    }
+    UbMemPrivData restoredPrivData{};
+    const auto ret = memcpy_s(&restoredPrivData, sizeof(restoredPrivData), buffer, sizeof(restoredPrivData));
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Copying OBMM private prefix failed, ret=" << ret;
+        return UBSE_ERROR_INVAL;
+    }
+    meta = restored;
+    privData = restoredPrivData;
+    return UBSE_OK;
 }
 } // namespace ubse::mmi
