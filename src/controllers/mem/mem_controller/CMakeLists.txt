@@ -4,11 +4,12 @@ target_include_directories(ubse_mem_init_ledger PUBLIC ${CMAKE_CURRENT_SOURCE_DI
 add_subdirectory(message)
 add_subdirectory(rpc)
 add_subdirectory(api)
+add_subdirectory(migrate)
 add_subdirectory(debt)
 file(GLOB UBSE_MEM_CONTROLLER_SOURCES *.h *.cpp)
 list(REMOVE_ITEM UBSE_MEM_CONTROLLER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/ubse_init_ledger_state.cpp")
 add_library(mem_controller STATIC ${UBSE_MEM_CONTROLLER_SOURCES})
-target_link_libraries(mem_controller PUBLIC ubse_controller_rpc ubse_controller_message ubse_controller_api ubse_mem_controller_debt ubse_mem_init_ledger PRIVATE ubse_log ubse_utils ubse_com ubse_config ubse_context ubse_timer ubse_mem_scheduler ubse_mmi
+target_link_libraries(mem_controller PUBLIC ubse_controller_rpc ubse_controller_message ubse_controller_api ubse_mem_controller_debt ubse_mem_init_ledger ubse_mem_controller_migrate PRIVATE ubse_log ubse_utils ubse_com ubse_config ubse_context ubse_timer ubse_mem_scheduler ubse_mmi
         ubse_election api_server ubse_http ubse_serial ubse_node_controller trace_context ubse_ipc_server ubse_mem_decoder_utils ubse_vsock_client ubse_security ubse_controller_includes)
 target_include_directories(mem_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}

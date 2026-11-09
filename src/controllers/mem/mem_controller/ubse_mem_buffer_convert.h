@@ -21,12 +21,18 @@ namespace ubse::mem::controller {
 using ::api::server::UbseIpcMessage;
 using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
+using ubse::adapter_plugins::mmi::UbseMemMigrateCancelReq;
+using ubse::adapter_plugins::mmi::UbseMemMigrateCancelResp;
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemOperationResp;
 using ubse::adapter_plugins::mmi::UbseMemReturnReq;
 using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
+using ubse::adapter_plugins::mmi::UbseMemShmMigrateGetReq;
+using ubse::adapter_plugins::mmi::UbseMemShmMigrateGetResp;
+using ubse::adapter_plugins::mmi::UbseMemShmMigrateReq;
+using ubse::adapter_plugins::mmi::UbseMemShmMigrateResp;
 using ubse::nodeController::def::UbseNode;
 
 uint32_t UbseMemNameUnpack(const UbseIpcMessage& buffer, std::string& name);
@@ -80,6 +86,18 @@ uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDe
 uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage& buffer, def::UbseMemIdQueryRequest& req);
 
 uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc& memDesc, UbseIpcMessage& buffer);
+
+uint32_t UbseMemShmMigrateReqUnpack(const UbseIpcMessage& buffer, UbseMemShmMigrateReq& req);
+
+uint32_t UbseMemShmMigrateRespPack(const UbseMemShmMigrateResp& resp, UbseIpcMessage& buffer);
+
+uint32_t UbseMemShmMigrateGetReqUnpack(const UbseIpcMessage& buffer, UbseMemShmMigrateGetReq& req);
+
+uint32_t UbseMemShmMigrateGetRespPack(const UbseMemShmMigrateGetResp& resp, UbseIpcMessage& buffer);
+
+uint32_t UbseMemMigrateCancelReqUnpack(const UbseIpcMessage& buffer, UbseMemMigrateCancelReq& req);
+
+uint32_t UbseMemMigrateCancelRespPack(const UbseMemMigrateCancelResp& resp, UbseIpcMessage& buffer);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_BUFFER_CONVERT_H

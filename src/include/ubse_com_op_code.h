@@ -86,6 +86,9 @@ enum class UbseMemOpCode
     UBSE_MEM_SHM_LIST_WITH_PREFIX = 0x0028,     // 带前缀的共享内存列表查询
     UBSE_MEM_SHM_CREATE_WITH_LENDER = 0x0029,   // 带指定借出方的共享内存创建
     UBSE_MEM_SHM_GET_MEM_ID_BY_IMPORT = 0x002A, // 根据导入信息查询导出的memid信息
+    UBSE_MEM_SHM_MIGRATE = 0x002B,              // SHM故障迁移受理
+    UBSE_MEM_SHM_MIGRATE_GET = 0x002C,          // SHM故障迁移查询
+    UBSE_MEM_SHM_MIGRATE_CANCEL = 0x002D,       // SHM故障迁移取消
 
     // 命令行(CLI)操作
     UBSE_MEM_CLI_NODE_BORROW = 0x0030,                      // 节点借用信息查询(CLI)
@@ -179,6 +182,9 @@ enum class UbseMemQueryOpCode
     UBSE_MEM_QUERY_SHARE_IMPORT = 0x0015,                  // 查询共享内存导入
     UBSE_MEM_ID_DEBINFO_QUERY = 0x00016,                   // 内存账本信息查询
     UBSE_MEM_REMOTE_NUMA_STATUS = 0x0017,                  // 远端numa状态
+    UBSE_MEM_SHM_MIGRATE_REQ = 0x0018,                     // SHM故障迁移受理请求
+    UBSE_MEM_SHM_MIGRATE_GET_REQ = 0x0019,                 // SHM故障迁移查询请求
+    UBSE_MEM_SHM_MIGRATE_CANCEL_REQ = 0x001A,              // SHM故障迁移取消请求
 };
 
 // UBSE内存借用回调操作码
@@ -193,15 +199,27 @@ enum class UbseMemBorrowCallbackOpCode
     UBSE_MEM_SHARE_DETACH = 0x0006, // 共享内存分离
 
     // UBSE内存回调操作
-    UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK = 0x0007,    // FD借用导出对象回调
-    UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK = 0x0008,    // FD借用导入对象回调
-    UBSE_MEM_NUMA_BORROW_EXPORT_OBJ_CALLBACK = 0x0009,  // NUMA借用导出对象回调
-    UBSE_MEM_NUMA_BORROW_IMPORT_OBJ_CALLBACK = 0x000A,  // NUMA借用导入对象回调
-    UBSE_MEM_SHARE_BORROW_EXPORT_OBJ_CALLBACK = 0x000B, // 共享内存借用导出对象回调
-    UBSE_MEM_SHARE_BORROW_IMPORT_OBJ_CALLBACK = 0x000C, // 共享内存借用导入对象回调
-    UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK = 0x000D,  // 地址借用导出对象回调
-    UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK = 0x000E,  // 地址借用导入对象回调
-    UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK = 0x000F,        // 主节点更新从节点对象状态回调
+    UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK = 0x0007,          // FD借用导出对象回调
+    UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK = 0x0008,          // FD借用导入对象回调
+    UBSE_MEM_NUMA_BORROW_EXPORT_OBJ_CALLBACK = 0x0009,        // NUMA借用导出对象回调
+    UBSE_MEM_NUMA_BORROW_IMPORT_OBJ_CALLBACK = 0x000A,        // NUMA借用导入对象回调
+    UBSE_MEM_SHARE_BORROW_EXPORT_OBJ_CALLBACK = 0x000B,       // 共享内存借用导出对象回调
+    UBSE_MEM_SHARE_BORROW_IMPORT_OBJ_CALLBACK = 0x000C,       // 共享内存借用导入对象回调
+    UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK = 0x000D,        // 地址借用导出对象回调
+    UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK = 0x000E,        // 地址借用导入对象回调
+    UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK = 0x000F,              // 主节点更新从节点对象状态回调
+    UBSE_MEM_SHM_MIGRATE_EXPORT = 0x0010,                     // SHM故障迁移普通导出
+    UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_IMPORT = 0x0011,        // 导入节点switch_begin_import
+    UBSE_MEM_SHM_MIGRATE_DATA_COPY = 0x0012,                  // SHM故障迁移块级数据拷贝
+    UBSE_MEM_SHM_MIGRATE_SWITCH_END = 0x0013,                 // SHM故障迁移块级切换结束/回退
+    UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_EXPORT = 0x0014,        // 目标节点逐块switch_begin_export
+    UBSE_MEM_SHM_MIGRATE_EXPORT_END = 0x0015,                 // 目标节点逐块switch_end
+    UBSE_MEM_SHM_MIGRATE_EXPORT_COPY = 0x0016,                // 保留编号；迁移拷贝统一使用DATA_COPY
+    UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_IMPORT_RESULT = 0x0018, // switch_begin_import业务完成上报
+    UBSE_MEM_SHM_MIGRATE_COPY_RESULT = 0x001D,                // copy业务完成上报
+    UBSE_MEM_SHM_MIGRATE_END_RESULT = 0x001E,                 // end业务完成上报
+    UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_EXPORT_RESULT = 0x001A, // switch_begin_export业务完成上报
+    UBSE_MEM_SHM_MIGRATE_NEW_EXPORT_RESULT = 0x001C,          // 普通新导出完成，master回调启动块迁移
 };
 
 // UBSE内存故障处理操作码

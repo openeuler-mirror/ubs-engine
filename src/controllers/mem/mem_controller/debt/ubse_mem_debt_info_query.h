@@ -43,6 +43,9 @@ uint32_t UbseMemShmList(const UbseMemDebtQueryRequest& request, std::vector<Ubse
 
 uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest& request, UbseMemShmMemStatusDesc& shmStatusDesc);
 
+void WarnShmSwitchingQuery(const char* query, const std::string& name, const std::string& nodeId,
+                           const std::vector<UbseMemObmmInfo>& blocks);
+
 uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest& request, UbseMemAddrDesc& desc);
 
 template <typename ImportType, typename ExportType>

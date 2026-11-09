@@ -203,6 +203,7 @@ UbseResult ConvertV1(const ObmmCustomMetaV1& source, UbseMemLocalObmmCustomMeta&
             index < sizeof(source.regionMask) ? static_cast<uint8_t>(source.regionMask >> (index * 8)) : 0;
     }
     target.decoderResult = source.decoderResult;
+    target.migrateInfo = 0; // V1没有迁移标记，不能从decoder尾部或填充字节读取。
     return UBSE_OK;
 }
 template <typename Source, typename Target>
@@ -221,6 +222,7 @@ UbseResult CopyV2Fields(const Source& source, Target& target)
     target.decoderResult.handle = source.decoderResult.handle;
     target.decoderResult.staticHandle = source.decoderResult.staticHandle;
     target.decoderResult.state = source.decoderResult.state;
+    target.migrateInfo = source.migrateInfo;
     return UBSE_OK;
 }
 } // namespace

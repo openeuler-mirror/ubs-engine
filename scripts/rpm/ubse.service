@@ -29,7 +29,8 @@ ExecStartPre=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe bandbridg
 ExecStart=/usr/bin/ubse
 ExecStopPost=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe -r bandbridge 2>/dev/null || true; fi"
 Restart=on-failure
-CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
-AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+# CAP_SYS_ADMIN is required by obmm switch; ubse clears it from effective capabilities during initialization.
+CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID CAP_SYS_ADMIN
+AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_SYS_ADMIN
 [Install]
 WantedBy=multi-user.target

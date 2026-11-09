@@ -184,4 +184,29 @@ ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t* configs,
                                            ubse_api_buffer_t* ptr);
 ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_export_memid_t* mem_info);
 
+size_t ubse_mem_shm_migrate_req_calc_size(const char* name);
+
+ubs_error_t ubse_mem_shm_migrate_req_build(const char* name, uint32_t target_slot_id, ubse_api_buffer_t* ptr);
+
+ubs_error_t ubse_mem_shm_migrate_req_pack(const char* name, uint32_t target_slot_id, uint8_t* buffer);
+
+ubs_error_t ubse_mem_shm_migrate_resp_unpack(uint8_t* buffer, uint32_t len, uint32_t* err_code);
+
+size_t ubse_mem_shm_migrate_get_req_calc_size(const char* name);
+
+ubs_error_t ubse_mem_shm_migrate_get_req_build(const char* name, ubse_api_buffer_t* ptr);
+
+ubs_error_t ubse_mem_shm_migrate_get_req_pack(const char* name, uint8_t* buffer);
+
+ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_shm_migrate_desc_t* desc,
+                                                 uint32_t* err_code);
+
+size_t ubse_mem_shm_migrate_cancel_req_calc_size(const char* name);
+
+ubs_error_t ubse_mem_shm_migrate_cancel_req_build(const char* name, ubse_api_buffer_t* ptr);
+
+ubs_error_t ubse_mem_shm_migrate_cancel_req_pack(const char* name, uint8_t* buffer);
+
+ubs_error_t ubse_mem_shm_migrate_cancel_resp_unpack(uint8_t* buffer, uint32_t len, uint32_t* err_code);
+
 #endif // LIBUBSE_HELPER_H

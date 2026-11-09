@@ -81,6 +81,7 @@ void SetCapabilitiesData(__user_cap_data_struct* capData)
         CAP_AUDIT_WRITE,     // 允许写入审计日志 日志路径 /var/log/audit
         CAP_NET_ADMIN,       // 允许访问urma文件
         CAP_SYS_PTRACE,      // 允许访问其他进程的信息，如 /proc/pid/numa_maps
+        CAP_SYS_ADMIN,       // obmm 在线后端切换 begin/end 要求；仅调用期间临时启用
     };
 
     const std::vector<__u32> eCapabilities = {

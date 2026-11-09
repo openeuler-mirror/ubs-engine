@@ -31,6 +31,7 @@ enum class UbseMemStage : uint32_t
     UBSE_ERR_ONLY_IMPORT = 4,   // 只存在借入
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
     UBSE_ERR_ABNORMAL = 6,      // 删除导入失败，账本与实际状态不一致
+    UBSE_MIGRATING = 7,         // 共享内存迁移会话仍在执行
 };
 
 struct UbseMemResult {

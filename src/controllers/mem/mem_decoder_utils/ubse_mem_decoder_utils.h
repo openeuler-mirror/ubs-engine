@@ -94,7 +94,8 @@ public:
     static UbseResult GetCurNodeSocketInfo(std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>& outSocketInfo);
     static UbseResult SetParamMarId(uint32_t slotId, uint32_t remoteSlotId, uint32_t chipId, uint32_t remoteChipId,
                                     ImportDecoderParam& importParam);
-    static UbseResult GetAllHandleFromImportObj(DecoderLocTohandleMap& handleMap);
+    static UbseResult GetAllHandleFromImportObj(DecoderLocTohandleMap& handleMap,
+                                                std::unordered_set<uint64_t>* temporaryHandles = nullptr);
     static void SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam);
     static void SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam,
                                       const ubse::adapter_plugins::mmi::UbseMemPrivData& privData);

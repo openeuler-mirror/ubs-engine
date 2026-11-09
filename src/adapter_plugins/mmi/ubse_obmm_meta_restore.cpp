@@ -164,8 +164,9 @@ UbseResult RmObmmMetaRestore::ReadAgentLocalObmmMetaData(
         obmmMetaData.usedPidSet = usedPidSets[i];
         auto ret = RestoreAgentLocalObmmMetaData(obmmShmDevPath[i], obmmMetaData);
         if (ret != UBSE_OK) {
-            // 正在删除文件的时候采集可能会失败，其他的元数据不受影响
-            UBSE_LOG_WARN << MMI_LOG_INFO << "Obmm Meta collect fail, path=" << obmmShmDevPath[i];
+            // 设备采集失败，沿用原恢复流程，由同名对象完整性校验触发异常清理。
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm Meta collect fail; continue with abnormal object cleanup, path="
+                           << obmmShmDevPath[i] << ", ret=" << ret;
             continue;
         }
         ubseMemLocalObmmMetaDatas.push_back(obmmMetaData);

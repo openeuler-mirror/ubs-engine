@@ -19,12 +19,12 @@
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_sei_degrade.h"
 #include "ubse_timer.h"
+#include "../../../adapter_plugins/mmi/ubse_mmi_module.h"
+#include "../../../adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "../mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "rpc/ubse_mem_controller_rpc_register.h"
+#include "rpc/ubse_mem_debt_info_query_handler.h"
 #include "rpc/ubse_mem_get_opt_result_handler.h"
-#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
-#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::controller::agent;
@@ -44,12 +44,20 @@ static std::atomic<bool> g_startCheckDecoderHandle{false};
 
 void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap& allHandleValues,
                         const mem::decoder::utils::DecoderLocTohandleMap& handleMap,
-                        std::vector<UbseMamiMemWithdraw>& faultInfo)
+                        std::vector<UbseMamiMemWithdraw>& faultInfo,
+                        const std::unordered_set<uint64_t>& temporaryHandles = {})
 {
     UBSE_LOG_INFO << "DelHandleByMapDiff Begin";
     std::vector<UbseMamiMemWithdraw> diffHandleInfo{};
     for (const auto& [loc, hanValues] : allHandleValues) {
         for (const auto& handValue : hanValues) {
+            if (temporaryHandles.count(handValue.handle) != 0) {
+                UBSE_LOG_INFO << "Skip temporary migrate decoder cleanup, ubpuId=" << loc.ubpuId
+                              << ", iouId=" << loc.iouId << ", marId=" << loc.marId
+                              << ", decoderId=" << static_cast<uint32_t>(loc.decoderId)
+                              << ", handle=" << handValue.handle;
+                continue;
+            }
             if (handleMap.find(loc) == handleMap.end() || handleMap.at(loc).count(handValue.handle) != 1) {
                 UbseMamiMemWithdraw tmpDelInfo{.ubpuId = loc.ubpuId,
                                                .iouId = loc.iouId,
@@ -103,14 +111,15 @@ UbseResult CycleCheckDecoderHandle()
     }
 
     decoder::utils::DecoderLocTohandleMap handleMap{};
-    res = decoder::utils::MemDecoderUtils::GetAllHandleFromImportObj(handleMap);
+    std::unordered_set<uint64_t> temporaryHandles;
+    res = decoder::utils::MemDecoderUtils::GetAllHandleFromImportObj(handleMap, &temporaryHandles);
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "GetAllHandleFromImportObj failed";
         return res;
     }
 
     std::vector<UbseMamiMemWithdraw> faultInfo{};
-    DelHandleByMapDiff(allHandleValues, handleMap, faultInfo);
+    DelHandleByMapDiff(allHandleValues, handleMap, faultInfo, temporaryHandles);
     if (!faultInfo.empty()) {
         for (const auto delInfo : faultInfo) {
             UBSE_LOG_ERROR << "delete one diff handle failed, ubpuId is " << delInfo.ubpuId << " iouId is "

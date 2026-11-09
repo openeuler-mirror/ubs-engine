@@ -50,6 +50,9 @@ private:
     static uint32_t MemShmMemFaultGet(const UbseIpcMessage& buffer, const UbseRequestContext& context);
     static uint32_t MemShmListWithPrefixDispatcher(const UbseIpcMessage& buffer, const UbseRequestContext& context);
     static uint32_t UbseMemShmGetMemIdByImportDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t MemShmMigrateDispatcher(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t MemShmMigrateGetDispatcher(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t MemShmMigrateCancelDispatcher(const UbseIpcMessage& buffer, const UbseRequestContext& context);
 
     // fd
     static uint32_t UbseMemFdBorrowDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
@@ -101,6 +104,7 @@ private:
     static UbseResult RegisterShmSdkDispatcherCreate();
     static UbseResult RegisterShmSdkDispatcherDelete();
     static UbseResult RegisterShmSdkDispatcherQuery();
+    static UbseResult RegisterShmSdkDispatcherMigrate();
     static UbseResult RegisterShmSdkDispatcher();
     static UbseResult RegisterCliDispatcher();
     static uint32_t UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq& req, const UbseRequestContext& context);

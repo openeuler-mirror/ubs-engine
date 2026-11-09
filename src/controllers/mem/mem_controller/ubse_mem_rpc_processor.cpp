@@ -18,6 +18,11 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_str_util.h"
 #include "message/ubse_mem_simpo_types.h"
+#include "rpc/ubse_mem_migrate_cancel_handler.h"
+#include "rpc/ubse_mem_migrate_export_handler.h"
+#include "rpc/ubse_mem_migrate_get_handler.h"
+#include "rpc/ubse_mem_migrate_handler.h"
+#include "rpc/ubse_mem_migrate_switch_handler.h"
 #include "trace_context.h"
 
 namespace ubse::mem::controller {
@@ -934,6 +939,18 @@ UbseResult MemScheduleHandler::RegHandler()
     if (ret != UBSE_OK) {
         return UBSE_ERROR;
     }
+    ret = rpc::RegisterMigrateHandlers(comModule);
+    if (ret != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    ret = rpc::RegisterMigrateGetHandlers(comModule);
+    if (ret != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    ret = rpc::RegisterMigrateCancelHandlers(comModule);
+    if (ret != UBSE_OK) {
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
@@ -1088,6 +1105,20 @@ UbseResult MemScheduleHandler::RegisterShareBorrowHandlers(const std::shared_ptr
     ret = comModule->RegRpcService<UbseMemShareBorrowImportobjSimpo, UbseMemCallbackMessage>(importHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowImportObjCallbackMessageHandler";
+        return ret;
+    }
+
+    // 普通新导出及独立清理请求分别注册
+    ret = rpc::UbseMemMigrateExportHandler::RegUbseMemMigrateExportHandler(comModule);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemMigrateExportHandler";
+        return ret;
+    }
+
+    // SHM故障迁移 逐块迁移块级切换/拷贝 handler: begin/copy/end 三条 RPC 统一注册
+    ret = rpc::RegisterMigrateSwitchHandlers(comModule);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register MigrateSwitchHandlers";
         return ret;
     }
 

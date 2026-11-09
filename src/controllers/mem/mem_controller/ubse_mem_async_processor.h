@@ -23,6 +23,7 @@ UbseResult DoNumaBorrowAsync(const UbseMemNumaBorrowReq& request);
 UbseResult DoNumaBorrowRespAsync(const UbseMemOperationResp& resp);
 UbseResult DoReturnAsync(const UbseMemReturnReq& request, const std::string& realRequestNodeId);
 UbseResult DoReturnRespAsync(const UbseMemOperationResp& resp);
+UbseResult AsyncMemShmMigrateProcessor(const std::string& name); // SHM故障迁移新借出异步投递
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_ASYNC_PROCESSOR_H

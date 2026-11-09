@@ -1072,4 +1072,146 @@ uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc& memDe
     packUtil.UbsePackUint64(memDesc.exportMemId);
     return UBSE_OK;
 }
+
+uint32_t UbseMemShmMigrateReqUnpack(const UbseIpcMessage& buffer, UbseMemShmMigrateReq& req)
+{
+    if (!buffer.buffer) {
+        UBSE_LOG_ERROR << "buffer.buffer is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
+    if (auto ret = UnpackMemName(req.name, unpackUtil); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "unpack name failed.";
+        return ret;
+    }
+    uint32_t targetSlotId = 0;
+    if (!unpackUtil.UnpackUint32(targetSlotId)) {
+        UBSE_LOG_ERROR << "unpack targetNodeId failed.";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    req.targetNodeId = targetSlotId == 0 ? "" : std::to_string(targetSlotId);
+    return UBSE_OK;
+}
+
+uint32_t UbseMemShmMigrateRespPack(const UbseMemShmMigrateResp& resp, UbseIpcMessage& buffer)
+{
+    uint32_t len = 0;
+    len += sizeof(uint32_t);
+
+    buffer.length = len;
+    buffer.buffer = new (std::nothrow) uint8_t[len];
+
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbsePackUtil packUtil(buffer.buffer, len);
+    packUtil.UbsePackUint32(resp.errCode);
+    return UBSE_OK;
+}
+
+uint32_t UbseMemShmMigrateGetReqUnpack(const UbseIpcMessage& buffer, UbseMemShmMigrateGetReq& req)
+{
+    if (!buffer.buffer) {
+        UBSE_LOG_ERROR << "buffer.buffer is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
+    if (auto ret = UnpackMemName(req.name, unpackUtil); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "unpack name failed.";
+        return ret;
+    }
+    if (!unpackUtil.UnpackUint32(req.reserved)) {
+        UBSE_LOG_ERROR << "unpack reserved failed.";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseMemShmMigrateGetRespPack(const UbseMemShmMigrateGetResp& resp, UbseIpcMessage& buffer)
+{
+    uint32_t srcSlotId = 0;
+    uint32_t dstSlotId = 0;
+    if ((!resp.srcNodeId.empty() && ConvertStrToUint32(resp.srcNodeId, srcSlotId) != UBSE_OK) ||
+        (!resp.dstNodeId.empty() && ConvertStrToUint32(resp.dstNodeId, dstSlotId) != UBSE_OK)) {
+        UBSE_LOG_ERROR << "Invalid migrate progress node, name=" << resp.name << ", srcNodeId=" << resp.srcNodeId
+                       << ", dstNodeId=" << resp.dstNodeId;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    uint32_t len = 0;
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t) + resp.name.length();
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t);
+    len += sizeof(uint64_t);
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t) + resp.errMsg.length();
+
+    buffer.length = len;
+    buffer.buffer = new (std::nothrow) uint8_t[len];
+
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbsePackUtil packUtil(buffer.buffer, len);
+    packUtil.UbsePackUint32(resp.errCode);
+    if (!packUtil.UbsePackString(resp.name, resp.name.length())) {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
+        UBSE_LOG_ERROR << "pack name failed.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    packUtil.UbsePackUint32(srcSlotId);
+    packUtil.UbsePackUint32(dstSlotId);
+    packUtil.UbsePackUint32(resp.state);
+    packUtil.UbsePackUint32(resp.totalMemids);
+    packUtil.UbsePackUint32(resp.migratedMemids);
+    packUtil.UbsePackUint64(resp.totalSize);
+    packUtil.UbsePackUint32(resp.failReason);
+    if (!packUtil.UbsePackString(resp.errMsg, resp.errMsg.length())) {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
+        UBSE_LOG_ERROR << "pack errMsg failed.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+uint32_t UbseMemMigrateCancelReqUnpack(const UbseIpcMessage& buffer, UbseMemMigrateCancelReq& req)
+{
+    if (!buffer.buffer) {
+        UBSE_LOG_ERROR << "buffer.buffer is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
+    if (auto ret = UnpackMemName(req.name, unpackUtil); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "unpack name failed.";
+        return ret;
+    }
+    if (!unpackUtil.UnpackUint32(req.reserved)) {
+        UBSE_LOG_ERROR << "unpack reserved failed.";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseMemMigrateCancelRespPack(const UbseMemMigrateCancelResp& resp, UbseIpcMessage& buffer)
+{
+    uint32_t len = 0;
+    len += sizeof(uint32_t);
+    len += sizeof(uint32_t);
+
+    buffer.length = len;
+    buffer.buffer = new (std::nothrow) uint8_t[len];
+
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbsePackUtil packUtil(buffer.buffer, len);
+    packUtil.UbsePackUint32(resp.errCode);
+    packUtil.UbsePackUint32(resp.reserved);
+    return UBSE_OK;
+}
 } // namespace ubse::mem::controller

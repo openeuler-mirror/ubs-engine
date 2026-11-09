@@ -89,6 +89,14 @@ UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr& req, co
         UBSE_LOG_ERROR << "new NodeMemDebtInfoSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
+    for (const auto& [nodeId, nodeInfo] : data) {
+        for (const auto& [name, obj] : nodeInfo.shareExportObjMap) {
+            debt::WarnShmSwitchingQuery("debt_query(export)", name, nodeId, obj.status.exportObmmInfo);
+        }
+        for (const auto& [name, obj] : nodeInfo.shareImportObjMap) {
+            debt::WarnShmSwitchingQuery("debt_query(import)", name, nodeId, obj.exportObmmInfo);
+        }
+    }
     respPtr->SetUbseMesgInfo(data);
     return UBSE_OK;
 }

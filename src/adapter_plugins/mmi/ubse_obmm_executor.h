@@ -12,7 +12,9 @@
 
 #ifndef UBSE_MANAGER_RM_OBMM_EXECUTOR_H
 #define UBSE_MANAGER_RM_OBMM_EXECUTOR_H
+#include <array>
 #include <csignal>
+#include <cstddef>
 #include <vector>
 
 #include <dlfcn.h>
@@ -25,6 +27,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_types.h"
+#include "ubse_mmi_def.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mmi_obmm_def.h"
 #include "ubse_mmi_timeout_manager.h"
@@ -51,6 +54,33 @@ using ObmmQueryPaByMemIdPtr = int (*)(mem_id id, unsigned long offset, unsigned 
 using ObmmPreImportPtr = int (*)(struct obmm_preimport_info* preimport_info, unsigned long flags);
 using ObmmUnPreImportPtr = int (*)(const struct obmm_preimport_info* preimport_info, unsigned long flags);
 
+using ObmmSwitchBeginImportPtr = int (*)(mem_id id, unsigned long flags, const struct obmm_switch_import_target* target,
+                                         const void* priv, uint16_t privLen);
+using ObmmSwitchBeginExportPtr = int (*)(mem_id id, unsigned long flags, const struct obmm_switch_export_target* target,
+                                         struct obmm_mem_desc* desc, const void* priv, uint16_t privLen);
+using ObmmSwitchEndPtr = int (*)(mem_id id, int success);
+
+/* ObmmSwitchBeginImport 的私有语义入参（对接层对内暴露，Step1 设计 §3.3）。
+ * EID 按 128bit 字节携带，禁止把既有 desc 的 uint32 seid/deid 截断表示直接充当 EID（Step1 设计 §8 O3）。 */
+struct ObmmSwitchParam {
+    mem_id oldImportMemId{INVALID_MEM_ID};          /* 待切换的导入 memId */
+    uint64_t newPa{0};                              /* 新链路物理地址 */
+    uint32_t newScna{0};                            /* 使用方侧 CNA（导入节点侧） */
+    uint32_t newDcna{0};                            /* 提供方侧 CNA（新导出节点侧） */
+    uint8_t baseDist{0};                            /* 新链路 NUMA 距离 */
+    std::array<uint8_t, UBSE_EID_LENGTH> newSeid{}; /* 使用方侧 EID，128bit 小端 */
+    std::array<uint8_t, UBSE_EID_LENGTH> newDeid{}; /* 提供方侧 EID，128bit 小端 */
+    std::vector<uint8_t> priv{};                    /* 待生效私有数据（可为空），switch_end(1) 后替换 */
+};
+
+struct ObmmSwitchExportParam {
+    mem_id importMemId{INVALID_MEM_ID};
+    obmm_switch_export_target target{};
+    std::array<uint8_t, UBSE_EID_LENGTH> seid{};
+    std::array<uint8_t, UBSE_EID_LENGTH> deid{};
+    std::vector<uint8_t> priv{};
+};
+
 struct ObmmPidExportParam {
     int pid;
     void* va;
@@ -72,6 +102,7 @@ struct ObmmPidExportParam {
 
 class RmObmmExecutor {
 public:
+    UbseResult MemcpyMt(void* dst, const void* src, size_t size);
     UbseResult Init();
     UbseResult Exit();
 
@@ -97,6 +128,11 @@ public:
 
     UbseResult ObmmPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
     UbseResult ObmmUnPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
+
+    // 故障迁移：两阶段切换封装（必选符号，加载失败阻断初始化；调用前空指针检查）
+    UbseResult ObmmSwitchBeginImport(const ObmmSwitchParam& param);
+    UbseResult ObmmSwitchBeginExport(const ObmmSwitchExportParam& param, struct obmm_mem_desc& desc);
+    UbseResult ObmmSwitchEnd(mem_id oldImportMemId, bool success);
 
     UbseResult DlOpenLib(const std::string& obmmPath);
     mem_id ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam& opParam);
@@ -181,6 +217,8 @@ private:
     static constexpr auto OBMM_PATH = "libobmm.so.1";
     bool preOnlineSwitch{false};
     void* handle{nullptr};
+    void* accelHandle{nullptr};
+    UbseResult LoadMemcpyMt();
     static uint64_t offlineTimeoutMs_;     // 从配置文件obmm.memory.offline.timeout获取
     static bool offlineTimeoutConfigured_; // 是否显式配置了obmm.memory.offline.timeout
 
@@ -194,6 +232,12 @@ private:
     ObmmQueryPaByMemIdPtr obmmQueryPaByMemIdFunc{};
     ObmmPreImportPtr obmmPreImportFunc{};
     ObmmUnPreImportPtr obmmUnPreImportFunc{};
+    ObmmSwitchBeginImportPtr obmmSwitchBeginImportFunc{};
+    ObmmSwitchBeginExportPtr obmmSwitchBeginExportFunc{};
+    ObmmSwitchEndPtr obmmSwitchEndFunc{};
+    // ABI 对齐 obmm-accel/libobmm-accel.h，从 libobmm-accel.so.1 动态加载。
+    using MemcpyMtPtr = void* (*)(void*, const void*, size_t, unsigned int);
+    MemcpyMtPtr memcpyMtFunc{};
 };
 #undef MODULE_LOG_NAME
 } // namespace ubse::mmi

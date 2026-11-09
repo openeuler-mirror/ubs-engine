@@ -381,6 +381,27 @@ uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExpor
     return ret;
 }
 
+uint32_t UbseMmiModule::UbseMemShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj)
+{
+    return MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj);
+}
+
+uint32_t UbseMmiModule::UbseMemShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
+                                                            ubse_mem_obmm_mem_desc& desc)
+{
+    return MemInstanceInnerShm::GetInstance().MemShmSwitchBeginExportExecutor(switchObj, desc);
+}
+
+uint32_t UbseMmiModule::UbseMemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success)
+{
+    return MemInstanceInnerShm::GetInstance().MemShmSwitchEndExecutor(switchObj, success);
+}
+
+uint32_t UbseMmiModule::UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
+{
+    return MemInstanceInnerShm::GetInstance().MemShmMigrateCopyExecutor(memId, size, cacheable);
+}
+
 /**
  * @brief   addr借用import对象的执行器
  *

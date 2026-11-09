@@ -35,6 +35,9 @@
 #include "api/ubse_mem_controller_api_common.h"
 #include "message/ubse_mem_controller_def_serial.h"
 #include "message/ubse_mem_simpo_types.h"
+#include "rpc/ubse_mem_migrate_cancel_handler.h"
+#include "rpc/ubse_mem_migrate_get_handler.h"
+#include "rpc/ubse_mem_migrate_handler.h"
 #include "ubs_engine_mem.h"
 
 namespace ubse::mem::controller {
@@ -55,6 +58,14 @@ using namespace ubse::context;
 const std::string MEM_FD_PERMISSION = "mem.fd";
 const std::string MEM_NUMA_PERMISSION = "mem.numa";
 const std::string MEM_SHM_PERMISSION = "mem.shm";
+const std::string MEM_SHM_MIGRATE_PERMISSION = "mem.shm.migrate";
+
+using ubse::mem::controller::rpc::UbseMemMigrateCancelReqMessage;
+using ubse::mem::controller::rpc::UbseMemMigrateCancelRespMessage;
+using ubse::mem::controller::rpc::UbseMemShmMigrateGetReqMessage;
+using ubse::mem::controller::rpc::UbseMemShmMigrateGetRespMessage;
+using ubse::mem::controller::rpc::UbseMemShmMigrateReqMessage;
+using ubse::mem::controller::rpc::UbseMemShmMigrateRespMessage;
 
 template <class TReq>
 UbseResult SendToMasterIfNotMaster(std::string& masterNodeId, TReq& requestPtr, uint16_t moduleCode, uint16_t opCode)
@@ -377,6 +388,36 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherQuery()
     return UBSE_OK;
 }
 
+UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherMigrate()
+{
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+                                             static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_MIGRATE),
+                                             MemShmMigrateDispatcher, MEM_SHM_MIGRATE_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of MemShmMigrateDispatcher IPC-API failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+                                        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_MIGRATE_GET),
+                                        MemShmMigrateGetDispatcher, MEM_SHM_MIGRATE_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of MemShmMigrateGetDispatcher IPC-API failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+                                        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_MIGRATE_CANCEL),
+                                        MemShmMigrateCancelDispatcher, MEM_SHM_MIGRATE_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of MemShmMigrateCancelDispatcher IPC-API failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
 {
     auto ret = RegisterShmSdkDispatcherCreate();
@@ -388,6 +429,10 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
         return ret;
     }
     ret = RegisterShmSdkDispatcherQuery();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterShmSdkDispatcherMigrate();
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -1423,6 +1468,219 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
     }
     UbseIpcMessage responseMessage{nullptr, 0};
     return apiServer->SendResponse(fdPermissionResp.result, fdPermissionResp.requestId, responseMessage);
+}
+
+uint32_t UbseMemControllerDispatcher::MemShmMigrateDispatcher(const UbseIpcMessage& buffer,
+                                                              const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "shm migrate dispatcher, requestId=" << context.requestId;
+    // SHM故障迁移受理：dispatcher 不区分 master/非master，无条件同步 RPC 发 master
+    UbseRoleInfo masterInfo{};
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UbseMemShmMigrateReq migrateReq{};
+    ret = UbseMemShmMigrateReqUnpack(buffer, migrateReq);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to unpack shm migrate req, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    migrateReq.caller = GenUdsInfo(context);
+    UbseBaseMessagePtr reqMessagePtr = new (std::nothrow) UbseMemShmMigrateReqMessage(migrateReq);
+    if (reqMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new reqMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseBaseMessagePtr respMessagePtr = new (std::nothrow) UbseMemShmMigrateRespMessage();
+    if (respMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new respMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_SHM_MIGRATE_REQ)};
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting ComModule failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UBSE_LOG_INFO << "Success to Send to master";
+    auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    // errCode 放 payload 回传，幂等命中(MIGRATE_IN_PROGRESS)也能正常回传错误码
+    UbseIpcMessage resp{};
+    ret = UbseMemShmMigrateRespPack(response->migrateResp, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to pack shm migrate resp, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get api server";
+        SafeDeleteArray(resp.buffer);
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = apiServer->SendResponse(UBSE_OK, context.requestId, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "shm migrate response send failed, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+    }
+    SafeDeleteArray(resp.buffer);
+    return ret;
+}
+
+uint32_t UbseMemControllerDispatcher::MemShmMigrateGetDispatcher(const UbseIpcMessage& buffer,
+                                                                 const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "shm migrate get dispatcher, requestId=" << context.requestId;
+    // SHM故障迁移查询：dispatcher 不区分 master/非master，无条件同步 RPC 发 master
+    UbseRoleInfo masterInfo{};
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UbseMemShmMigrateGetReq getReq{};
+    ret = UbseMemShmMigrateGetReqUnpack(buffer, getReq);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to unpack shm migrate get req, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    getReq.caller = GenUdsInfo(context);
+    UbseBaseMessagePtr reqMessagePtr = new (std::nothrow) UbseMemShmMigrateGetReqMessage(getReq);
+    if (reqMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new reqMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseBaseMessagePtr respMessagePtr = new (std::nothrow) UbseMemShmMigrateGetRespMessage();
+    if (respMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new respMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_SHM_MIGRATE_GET_REQ)};
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting ComModule failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UBSE_LOG_INFO << "Success to Send to master";
+    auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateGetRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    // errCode 放 payload 回传(NOT_EXIST 也走正常回包), SDK 侧映射错误码
+    UbseIpcMessage resp{};
+    ret = UbseMemShmMigrateGetRespPack(response->getResp, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to pack shm migrate get resp, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get api server";
+        SafeDeleteArray(resp.buffer);
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = apiServer->SendResponse(UBSE_OK, context.requestId, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "shm migrate get response send failed, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+    }
+    SafeDeleteArray(resp.buffer);
+    return ret;
+}
+
+uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIpcMessage& buffer,
+                                                                    const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "shm migrate cancel dispatcher, requestId=" << context.requestId;
+    // SHM故障迁移取消：dispatcher 不区分 master/非master，无条件同步 RPC 发 master
+    UbseRoleInfo masterInfo{};
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UbseMemMigrateCancelReq cancelReq{};
+    ret = UbseMemMigrateCancelReqUnpack(buffer, cancelReq);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to unpack shm migrate cancel req, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    cancelReq.caller = GenUdsInfo(context);
+    UbseBaseMessagePtr reqMessagePtr = new (std::nothrow) UbseMemMigrateCancelReqMessage(cancelReq);
+    if (reqMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new reqMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseBaseMessagePtr respMessagePtr = new (std::nothrow) UbseMemMigrateCancelRespMessage();
+    if (respMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new respMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_SHM_MIGRATE_CANCEL_REQ)};
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting ComModule failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
+        return ret;
+    }
+    UBSE_LOG_INFO << "Success to Send to master";
+    auto response = UbseBaseMessage::DeConvert<UbseMemMigrateCancelRespMessage>(respMessagePtr);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid migrate RPC response type, requestId=" << context.requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    // errCode 放 payload 回传(NOT_EXIST/NOT_ALLOWED 也走正常回包), SDK 侧映射错误码
+    UbseIpcMessage resp{};
+    ret = UbseMemMigrateCancelRespPack(response->cancelResp, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to pack shm migrate cancel resp, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return ret;
+    }
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get api server";
+        SafeDeleteArray(resp.buffer);
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = apiServer->SendResponse(UBSE_OK, context.requestId, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "shm migrate cancel response send failed, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+    }
+    SafeDeleteArray(resp.buffer);
+    return ret;
 }
 
 uint32_t GetNodeInfo(const std::string& nodeId, ubse::nodeController::UbseNodeInfo& node)

@@ -28,6 +28,8 @@ using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShmSwitchExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShmSwitchObj;
 using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
 
@@ -152,6 +154,33 @@ public:
     * @return int    0：操作成功；非0：获取失败
     */
     uint32_t UbseMemShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj);
+
+    /**
+    * @brief   shm类型故障迁移块级切换begin执行器
+    *
+    * @param switchObj      [IN] 迁移切换入参（编排层按 (memId, importNodeId) 组装）
+    * @return int    0：操作成功；非0：失败
+    */
+    uint32_t UbseMemShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj);
+    uint32_t UbseMemShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
+                                                 ubse_mem_obmm_mem_desc& desc);
+
+    /**
+    * @brief   shm类型故障迁移块级切换end执行器
+    *
+    * @param switchObj      [IN] 迁移切换入参（复用 name/oldImportMemId 供日志与定位）
+    * @param success        [IN] 迁移是否成功，映射为 obmm 的 int（1/0）
+    * @return int    0：成功；UBSE_ERROR_AGAIN：内核收尾中可重试；UBSE_MMI_OBMM_SWITCH_NOT_EXIST：切换已不存在
+    */
+    uint32_t UbseMemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success);
+
+    /**
+    * @brief   shm类型故障迁移块级数据拷贝执行器
+    * @param memId  [IN] 切换间隙设备ID，双后端映射后使用memcpy_mt拷贝
+    * @param size   [IN] 块大小(字节)
+    * @return int    0：操作成功；非0：失败
+    */
+    uint32_t UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable);
 
     /**
     * @brief   addr借用import对象的执行器

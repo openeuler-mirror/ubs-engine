@@ -226,6 +226,72 @@ std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& ob
               << " importNodeId: " << obj.importNodeId << " shareAttr: " << obj.shareAttr << " req: " << obj.req << ")";
 }
 
+std::ostream& operator<<(std::ostream& os, const UbseMemShmSwitchObj& obj)
+{
+    os << "("
+       << "name: " << obj.name << " importNodeId: " << obj.importNodeId << " oldImportMemId: " << obj.oldImportMemId
+       << " newPa: " << obj.newPa << " newScna: " << obj.newScna << " newDcna: " << obj.newDcna
+       << " baseDist: " << static_cast<uint32_t>(obj.baseDist);
+    os << " newSeid: [";
+    for (auto byte : obj.newSeid) {
+        os << static_cast<uint32_t>(byte) << " ";
+    }
+    os << "] newDeid: [";
+    for (auto byte : obj.newDeid) {
+        os << static_cast<uint32_t>(byte) << " ";
+    }
+    return os << "] privLen: " << obj.priv.size() << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateReq& req)
+{
+    return os << "(name: " << req.name << " targetNodeId: " << req.targetNodeId << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateResp& resp)
+{
+    return os << "(errCode: " << resp.errCode << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateGetReq& req)
+{
+    return os << "(name: " << req.name << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateGetResp& resp)
+{
+    return os << "(errCode: " << resp.errCode << " name: " << resp.name << " srcNodeId: " << resp.srcNodeId
+              << " dstNodeId: " << resp.dstNodeId << " state: " << resp.state << " totalMemids: " << resp.totalMemids
+              << " migratedMemids: " << resp.migratedMemids << " totalSize: " << resp.totalSize
+              << " failReason: " << resp.failReason << " errMsg: " << resp.errMsg << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCancelReq& req)
+{
+    return os << "(name: " << req.name << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCancelResp& resp)
+{
+    return os << "(errCode: " << resp.errCode << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateSwitchEndImportReq& req)
+{
+    return os << "name=" << req.rpcInfo.name << ", blockIndex=" << req.rpcInfo.blockIndex
+              << ", success=" << req.success;
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateDataCopyReq& req)
+{
+    return os << "(name: " << req.rpcInfo.name << " blockIndex: " << req.rpcInfo.blockIndex << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateOpResp& resp)
+{
+    return os << "(errCode: " << resp.errCode << ")";
+}
+
 bool UbseMemNumaLoc::operator==(const UbseMemNumaLoc& other) const
 {
     return nodeId == other.nodeId && socketId == other.socketId && numaId == other.numaId;

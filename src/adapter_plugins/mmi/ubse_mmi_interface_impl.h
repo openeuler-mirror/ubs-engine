@@ -46,6 +46,14 @@ public:
 
     UbseResult ShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj) override;
 
+    UbseResult ShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj) override;
+    UbseResult ShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
+                                            ubse_mem_obmm_mem_desc& desc) override;
+
+    UbseResult ShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success) override;
+
+    UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) override;
+
     UbseResult AddrImportExecutor(UbseMemAddrBorrowImportObj& importObj) override;
 
     UbseResult AddrUnImportExecutor(const UbseMemAddrBorrowImportObj& importObj) override;

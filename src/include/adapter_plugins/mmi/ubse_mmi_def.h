@@ -12,7 +12,9 @@
 
 #ifndef UBSE_MMI_DEF_H
 #define UBSE_MMI_DEF_H
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -23,6 +25,39 @@
 
 namespace ubse::adapter_plugins::mmi {
 constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
+// 共享内存标记[isExport:1|originExportNodeId:15|version:4|index:12]；gap读取的仍为旧priv身份。
+constexpr uint32_t SHM_MIGRATE_MAX_BLOCKS = 4096; // index的值超出 12bit 编码能力
+constexpr uint32_t SHM_MIGRATE_MAX_ORIGIN_NODE_ID = 0x7fffU;
+constexpr uint32_t SHM_MIGRATE_EXPORT_FLAG = 1U << 31;
+// 调用方校验origin范围；导入不记录origin，导出包括普通创建都必须设置身份位。
+constexpr uint32_t MakeShmMigrateInfo(uint32_t version, uint32_t index, uint32_t originExportNodeId, bool isExport)
+{
+    const auto identity =
+        isExport ? SHM_MIGRATE_EXPORT_FLAG | ((originExportNodeId & SHM_MIGRATE_MAX_ORIGIN_NODE_ID) << 16) : 0U;
+    return identity | ((version & 0xfU) << 12) | (index & 0xfffU);
+}
+constexpr bool ShmMigrateIsExport(uint32_t info)
+{
+    return (info & SHM_MIGRATE_EXPORT_FLAG) != 0;
+}
+constexpr uint32_t ShmMigrateVersion(uint32_t info)
+{
+    return (info >> 12) & 0xfU;
+}
+constexpr uint32_t ShmMigrateIndex(uint32_t info)
+{
+    return info & 0xfffU;
+}
+constexpr uint32_t ShmMigrateOrigin(uint32_t info)
+{
+    return (info >> 16) & SHM_MIGRATE_MAX_ORIGIN_NODE_ID;
+}
+constexpr uint32_t ShmMigrateImportInfo(uint32_t info)
+{
+    // 普通导入、切换导入及逻辑self-import均只继承version/index。
+    return info & 0xffffU;
+}
+
 enum class MemOperationType
 {
     FD_BORROW,
@@ -111,6 +146,7 @@ enum UbMemFaultType
     MEM_LINK_DOWN,
     MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000, // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不等同于内核gap状态
 };
 
 enum UbseNodeStatus
@@ -419,6 +455,11 @@ class UbseMemShareBorrowExportObj final : public UbseMemBorrowExportBaseObj {
 public:
     UbseMemShareBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
+    // 每块一个迁移标记[isExport:1|originExportNodeId:15|version:4|index:12]，isExport恒为1；
+    // index==块下标、块间version一致；普通创建version=0/origin=0(执行层兜底生成)，
+    // 迁移时生成version=源+1、origin=源nodeId(1～32767)；
+    // 重启恢复时从内核sysfs priv的customMeta.migrateInfo回填
+    std::vector<uint32_t> migrateInfos{};
     friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowExportObj& obj);
 };
 
@@ -431,6 +472,22 @@ struct UbseMemAttachResourceShareAttr {
     friend std::ostream& operator<<(std::ostream& os, const UbseMemAttachResourceShareAttr& obj);
 };
 
+// 当前块的待提交内容；正式数组在 end(1) 成功前仍表示旧后端。
+struct UbseMemMigrateBlockData {
+    UbseMemObmmInfo exportInfo{};
+    std::optional<mti::mami::UbseMamiMemImportResult> decoder;
+    UbseMemAlgoResult targetLayout{};
+};
+
+// 每个 name 只保留当前块，不保存 RPC 结果或整份 import/export 对象。
+struct UbseMemMigrateSwitchContext {
+    uint32_t blockIndex{0};
+    uint64_t exportMemId{0};
+    uint32_t migrateInfo{0};
+    std::optional<UbseMemMigrateBlockData> target; // 目标已导入时直接使用本地 export 账本
+    std::optional<bool> endDecision; // true=end(1)已成功；false=回退；无值=尚未确认提交或决定回退
+};
+
 class UbseMemShareBorrowImportObj final : public UbseMemBorrowImportBaseObj {
 public:
     // 有沒有真的執行obmm操作，共享内存，自己map自己不需要執行obmm操作，也不需要執行unmap操作
@@ -439,7 +496,189 @@ public:
     UbseMemAttachResourceShareAttr shareAttr{}; // map 参数
     UbseMemShareBorrowReq req;                  // 请求参数
     UbseMemReturnReq returnReq;
+    // 每块一个迁移标记，version/index与对应导出块一致，isExport和originExportNodeId恒为0；
+    // 共享创建时继承导出标记(经ShmMigrateImportInfo清除身份位及origin)，迁移begin时随临时对象下发；
+    // self-import仅为逻辑账本，所共享的物理export设备priv仍标记为导出。
+    std::vector<uint32_t> migrateInfos{};
+    std::optional<UbseMemMigrateSwitchContext> switchContext;
     friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& obj);
+};
+
+// 共享内存迁移 EID 长度（128bit 小端，与 obmm 对接层 ObmmSwitchParam 的 UBSE_EID_LENGTH 一致）
+constexpr uint32_t UBSE_SHM_SWITCH_EID_LENGTH = 16u;
+
+// 目标节点已导入该共享内存时，将已有导入设备切为本地导出池。begin 返回的 desc
+// 仅供本轮迁移内部的 begin_import 使用；普通使用方须等 switch_end(1) 提交成功。
+struct UbseMemShmSwitchExportObj {
+    uint64_t importMemId{0};
+    uint32_t blockIndex{0};
+    std::vector<uint64_t> numaSizes{};
+    uint64_t exportFlags{0};
+    std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> seid{};
+    std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> deid{};
+    std::vector<uint8_t> priv{};
+    UbseMemShareBorrowExportObj exportObj{}; // priv 为空时供 MMI 复用普通导出元数据布局
+};
+
+// O3: u32 EID 零扩展为 128bit 小端 EID 数组（低 32bit 承载有效值，高位补 0；
+// 拓扑查询 GetEid 仅产出 u32，禁止截断语义缺失的直接当 128bit 使用, Step1 设计 §8 O3）
+inline void FillEid16FromU32(std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH>& eid, uint32_t value)
+{
+    eid.fill(0);
+    eid[0] = static_cast<uint8_t>(value & 0xFFU);
+    eid[1] = static_cast<uint8_t>((value >> 8U) & 0xFFU);
+    eid[2] = static_cast<uint8_t>((value >> 16U) & 0xFFU);
+    eid[3] = static_cast<uint8_t>((value >> 24U) & 0xFFU);
+}
+
+// 共享内存故障迁移：导入链路块级切换入参（Step1 设计 §6 输入契约，编排层按 (memId, importNodeId) 组装）
+class UbseMemShmSwitchObj final {
+public:
+    std::string name{};                                        // 迁移资源名，日志定位
+    std::string importNodeId{};                                // 导入节点 id
+    uint64_t oldImportMemId{0};                                // 待切换的导入 memId
+    uint64_t newPa{0};                                         // 新链路物理地址
+    uint32_t newScna{0};                                       // 新链路使用方侧 CNA
+    uint32_t newDcna{0};                                       // 新链路提供方侧 CNA
+    uint8_t baseDist{0};                                       // 新链路基础 NUMA 距离，0~255
+    std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> newSeid{}; // 使用方侧 EID，128bit 小端
+    std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> newDeid{}; // 提供方侧 EID，128bit 小端
+    std::vector<uint8_t> priv{}; // 原 import 链路私有数据原样透传，switch_end(1) 后内核替换
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShmSwitchObj& obj);
+};
+
+// 共享内存故障迁移受理请求（SDK 报文字段一一对应，Step2 设计 §4.1）
+struct UbseMemShmMigrateReq {
+    std::string name{};         // 借用标识
+    std::string targetNodeId{}; // dispatcher 解包后使用的目标节点 ID
+    UbseUdsInfo caller{};       // 接入端从连接凭据获取，master做资源级鉴权
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateReq& req);
+};
+
+// 共享内存故障迁移受理响应：errCode 0=受理成功；幂等命中回 MIGRATE_IN_PROGRESS
+struct UbseMemShmMigrateResp {
+    uint32_t errCode{0};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateResp& resp);
+};
+
+// 共享内存故障迁移查询请求(Step6 设计 §5)：仅 name，受理/查询共用 mem.shm.migrate 权限对象
+struct UbseMemShmMigrateGetReq {
+    std::string name{}; // 借用标识
+    uint32_t reserved{0};
+    UbseUdsInfo caller{}; // 接入端从连接凭据获取，master做资源级鉴权
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateGetReq& req);
+};
+
+// 共享内存故障迁移查询响应(Step6 设计 §5)：state 原值透传, SDK 侧强转枚举;
+struct UbseMemShmMigrateGetResp {
+    uint32_t errCode{0};
+    std::string name{};
+    std::string srcNodeId{};
+    std::string dstNodeId{};
+    uint32_t state{0}; // ubs_mem_migrate_state_t 原值
+    uint32_t totalMemids{0};
+    uint32_t migratedMemids{0};
+    uint64_t totalSize{0};
+    uint32_t failReason{0}; // UbseMemMigrateFailReason, FAILED 时非 0
+    std::string errMsg{};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShmMigrateGetResp& resp);
+};
+
+// 共享内存故障迁移取消请求(Step7 设计 §8)：仅 name，受理/查询/取消共用 mem.shm.migrate 权限对象
+struct UbseMemMigrateCancelReq {
+    std::string name{}; // 借用标识
+    uint32_t reserved{0};
+    UbseUdsInfo caller{}; // 接入端从连接凭据获取，master做资源级鉴权
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCancelReq& req);
+};
+
+// 共享内存故障迁移取消响应(Step7 设计 §8)：同步回包仅表示取消受理成功，清理异步执行
+struct UbseMemMigrateCancelResp {
+    uint32_t errCode{0};
+    uint32_t reserved{0};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCancelResp& resp);
+};
+
+// 共享内存故障迁移细分失败码
+enum UbseMemMigrateFailReason
+{
+    MIGRATE_FAIL_ALLOCATE = 1,         // 决策失败(水位/节点不可用)
+    MIGRATE_FAIL_RPC = 2,              // RPC发起/发送或入队ACK失败，不包含异步业务结果超时
+    MIGRATE_FAIL_OBMM_EXPORT = 3,      // agent侧obmm_export失败(rsp.errCode)
+    MIGRATE_FAIL_LAYOUT = 4,           // 老/新导出块数不一致(迁移按索引逐块对齐)
+    MIGRATE_FAIL_OLD_OBJ_LOST = 5,     // 老exportObj丢失
+    MIGRATE_FAIL_SIGN = 6,             // 高安签名/验签失败
+    MIGRATE_FAIL_BLOCK_TOO_LARGE = 7,  // 值保留占位(报文错误码冻结): 块过大预检已删除, 不再产生
+    MIGRATE_FAIL_COPY = 8,             // Agent返回copy业务失败
+    MIGRATE_FAIL_CONVERGE = 9,         // Master有效账本合入或一致性检查失败
+    MIGRATE_FAIL_RESULT_TIMEOUT = 10,  // 等待异步业务结果超时
+    MIGRATE_FAIL_DISPATCH = 11,        // 初始迁移任务投递失败
+    MIGRATE_FAIL_TIMER = 12,           // 阶段定时器注册失败
+    MIGRATE_FAIL_BEGIN_IMPORT = 13,    // Agent返回begin_import业务失败（含decoder准备）
+    MIGRATE_FAIL_BEGIN_EXPORT = 14,    // Agent返回begin_export业务失败
+    MIGRATE_FAIL_END_IMPORT = 15,      // Agent返回end_import(1)业务失败
+    MIGRATE_FAIL_END_EXPORT = 16,      // Agent返回end_export(1)业务失败
+    MIGRATE_FAIL_REQUEST_PREPARE = 17, // Master准备当前块请求失败，尚未发起RPC
+    MIGRATE_FAIL_ROLLBACK_IMPORT = 18, // Agent返回end_import(0)业务失败
+    MIGRATE_FAIL_ROLLBACK_EXPORT = 19, // Agent返回end_export(0)业务失败
+};
+
+// 请求RPC仅确认入队，结果以name定位任务，按块、节点及已有业务资源信息确认归属。
+struct UbseMemMigrateRpcInfo {
+    std::string name{};
+    uint32_t blockIndex{0};
+    std::string srcNodeId{};
+    uint64_t exportMemId{0};
+    uint32_t migrateInfo{0};
+    // 请求归属标记：end(0)为true，其余操作为false；回包匹配时区分提交与回退方向，执行决定由end请求的success指定。
+    bool rollback{false};
+};
+
+// begin 只携当前块目标和该块所需的授权材料；本地设备、旧 decoder 来自账本。
+struct UbseMemMigrateSwitchBeginImportReq {
+    UbseMemObmmInfo targetBlock{};
+    UbseMemAlgoResult targetLayout{};
+    UbseTrustRingData trustRingData{};
+    uint64_t oldExportMemId{0};
+    UbseMemMigrateRpcInfo rpcInfo{};
+};
+
+// 目标已导入时仍接收完整布局模板以构造 priv，执行结果仅回传当前块。
+struct UbseMemMigrateBeginExportReq {
+    UbseMemShareBorrowExportObj exportObj{};
+    UbseMemMigrateRpcInfo rpcInfo{};
+};
+
+struct UbseMemMigrateBeginExportResp {
+    uint32_t errCode{0};
+    UbseMemObmmInfo block{};
+    UbseMemMigrateRpcInfo rpcInfo{};
+};
+
+struct UbseMemMigrateEndExportReq {
+    uint32_t success{0}; // 1=提交，0=回退；本地设备从导入账本解析
+    UbseMemMigrateRpcInfo rpcInfo{};
+};
+
+struct UbseMemMigrateSwitchEndImportReq {
+    uint32_t success{0}; // 1=提交，0=回退；待提交资源从本地账本取得
+    UbseMemMigrateRpcInfo rpcInfo{};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateSwitchEndImportReq& req);
+};
+
+// 迁移统一采用双后端拷贝，设备、长度和访问模式均取本地import账本当前块。
+// 只携块归属；设备、长度及缓存属性由Agent从已begin的本地导入账本读取。
+struct UbseMemMigrateDataCopyReq {
+    UbseMemMigrateRpcInfo rpcInfo{};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateDataCopyReq& req);
+};
+
+struct UbseMemMigrateOpResp {
+    uint32_t errCode{0};
+    std::optional<UbseMemMigrateBlockData> block; // begin=待提交块，end=生效块，copy=无
+    UbseMemMigrateRpcInfo rpcInfo{};
+    bool committed{false}; // 已确认本块end(1)生效；即使errCode非0，也不得回退本块
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateOpResp& resp);
 };
 
 using UbseMemFdImportObjMap = std::unordered_map<std::string, UbseMemFdBorrowImportObj>;       // resourceId,obj

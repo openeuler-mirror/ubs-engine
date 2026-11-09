@@ -11,9 +11,11 @@
  */
 #include "ubse_mem_debt_info_partial_fetch.h"
 #include <set>
+#include <type_traits>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_serial_util.h"
 
@@ -80,6 +82,11 @@ template <typename ObjType>
 void BuildFlatDebtInfo(const AccountType& type, AccoutObjType accountObjType, const DebtFetchInfo& debtFetchInfo,
                        const ObjType& obj, FlatDebtInformation& flatDebtInfo)
 {
+    if constexpr (std::is_same_v<ObjType, UbseMemShareBorrowExportObj>) {
+        WarnShmSwitchingQuery("borrow_details(export)", obj.req.name, debtFetchInfo.nodeId, obj.status.exportObmmInfo);
+    } else if constexpr (std::is_same_v<ObjType, UbseMemShareBorrowImportObj>) {
+        WarnShmSwitchingQuery("borrow_details(import)", obj.req.name, debtFetchInfo.nodeId, obj.exportObmmInfo);
+    }
     flatDebtInfo.name = obj.req.name;
     flatDebtInfo.type = type;
     flatDebtInfo.status = static_cast<uint32_t>(obj.status.state);

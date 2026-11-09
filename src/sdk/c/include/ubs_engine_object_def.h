@@ -30,6 +30,7 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
      {"ubs_mem_shm_create", "ubs_mem_shm_create_with_affinity", "ubs_mem_shm_create_with_lender", "ubs_mem_shm_attach",
       "ubs_mem_shm_get", "ubs_mem_shm_list", "ubs_mem_shm_list_with_prefix", "ubs_mem_shm_detach", "ubs_mem_shm_delete",
       "ubs_mem_shm_fault_get", "ubs_mem_shm_fault_register", "ubs_mem_shm_get_memid_by_import"}},
+    {"mem.shm.migrate", {"ubs_mem_shm_migrate", "ubs_mem_shm_migrate_get", "ubs_mem_shm_migrate_cancel"}},
     {"mem.stat", {"ubs_mem_numastat_get"}},
     {"topo", {"ubs_topo_node_list", "ubs_topo_node_local_get", "ubs_topo_link_list"}},
     {"urma",

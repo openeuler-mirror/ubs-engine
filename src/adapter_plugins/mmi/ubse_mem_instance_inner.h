@@ -40,6 +40,8 @@ using ubse::adapter_plugins::mmi::UbseMemPrivData;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShmSwitchExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShmSwitchObj;
 using ubse::common::def::UbseResult;
 
 struct PreImportHandleRecord {
@@ -239,6 +241,13 @@ public:
     uint32_t MemShmUnImportExecutor(const UbseMemShareBorrowImportObj& importObj);
     uint32_t MemShmExportExecutor(UbseMemShareBorrowExportObj& exportObj);
     uint32_t MemShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj);
+
+    uint32_t MemShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj);
+    uint32_t MemShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj, ubse_mem_obmm_mem_desc& desc);
+
+    uint32_t MemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success);
+
+    uint32_t MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable);
 
     MemInstanceInnerShm(const MemInstanceInnerShm& other) = delete;
     MemInstanceInnerShm(MemInstanceInnerShm&& other) = delete;

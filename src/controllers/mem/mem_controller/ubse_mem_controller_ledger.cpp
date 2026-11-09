@@ -37,6 +37,7 @@
 #include "ubse_security_module.h"
 #include "api/ubse_mem_controller_share_api.h"
 #include "logging_lock_guard.h"
+#include "migrate/ubse_mem_controller_migrate_api.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::util;
@@ -2352,6 +2353,13 @@ void ExecuteShareMemoryClean(const std::vector<UbseMemShareBorrowExportObj>& toC
         return;
     }
     for (const auto& obj : toClean) {
+        // 与迁移受理共用同名锁，检查和删除下发之间不允许新迁移进入。
+        auto nameLock = LoggingLockGuard(obj.req.name);
+        if (UbseMemShmMigrateService::GetInstance().HasActiveMigration(obj.req.name)) {
+            UBSE_LOG_WARN << "Skip shared memory cleanup: migration in progress, name=" << obj.req.name
+                          << ", anonymous=" << obj.req.shmAnonymous;
+            continue;
+        }
         UBSE_LOG_INFO << "Deleting shared memory: name=" << obj.req.name
                       << ", baseNodeId=" << obj.algoResult.exportNumaInfos[0].nodeId;
         // 调用删除接口删除共享内存对象

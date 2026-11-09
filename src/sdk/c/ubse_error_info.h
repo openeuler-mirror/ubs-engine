@@ -50,6 +50,13 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
     [UBS_ENGINE_ERR_NODE_NOT_EXIST - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_NOT_EXIST", "UBSE node does not exist"},
     [UBS_ENGINE_ERR_NODE_FAULT - UBSE_ERR_CODE] = &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_FAULT", "UBSE node fault"},
+    [UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS", "Migration is in progress"},
+    [UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED", "Migration precondition check failed"},
+    [UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED",
+                            "New use or migration is blocked; detach/delete and recreate shared memory"},
 };
 
 #ifdef __cplusplus

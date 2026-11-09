@@ -1197,6 +1197,35 @@ TEST_F(TestUbseMemRpc, RegisterShareBorrowHandlers)
     MOCKER(func4).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
 
+    // 迁移请求和业务结果均只同步确认入队，异步结果使用独立 opcode。
+    const auto func5 = &UbseComModule::RegRpcService<UbseMemMigrateSwitchBeginImportReqSimpo, UbseMemCallbackMessage>;
+    MOCKER(func5).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func6 = &UbseComModule::RegRpcService<UbseMemMigrateBeginExportReqSimpo, UbseMemCallbackMessage>;
+    MOCKER(func6).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func7 = &UbseComModule::RegRpcService<UbseMemMigrateEndExportReqSimpo, UbseMemCallbackMessage>;
+    MOCKER(func7).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func8 = &UbseComModule::RegRpcService<UbseMemMigrateDataCopyReqSimpo, UbseMemCallbackMessage>;
+    MOCKER(func8).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func9 = &UbseComModule::RegRpcService<UbseMemMigrateSwitchEndImportReqSimpo, UbseMemCallbackMessage>;
+    MOCKER(func9).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func10 = &UbseComModule::RegRpcService<UbseMemMigrateOpRespSimpo, UbseMemCallbackMessage>;
+    MOCKER(func10).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
+    const auto func11 = &UbseComModule::RegRpcService<UbseMemMigrateBeginExportRespSimpo, UbseMemCallbackMessage>;
+    MOCKER(func11).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_ERROR);
+
     EXPECT_EQ(MemScheduleHandler::RegisterShareBorrowHandlers(comModule), UBSE_OK);
 }
 
