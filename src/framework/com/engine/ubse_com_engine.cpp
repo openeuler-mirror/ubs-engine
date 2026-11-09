@@ -338,6 +338,7 @@ void SetChannelThreshold(ubs_hcom_channel channel)
     ubs_hcom_twoside_threshold th{};
     // hcom拆包阈值，需要预留TLS加密的空间，splitThreshold不能超过maxSendRecvDataSize
     th.splitThreshold = SEND_RECEIVE_SIZE - NO_1024;
+    th.rndvThreshold = UINT32_MAX;
     ubs_hcom_channel_set_twoside_threshold(channel, th);
 }
 
@@ -1696,7 +1697,7 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx& message, const UbseCo
     }
     ubs_hcom_channel_request reqMsg{};
     if (data.len > TCP_SEND_RECEIVE_SIZE) {
-        UBSE_LOG_CRIT << "Too large msg for tcp reply, msg_size=" << data.len;
+        UBSE_LOG_DEBUG << "large msg for tcp reply, msg_size=" << data.len;
     }
     reqMsg.address = data.data;
     reqMsg.size = data.len;
