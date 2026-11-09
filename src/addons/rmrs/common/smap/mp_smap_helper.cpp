@@ -13,6 +13,7 @@
 #include "mp_smap_helper.h"
 #include <algorithm>
 #include <cctype>
+#include <memory>
 #include <sstream>
 #include "ubse_def.h"
 #include "ubse_logger.h"
@@ -754,10 +755,10 @@ MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, in
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MpSmapHelper] Input remoteNuma, srcNid = " << srcNid << ", destNid = " << destNid << ".";
 
-    if (len < 0 || len > MAX_NR_MIGOUT) {
+    if (len < 0 || len > MAX_NR_MIGRATE_ESCAPE) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpSmapHelper] Invalid pid count, expected max_size=" << MAX_NR_MIGOUT << ", actual_size=" << len
-            << ".";
+            << "[MpSmapHelper] Invalid pid count, expected max_size=" << MAX_NR_MIGRATE_ESCAPE
+            << ", actual_size=" << len << ".";
         return MEM_POOLING_ERROR;
     }
 
@@ -998,10 +999,11 @@ void MpSmapHelper::RollBackSmapEnablePids(std::vector<pid_t>& pids)
     PidSmapEnableCompleted::Instance().Remove(oldPids);
 }
 
-MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
-    const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio)
+void MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
+    const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio,
+    MigrateOutMsg& migrateOutMsg)
 {
-    MigrateOutMsg migrateOutMsg{};
+    migrateOutMsg = {};
 
     // 1、按pid分组
     std::unordered_map<pid_t, std::vector<size_t>> grouped;
@@ -1015,7 +1017,7 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
             << "[MpSmapHelper] Invalid migrate-out count, expected max_size=" << MAX_NR_MIGOUT_MP
             << ", actual_size=" << migrateOutMsg.count << ".";
         migrateOutMsg.count = 0;
-        return migrateOutMsg;
+        return;
     }
 
     // 2、 填充payload
@@ -1041,14 +1043,12 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
 
         payloadIdx++;
     }
-
-    return migrateOutMsg;
 }
 
-MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommit(
-    const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio)
+void MpSmapHelper::GetMigrateOutMsgInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
+                                                const uint16_t ratio, MigrateOutMsg& migrateOutMsg)
 {
-    MigrateOutMsg migrateOutMsg{};
+    migrateOutMsg = {};
     migrateOutMsg.count = static_cast<int>(memMigrateResults.size());
 
     if (migrateOutMsg.count > MAX_NR_MIGOUT_MP) {
@@ -1056,7 +1056,7 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommit(
             << "[MpSmapHelper] Invalid migrate-out count, expected max_size= " << MAX_NR_MIGOUT_MP
             << ", actual_size=" << migrateOutMsg.count << ".";
         migrateOutMsg.count = 0;
-        return migrateOutMsg;
+        return;
     }
     int indexOfMigrateOutPayloadInner = 0; // 当前版本仅支持单远端numa
     for (int i = 0; i < migrateOutMsg.count; i++) {
@@ -1072,7 +1072,6 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommit(
             << ", memSize=" << migrateOutMsg.payload[i].inner[indexOfMigrateOutPayloadInner].memSize
             << ", migrateMode=" << migrateOutMsg.payload[i].inner[indexOfMigrateOutPayloadInner].migrateMode << ".";
     }
-    return migrateOutMsg;
 }
 
 MpResult MpSmapHelper::MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
@@ -1084,17 +1083,18 @@ MpResult MpSmapHelper::MigrateOutInOverCommit(const std::vector<over_commit::Mem
         return MEM_POOLING_ERROR;
     };
 
-    MigrateOutMsg migrateOutMsg;
+    auto migrateOutMsg = std::make_unique<MigrateOutMsg>();
     if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
         MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
         // 多numa场景+虚机场景 迁移策略生成
-        migrateOutMsg = GetMigrateOutMsgInOverCommitMultiNuma(memMigrateResults, ratio);
+        GetMigrateOutMsgInOverCommitMultiNuma(memMigrateResults, ratio, *migrateOutMsg);
     } else {
         // 单numa场景 迁移策略生成
-        migrateOutMsg = GetMigrateOutMsgInOverCommit(memMigrateResults, ratio);
+        GetMigrateOutMsgInOverCommit(memMigrateResults, ratio, *migrateOutMsg);
     }
 
-    const auto ret = smapMigrateOutFunc(&migrateOutMsg, static_cast<int>(MpConfiguration::GetInstance().GetPageType()));
+    const auto ret =
+        smapMigrateOutFunc(migrateOutMsg.get(), static_cast<int>(MpConfiguration::GetInstance().GetPageType()));
     if (ret == SMAP_PARTIAL_SUCCESS) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] MigrateOutInOverCommit Partial success.";
         return MEM_POOLING_SMAP_PARTIAL_SUCCESS;

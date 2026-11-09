@@ -80,11 +80,12 @@ public:
     static MpResult SetSmapRemoteNumaInfo(const int16_t& srcNumaId,
                                           const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs);
 
-    static MigrateOutMsg GetMigrateOutMsgInOverCommit(
-        const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio);
+    static void GetMigrateOutMsgInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
+                                             const uint16_t ratio, MigrateOutMsg& migrateOutMsg);
 
-    static MigrateOutMsg GetMigrateOutMsgInOverCommitMultiNuma(
-        const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio);
+    static void GetMigrateOutMsgInOverCommitMultiNuma(
+        const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio,
+        MigrateOutMsg& migrateOutMsg);
 
     static MpResult MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
                                            uint16_t ratio = SMAP_RATIO_MP);

@@ -1123,9 +1123,9 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, const std::vector<PerRemoteNuma
         LOG_ERROR << "[FaultManager][Simplified] No per-numa borrow entries for pending pid=" << pid << ".";
         return MEM_POOLING_ERROR;
     }
-    if (perNumaBorrows.size() > static_cast<size_t>(MAX_NR_MIGOUT)) {
+    if (perNumaBorrows.size() > static_cast<size_t>(MAX_NR_MIGRATE_ESCAPE)) {
         LOG_ERROR << "[FaultManager][Simplified] Too many per-numa entries for pending pid=" << pid
-                  << ", count=" << perNumaBorrows.size() << ", max=" << MAX_NR_MIGOUT << ".";
+                  << ", count=" << perNumaBorrows.size() << ", max=" << MAX_NR_MIGRATE_ESCAPE << ".";
         return MEM_POOLING_ERROR;
     }
 

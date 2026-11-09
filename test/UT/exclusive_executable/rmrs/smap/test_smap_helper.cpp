@@ -1164,7 +1164,8 @@ TEST_F(TestSmapHelper, GetMigrateOutMsgInOverCommit_Success)
     memMigrateResults.push_back(migrateResults);
     uint16_t ratio = 25;
 
-    MigrateOutMsg migrateOutMsg = MpSmapHelper::GetInstance().GetMigrateOutMsgInOverCommit(memMigrateResults, ratio);
+    MigrateOutMsg migrateOutMsg{};
+    MpSmapHelper::GetInstance().GetMigrateOutMsgInOverCommit(memMigrateResults, ratio, migrateOutMsg);
     EXPECT_EQ(migrateOutMsg.count, 1);
     GlobalMockObject::verify();
 }
