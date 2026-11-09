@@ -3891,7 +3891,7 @@ void RunP0ShmGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 
     IT_LOG_INFO << "Getting SHM with null shm_desc pointer";
     int32_t ret = sdk.MemShmGet(name, nullptr);
-    EXPECT_IT_ERROR(ret, UBSE_ERR_NOT_EXIST);
+    EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
     IT_LOG_INFO << "P0-ShmGet-NullPtr-01 done";
 }
 

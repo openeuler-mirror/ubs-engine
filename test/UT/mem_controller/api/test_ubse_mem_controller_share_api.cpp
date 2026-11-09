@@ -12,17 +12,29 @@
 #include "test_ubse_mem_controller_share_api.h"
 #include <src/adapter_plugins/mmi/ubse_mmi_module.h>
 #include "ubse_mem_scheduler_impl.h"
+#include "test_ubse_mem_controller_share_helper.h"
 
 using ubse::mem::scheduler::SchedulerImpl;
 #include <iostream>
 #include "ubse_com_module.h"
 #include "ubse_election.h"
+#include "ubse_mem_async_processor.h"
 #include "ubse_mem_controller_api_common.h"
+#include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_sign_verifier.h"
+#include "ubse_mem_util.h"
 #include "ubse_node.h"
+#include "ubse_timer.h"
 #include "ubse_topo_util.h"
+#include "api/ubse_mem_controller_share_api.h"
+#include "debt/ubse_mem_debt_info_query.h"
 #include "debt/ubse_mem_debt_ledger.h"
 #include "message/ubse_mem_simpo_types.h"
+
+namespace ubse::mem::controller {
+uint32_t ShareExportMasterCallback(const std::string& exportNodeId,
+                                   ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj& exportObj);
+}
 
 namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;
@@ -806,6 +818,31 @@ TEST_F(TestUbseMemControllerShareApi, ShareExportMasterCallbackTest)
     EXPECT_EQ(UBSE_OK, ret);
 }
 
+TEST_F(TestUbseMemControllerShareApi, AgentDeleteFailureRestoresExportSuccess)
+{
+    election::UbseRoleInfo currentInfo{};
+    currentInfo.nodeId = NODE_TWO;
+    MOCKER(election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&election::UbseGetMasterInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<com::UbseComModule>()));
+    MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmUnExportExecutor).stubs().will(returnValue(UBSE_ERROR));
+    SendShareExportObjMockSet();
+    for (const auto& requestNodeId : {std::string{}, NODE_ONE}) {
+        UbseMemShareBorrowExportObj exportObj{};
+        ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_DESTROYING, UBSE_MEM_EXPORT_DESTROYED);
+        exportObj.returnReq.requestNodeId = requestNodeId;
+        EXPECT_EQ(UBSE_OK, UbseMemShareBorrowExportObjCallback(exportObj));
+        const auto stored = GetShareExportObj(NODE_TWO, SHM_NAME);
+        ASSERT_NE(nullptr, stored);
+        EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, stored->status.state);
+    }
+}
+
 TEST_F(TestUbseMemControllerShareApi, ShareAttachTest)
 {
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
@@ -927,4 +964,5 @@ TEST_F(TestUbseMemControllerShareApi, UpdateFaultShareExportObjTest)
     ret = UpdateFaultShareExportObj(nodeId, memId, memName, type);
     EXPECT_EQ(UBSE_OK, ret);
 }
+
 } // namespace ubse::mem_controller::share::ut

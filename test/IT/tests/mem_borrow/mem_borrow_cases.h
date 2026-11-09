@@ -230,6 +230,7 @@ void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // P0-ShmCreateAttach-Ok-01: 双节点创建1024M共享内存，节点1映射成功
 void RunP0ShmCreateAttachOk01(ubse::it::infra::ItCluster& cluster);
+void RunShmMigrateLedger(ubse::it::infra::ItCluster& cluster, bool targetAttached, bool failBegin = false);
 
 // ==================== ubs_mem_shm_get ====================
 void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster);

@@ -581,7 +581,7 @@ void ItNode::DestroyObmmShm()
     }
 }
 
-UbseResult ItNode::SetObmmFault(uint32_t failMask, int errnoVal, const uint32_t count[8])
+UbseResult ItNode::SetObmmFault(uint32_t failMask, int errnoVal, const uint32_t count[ObmmStubControl::OP_COUNT])
 {
     if (obmmCtrl_ == nullptr) {
         IT_LOG_ERROR << "OBMM shm not initialized for node " << spec_.nodeId;

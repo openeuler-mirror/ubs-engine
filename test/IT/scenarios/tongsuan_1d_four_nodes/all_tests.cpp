@@ -19,6 +19,21 @@
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
 
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ShmMigrateToUnattachedTargetLedger)
+{
+    ubse::it::tests::mem_borrow::RunShmMigrateLedger(Cluster(), false);
+}
+
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ShmMigrateToAttachedTargetLedger)
+{
+    ubse::it::tests::mem_borrow::RunShmMigrateLedger(Cluster(), true);
+}
+
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ShmMigrateToAttachedTargetBeginExportFailure)
+{
+    ubse::it::tests::mem_borrow::RunShmMigrateLedger(Cluster(), true, true);
+}
+
 // ====================================================================
 // P0 测试 — SDK 接口自身正确性
 // ====================================================================

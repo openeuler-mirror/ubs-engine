@@ -1532,6 +1532,30 @@ TEST_F(TestUbsEngineMem, UbsMemShmListWithPrefixTest_NormalCase)
     }
 }
 
+TEST_F(TestUbsEngineMem, UbsMemShmListPreservesMigratingStage)
+{
+    auto shmList = BuildShmDescList();
+    shmList.front().state = UbseMemStage::UBSE_MIGRATING;
+    shmList.front().importDesc.front().state = UbseMemStage::UBSE_MIGRATING;
+    ipc::UbseIpcMessage message{};
+    ASSERT_EQ(UBSE_OK, UbseMemShmListResponsePack(shmList, message));
+    ubse_api_buffer_t buffer{};
+    buffer.buffer = static_cast<uint8_t*>(malloc(message.length));
+    ASSERT_NE(nullptr, buffer.buffer);
+    buffer.length = message.length;
+    ASSERT_EQ(EOK, memcpy_s(buffer.buffer, buffer.length, message.buffer, message.length));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&buffer)).will(returnValue(UBSE_OK));
+    ubs_mem_shm_desc_t* result = nullptr;
+    uint32_t count = 0;
+    ASSERT_EQ(UBS_SUCCESS, ubs_mem_shm_list_with_prefix("shm", &result, &count));
+    ASSERT_EQ(2U, count);
+    EXPECT_EQ(UBSE_MIGRATING, result[0].mem_stage);
+    ASSERT_EQ(1U, result[0].import_desc_cnt);
+    EXPECT_EQ(UBSE_MIGRATING, result[0].import_desc[0].mem_stage);
+    EXPECT_EQ(UBSE_EXIST, result[1].mem_stage);
+    free(result);
+}
+
 // 测试参数为空的情况
 TEST_F(TestUbsEngineMem, UbsMemShmListWithPrefixTest_NullPointerCase)
 {
@@ -1722,6 +1746,72 @@ TEST_F(TestUbsEngineMem, UbsMemGetMemidByImportTest_UnpackFailure)
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
     int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_NE(ret, UBS_SUCCESS);
+}
+
+// ubs_mem_shm_migrate 非法参数
+TEST_F(TestUbsEngineMem, UbsMemShmMigrateWhenInvalidParameters)
+{
+    // name为nullptr
+    EXPECT_EQ(UBS_ERR_INVALID_ARG, ubs_mem_shm_migrate(nullptr, 12));
+
+    // name为空串
+    EXPECT_EQ(UBS_ERR_INVALID_ARG, ubs_mem_shm_migrate("", 12));
+
+    // target_slot_id为0
+    EXPECT_EQ(UBS_ERR_INVALID_ARG, ubs_mem_shm_migrate("test", 0));
+
+    // target_slot_id超出最大slot数
+    EXPECT_EQ(UBS_ERR_INVALID_ARG, ubs_mem_shm_migrate("test", UBS_MEM_MAX_SLOT_NUM + 1));
+}
+
+// ubs_mem_shm_migrate ubse_invoke_call 失败
+TEST_F(TestUbsEngineMem, UbsMemShmMigrateWhenInvokeCallFailed)
+{
+    MOCKER(ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    auto ret = ubs_mem_shm_migrate("test", 12);
+    EXPECT_EQ(ret, UBS_ERR_IPC_CONNECTION_FAILED);
+}
+
+// ubs_mem_shm_migrate 响应解包失败(响应不完整)
+TEST_F(TestUbsEngineMem, UbsMemShmMigrateWhenUnpackFailed)
+{
+    // 构造不完整响应：空payload, 缺少errCode
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(1));
+    respBuffer.length = 0;
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+
+    auto ret = ubs_mem_shm_migrate("test", 12);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+// ubs_mem_shm_migrate 正常流程：errCode=0
+TEST_F(TestUbsEngineMem, UbsMemShmMigrateWhenSuccess)
+{
+    // 构造正常响应：errCode（本机字节序直排）
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.length = sizeof(uint32_t);
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
+    uint32_t err_code = 0;
+    memcpy(respBuffer.buffer, &err_code, sizeof(uint32_t));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+
+    auto ret = ubs_mem_shm_migrate("test", 12);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+}
+
+// ubs_mem_shm_migrate 服务端业务错误码透传(幂等命中MIGRATE_IN_PROGRESS也透传错误码)
+TEST_F(TestUbsEngineMem, UbsMemShmMigrateWhenBizError)
+{
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.length = sizeof(uint32_t);
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
+    uint32_t err_code = 1042; // UBSE_ERR_MIGRATE_IN_PROGRESS
+    memcpy(respBuffer.buffer, &err_code, sizeof(uint32_t));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+
+    auto ret = ubs_mem_shm_migrate("test", 12);
     EXPECT_NE(ret, UBS_SUCCESS);
 }
 } // namespace ubse::sdk::ut

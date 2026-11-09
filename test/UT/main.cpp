@@ -24,6 +24,7 @@
 #include <chrono>
 #include <climits>
 #include <condition_variable>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -340,6 +341,7 @@ public:
         testThread_ = pthread_self();
         testTid_ = static_cast<pid_t>(syscall(SYS_gettid));
         start_ = std::chrono::steady_clock::now();
+        ++generation_;
         running_ = true;
         cv_.notify_all();
     }
@@ -360,12 +362,13 @@ private:
             if (stopping_) {
                 return;
             }
+            const auto generation = generation_;
             auto deadline = start_ + std::chrono::seconds(g_testTimeoutSec.load());
-            while (running_ && std::chrono::steady_clock::now() < deadline) {
+            while (running_ && generation_ == generation && std::chrono::steady_clock::now() < deadline) {
                 cv_.wait_until(lk, deadline); // OnTestEnd 会提前唤醒
             }
-            if (!running_) {
-                continue; // 用例正常结束
+            if (!running_ || generation_ != generation) {
+                continue; // 用例结束或下一用例已开始，重新计算截止时间
             }
             fprintf(stderr, "\n[UT-TIMEOUT] test '%s' exceeded the %ds limit, aborting\n", currentTest_.c_str(),
                     g_testTimeoutSec.load());
@@ -384,6 +387,7 @@ private:
     std::thread thread_;
     std::mutex mtx_;
     std::condition_variable cv_;
+    uint64_t generation_{0};
     std::string currentTest_;
     pthread_t testThread_{};
     pid_t testTid_ = -1;

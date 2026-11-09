@@ -61,6 +61,14 @@ if [ -n "$(collect_pids)" ]; then
     collect_pids | while read -r pid; do
         warn "  pid=$pid $(cat /proc/$pid/comm 2>/dev/null || echo '?') $(cat /proc/$pid/status 2>/dev/null | grep '^State:' || true)"
     done
+else
+    # 异常退出会留下故障注入共享内存；跨用户重跑时 O_CREAT 可能被拒绝。
+    # 仅在 IT 进程全部退出后清理本框架的数字节点对象。
+    for shm in /dev/shm/obmm_stub_* /dev/shm/com_stub_*; do
+        [ -e "$shm" ] || continue
+        [[ "$shm" =~ ^/dev/shm/(obmm|com)_stub_[0-9]+$ ]] || continue
+        rm -f -- "$shm" || warn "无法清理故障注入共享内存: $shm"
+    done
 fi
 
 # 4. 端口占用检查：被非 IT 进程持有则提前告警（避免事后神秘的全 suite 失败）

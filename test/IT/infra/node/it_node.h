@@ -176,7 +176,8 @@ public:
      *                  means persistent failure; >0 means fail N times then
      *                  auto-recover.
      */
-    UbseResult SetObmmFault(uint32_t failMask, int errnoVal = ENOMEM, const uint32_t count[8] = nullptr);
+    UbseResult SetObmmFault(uint32_t failMask, int errnoVal = ENOMEM,
+                            const uint32_t count[ObmmStubControl::OP_COUNT] = nullptr);
 
     /** @brief Restore OBMM to normal (clear all fault bits). */
     UbseResult RestoreObmmFault();

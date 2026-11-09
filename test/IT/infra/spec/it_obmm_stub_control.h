@@ -45,10 +45,13 @@ namespace ubse::it::infra {
  *   bit 5: query_pa
  *   bit 6: preimport
  *   bit 7: unpreimport
+ *   bit 8: switch_begin_import
+ *   bit 9: switch_begin_export
+ *   bit 10: switch_end
  */
 struct ObmmStubControl {
     static constexpr uint32_t MAGIC = 0xDEADBEEFu;
-    static constexpr uint32_t OP_COUNT = 8;
+    static constexpr uint32_t OP_COUNT = 11;
 
     std::atomic<uint32_t> magic{0};
     std::atomic<uint32_t> failMask{0};
@@ -67,6 +70,9 @@ struct ObmmStubControl {
         OP_QUERY_PA = 5,
         OP_PREIMPORT = 6,
         OP_UNPREIMPORT = 7,
+        OP_SWITCH_BEGIN_IMPORT = 8,
+        OP_SWITCH_BEGIN_EXPORT = 9,
+        OP_SWITCH_END = 10,
     };
 };
 

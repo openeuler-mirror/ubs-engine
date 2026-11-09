@@ -119,6 +119,20 @@ TEST_F(TestUbseMemControllerModule, DelHandleByMapDiff)
     EXPECT_EQ(faultInfo[0].handle, 5);
 }
 
+TEST_F(TestUbseMemControllerModule, TemporaryDecoderProtectedWithoutSocketMatch)
+{
+    DecoderLocTohandleValueMap allHandleValues;
+    DecoderEntryLoc loc{.ubpuId = 1, .iouId = 2, .marId = 3, .decoderId = 1};
+    UbseMamiMemHandleValue value{};
+    value.handle = 123;
+    allHandleValues[loc].push_back(value);
+    DecoderLocTohandleMap handleMap;
+    std::vector<UbseMamiMemWithdraw> faultInfo;
+    // 正式账本没有该位置；临时 handle 仍受保护，不应调用设备删除接口。
+    DelHandleByMapDiff(allHandleValues, handleMap, faultInfo, {123});
+    EXPECT_TRUE(faultInfo.empty());
+}
+
 void MockDelHandleByMapDiffFaultInfoNotEmpty([[maybe_unused]] const DecoderLocTohandleValueMap& allHandleValues,
                                              [[maybe_unused]] const DecoderLocTohandleMap& handleMap,
                                              std::vector<UbseMamiMemWithdraw>& outFaultInfo,

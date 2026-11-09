@@ -15,6 +15,7 @@
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_mem_migrate_session.h"
 #include "ubse_node_controller_query_api.h"
 #include "debt/ubse_mem_debt_ledger.h"
 
@@ -42,6 +43,7 @@ void TestUbseMemDebtInfoQueryShare::SetUp()
 {
     Test::SetUp();
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
 }
 
 void TestUbseMemDebtInfoQueryShare::TearDown()
@@ -49,6 +51,7 @@ void TestUbseMemDebtInfoQueryShare::TearDown()
     Test::TearDown();
     GlobalMockObject::verify();
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
 }
 
 static uint32_t MockGetCurrentNodeInfoMaster(UbseRoleInfo& info)
@@ -343,6 +346,83 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmList_ExportOnly)
     EXPECT_EQ(result[0].totalMemSize, 2048);
 }
 
+TEST_F(TestUbseMemDebtInfoQueryShare, ShmGetUsesIndexAndListDeduplicatesDuringMigration)
+{
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(invoke(MockGetCurrentNodeInfoMaster));
+    MOCKER_CPP(UbseNodeGetByNodeIdInMaster).stubs().will(invoke(MockNodeGetByNodeIdInMaster));
+    const std::string name = "shm_query_migration";
+    UbseMemShareBorrowExportObj source{};
+    source.req.name = name;
+    source.req.udsInfo.username = "ubse";
+    source.req.size = 1024;
+    source.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    source.algoResult.exportNumaInfos = {{"2", 0, 0, 1024}};
+    auto target = source;
+    target.status.state = UBSE_MEM_EXPORT_RUNNING;
+    target.algoResult.exportNumaInfos.front().nodeId = "4";
+    target.algoResult.blockSize = 256; // 用布局差异识别实际被查询的对象。
+    auto& exports = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
+    exports.PutResource("2", name, source);
+    exports.PutResource("4", name, target);
+    auto& sessions = UbseMemShmMigrateSessionManager::GetInstance();
+    ASSERT_TRUE(sessions.GetOrCreateSession(name, "2", "4", 2).second);
+    UbseMemDebtQueryRequest req{};
+    req.name = name;
+    req.udsInfo.username = "ubse";
+    for (const auto state : {UBS_MEM_MIGRATE_STATE_INIT, UBS_MEM_MIGRATE_STATE_EXPORTING,
+                             UBS_MEM_MIGRATE_STATE_DATA_COPYING, UBS_MEM_MIGRATE_STATE_FINISHING}) {
+        sessions.UpdateSessionState(name, state);
+        for (const auto& nodeId : {std::string("2"), std::string("4")}) {
+            exports.PutResource(nodeId, name, nodeId == "2" ? source : target);
+            UbseMemShmDesc one{};
+            std::vector<UbseMemShmDesc> all;
+            ASSERT_EQ(UBSE_OK, UbseMemShmGet(req, one));
+            ASSERT_EQ(UBSE_OK, UbseMemShmList(req, all));
+            ASSERT_EQ(1U, all.size());
+            EXPECT_EQ(UbseMemStage::UBSE_MIGRATING, one.state);
+            EXPECT_EQ(one.state, all.front().state);
+            // List按名称去重，双导出期间不承诺与名称索引选择相同的对象。
+            EXPECT_TRUE(all.front().unitSize == static_cast<uint64_t>(source.algoResult.blockSize) * 1024 * 1024 ||
+                        all.front().unitSize == static_cast<uint64_t>(target.algoResult.blockSize) * 1024 * 1024);
+            EXPECT_EQ(static_cast<uint64_t>(nodeId == "2" ? source.algoResult.blockSize : target.algoResult.blockSize) *
+                          1024 * 1024,
+                      one.unitSize);
+        }
+    }
+    target.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exports.PutResource("4", name, target);
+    sessions.FinishSession(name, UBS_MEM_MIGRATE_STATE_SUCCESS);
+    UbseMemShmDesc result{};
+    ASSERT_EQ(UBSE_OK, UbseMemShmGet(req, result));
+    EXPECT_EQ(UbseMemStage::UBSE_EXIST, result.state);
+}
+
+TEST_F(TestUbseMemDebtInfoQueryShare, ShmMigrationQueryDistinguishesActiveFromRebuildRequired)
+{
+    const std::string name = "shm_query_failure";
+    auto exp = MakeConstShareExportObj(UBSE_MEM_EXPORT_RUNNING, name);
+    auto imp = MakeConstShareImportObj(UBSE_MEM_IMPORT_SUCCESS, name);
+    auto& sessions = UbseMemShmMigrateSessionManager::GetInstance();
+    EXPECT_EQ(UbseMemStage::UBSE_CREATING, GetShmExportStageByObj(exp).stage);
+    ASSERT_TRUE(sessions.GetOrCreateSession(name, "2", "4", 2).second);
+    EXPECT_EQ(UbseMemStage::UBSE_MIGRATING, GetShmImportStageByObj(imp).stage);
+    EXPECT_EQ(UbseMemStage::UBSE_DELETING,
+              GetShmExportStageByObj(MakeConstShareExportObj(UBSE_MEM_EXPORT_DESTROYING, name)).stage);
+    sessions.SetRebuildRequired(name, true);
+    sessions.FinishSession(name, UBS_MEM_MIGRATE_STATE_FAILED, MIGRATE_FAIL_COPY);
+    EXPECT_EQ(UbseMemStage::UBSE_ERR_ABNORMAL, GetShmExportStageByObj(exp).stage);
+    EXPECT_EQ(UbseMemStage::UBSE_ERR_ABNORMAL, GetShmImportStageByObj(imp).stage);
+    sessions.FinishSession(name, UBS_MEM_MIGRATE_STATE_CANCELED);
+    EXPECT_EQ(UbseMemStage::UBSE_ERR_ABNORMAL, GetShmImportStageByObj(imp).stage);
+    EXPECT_EQ(UbseMemStage::UBSE_DELETING,
+              GetShmExportStageByObj(MakeConstShareExportObj(UBSE_MEM_EXPORT_DESTROYING, name)).stage);
+    sessions.SetRebuildRequired(name, false);
+    EXPECT_EQ(UbseMemStage::UBSE_EXIST, GetShmImportStageByObj(imp).stage);
+    sessions.SetRebuildRequired(name, true);
+    sessions.FinishSession(name, UBS_MEM_MIGRATE_STATE_SUCCESS);
+    EXPECT_EQ(UbseMemStage::UBSE_EXIST, GetShmImportStageByObj(imp).stage);
+}
+
 TEST_F(TestUbseMemDebtInfoQueryShare, ShmList_ImportOnly)
 {
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(invoke(MockGetCurrentNodeInfoMaster));
@@ -449,6 +529,32 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmStatusGet_WithFault)
     EXPECT_EQ(desc.memIds[0], 42);
     ASSERT_EQ(desc.faultTypes.size(), 1);
     EXPECT_EQ(desc.faultTypes[0], UB_MEM_ATOMIC_DATA_ERR);
+}
+
+TEST_F(TestUbseMemDebtInfoQueryShare, ShmStatusGet_CurrentSwitchingPreservesOtherFaults)
+{
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(invoke(MockGetCurrentNodeInfoMaster));
+    auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
+    exportObj->req.name = "test";
+    exportObj->status.exportObmmInfo = {
+        {40, {}, UB_MEM_HEALTHY},
+        {41, {}, UB_MEM_SWITCHING},
+        {42, {}, UB_MEM_ATOMIC_DATA_ERR},
+        {43, {}, UB_MEM_HEALTHY},
+    };
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
+                                                                                           exportObj);
+
+    UbseMemDebtQueryRequest request{};
+    request.name = "test";
+    UbseMemShmMemStatusDesc desc{};
+    ASSERT_EQ(UBSE_OK, UbseMemShmStatusGet(request, desc));
+    ASSERT_EQ(2U, desc.memIds.size());
+    ASSERT_EQ(2U, desc.faultTypes.size());
+    EXPECT_EQ(41U, desc.memIds[0]);
+    EXPECT_EQ(UB_MEM_SWITCHING, desc.faultTypes[0]);
+    EXPECT_EQ(42U, desc.memIds[1]);
+    EXPECT_EQ(UB_MEM_ATOMIC_DATA_ERR, desc.faultTypes[1]);
 }
 
 // ==================== UbseShareExportObjGet / UbseShareImportObjGet ====================

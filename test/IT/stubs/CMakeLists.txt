@@ -18,6 +18,10 @@ target_include_directories(obmm_stub PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../infr
 target_compile_options(obmm_stub PRIVATE -fno-strict-aliasing)
 target_link_libraries(obmm_stub PRIVATE rt)
 
+# 独立 soname 与生产 dlopen 一致，不能仅将 memcpy_mt 放在 libobmm.so 中。
+add_library(obmm_accel_stub SHARED obmm_accel_stub.cpp)
+set_target_properties(obmm_accel_stub PROPERTIES OUTPUT_NAME "obmm-accel" VERSION 1 SOVERSION 1)
+
 # URMA UVS stub - produces libtpsa.so so dlopen("libtpsa.so") resolves via LD_LIBRARY_PATH
 # The daemon loads libtpsa.so (which contains uvs_* functions), not liburma_uvs.so
 add_library(urma_uvs_stub SHARED urma_uvs_stub.cpp)

@@ -189,6 +189,16 @@ int32_t ItSdkClient::MemShmGet(const char* name, ubs_mem_shm_desc_t** shmDesc)
     return InvokeSdk([&]() { return ubs_mem_shm_get(name, shmDesc); });
 }
 
+int32_t ItSdkClient::MemShmMigrate(const char* name, uint32_t targetSlotId)
+{
+    return InvokeSdk([&]() { return ubs_mem_shm_migrate(name, targetSlotId); });
+}
+
+int32_t ItSdkClient::MemShmMigrateGet(const char* name, ubs_mem_shm_migrate_desc_t** desc)
+{
+    return InvokeSdk([&]() { return ubs_mem_shm_migrate_get(name, desc); });
+}
+
 int32_t ItSdkClient::MemShmList(ubs_mem_shm_desc_t** shmDescs, uint32_t* shmDescCnt)
 {
     return InvokeSdk([&]() { return ubs_mem_shm_list(shmDescs, shmDescCnt); });

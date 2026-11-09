@@ -12,12 +12,15 @@
 #include "test_mem_instance_inner.h"
 
 #include <securec.h>
+#include <sstream>
 
 #include "ubse_file_util.h"
+#include "ubse_logger.h"
 #include "ubse_mem_instance_inner.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_obmm_executor.h"
+#include "ubse_security_module.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
@@ -37,6 +40,15 @@ using namespace ubse::nodeController;
 static int gAddrImportCount = 0;
 static int gUnPreImportCount = 0;
 static std::vector<mem_id> gUnimportMemIds{};
+static std::vector<std::pair<ubse::log::UbseLogLevel, std::string>> gSwitchLogEntries{};
+
+static bool CaptureSwitchLog(ubse::log::UbseLog*, ubse::log::UbseLoggerEntry& entry)
+{
+    std::ostringstream out;
+    entry.OutPutLog(out);
+    gSwitchLogEntries.emplace_back(entry.GetLogLevel(), out.str());
+    return true;
+}
 
 mem_id MockAddrImportWithUpdatedNuma(RmObmmExecutor* mockClass, const ubse_mem_obmm_mem_desc& desc,
                                      const ObmmOpParam& opParam, int* numa)
@@ -462,5 +474,150 @@ TEST_F(TestMemInstanceInner, MemUnPreOnline_Success)
     MOCKER(&RmObmmExecutor::ObmmUnPreImport).stubs().will(returnValue(UBSE_OK));
     ret = MemInstanceInnerCommon::GetInstance().MemUnPreOnline();
     EXPECT_EQ(ret, UBSE_OK);
+}
+
+// 故障迁移块级切换：Obj→ObmmSwitchParam 逐字段透传 + 基础参数校验 + end 三态返回
+TEST_F(TestMemInstanceInner, MemShmSwitchBeginImportExecutor_FieldRoundTrip)
+{
+    // 字段透传测试不依赖运行环境实际具有 CAP_SYS_ADMIN。
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    auto& executor = RmObmmExecutor::GetInstance();
+    auto oldBeginFunc = executor.obmmSwitchBeginImportFunc;
+    auto oldEndFunc = executor.obmmSwitchEndFunc;
+
+    static struct obmm_switch_import_target captured {
+    };
+    static uint8_t capturedPriv[OBMM_MAX_PRIV_LEN] = {};
+    static unsigned long capturedFlags = 0;
+    static mem_id capturedId = 0;
+    static uint16_t capturedLen = 0;
+    executor.obmmSwitchBeginImportFunc = [](mem_id id, unsigned long flags,
+                                            const struct obmm_switch_import_target* target, const void* priv,
+                                            uint16_t privLen) {
+        captured = *target;
+        if (privLen > 0) {
+            memcpy_s(capturedPriv, sizeof(capturedPriv), priv, privLen);
+        }
+        capturedFlags = flags;
+        capturedId = id;
+        capturedLen = privLen;
+        return 0;
+    };
+
+    UbseMemShmSwitchObj switchObj{};
+    switchObj.name = "migrate-res";
+    switchObj.importNodeId = "node-1";
+    switchObj.oldImportMemId = 42;
+    switchObj.newPa = 0x1234567800ULL;
+    switchObj.newScna = 7;
+    switchObj.newDcna = 9;
+    switchObj.baseDist = 21;
+    switchObj.newSeid = {1, 2, 3};
+    switchObj.newDeid = {4, 5, 6};
+    switchObj.priv = {0xAA, 0xBB, 0xCC};
+
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_OK);
+    EXPECT_EQ(capturedId, 42u);
+    EXPECT_EQ(captured.pa, 0x1234567800ULL);
+    EXPECT_EQ(captured.scna, 7u);
+    EXPECT_EQ(captured.dcna, 9u);
+    EXPECT_EQ(captured.base_dist, 21u);
+    EXPECT_EQ(captured.seid[0], 1);
+    EXPECT_EQ(captured.seid[1], 2);
+    EXPECT_EQ(captured.deid[0], 4);
+    EXPECT_EQ(capturedLen, 3u);
+    EXPECT_EQ(capturedPriv[0], 0xAA);
+    EXPECT_EQ(capturedFlags, OBMM_SWITCH_FLAG_KEEP_OLD_ALIVE);
+
+    // end 透传：success 映射 1/0，返回值直通（三态语义由对接层翻译，已在对接层 UT 覆盖）
+    static int capturedSuccess = -1;
+    executor.obmmSwitchEndFunc = [](mem_id id, int success) {
+        EXPECT_EQ(id, 42u);
+        capturedSuccess = success;
+        return 0;
+    };
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchEndExecutor(switchObj, true), UBSE_OK);
+    EXPECT_EQ(capturedSuccess, 1);
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchEndExecutor(switchObj, false), UBSE_OK);
+    EXPECT_EQ(capturedSuccess, 0);
+
+    executor.obmmSwitchBeginImportFunc = oldBeginFunc;
+    executor.obmmSwitchEndFunc = oldEndFunc;
+}
+
+TEST_F(TestMemInstanceInner, MemShmSwitchBeginImportExecutor_IllegalParam)
+{
+    UbseMemShmSwitchObj switchObj{};
+    switchObj.name = "migrate-res";
+    // memId 为 0
+    switchObj.newPa = 0x1234567800ULL;
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_ERROR_INVAL);
+    // newPa 为 0
+    switchObj.oldImportMemId = 42;
+    switchObj.newPa = 0;
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestMemInstanceInner, MemShmSwitchBeginImportExecutor_PaOnlyInDebugLog)
+{
+    gSwitchLogEntries.clear();
+    MOCKER_CPP(ubse::log::UbseIsLog, bool (*)(ubse::log::UbseLogLevel)).stubs().will(returnValue(true));
+    MOCKER_CPP(&ubse::log::UbseLog::operator==).stubs().will(invoke(CaptureSwitchLog));
+    MOCKER_CPP(&RmObmmExecutor::ObmmSwitchBeginImport).stubs().will(returnValue(UBSE_OK));
+
+    UbseMemShmSwitchObj switchObj{};
+    switchObj.name = "migrate-log-test";
+    switchObj.importNodeId = "4";
+    switchObj.oldImportMemId = 42;
+    switchObj.newPa = 0x1234567800ULL;
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_OK);
+    switchObj.oldImportMemId = 0;
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_ERROR_INVAL);
+
+    bool hasDebugPa = false;
+    bool hasInfo = false;
+    bool hasError = false;
+    const auto address = std::to_string(switchObj.newPa);
+    for (const auto& [level, message] : gSwitchLogEntries) {
+        if (level == ubse::log::UbseLogLevel::DEBUG) {
+            hasDebugPa = hasDebugPa || message.find(address) != std::string::npos;
+        } else {
+            EXPECT_EQ(message.find(address), std::string::npos);
+        }
+        hasInfo = hasInfo || level == ubse::log::UbseLogLevel::INFO;
+        hasError = hasError || level == ubse::log::UbseLogLevel::ERROR;
+    }
+    EXPECT_TRUE(hasDebugPa);
+    EXPECT_TRUE(hasInfo);
+    EXPECT_TRUE(hasError);
+}
+
+TEST_F(TestMemInstanceInner, ImportObjectFormattingIncludesCurrentAddresses)
+{
+    UbseMemShmSwitchObj switchObj{};
+    switchObj.name = "migrate-log-test";
+    switchObj.oldImportMemId = 42;
+    switchObj.newPa = 0x1234567800ULL;
+    UbseMemShareBorrowImportObj importObj{};
+    importObj.exportObmmInfo.resize(1);
+    importObj.exportObmmInfo[0].memId = 43;
+    importObj.exportObmmInfo[0].desc.addr = 0x2345678900ULL;
+    importObj.status.decoderResult.resize(1);
+    importObj.status.decoderResult[0].hpa = switchObj.newPa;
+    std::ostringstream before;
+    before << switchObj << importObj;
+
+    // 通用格式化包含当前地址；实际日志输出策略由调用点决定。
+    switchObj.newPa = 0x3456789A00ULL;
+    importObj.exportObmmInfo[0].desc.addr = 0x456789AB00ULL;
+    importObj.status.decoderResult[0].hpa = switchObj.newPa;
+    std::ostringstream after;
+    after << switchObj << importObj;
+    EXPECT_NE(before.str(), after.str());
+    EXPECT_NE(after.str().find(std::to_string(switchObj.newPa)), std::string::npos);
+    EXPECT_NE(after.str().find(std::to_string(importObj.exportObmmInfo[0].desc.addr)), std::string::npos);
+    EXPECT_NE(after.str().find("migrate-log-test"), std::string::npos);
+    EXPECT_NE(after.str().find("oldImportMemId: 42"), std::string::npos);
+    EXPECT_NE(after.str().find("memId: 43"), std::string::npos);
 }
 } // namespace ubse::ut::mmi
