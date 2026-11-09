@@ -24,6 +24,17 @@ using namespace ubse::mem::util;
 using namespace ubse::mti;
 using namespace ubse::task_executor;
 
+TEST_F(TestUbseMemUtils, NameSupports64BytesExcludingTerminator)
+{
+    EXPECT_TRUE(CheckName(std::string(47, 'a')));
+    EXPECT_TRUE(CheckName(std::string(48, 'a')));
+    EXPECT_TRUE(CheckName(std::string(63, 'a')));
+    EXPECT_TRUE(CheckName(std::string(64, 'a')));
+    EXPECT_FALSE(CheckName(std::string(65, 'a')));
+    EXPECT_FALSE(CheckName(""));
+    EXPECT_FALSE(CheckName(std::string(62, 'a') + std::string("\0", 1)));
+}
+
 void TestUbseMemUtils::SetUp()
 {
     Test::SetUp();

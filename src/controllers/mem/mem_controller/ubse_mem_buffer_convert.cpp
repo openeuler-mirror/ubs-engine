@@ -25,7 +25,7 @@
 #include "ubse_str_util.h"
 #include "securec.h"
 
-constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 48;
+constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 64;
 constexpr uint32_t MAX_LENDER_CNT = TOPOLOGY_MAX_NUMA_PER_SOCKET;
 constexpr uint32_t SDK_DEFAULT_VALUE = 0xFFFFFFFF;
 constexpr uint32_t MAX_SLOT_ID_COUNT = 16;
@@ -90,7 +90,7 @@ static uint32_t UbseMemFdDescPackInner(const ubse::mem::def::UbseMemFdDesc& fdDe
     }
 
     // 打包name
-    if (!packUtil.UbsePackString(fdDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
+    if (!packUtil.UbsePackString(fdDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
@@ -144,7 +144,7 @@ static uint32_t UbseMemShmDescPackInner(const def::UbseMemShmDesc& shmDesc, Ubse
     packUtil.UbsePackUint32(shmDesc.importDesc.size());
 
     // 打包name
-    if (!packUtil.UbsePackString(shmDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
+    if (!packUtil.UbsePackString(shmDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
     // 打包mem_size (64位)
@@ -256,7 +256,7 @@ static uint32_t LenderInfoUnpack(UbseUnpackUtil& unpackUtil, UbseNumaLocation& l
 uint32_t UnpackMemName(std::string& name, UbseUnpackUtil& unpackUtil)
 {
     // 解包 name
-    if (!unpackUtil.UnpackString(name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
+    if (!unpackUtil.UnpackString(name, MAX_MEM_RESOURCE_NAME_LENGTH)) {
         UBSE_LOG_ERROR << "unpack name failed.";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
@@ -481,14 +481,14 @@ size_t UbseMemShmImportDescListCalSize(std::vector<def::UbseMemShmImportDesc> im
 size_t UbseMemShmDescCalcSize(const def::UbseMemShmDesc& shmDesc)
 {
     // import_node_cnt放首位，方便解包时，取出import_node_cnt,然后分配全量内存
-    return sizeof(uint32_t) +                                                   // import_node_cnt
-           UbseStringCalcSize(shmDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
-           sizeof(uint64_t) +                                                   // mem_size
-           sizeof(size_t) +                                                     // unit_size
-           UbseMemNodeCalcSize(shmDesc.exportNode) +                            // exportNode
-           UBSE_MAX_USR_INFO_LEN +                                              // usr_info
-           sizeof(uint32_t) +                                                   // state
-           UbseMemShmImportDescListCalSize(shmDesc.importDesc);                 // importDesc
+    return sizeof(uint32_t) +                                               // import_node_cnt
+           UbseStringCalcSize(shmDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH) + // name
+           sizeof(uint64_t) +                                               // mem_size
+           sizeof(size_t) +                                                 // unit_size
+           UbseMemNodeCalcSize(shmDesc.exportNode) +                        // exportNode
+           UBSE_MAX_USR_INFO_LEN +                                          // usr_info
+           sizeof(uint32_t) +                                               // state
+           UbseMemShmImportDescListCalSize(shmDesc.importDesc);             // importDesc
 }
 size_t UbseMemShmDescListCalcSize(const std::vector<def::UbseMemShmDesc>& shmDescs)
 {
@@ -740,25 +740,25 @@ size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
 size_t UbseMemFdDescCalcSize(const UbseMemOperationResp& memOperationResp, const UbseNode& exportNode,
                              const UbseNode& importNode)
 {
-    return UbseStringCalcSize(memOperationResp.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
-           sizeof(uint32_t) +                                                            // memid_cnt
-           sizeof(uint64_t) * memOperationResp.memIdList.size() +                        // memids有效部分
-           sizeof(uint64_t) +                                                            // mem_size
-           sizeof(size_t) +                                                              // unit_size
-           UbseMemNodeCalcSize(exportNode) +                                             // exportNode
-           UbseMemNodeCalcSize(importNode);                                              // importNode
+    return UbseStringCalcSize(memOperationResp.name, MAX_MEM_RESOURCE_NAME_LENGTH) + // name
+           sizeof(uint32_t) +                                                        // memid_cnt
+           sizeof(uint64_t) * memOperationResp.memIdList.size() +                    // memids有效部分
+           sizeof(uint64_t) +                                                        // mem_size
+           sizeof(size_t) +                                                          // unit_size
+           UbseMemNodeCalcSize(exportNode) +                                         // exportNode
+           UbseMemNodeCalcSize(importNode);                                          // importNode
 }
 
 size_t UbseMemFdDescCalcSize(const ubse::mem::def::UbseMemFdDesc& fdDesc)
 {
-    return UbseStringCalcSize(fdDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
-           sizeof(uint32_t) +                                                  // memid_cnt
-           sizeof(uint64_t) * fdDesc.memIds.size() +                           // memids有效部分
-           sizeof(uint64_t) +                                                  // mem_size
-           sizeof(size_t) +                                                    // unit_size
-           UbseMemNodeCalcSize(fdDesc.exportNode) +                            // exportNode
-           UbseMemNodeCalcSize(fdDesc.importNode) +                            // importNode
-           sizeof(uint32_t);                                                   // state
+    return UbseStringCalcSize(fdDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH) + // name
+           sizeof(uint32_t) +                                              // memid_cnt
+           sizeof(uint64_t) * fdDesc.memIds.size() +                       // memids有效部分
+           sizeof(uint64_t) +                                              // mem_size
+           sizeof(size_t) +                                                // unit_size
+           UbseMemNodeCalcSize(fdDesc.exportNode) +                        // exportNode
+           UbseMemNodeCalcSize(fdDesc.importNode) +                        // importNode
+           sizeof(uint32_t);                                               // state
 }
 
 size_t UbseMemFdDescListCalcSize(const std::vector<ubse::mem::def::UbseMemFdDesc>& fdDescList)
@@ -773,13 +773,13 @@ size_t UbseMemFdDescListCalcSize(const std::vector<ubse::mem::def::UbseMemFdDesc
 
 size_t UbseMemNumaDescCalcSize(const ubse::mem::def::UbseMemNumaDesc& numaDesc)
 {
-    return UbseStringCalcSize(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
-           sizeof(int64_t) +                                                     // numaId
-           UbseMemNodeCalcSize(numaDesc.exportNode) +                            // exportNode
-           UbseMemNodeCalcSize(numaDesc.importNode) +                            // importNode
-           sizeof(int64_t) +                                                     // size
-           sizeof(uint32_t) +                                                    // state
-           UBSE_MAX_USR_INFO_LENGTH;                                             // usrInfo
+    return UbseStringCalcSize(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH) + // name
+           sizeof(int64_t) +                                                 // numaId
+           UbseMemNodeCalcSize(numaDesc.exportNode) +                        // exportNode
+           UbseMemNodeCalcSize(numaDesc.importNode) +                        // importNode
+           sizeof(int64_t) +                                                 // size
+           sizeof(uint32_t) +                                                // state
+           UBSE_MAX_USR_INFO_LENGTH;                                         // usrInfo
 }
 
 size_t UbseMemNumaDescListCalcSize(const std::vector<ubse::mem::def::UbseMemNumaDesc>& numaDescList)
@@ -957,7 +957,7 @@ uint32_t UbseMemFdDescListPack(const std::vector<ubse::mem::def::UbseMemFdDesc>&
 static uint32_t UbseMemNumaDescPackInner(const ubse::mem::def::UbseMemNumaDesc& numaDesc, UbsePackUtil& packUtil)
 {
     // 打包name
-    if (!packUtil.UbsePackString(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
+    if (!packUtil.UbsePackString(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 

@@ -103,14 +103,15 @@ class UbsTopoNodeT(ctypes.Structure):
             f")"
         )
 
-UBSE_MAX_MEM_RESOURCE_NAME_LENGTH = 48
+UBSE_MAX_MEM_RESOURCE_NAME_LENGTH = 64
+UBSE_MEM_RESOURCE_NAME_BUFFER_SIZE = UBSE_MAX_MEM_RESOURCE_NAME_LENGTH + 1
 UBSE_MAX_USR_INFO_LENGTH = 32
 
 
 # C结构体定义
 class UbsMemNumaDescT(ctypes.Structure):
     _fields_ = [
-        ("name", ctypes.c_char * UBSE_MAX_MEM_RESOURCE_NAME_LENGTH),
+        ("name", ctypes.c_char * UBSE_MEM_RESOURCE_NAME_BUFFER_SIZE),
         ("numaid", ctypes.c_int64),
         ("export_node", UbsTopoNodeT),
         ("import_node", UbsTopoNodeT),

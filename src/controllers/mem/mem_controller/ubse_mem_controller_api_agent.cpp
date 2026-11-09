@@ -61,7 +61,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const int8_t CREATE_REQUEST_CHECK_FAILED = 100;
 const int8_t DELETE_REQUEST_CHECK_FAILED = 101;
 const int8_t CREATE_SUCCESS = UBSE_OK;
-const int8_t MAX_NAME_LENGTH = 47;
+const int8_t MAX_NAME_LENGTH = 64;
 
 uint64_t GenRequestId()
 {

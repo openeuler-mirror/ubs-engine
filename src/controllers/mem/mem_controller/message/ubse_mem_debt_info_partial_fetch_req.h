@@ -40,8 +40,8 @@ struct DebtFetchInfo {
 
     bool CheckFilter(std::string& error)
     {
-        if (name.length() > 47) { // max length is 47
-            error = std::string("The length of the name," + std::to_string(name.length()) + ", has exceeded 47.");
+        if (name.length() > 64) { // Maximum resource name length, excluding NUL.
+            error = std::string("The length of the name," + std::to_string(name.length()) + ", has exceeded 64.");
             return false;
         }
 
