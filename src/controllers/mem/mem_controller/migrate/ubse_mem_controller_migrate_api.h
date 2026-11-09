@@ -51,7 +51,7 @@ public:
     /* 执行体：使用受理时登记的导出账本执行普通导出或原导入设备就地切换；块级回调推进并完成收尾。 */
     uint32_t Execute(const std::string& name);
     void Export(const UbseMemShareBorrowExportObj& obj, UbseMemShareBorrowExportObj& rsp);
-    /* agent 执行入口：同名锁内统一校验；requestMasterNodeId 为请求发起 Master，来自可信 RPC 上下文。 */
+    /* agent 执行入口：name+blockIndex 块级写锁内统一校验，copy与end在同块串行；requestMasterNodeId 为请求发起 Master，来自可信 RPC 上下文。 */
     uint32_t SwitchBeginImport(const UbseMemMigrateSwitchBeginImportReq& req, const std::string& requestMasterNodeId,
                                ubse::adapter_plugins::mmi::UbseMemMigrateOpResp& result);
     uint32_t SwitchBeginExport(const UbseMemMigrateBeginExportReq& req, const std::string& requestMasterNodeId,

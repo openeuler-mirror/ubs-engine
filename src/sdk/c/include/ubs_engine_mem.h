@@ -632,7 +632,7 @@ typedef struct {
  * SDK server 先按 mem.shm.migrate 做接口级 RBAC（创建者同样需要）。
  * master 再校验资源用户：创建者无需配置；非创建者须加入 ubse_auth_default.conf 中
  * [auth.shm.migrate] allowedUsers（逗号分隔用户名，默认不配置）。
- * root/ubse 仅豁免接口级 RBAC，操作他人资源仍须加入名单。
+ * 内置root/ubse在两层校验均默认放行
  * 查询/取消按会话保留的原创建者校验。
  */
 /**
@@ -651,7 +651,7 @@ int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id);
 
 /**
  * @brief 查询迁移进度：先查活跃会话（非终态），无活跃会话返回同 name 最近 1 条
- *        终态留存记录（新受理后覆盖），均无返回 UBS_ENGINE_ERR_NOT_EXIST。
+ *        终态留存记录（新受理后覆盖，资源销毁清理时可移除），均无返回 UBS_ENGINE_ERR_NOT_EXIST。
  *        终态（SUCCESS/FAILED/CANCELED）后调用方停止轮询即可，无需删除会话。
  * @param name [in]  共享内存名
  * @param desc [out] 会话快照，由接口 malloc 分配，调用方 free
@@ -662,12 +662,10 @@ int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id);
 int32_t ubs_mem_shm_migrate_get(const char* name, ubs_mem_shm_migrate_desc_t** desc);
 
 /**
- * @brief 取消迁移：仅 INIT/EXPORTING（新借出完成前）允许；DATA_COPYING 开始后拒绝
- *        （begin 下发后老页已移除、使用方阻塞，老链路不可回退，取消无意义）。
- *        回包 0 仅表示取消受理成功，清理由执行体异步完成（INIT 在 CP1 跳过执行、
- *        EXPORTING 在 CP2 回收目标节点半成品），调用方轮询 get 至 CANCELED 终态确认。
+ * @brief 取消迁移：仅 INIT/EXPORTING 允许；DATA_COPYING 开始后拒绝
+ *        返回0仅表示受理，清理由执行体异步完成，轮询get确认CANCELED或FAILED。
  * @param name [in] 共享内存名
- * @return 0 取消受理成功（重复取消幂等返回 0）；
+ * @return 0 取消受理成功（取消清理期间重复请求幂等返回0，终态后拒绝）；
  *         UBS_ERR_INVALID_ARG（name 空）；
  *         UBS_ENGINE_ERR_NOT_EXIST（无会话记录）；
  *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（DATA_COPYING 及之后，含终态）

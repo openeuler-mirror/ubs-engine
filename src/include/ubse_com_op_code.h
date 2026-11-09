@@ -214,7 +214,7 @@ enum class UbseMemBorrowCallbackOpCode
     UBSE_MEM_SHM_MIGRATE_SWITCH_END = 0x0013,                 // SHM故障迁移块级切换结束/回退
     UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_EXPORT = 0x0014,        // 目标节点逐块switch_begin_export
     UBSE_MEM_SHM_MIGRATE_EXPORT_END = 0x0015,                 // 目标节点逐块switch_end
-    UBSE_MEM_SHM_MIGRATE_EXPORT_COPY = 0x0016,                // 保留编号；A/B copy统一使用DATA_COPY
+    UBSE_MEM_SHM_MIGRATE_EXPORT_COPY = 0x0016,                // 保留编号；迁移拷贝统一使用DATA_COPY
     UBSE_MEM_SHM_MIGRATE_SWITCH_BEGIN_IMPORT_RESULT = 0x0018, // switch_begin_import业务完成上报
     UBSE_MEM_SHM_MIGRATE_COPY_RESULT = 0x001D,                // copy业务完成上报
     UBSE_MEM_SHM_MIGRATE_END_RESULT = 0x001E,                 // end业务完成上报

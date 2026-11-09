@@ -67,6 +67,24 @@ static uint32_t CheckBorrowRelation(const std::string& name, ConstExportObjPtr& 
                        << ", exportObmmInfo empty=" << exportObjPtr->status.exportObmmInfo.empty();
         return UBSE_ERR_MIGRATE_NOT_ALLOWED;
     }
+    // V1恢复账本没有迁移标记；在调度目标资源和创建会话前拒绝，不能等到Agent执行时才失败。
+    if (exportObjPtr->migrateInfos.empty()) {
+        UBSE_LOG_WARN << "shm migrate legacy export metadata has no migration markers, name=" << name
+                      << ", nodeId=" << exportObjPtr->algoResult.exportNumaInfos.front().nodeId;
+        return UBSE_ERR_MIGRATE_NOT_ALLOWED;
+    }
+    // 与CollectImportNodes使用相同的参与节点范围，覆盖目标及其他实际导入节点。
+    for (const auto& importObj : GetAllImportObjsByName(name)) {
+        if (importObj->status.state != UBSE_MEM_IMPORT_SUCCESS || importObj->status.importResults.empty() ||
+            importObj->importNodeId == exportObjPtr->algoResult.exportNumaInfos.front().nodeId) {
+            continue;
+        }
+        if (importObj->migrateInfos.empty()) {
+            UBSE_LOG_WARN << "shm migrate legacy import metadata has no migration markers, name=" << name
+                          << ", nodeId=" << importObj->importNodeId;
+            return UBSE_ERR_MIGRATE_NOT_ALLOWED;
+        }
+    }
     oldObj = exportObjPtr;
     importObjs = std::move(importObjPtrs);
     return UBSE_OK;

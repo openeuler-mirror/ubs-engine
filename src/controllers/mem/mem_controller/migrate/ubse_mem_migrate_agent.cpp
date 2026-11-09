@@ -330,10 +330,15 @@ uint32_t BuildImportSwitch(const UbseMemShareBorrowImportObj& blockObj, const Ub
     meta.memidCount = blockCount;
     meta.exportMemid = info.exportMemId;
     meta.decoderResult = decoder;
-    static_assert(sizeof(priv) + sizeof(meta) <= ubse::mmi::OBMM_MAX_PRIV_LEN);
-    target.priv.resize(sizeof(priv) + sizeof(meta));
-    std::memcpy(target.priv.data(), &priv, sizeof(priv));
-    std::memcpy(target.priv.data() + sizeof(priv), &meta, sizeof(meta));
+    ubse::mmi::ObmmEncodedMeta encoded{};
+    uint32_t length{};
+    const auto encodeRet = ubse::mmi::EncodeObmmCustomMeta(meta, priv, encoded, length);
+    if (encodeRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "Build import switch priv failed, name=" << info.name << ", memId=" << memId
+                       << ", ret=" << encodeRet;
+        return encodeRet;
+    }
+    target.priv.assign(encoded.begin(), encoded.begin() + length);
     return UBSE_OK;
 }
 
@@ -397,7 +402,7 @@ uint32_t EndBlock(const UbseMemMigrateRpcInfo& info, bool success, bool exportTa
     const auto& local = *block.local;
     const auto b = info.blockIndex;
     result.committed = block.committed;
-    // A/B正式块已提交时直接回报，不重写账本或重复转换self-import。
+    // 正式块已提交时直接回报，不重写账本或重复转换self-import。
     if (block.committed) {
         UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << info.blockIndex
                       << ", operation=" << (exportTarget ? "end_export" : "end_import")

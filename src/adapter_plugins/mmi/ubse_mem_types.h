@@ -112,10 +112,6 @@ struct ObmmCustomMetaV1 {
     uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
     uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
     adapter_plugins::mti::mami::UbseMamiMemImportResult decoderResult{};
-    // 共享标记[isExport:1|originExportNodeId:15|version:4|index:12]，随priv写入内核sysfs；
-    // isExport: 导出1/导入0；普通创建version=0/origin=0，迁移新导出version=源+1(4bit回绕)、origin=源nodeId；
-    // gap可读的是旧priv，B的导出身份位在end(1)后生效；该位不表示切换状态。
-    uint32_t migrateInfo{};
 } __attribute__((packed));
 
 // V2 wire layout. Changes to a published layout require a new metadata version.
@@ -154,6 +150,10 @@ struct ObmmCustomMetaV2 {
     uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
     uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
     ObmmDecoderResultV2 decoderResult{};
+    // 共享标记[isExport:1|originExportNodeId:15|version:4|index:12]，随priv写入内核sysfs；
+    // isExport: 导出1/导入0；普通创建version=0/origin=0，迁移新导出version=源+1(4bit回绕)、origin=源nodeId；
+    // gap可读的是旧priv，目标原导入设备的导出身份位在end(1)后生效；该位不表示切换状态。
+    uint32_t migrateInfo{};
 } __attribute__((packed));
 
 // Internal business object, converted explicitly to and from the wire layouts.
@@ -192,6 +192,7 @@ struct UbseMemLocalObmmCustomMeta {
     uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
     uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
     adapter_plugins::mti::mami::UbseMamiMemImportResult decoderResult{};
+    uint32_t migrateInfo{}; // 仅V2持久化，V1恢复时为0
 } __attribute__((packed));
 
 struct UbMemPrivData {
@@ -211,7 +212,7 @@ constexpr uint8_t OBMM_CUSTOM_META_V1 = 1;
 constexpr uint8_t OBMM_CUSTOM_META_V2 = 2;
 
 static_assert(sizeof(ObmmCustomMetaV1) == 360, "Historical V1 metadata size changed");
-static_assert(sizeof(ObmmCustomMetaV2) == 387, "V2 metadata size changed");
+static_assert(sizeof(ObmmCustomMetaV2) == 391, "V2 metadata size changed");
 static_assert(sizeof(UbMemPrivData) + sizeof(ObmmCustomMetaV2) <= OBMM_CUSTOM_META_MAX_LENGTH,
               "OBMM private data exceeds driver limit");
 

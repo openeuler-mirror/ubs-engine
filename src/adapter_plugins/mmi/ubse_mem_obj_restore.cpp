@@ -25,10 +25,21 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::common::def;
 
-static std::vector<UbseMemLocalObmmMetaData> SortShareBlocksByIndex(
-    const std::vector<UbseMemLocalObmmMetaData>& metaDatas)
+namespace {
+bool HasShareMigrationMarkers(const std::vector<UbseMemLocalObmmMetaData>& metaDatas)
+{
+    return std::all_of(metaDatas.begin(), metaDatas.end(), [](const UbseMemLocalObmmMetaData& item) {
+        return item.customMeta.version == OBMM_CUSTOM_META_V2;
+    });
+}
+
+std::vector<UbseMemLocalObmmMetaData> SortShareBlocksByIndex(const std::vector<UbseMemLocalObmmMetaData>& metaDatas)
 {
     auto sortedMetaDatas = metaDatas;
+    // V1没有块序号；混合版本也不能将V1的默认零值当作真实index排序。
+    if (!HasShareMigrationMarkers(metaDatas)) {
+        return sortedMetaDatas;
+    }
     // 整块元数据一起排序，保证memId、导出凭证、decoder及迁移标记始终对应。
     std::stable_sort(sortedMetaDatas.begin(), sortedMetaDatas.end(),
                      [](const UbseMemLocalObmmMetaData& lhs, const UbseMemLocalObmmMetaData& rhs) {
@@ -37,6 +48,8 @@ static std::vector<UbseMemLocalObmmMetaData> SortShareBlocksByIndex(
                      });
     return sortedMetaDatas;
 }
+
+} // namespace
 
 void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
                                 UbseMemFdBorrowImportObj& ubseMemFdBorrowImportObj, bool& isNormal)
@@ -484,13 +497,16 @@ static bool AfterConstructSingleShareImportObj(const std::vector<UbseMemLocalObm
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
     UbseMemImportStatus status{};
+    const bool hasMigrationMarkers = HasShareMigrationMarkers(importLocalObmmMetaDatas);
     for (size_t i = 0; i < importLocalObmmMetaDatas.size(); i++) {
         exportObmmInfo.push_back(
             {importLocalObmmMetaDatas[i].customMeta.exportMemid, importLocalObmmMetaDatas[i].obmmMemExportInfo});
         importResults.push_back({importLocalObmmMetaDatas[i].localMemId, -1});
         status.decoderResult.push_back(importLocalObmmMetaDatas[i].customMeta.decoderResult);
-        mxeMemShareBorrowImportObj.migrateInfos.push_back(
-            ShmMigrateImportInfo(importLocalObmmMetaDatas[i].customMeta.migrateInfo));
+        if (hasMigrationMarkers) {
+            mxeMemShareBorrowImportObj.migrateInfos.push_back(
+                ShmMigrateImportInfo(importLocalObmmMetaDatas[i].customMeta.migrateInfo));
+        }
     }
     status.errCode = UBSE_OK;
     status.importResults = importResults;
@@ -519,12 +535,15 @@ static bool AfterConstructSingleShareImportObjFromExportMetaData(
 {
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
+    const bool hasMigrationMarkers = HasShareMigrationMarkers(exportLocalObmmMetaDatas);
     for (size_t i = 0; i < exportLocalObmmMetaDatas.size(); i++) {
         exportObmmInfo.push_back(
             {exportLocalObmmMetaDatas[i].customMeta.exportMemid, exportLocalObmmMetaDatas[i].obmmMemExportInfo});
         importResults.push_back({exportLocalObmmMetaDatas[i].localMemId, -1});
-        mxeMemShareBorrowImportObj.migrateInfos.push_back(
-            ShmMigrateImportInfo(exportLocalObmmMetaDatas[i].customMeta.migrateInfo));
+        if (hasMigrationMarkers) {
+            mxeMemShareBorrowImportObj.migrateInfos.push_back(
+                ShmMigrateImportInfo(exportLocalObmmMetaDatas[i].customMeta.migrateInfo));
+        }
     }
     UbseMemImportStatus status{};
     status.errCode = UBSE_OK;
@@ -751,6 +770,7 @@ void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     std::string lendNode = std::string(obmmMetaData.customMeta.exportNodeId);
     // 构造算法结果
     UbseMemAlgoResult algoResult{};
+    const bool hasMigrationMarkers = HasShareMigrationMarkers(exportLocalObmmMetaDatas);
     for (int i = 0; i < numaCount; i++) {
         algoResult.exportNumaInfos.push_back({lendNode, obmmMetaData.customMeta.exportSocket,
                                               obmmMetaData.customMeta.exportNumaIds[i],
@@ -770,7 +790,9 @@ void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     mxeMemShareBorrowExportObj.status = status;
     mxeMemShareBorrowExportObj.algoResult = algoResult;
     for (const auto& item : exportLocalObmmMetaDatas) {
-        mxeMemShareBorrowExportObj.migrateInfos.push_back(item.customMeta.migrateInfo);
+        if (hasMigrationMarkers) {
+            mxeMemShareBorrowExportObj.migrateInfos.push_back(item.customMeta.migrateInfo);
+        }
     }
     isNormal = status.exportObmmInfo.size() == obmmMetaData.customMeta.memidCount;
 }

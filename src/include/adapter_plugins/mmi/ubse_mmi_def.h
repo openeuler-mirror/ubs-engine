@@ -484,7 +484,7 @@ struct UbseMemMigrateSwitchContext {
     uint32_t blockIndex{0};
     uint64_t exportMemId{0};
     uint32_t migrateInfo{0};
-    std::optional<UbseMemMigrateBlockData> target; // B 目标直接使用本地 export 账本
+    std::optional<UbseMemMigrateBlockData> target; // 目标已导入时直接使用本地 export 账本
     std::optional<bool> endDecision; // true=end(1)已成功；false=回退；无值=尚未确认提交或决定回退
 };
 
@@ -507,8 +507,8 @@ public:
 // 共享内存迁移 EID 长度（128bit 小端，与 obmm 对接层 ObmmSwitchParam 的 UBSE_EID_LENGTH 一致）
 constexpr uint32_t UBSE_SHM_SWITCH_EID_LENGTH = 16u;
 
-// 目标节点已导入该共享内存时，将已有导入设备切为本地导出池。desc 仅在本节点 begin 后暂存，
-// 远端导入节点必须等 switch_end(1) 成功后才能收到新后端凭证。
+// 目标节点已导入该共享内存时，将已有导入设备切为本地导出池。begin 返回的 desc
+// 仅供本轮迁移内部的 begin_import 使用；普通使用方须等 switch_end(1) 提交成功。
 struct UbseMemShmSwitchExportObj {
     uint64_t importMemId{0};
     uint32_t blockIndex{0};
@@ -643,7 +643,7 @@ struct UbseMemMigrateSwitchBeginImportReq {
     UbseMemMigrateRpcInfo rpcInfo{};
 };
 
-// B 目标仍接收完整布局模板以构造 priv，执行结果仅回传当前块。
+// 目标已导入时仍接收完整布局模板以构造 priv，执行结果仅回传当前块。
 struct UbseMemMigrateBeginExportReq {
     UbseMemShareBorrowExportObj exportObj{};
     UbseMemMigrateRpcInfo rpcInfo{};
@@ -656,7 +656,7 @@ struct UbseMemMigrateBeginExportResp {
 };
 
 struct UbseMemMigrateEndExportReq {
-    uint32_t success{0};
+    uint32_t success{0}; // 1=提交，0=回退；本地设备从导入账本解析
     UbseMemMigrateRpcInfo rpcInfo{};
 };
 
@@ -666,7 +666,8 @@ struct UbseMemMigrateSwitchEndImportReq {
     friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateSwitchEndImportReq& req);
 };
 
-// A/B统一双后端拷贝，设备、长度和访问模式均取本地import账本当前块。
+// 迁移统一采用双后端拷贝，设备、长度和访问模式均取本地import账本当前块。
+// 只携块归属；设备、长度及缓存属性由Agent从已begin的本地导入账本读取。
 struct UbseMemMigrateDataCopyReq {
     UbseMemMigrateRpcInfo rpcInfo{};
     friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateDataCopyReq& req);

@@ -186,7 +186,7 @@ static void FinishMigration(MigrationRunContext& ctx)
 
 /* ==================== 逐块迁移编排 ==================== */
 
-// 当前等待的实际操作；A/B差异由启动点绑定的完成函数处理。
+// 当前等待的实际操作；目标是否已导入的差异由启动点绑定的完成函数处理。
 enum class MigrationOperation : uint8_t
 {
     BEGIN_IMPORT,
@@ -654,7 +654,7 @@ bool SetCurrentExportSwitching(const std::shared_ptr<MigrationTask>& task, bool 
     });
 }
 
-// 调用方持有task锁：所有阶段共用块身份校验，B的设备身份来自入口已校验的原导入快照。
+// 调用方持有task锁：所有阶段共用块身份校验，目标已导入时，设备身份来自入口已校验的原导入快照。
 static uint32_t CheckMigrationBlockIdentity(const MigrationTask& task, MigrationOperation operation)
 {
     const auto& blocks = task.ctx.newExportObj.status.exportObmmInfo;
@@ -672,7 +672,7 @@ static uint32_t CheckMigrationBlockIdentity(const MigrationTask& task, Migration
     return UBSE_OK;
 }
 
-// begin准备：只有A的begin_import需要在下发前标记当前导出块；B在begin_export结果中合入。
+// begin准备：目标未导入时，begin_import下发前标记当前导出块；目标已导入时，在begin_export结果中合入。
 static bool PrepareMigrationBegin(const std::shared_ptr<MigrationTask>& task, MigrationOperation operation)
 {
     const bool beginBlock = operation == MigrationOperation::BEGIN_IMPORT &&
@@ -895,7 +895,7 @@ static void StartOldChainCleanup(const MigrationRunContext& ctx)
     finalExport.req.baseNodeId = ctx.dstNodeId;
     // 旧源的删除写回可能覆盖名称索引，收尾后重新指向有效目标。
     exportMap.PutResource(ctx.dstNodeId, ctx.name, finalExport);
-    // A导出结果、B末块提交已登记目标账户；name级索引收尾不重复记账。
+    // 目标未导入时的导出结果、目标已导入时的末块提交已登记目标账户；name级索引收尾不重复记账。
     mgr.FinishSession(ctx.name, UBS_MEM_MIGRATE_STATE_SUCCESS);
 }
 
@@ -970,7 +970,7 @@ void StartMappedEndExport(const std::shared_ptr<MigrationTask>& task, bool succe
     SendMigrateBlockRequest(task, step, 0, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT_END, req);
 }
 
-// A 先结束 copy 节点，再释放其余节点；B 的 copy 节点已经由目标 end_export 关闭。
+// 目标未导入时先结束 copy 节点，再释放其余节点；目标已导入时，copy 节点已由目标 end_export 关闭。
 void OnCopyNodeEndCompleted(const std::shared_ptr<MigrationTask>& task, const std::shared_ptr<MigrationStep>& step);
 
 bool HasConfirmedImportCommit(const UbseMemShareBorrowImportObj& obj, const UbseMemMigrateRpcInfo& info)

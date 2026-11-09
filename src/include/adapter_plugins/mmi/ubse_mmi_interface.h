@@ -137,18 +137,19 @@ public:
     virtual UbseResult ShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj) = 0;
 
     /**
-    * @brief   shm类型故障迁移块级切换begin执行器（导入节点侧，Step1 设计 §1.2/§6）
+    * @brief   shm类型故障迁移块级切换begin_import执行器（导入节点侧）
     *
-    * @param switchObj      [IN] 迁移切换入参（编排层按 (memId, importNodeId) 组装）
+    * @param switchObj      [IN] 迁移切换入参，由Agent按本地导入账本及当前目标块组装
     * @return UbseResult    0：操作成功；非0：失败
     */
     virtual UbseResult ShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj) = 0;
 
+    // 目标节点已导入时执行begin_export：复用导入memId，desc输出当前块临时导出描述，仅供本轮迁移内部使用。
     virtual UbseResult ShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
                                                     ubse_mem_obmm_mem_desc& desc) = 0;
 
     /**
-    * @brief   shm类型故障迁移块级切换end执行器（导入节点侧，Step1 设计 §5.2 三态语义）
+    * @brief   shm类型故障迁移块级切换end执行器（导入节点设备及迁移目标节点的原导入设备共用）
     *
     * @param switchObj      [IN] 迁移切换入参（复用 name/oldImportMemId 供日志与定位）
     * @param success        [IN] 迁移是否成功，映射为 obmm 的 int（1/0）
@@ -160,7 +161,8 @@ public:
     * @brief   shm类型故障迁移块级双后端映射拷贝执行器
     *
     * @param memId          [IN] 切换间隙内的设备ID
-    * @param size           [IN] 块大小(字节)，双映射后使用8线程memcpy_mt拷贝
+    * @param size           [IN] 块大小(字节)，对SWITCH_OLD/SWITCH_NEW双映射执行整块拷贝
+    * @param cacheable      [IN] 缓存属性；false时以O_SYNC打开设备
     * @return UbseResult    0：操作成功；非0：失败
     */
     virtual UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) = 0;

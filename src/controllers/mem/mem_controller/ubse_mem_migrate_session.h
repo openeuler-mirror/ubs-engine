@@ -85,7 +85,7 @@ public:
         CANCELED,
         STALE
     };
-    // A/B共用：身份校验、取消判定及拷贝初始化在同一锁内完成。
+    // 身份校验、取消判定及拷贝初始化在同一锁内完成。
     CopyStartResult TryStartCopy(const std::string& name, const std::shared_ptr<UbseMemShmMigrateSession>& expected);
 
     // 推进会话阶段并清零失败原因；终态及失败原因通过FinishSession设置。

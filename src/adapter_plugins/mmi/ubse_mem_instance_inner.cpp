@@ -510,15 +510,16 @@ uint32_t MemInstanceInnerShm::MemShmSwitchBeginExportExecutor(const UbseMemShmSw
         if (!IsValidUbMemPrivData(privData)) {
             ConstructUbMemPrivData(privData, 0, 0);
         }
-        param.priv.resize(sizeof(privData) + sizeof(customMeta));
-        if (memcpy_s(param.priv.data(), param.priv.size(), &privData, sizeof(privData)) != EOK ||
-            memcpy_s(param.priv.data() + sizeof(privData), sizeof(customMeta), &customMeta, sizeof(customMeta)) !=
-                EOK) {
+        ObmmEncodedMeta encoded{};
+        uint32_t length{};
+        const auto encodeRet = EncodeObmmCustomMeta(customMeta, privData, encoded, length);
+        if (encodeRet != UBSE_OK) {
             UBSE_LOG_ERROR << MMI_LOG_INFO
                            << "MemShmSwitchBeginExport priv pack failed, importMemId=" << switchObj.importMemId
-                           << ", blockIndex=" << switchObj.blockIndex;
-            return UBSE_ERROR_INVAL;
+                           << ", blockIndex=" << switchObj.blockIndex << ", ret=" << encodeRet;
+            return encodeRet;
         }
+        param.priv.assign(encoded.begin(), encoded.begin() + length);
     }
     // switch begin_export 仅输出 tokenid/addr；其余账本字段由 UBSE 构造。
     ubse_mem_obmm_mem_desc exportDesc{};
