@@ -844,7 +844,7 @@ uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<Pag
 - 本节点调用
 - pageSwapPairs数组大小范围[1, 8]（MAX_MIGRATION_GROUP_NUM）
 - 每个PageSwapPair的localNumas数组大小范围[1, 4]（MAX_GROUP_LOCAL_NUMA）
-- 每个PageSwapPair的remoteNumas数组大小范围[1, 18]（REMOTE_NUMA_NUM）
+- 每个PageSwapPair的remoteNumas数组大小范围[1, 18]（MAX_GROUP_REMOTE_NUMA）
 - NUMA配额需通过VM numatune XML限制校验（MpVmQuotaUtil::ValidateNumaQuota）
 
 ### 附注 NOTES

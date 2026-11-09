@@ -582,8 +582,9 @@ static TaskPhase MigrateSingleTask(const MigrationTask& task)
         MigrateEscapeMsg msg{};
         int idx = 0;
         for (uint16_t srcNumaId : scopeIt->second) {
-            if (idx >= MAX_NR_MIGOUT) {
-                LOG_WARN << "Too many remote numas for pid=" << pid << ", truncating to " << MAX_NR_MIGOUT << ".";
+            if (idx >= MAX_NR_MIGRATE_ESCAPE) {
+                LOG_WARN << "Too many remote numas for pid=" << pid << ", truncating to " << MAX_NR_MIGRATE_ESCAPE
+                         << ".";
                 break;
             }
             const auto& managedMap = numaManagedMap[srcNumaId];

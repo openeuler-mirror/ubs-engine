@@ -27,7 +27,9 @@ const int PID_TYPE = 1;
 const int SMAP_RATIO_MP = 25;
 const int SMAP_MAX_RATIO_MP = 100;
 const int MAX_NR_MIGOUT_MP = 40;
-const int REMOTE_NUMA_NUM = 18;
+const int MAX_NR_MIGRATE_ESCAPE = 300;
+// 远端NUMA空间按 ABI 定维，须与 ubturbo src/smap/smap_interface.h 中的 SMAP_MAX_NUMNODES 保持一致
+const int REMOTE_NUMA_NUM = 1024;
 const int MAX_NR_MIGBACK_MP = 50;
 const int MAX_NR_REMOVE_MP = 40;
 const int MAX_NR_MIGNUMA = 50;
@@ -38,7 +40,7 @@ const int MAX_NR_MIGOUT = 40;
 constexpr int MAX_NR_GROUPED_MIGOUT = MAX_NR_MIGOUT;
 constexpr int MAX_MIGRATION_GROUP_NUM = 8;
 constexpr int MAX_GROUP_LOCAL_NUMA = 8;
-constexpr int MAX_GROUP_REMOTE_NUMA = REMOTE_NUMA_NUM;
+constexpr int MAX_GROUP_REMOTE_NUMA = 18;
 
 // 迁出接口超时返回码
 const int MIGRATEOUT_TIMEOUT_RES = -16;
@@ -231,7 +233,7 @@ struct MigrateEscapePayload {
 
 struct MigrateEscapeMsg {
     int count;
-    struct MigrateEscapePayload payload[MAX_NR_MIGOUT];
+    struct MigrateEscapePayload payload[MAX_NR_MIGRATE_ESCAPE];
 };
 
 struct MigrationNode {
