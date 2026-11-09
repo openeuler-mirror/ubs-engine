@@ -27,7 +27,7 @@ TEST(TestObmmCustomMetaCodec, RegionMaskRoundTripsBoundaryIndices)
     ObmmEncodedMeta encoded{};
     uint32_t length{};
     ASSERT_EQ(EncodeObmmCustomMeta(meta, {}, encoded, length), UBSE_OK);
-    EXPECT_EQ(length, 389);
+    EXPECT_EQ(length, 393);
     UbseMemLocalObmmCustomMeta restored{};
     UbMemPrivData prefix{};
     ASSERT_EQ(DecodeObmmCustomMeta(encoded.data(), length, restored, prefix), UBSE_OK);
@@ -56,9 +56,11 @@ TEST(TestObmmCustomMetaCodec, V1RegionMaskPreservesHighestBitAndClearsUpperBits)
 TEST(TestObmmCustomMetaCodec, RestoresHistoricalBinaryFixture)
 {
     UbseMemLocalObmmCustomMeta meta{};
+    meta.migrateInfo = 0xffffffffU; // V1解码必须清除复用对象中的旧标记。
     UbMemPrivData prefix{};
     ASSERT_EQ(DecodeObmmCustomMeta(OBMM_V1_FIXTURE.data(), OBMM_V1_FIXTURE.size(), meta, prefix), UBSE_OK);
     EXPECT_EQ(meta.version, 1);
+    EXPECT_EQ(meta.migrateInfo, 0U);
     EXPECT_EQ(meta.type, 2);
     EXPECT_EQ(meta.uid, 1000);
     EXPECT_EQ(meta.gid, 1001);
@@ -318,5 +320,21 @@ TEST(TestObmmCustomMetaCodec, RejectsInvalidV2WithoutChangingOutput)
                 sizeof(ObmmCustomMetaV2::name));
     EXPECT_EQ(DecodeObmmCustomMeta(encoded.data(), length, meta, prefix), UBSE_ERROR_INVAL);
     EXPECT_EQ(meta.pid, 999);
+}
+
+TEST(TestObmmCustomMetaCodec, V2MigrationMarkerRoundTrip)
+{
+    for (const uint32_t marker : {0U, 0x80000000U, 0x800b1007U, 0xffffffffU}) {
+        UbseMemLocalObmmCustomMeta meta{};
+        meta.migrateInfo = marker;
+        ObmmEncodedMeta encoded{};
+        uint32_t length{};
+        ASSERT_EQ(EncodeObmmCustomMeta(meta, {}, encoded, length), UBSE_OK);
+        UbseMemLocalObmmCustomMeta restored{};
+        UbMemPrivData prefix{};
+        ASSERT_EQ(DecodeObmmCustomMeta(encoded.data(), length, restored, prefix), UBSE_OK);
+        EXPECT_EQ(restored.version, OBMM_CUSTOM_META_V2);
+        EXPECT_EQ(restored.migrateInfo, marker);
+    }
 }
 } // namespace ubse::ut::mmi
