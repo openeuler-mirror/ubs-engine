@@ -73,6 +73,33 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
     GlobalMockObject::verify();
 }
 
+/*
+ * 用例描述：直接调用 UdsRun（不经 Start spawn）置位线程退出标志后，Stop/Start 周期不受干扰。
+ * 测试步骤：
+ * 1.mock 目录创建失败，直接调用 UdsRun，线程退出守卫在退出路径置位 threadDone_
+ * 2.调用 Stop（serverThread_ 未 spawn），预期直接返回不挂起
+ * 3.再次 Start(true) 失败后 Stop，验证退出标志复位逻辑与重复 Stop 幂等
+ * 预期结果：
+ * 1.全部调用不抛异常，Stop 均在有界时间内返回
+ */
+TEST_F(TestUbseHttpTcpServer, StopAfterDirectUdsRunAndRestart)
+{
+    MOCKER(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseFileUtil::CreateAndChmodDirectory).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().UdsRun());
+
+    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
+    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
+    MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
+
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    EXPECT_EQ(UbseHttpServer::GetInstance().Start(true), false);
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    GlobalMockObject::verify();
+}
+
 TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
 {
     GTEST_SKIP();

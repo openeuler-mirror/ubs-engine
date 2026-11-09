@@ -177,7 +177,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateStream(const UbseIpcMessage& re
     }
 
     UbseDeSerialization deserializer(req.buffer, req.length);
-    uint32_t itemCount;
+    uint32_t itemCount{};
     deserializer >> itemCount;
 
     if (!deserializer.Check() || itemCount == NO_0 || itemCount > NO_2) {
@@ -287,7 +287,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosDelete(const UbseIpcMessage& req, con
 
 uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage& req, uint32_t& nodeId, std::vector<std::string>& deviceNameList)
 {
-    uint32_t deviceListSize;
+    uint32_t deviceListSize{};
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request buffer is null.";
         return UBSE_ERROR_NULLPTR;

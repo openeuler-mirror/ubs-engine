@@ -87,6 +87,7 @@ static int bandbridge_check_permission(void)
     char* path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
     if (path_buf == NULL) {
         bandbridge_log_err("[bandbridge] kmalloc path_buf failed.\n");
+        fput(exe_file);
         return -ENOMEM;
     }
     char* resolved = d_path(&exe_file->f_path, path_buf, PATH_MAX);
@@ -190,9 +191,9 @@ static int bandbridge_validate_user_buf(struct bandbridge_mbuf* tmpbuf)
         bandbridge_log_err("[bandbridge_validate_user_buf] sq alloc size %d invalid.\n", sq_alloc_size);
         return -EINVAL;
     }
-    if (tmpbuf->sendbuf_size <= 0 || tmpbuf->sendbuf_size > sq_alloc_size) {
-        bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d.\n", tmpbuf->sendbuf_size,
-                           sq_alloc_size);
+    if (tmpbuf->sendbuf_size < CTRLQ_BB_SIZE || tmpbuf->sendbuf_size > sq_alloc_size) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d, min=%d.\n",
+                           tmpbuf->sendbuf_size, sq_alloc_size, CTRLQ_BB_SIZE);
         return -EINVAL;
     }
     /* validate user recvbuf_size to prevent copy_to_user overread */

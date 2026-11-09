@@ -114,12 +114,39 @@ bool CopyFileContents(const std::string& sourcePath, const std::string& destinat
         return false;
     }
 
-    std::string buffer((std::istreambuf_iterator<char>(sourceFile)), std::istreambuf_iterator<char>());
-    if (write(destFd, buffer.c_str(), buffer.size()) == -1) {
-        errMsg = "Failed to write to destination file: " + destinationPath;
+    // 防止误传入大文件或设备文件导致内存耗尽
+    constexpr std::streamoff MAX_CERT_FILE_SIZE = 10 * 1024 * 1024;
+    sourceFile.seekg(0, std::ios::end);
+    std::streamoff fileSize = sourceFile.tellg();
+    sourceFile.seekg(0, std::ios::beg);
+    if (fileSize < 0 || fileSize > MAX_CERT_FILE_SIZE) {
+        errMsg = "Invalid source file size: " + std::to_string(fileSize);
         close(destFd);
         sourceFile.close();
         return false;
+    }
+    std::string buffer(static_cast<size_t>(fileSize), '\0');
+    sourceFile.read(buffer.data(), fileSize);
+    if (sourceFile.gcount() != fileSize) {
+        errMsg = "Failed to read source file: " + sourcePath;
+        close(destFd);
+        sourceFile.close();
+        return false;
+    }
+    // 循环写入处理write短写(如ENOSPC时部分写入)，避免目标文件被静默截断
+    size_t total = 0;
+    while (total < buffer.size()) {
+        ssize_t written = write(destFd, buffer.c_str() + total, buffer.size() - total);
+        if (written == -1) {
+            if (errno == EINTR) {
+                continue;
+            }
+            errMsg = "Failed to write to destination file: " + destinationPath;
+            close(destFd);
+            sourceFile.close();
+            return false;
+        }
+        total += static_cast<size_t>(written);
     }
 
     close(destFd);

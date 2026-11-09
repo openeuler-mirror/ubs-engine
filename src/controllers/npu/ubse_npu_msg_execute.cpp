@@ -66,7 +66,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg& resp)
         return ret;
     }
     // 业务处理
-    std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid;
+    std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid{};
     std::string newBusInstanceGuidStr(reinterpret_cast<const char*>(newBusInstanceGuid.data()),
                                       UBSE_UB_DEVICE_GUID_SIZE);
     std::vector<std::shared_ptr<IResource>> devList;

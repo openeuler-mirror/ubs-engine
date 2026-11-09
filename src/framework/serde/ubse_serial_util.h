@@ -16,6 +16,7 @@
 #include <cstring>
 #include <limits>
 #include <map>
+#include <new>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -290,6 +291,11 @@ public:
 
 private:
     bool expandCapacity(common_len len);
+
+    /**
+      * @brief 按当前mCap_分配缓冲区到mBuf_，失败时置mFlag_为false
+      */
+    void AllocBuffer();
 
     /**
       * @brief 向指定地址写入类型和长度，安全性由调用者控制

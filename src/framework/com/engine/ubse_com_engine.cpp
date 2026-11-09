@@ -227,13 +227,7 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine* en
     if (isSync) {
         engine->DestroyChannel(chPtr);
     } else {
-        try {
-            std::thread t([chPtr, id, engine]() { engine->DestroyChannel(chPtr); });
-            t.detach();
-        } catch (const std::bad_alloc& e) {
-            UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for" << e.what();
-            engine->DestroyChannel(chPtr);
-        }
+        engine->AsyncDestroyChannel(chPtr);
     }
     UBSE_LOG_INFO << "Remove channel by user, channel_id=" << id;
 }
@@ -487,6 +481,32 @@ void UbseComEngine::DestroyChannel(ubs_hcom_channel ch)
     ubs_hcom_service_disconnect(hcomNetService_, ch);
 }
 
+void UbseComEngine::AsyncDestroyChannel(ubs_hcom_channel ch)
+{
+    // 先递增在途计数，避免Stop()漏等新启动的线程
+    asyncDestroyThreadNum_.fetch_add(1);
+
+    if (deleted_.load()) {
+        asyncDestroyThreadNum_.fetch_sub(1);
+        return;
+    }
+    try {
+        std::thread t([this, ch]() {
+            if (!deleted_.load(std::memory_order_acquire)) {
+                DestroyChannel(ch);
+            }
+            asyncDestroyThreadNum_.fetch_sub(1);
+        });
+        t.detach();
+    } catch (const std::exception& e) {
+        asyncDestroyThreadNum_.fetch_sub(1);
+        UBSE_LOG_WARN << "Use sync disconnect, due to fail to async disconnect for " << e.what();
+        if (!deleted_.load(std::memory_order_acquire)) {
+            DestroyChannel(ch);
+        }
+    }
+}
+
 void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type)
 {
     UbseComChannelInfo channelInfo{};
@@ -560,12 +580,29 @@ void UbseComEngine::Stop()
     if (startRetryThread_.joinable()) {
         startRetryThread_.join();
     }
+    constexpr int kAsyncDestroyWaitSec = 600;
+    int waitedSec = 0;
+    while (asyncDestroyThreadNum_.load() > 0 && waitedSec < kAsyncDestroyWaitSec) {
+        UBSE_LOG_INFO << "stopping async channel destroy thread, num=" << asyncDestroyThreadNum_.load();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        waitedSec++;
+    }
+    if (asyncDestroyThreadNum_.load() > 0) {
+        UBSE_LOG_ERROR << "async channel destroy threads not drained in " << waitedSec
+                       << "s, num=" << asyncDestroyThreadNum_.load() << ", force teardown";
+    }
     std::lock_guard<std::mutex> lock(serviceMutex_);
     auto engineName = engineInfo_.GetName();
     if (hcomNetService_ != 0) {
-        while (reconnectThreadNum_ > 0) {
+        int reconnectWaitedSec = 0;
+        while (reconnectThreadNum_ > 0 && reconnectWaitedSec < kAsyncDestroyWaitSec) {
             UBSE_LOG_INFO << "stoping reconnect thread num=" << reconnectThreadNum_;
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            reconnectWaitedSec++;
+        }
+        if (reconnectThreadNum_ > 0) {
+            UBSE_LOG_ERROR << "reconnect threads not drained in " << reconnectWaitedSec
+                           << "s, num=" << reconnectThreadNum_ << ", force teardown";
         }
         linkManager_.RemoveAllChannel(this);
         auto ret = ubs_hcom_service_destroy(hcomNetService_, engineName.c_str());

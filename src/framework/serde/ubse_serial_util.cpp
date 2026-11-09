@@ -53,11 +53,7 @@ UbseSerialization::UbseSerialization()
       mCap_(std::max(AlignTo(INIT_CAPACITY), mLen_)),
       mFlag_(true)
 {
-    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
-    if (Unlikely(mBuf_ == nullptr)) {
-        mFlag_ = false;
-        return;
-    }
+    AllocBuffer();
 }
 
 UbseSerialization::UbseSerialization(ALIGN_BASE align)
@@ -71,10 +67,14 @@ UbseSerialization::UbseSerialization(ALIGN_BASE align)
         mFlag_ = false;
         return;
     }
+    AllocBuffer();
+}
+
+void UbseSerialization::AllocBuffer()
+{
     mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
     if (Unlikely(mBuf_ == nullptr)) {
         mFlag_ = false;
-        return;
     }
 }
 
@@ -90,22 +90,19 @@ UbseSerialization::UbseSerialization(common_len cap, ALIGN_BASE align)
     : mBuf_(nullptr),
       mAlignOffset_(static_cast<common_len>(align) - 1),
       mLen_(AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS)),
-      mCap_(AlignTo(cap) + mLen_),
+      mCap_(0),
       mFlag_(true)
 {
-    if (!isValidAlign(align)) {
+    if (!isValidAlign(align) || cap >= MAX_CAPACITY) {
         mFlag_ = false;
         return;
     }
+    mCap_ = AlignTo(cap) + mLen_;
     if (mCap_ >= MAX_CAPACITY) {
         mFlag_ = false;
         return;
     }
-    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
-    if (Unlikely(mBuf_ == nullptr)) {
-        mFlag_ = false;
-        return;
-    }
+    AllocBuffer();
 }
 
 UbseSerialization::UbseSerialization(UbseSerialization&& other) noexcept
@@ -213,6 +210,9 @@ UbseSerialization& UbseSerialization::operator<<(const char* str)
 
 UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 {
+    if (Unlikely(!mFlag_)) {
+        return *this;
+    }
     if (!kid.Check()) {
         mFlag_ = false;
         return *this;
@@ -240,7 +240,7 @@ UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 
 bool UbseSerialization::expandCapacity(common_len len)
 {
-    if (mLen_ + len >= MAX_CAPACITY) {
+    if (Unlikely(mBuf_ == nullptr) || mLen_ + len >= MAX_CAPACITY) {
         mFlag_ = false;
         return false;
     }

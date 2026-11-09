@@ -181,7 +181,7 @@ bool UbseVsockServer::GetClientCredentials(int socketFd, UbseClientInfo& info)
     return true;
 }
 
-bool UbseVsockServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header,
+bool UbseVsockServer::CheckRequestPermission(const UbseClientInfo& clientInfo, const UbseRequestHeader& header,
                                              uint64_t requestId)
 {
     uint32_t ret = UBSE_OK;
@@ -192,9 +192,9 @@ bool UbseVsockServer::CheckRequestPermission(ClientSession* session, const UbseR
 
     std::string userName{};
     if (ret == UBSE_OK) {
-        userName = api::server::UbseApiServerAuthManager::GetInstance().GetVsockUserNameByCid(session->clientInfo.cid);
+        userName = api::server::UbseApiServerAuthManager::GetInstance().GetVsockUserNameByCid(clientInfo.cid);
         if (userName.empty()) {
-            UBSE_LOG_ERROR << "Failed to get username for CID: " << session->clientInfo.cid;
+            UBSE_LOG_ERROR << "Failed to get username for CID: " << clientInfo.cid;
             ret = UBSE_ERR_PERMISSION_DENIED;
         }
     }
@@ -209,8 +209,7 @@ bool UbseVsockServer::CheckRequestPermission(ClientSession* session, const UbseR
         return true;
     }
     UBSE_LOG_ERROR << "Request permission check failed, moduleCode=" << header.moduleCode
-                   << ", opCode=" << header.opCode << ", cid=" << session->clientInfo.cid
-                   << ", ret=" << FormatRetCode(ret);
+                   << ", opCode=" << header.opCode << ", cid=" << clientInfo.cid << ", ret=" << FormatRetCode(ret);
     UbseResponseMessage response{{ret, 0}, nullptr};
     auto sendRet = SendResponse(requestId, response);
     if (sendRet != UBSE_OK) {

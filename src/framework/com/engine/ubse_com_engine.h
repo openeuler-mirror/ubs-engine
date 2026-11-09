@@ -190,6 +190,12 @@ public:
     void DestroyChannel(ubs_hcom_channel ch);
 
     /* *
+     * @brief 异步销毁channel，在独立线程中执行Disconnect，Stop()会等待其退出
+     * @param ch [in] 通道指针
+     */
+    void AsyncDestroyChannel(ubs_hcom_channel ch);
+
+    /* *
      * @brief 启动引擎
      */
     UbseResult Start();
@@ -299,6 +305,7 @@ protected:
     HandlerMap handlerMap_{};           // 操作函数映射表，一个引擎一个表
     ubse::utils::ReadWriteLock rwLock_; // 读写锁
     std::atomic<uint32_t> reconnectThreadNum_{0};
+    std::atomic<uint32_t> asyncDestroyThreadNum_{0};
     std::map<std::string, std::set<UbseChannelType>> connectingMap_;
     std::map<std::string, UbseComChannelInfo> NewChannelIdMap_;
     std::mutex conMutex_;

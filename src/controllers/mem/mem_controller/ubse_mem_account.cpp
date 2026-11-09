@@ -853,9 +853,6 @@ void AccumulateLentInfo(const UbseBorrowAccountMap& accountMap, AccumulatedMap& 
         for (size_t i = 0; i < memoryBorrowInfo.lentNumaIdList.size(); ++i) {
             BorrowedLentKey key = std::make_tuple(memoryBorrowInfo.lentNodeId, memoryBorrowInfo.borrowNodeId,
                                                   memoryBorrowInfo.lentNumaIdList[i]);
-            if (lentMap[key].memory > UINT32_MAX - memoryBorrowInfo.lentNumaSizeList[i]) {
-                break;
-            }
             lentMap[key].memory += memoryBorrowInfo.lentNumaSizeList[i];
         }
     }

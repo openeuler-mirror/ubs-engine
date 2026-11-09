@@ -529,6 +529,10 @@ void UbseUDSClient::Stop()
 
     // 停止事件循环
     StopEpoll();
+    // 回收延时触发重连的线程(它由事件循环线程创建，须先join事件循环线程)
+    if (reconnectTriggerThread_.joinable()) {
+        reconnectTriggerThread_.join();
+    }
     // 停止重连线程
     StopReconnectThread();
 
@@ -862,13 +866,20 @@ void UbseUDSClient::ProcessEpollEvents(struct epoll_event* events, int numEvents
         }
         if (events[i].events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
             IPC_LOG_INFO << "EPOLLERR on socket " << sockFd_;
-            // 异步触发重连，避免递归
-            std::thread([this]() {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                if (running_.load()) {
-                    ReconnectAfterBroken();
+            // 异步触发重连，避免在事件循环线程内自join导致死锁
+            try {
+                if (reconnectTriggerThread_.joinable()) {
+                    reconnectTriggerThread_.join();
                 }
-            }).detach();
+                reconnectTriggerThread_ = std::thread([this]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    if (running_.load()) {
+                        ReconnectAfterBroken();
+                    }
+                });
+            } catch (const std::system_error& e) {
+                IPC_LOG_ERROR << "failed to create reconnect trigger thread: " << e.what();
+            }
             return; // 直接返回，结束事件循环
         }
         if (events[i].events & EPOLLIN) {

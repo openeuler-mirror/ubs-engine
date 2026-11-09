@@ -42,9 +42,11 @@ public:
     void RegisterRoute(const std::string& path, const std::string& method, UbseHttpHandlerFunc handler);
 
 private:
-    UbseHttpServer() : running_(false){};
+    UbseHttpServer() : running_(false), threadDone_(false){};
     std::mutex routesMutex_;
+    std::mutex serverMutex_;
     std::atomic<bool> running_;
+    std::atomic<bool> threadDone_;
     std::unique_ptr<httplib::Server> server_;
     std::thread serverThread_;
     std::unordered_map<std::string, UbseHttpHandlerFunc> routes_;
@@ -56,6 +58,8 @@ private:
     void TcpRun();
 
     void UdsRun();
+
+    bool IsServerRunning();
 
     void GetTcpServerPort(uint32_t& port);
 

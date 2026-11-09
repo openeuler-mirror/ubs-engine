@@ -111,6 +111,14 @@ void InitializeAuditFunctions()
         if (g_auditfd >= 0) {
             g_isOpenAudit = true;
             g_loaded = true;
+        } else {
+            // audit_open失败(如auditd未运行): 与dlsym失败分支对称, 释放句柄并复位, 避免句柄滞留
+            dlclose(g_auditLibHandle);
+            g_auditLibHandle = nullptr;
+            g_auditOpenFunc = nullptr;
+            g_auditCloseFunc = nullptr;
+            g_auditLogUserMessageFunc = nullptr;
+            g_auditfd = -1;
         }
     }
 }

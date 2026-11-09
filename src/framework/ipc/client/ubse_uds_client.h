@@ -80,6 +80,7 @@ protected:
     int epollFd_ = -1;
     std::thread eventLoopThread_{};
     std::thread reconnectThread_{};
+    std::thread reconnectTriggerThread_{};
     std::atomic<bool> running_{false};
     std::atomic<bool> isReConnect_{false};
     std::atomic<bool> reconnecting_;
