@@ -104,6 +104,8 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
      {"ubs_mem_shm_create", "ubs_mem_shm_create_with_affinity", "ubs_mem_shm_attach", "ubs_mem_shm_get",
       "ubs_mem_shm_list", "ubs_mem_shm_detach", "ubs_mem_shm_delete", "ubs_mem_shm_fault_get",
       "ubs_mem_shm_fault_register"}},
+    {"mem.shm.migrate",
+     {"ubs_mem_shm_migrate", "ubs_mem_shm_migrate_get", "ubs_mem_shm_migrate_cancel"}},
     {"mem.stat", {"ubs_mem_numastat_get"}},
     {"topo", {"ubs_topo_node_list", "ubs_topo_node_local_get", "ubs_topo_link_list"}}};
 
@@ -144,7 +146,7 @@ matrixplugin = default_k8s
 
 [auth.role.default]
 # Section for default role-to-permission mappings.
-default_ubsm = mem.fd,mem.numa,mem.shm,mem.stat,topo
+default_ubsm = mem.fd,mem.numa,mem.shm,mem.stat,topo,mem.shm.migrate
 default_op = topo
 default_k8s = mem.numa,topo
 ```
@@ -154,6 +156,25 @@ default_k8s = mem.numa,topo
 * 如果客户端自定义权限点文件，使用auth.user.default、auth.role.default定义权限，则最终结果可能是UBSE默认权限，也可能是客户端定义的权限，因为加载顺序无法保证。
 
 * 如果客户端自定义权限点文件，使用auth.user、auth.role定义权限，则最终结果确定是客户端定义的权限；因为UBSE内部在合并两种section中的配置时，固定采用用户定义section覆盖default section。
+
+### 3.4 共享内存迁移用户配置
+
+配置文件：`ubse_auth_default.conf`，配置节：`[auth.shm.migrate]`。
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| allowedUsers | 不配置 | master允许操作其他用户共享内存迁移任务的用户名单；受理、查询、取消共用。逗号分隔、大小写敏感，忽略两端空白，不支持通配符。 |
+
+创建者及内置root/ubse无需加入此名单；其他非创建者未配置或配置读取失败时拒绝操作。所有调用者（含创建者）仍须通过SDK server的`mem.shm.migrate`接口级RBAC校验；内置root/ubse沿用既有管理员放行规则。
+
+```ini
+[auth.shm.migrate]
+allowedUsers=operator,automation
+```
+
+默认注释该配置项，不要写空值`allowedUsers=`。
+
+用户需同时在既有RBAC配置中获得`mem.shm.migrate`权限。所有master候选节点应配置一致，修改后重启ubse生效。
 
 ## 4. 客户端自定义权限文件
 

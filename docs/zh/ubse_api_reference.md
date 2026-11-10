@@ -743,7 +743,8 @@ typedef enum {
     UBSE_ERR_ONLY_IMPORT = 4,   // 只存在借入
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
     UBSE_ERR_ABNORMAL = 6,      // 删除导入失败，账本与实际状态不一致
-    UBSE_END = 7                // 类型转换边界值, 不表示任何内存状态
+    UBSE_MIGRATING = 7,         // 共享内存迁移中，详细进度通过migrate_get查询
+    UBSE_END = 8                // 类型转换边界值, 不表示任何内存状态
 } ubs_mem_stage;
 
 #define UBS_MEM_MAX_NAME_LENGTH 48
@@ -2462,6 +2463,8 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 
 查询指定共享形态远端内存。
 
+迁移期间，返回的 `mem_stage` 反映账本与迁移会话状态，可能与设备实际状态暂时不一致，不能仅据此判定设备已生效状态；迁移进度请通过 `ubs_mem_shm_migrate_get` 查询，迁移结束后应重新查询资源信息。
+
 **参数 PARAMETERS**
 
 | name      | IN/OUT | description                                                                       |
@@ -2548,6 +2551,8 @@ int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
 **描述 DESCRIPTION**
 
 查询共享形态远端内存列表。
+
+迁移期间，返回的 `mem_stage` 反映账本与迁移会话状态，可能与设备实际状态暂时不一致，不能仅据此判定设备已生效状态；迁移进度请通过 `ubs_mem_shm_migrate_get` 查询，迁移结束后应重新查询资源信息。
 
 **参数 PARAMETERS**
 
@@ -2636,6 +2641,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
 **描述 DESCRIPTION**
 
 查询指定借用标识前缀的共享形态远端内存，最多查询到 2000 条借用内存。
+迁移期间，返回的 `mem_stage` 反映账本与迁移会话状态，可能与设备实际状态暂时不一致，不能仅据此判定设备已生效状态；迁移进度请通过 `ubs_mem_shm_migrate_get` 查询，迁移结束后应重新查询资源信息。
 
 **参数 PARAMETERS**
 
@@ -2914,7 +2920,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     MEM_LINK_DOWN,
     MEM_LINK_UP,
-    UB_MEM_HEALTHY = 1000, // 无故障
+    UB_MEM_HEALTHY = 1000,   // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不代表会话进度
 } ubs_mem_fault_type_t;
 
 #define UBS_MEM_MAX_MEMID_NUM 2048
@@ -2955,7 +2962,7 @@ ubse 自动识别该接口调用方是否为资源管理者，只有管理者能
 
 **附注 NOTES**
 
-暂无
+当前正在迁移或结束待确认的块会以 `UB_MEM_SWITCHING`（1001）出现在返回结构的 `memid_status` 数组中。该值表示瞬态切换状态而非故障，同一资源最多一块，不代表迁移进度；进度请通过 `ubs_mem_shm_migrate_get` 查询。调用方不应仅据此判定内存故障或删除资源。
 
 **样例 EXAMPLES**
 
@@ -3051,7 +3058,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     MEM_LINK_DOWN,
     MEM_LINK_UP,
-    UB_MEM_HEALTHY = 1000,
+    UB_MEM_HEALTHY = 1000,   // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不代表会话进度
 } ubs_mem_fault_type_t;
 ```
 
@@ -3184,7 +3192,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     MEM_LINK_DOWN,
     MEM_LINK_UP,
-    UB_MEM_HEALTHY = 1000,
+    UB_MEM_HEALTHY = 1000,   // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不代表会话进度
 } ubs_mem_fault_type_t;
 ```
 
@@ -3317,7 +3326,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     MEM_LINK_DOWN,
     MEM_LINK_UP,
-    UB_MEM_HEALTHY = 1000,
+    UB_MEM_HEALTHY = 1000,   // 无故障
+    UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不代表会话进度
 } ubs_mem_fault_type_t;
 ```
 
@@ -3629,6 +3639,309 @@ static void ubs_mem_shm_get_memid_by_import(void)
         printf("ubs_mem_shm_get_memid_by_import success, export_slot_id=%u, export_memid=%lu\n",
                mem_info.export_slot_id, mem_info.export_memid);
     }
+}
+```
+
+### ubs_mem_shm_migrate
+
+**库 LIBRARY**
+
+ubse 库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_mem.h>
+int32_t ubs_mem_shm_migrate(const char *name, uint32_t target_slot_id);
+```
+
+**描述 DESCRIPTION**
+
+异步受理同名共享内存到指定节点的迁移，保留使用方 name、VA 和导入设备 memId。目标可以是已经导入该内存的节点，也可以是尚未导入的节点。
+
+**参数 PARAMETERS**
+
+| 参数 | 方向 | 说明 |
+| --- | --- | --- |
+| name | IN | 共享内存名，也是迁移会话键 |
+| target_slot_id | IN | 目标节点 slot ID，范围1～UBS_MEM_MAX_SLOT_NUM |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error | Description |
+| --- | --- |
+| UBS\_ERR\_INVALID\_ARG | 参数无效（name 为空、格式或长度不合法，或 target_slot_id 超出范围） |
+| UBS\_ERR\_OUT\_OF\_MEMORY | 内存不足 |
+| UBS\_ERR\_IPC\_CONNECTION\_FAILED | SDK 建立 IPC 连接失败 |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED | UBSE 服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST | 共享内存资源不存在 |
+| UBS\_ERR\_TIMED\_OUT | SDK IPC 请求发送、等待或接收超时 |
+| UBS\_ENGINE\_ERR\_INTERNAL | UBSE 服务端内部错误 |
+| UBS\_ENGINE\_ERR\_MIGRATE\_NOT\_ALLOWED | 资源或目标节点状态、迁移元数据（如老账本无迁移标记）等预检不通过 |
+| UBS\_ENGINE\_ERR\_MIGRATE\_IN\_PROGRESS | 同名迁移尚未结束 |
+| UBS\_ENGINE\_ERR\_MIGRATE\_REBUILD\_REQUIRED | 同名资源需要归还并重建 |
+| UBS\_ENGINE\_ERR\_ALLOCATE | 目标资源调度分配失败 |
+| UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE | 服务端参数非法（name 或目标节点标识为空）|
+| UBS\_ENGINE\_ERR\_INVALID\_PARAM | 服务端判定请求非法（协议层错误码映射） |
+
+**附注 NOTES**
+
+返回 0 仅表示受理成功，完成结果需轮询 `ubs_mem_shm_migrate_get`。同 name 非终态任务期间，再次迁移／新增使用返回迁移进行中（1042），不创建第二个任务。任务终态后，同名资源仍有重建限制时，再次迁移／新增使用统一返回需要归还重建（1044），不再按失败原因区分；全部同名资源释放后解除该限制。参数非法、资源不存在、目标或资源状态不允许、权限不满足均返回非零错误。
+
+**权限 PERMISSION**
+
+接口配置与角色配置的详细说明见 [《UBSE角色访问控制设计》](../design/UBSE角色访问控制设计.md#34-共享内存迁移用户配置)。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <unistd.h>
+#include <ubs_engine.h>
+#include <ubs_engine_mem.h>
+
+int main(void)
+{
+    int32_t ret;
+    const char *path = "/var/run/ubse/ubse.sock";
+    const char *name = "test_mem";
+    uint32_t target_slot_id = 2;
+
+    ret = ubs_engine_client_initialize(path);
+    if (ret != UBS_SUCCESS) {
+        printf("init failed, ret=%d\n", ret);
+        return -1;
+    }
+
+    ret = ubs_mem_shm_migrate(name, target_slot_id);
+    if (ret != UBS_SUCCESS) {
+        printf("shm migrate failed, ret=%d\n", ret);
+        ubs_engine_client_finalize();
+        return -1;
+    }
+    /* 受理成功，迁移异步执行，轮询 ubs_mem_shm_migrate_get 查询进度与结果 */
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs_mem_shm_migrate_get
+
+**库 LIBRARY**
+
+ubse 库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_mem.h>
+int32_t ubs_mem_shm_migrate_get(const char *name, ubs_mem_shm_migrate_desc_t **desc);
+```
+
+**描述 DESCRIPTION**
+
+查询同名共享内存的迁移会话快照，用于轮询迁移进度。优先返回活跃（非终态）会话；无活跃会话时返回同 name 最近一条终态留存记录；均无则返回不存在错误。
+
+**参数 PARAMETERS**
+
+| 参数 | 方向 | 说明 |
+| --- | --- | --- |
+| name | IN | 共享内存名，也是迁移会话键；最大长度 48 字节，含结尾字符 `\0`<br />name 仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
+| desc | OUT | 迁移会话快照，成功时由接口分配，调用者用 `free` 释放 |
+
+数据结构说明
+
+```c
+ typedef enum {
+  UBS_MEM_MIGRATE_STATE_INIT = 0,         // 已受理
+  UBS_MEM_MIGRATE_STATE_EXPORTING = 1,    // 准备目标导出
+  UBS_MEM_MIGRATE_STATE_DATA_COPYING = 2, // 逐块切换和拷贝
+  UBS_MEM_MIGRATE_STATE_FINISHING = 3,    // 账本及账户收敛
+  UBS_MEM_MIGRATE_STATE_SUCCESS = 4,      // 迁移成功，终态
+  UBS_MEM_MIGRATE_STATE_FAILED = 5,       // 迁移失败，终态，读取错误字段定位原因
+  UBS_MEM_MIGRATE_STATE_CANCELED = 6,     // 已取消，终态
+ } ubs_mem_migrate_state_t;
+
+ typedef struct {
+  char name[UBS_MEM_MAX_NAME_LENGTH];     // 共享内存名（会话唯一键）
+  uint32_t src_slot_id;                   // 原导出节点
+  uint32_t dst_slot_id;                   // 目标导出节点
+  ubs_mem_migrate_state_t state;          // 迁移状态
+  uint32_t total_memids;                  // 总块数
+  uint32_t migrated_memids;               // 已完成整块提交的块数
+  uint64_t total_size;                    // 总大小，单位字节
+  int32_t error_code;                     // 迁移失败原因码，不是接口返回码
+  char error_msg[128];                    // 失败原因说明
+ } ubs_mem_shm_migrate_desc_t;
+
+```
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。返回 0 仅表示查询成功，不代表迁移成功，迁移结果应读取 `state`。
+
+**错误 ERRORS**
+
+| Error | Description |
+| --- | --- |
+| UBS\_ERR\_INVALID\_ARG | 参数无效（name 为空、格式或长度不合法，或 desc 为空指针） |
+| UBS\_ERR\_OUT\_OF\_MEMORY | 内存不足 |
+| UBS\_ERR\_IPC\_CONNECTION\_FAILED | SDK 建立 IPC 连接失败 |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED | UBSE 服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录（含 master 重启后） |
+| UBS\_ERR\_TIMED\_OUT | SDK IPC 请求发送、等待或接收超时 |
+| UBS\_ENGINE\_ERR\_INTERNAL | UBSE 服务端内部错误 |
+
+**附注 NOTES**
+
+终态（SUCCESS/FAILED/CANCELED）保留最近一条记录，可继续查询；新受理后覆盖旧记录，资源销毁清理时可移除会话，之后查询返回不存在。会话仅存 master 内存，master 重启后不保留。`migrated_memids` 表示整块完成提交的块数，不表示 copy 已完成但尚未提交的块。
+
+| error_code | 含义 |
+| --- | --- |
+| 1 | 调度分配失败 |
+| 2 | RPC发起、发送或入队ACK失败，包括同步RPC超时 |
+| 3 | Agent新建导出失败 |
+| 4 | 块布局不匹配 |
+| 5 | 源导出账本丢失 |
+| 6 | 签名或验签失败 |
+| 7 | 历史保留值，不再产生 |
+| 8 | Agent拷贝业务失败 |
+| 9 | Master有效账本合入或一致性检查失败 |
+| 10 | 等待异步业务结果超时 |
+| 11 | 初始迁移任务投递失败 |
+| 12 | 阶段定时器注册失败 |
+| 13 | Agent的begin_import业务失败，包含decoder准备 |
+| 14 | Agent的begin_export业务失败 |
+| 15 | Agent的end_import(1)阶段业务失败 |
+| 16 | Agent的end_export(1)阶段业务失败 |
+| 17 | Master准备当前块请求失败，尚未发起RPC |
+| 18 | Agent的end_import(0)回退失败 |
+| 19 | Agent的end_export(0)回退失败 |
+
+**权限 PERMISSION**
+同 `ubs_mem_shm_migrate`。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <ubs_engine.h>
+#include <ubs_engine_mem.h>
+
+int main(void)
+{
+    int32_t ret;
+    const char *path = "/var/run/ubse/ubse.sock";
+    const char *name = "test_mem";
+    ubs_mem_shm_migrate_desc_t *desc = NULL;
+
+    ret = ubs_engine_client_initialize(path);
+    if (ret != UBS_SUCCESS) {
+        printf("init failed, ret=%d\n", ret);
+        return -1;
+    }
+
+    /* 迁移为异步执行，可循环轮询本接口直至 state 进入终态（SUCCESS/FAILED/CANCELED） */
+    ret = ubs_mem_shm_migrate_get(name, &desc);
+    if (ret != UBS_SUCCESS) {
+        printf("shm migrate get failed, ret=%d\n", ret);
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("shm migrate state=%d, migrated_memids=%u/%u, error_code=%d\n",
+           desc->state, desc->migrated_memids, desc->total_memids, desc->error_code);
+    free(desc);
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs_mem_shm_migrate_cancel
+
+**库 LIBRARY**
+
+ubse 库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_mem.h>
+int32_t ubs_mem_shm_migrate_cancel(const char *name);
+```
+
+**描述 DESCRIPTION**
+
+申请取消尚未进入 DATA_COPYING 的迁移，权限要求与受理相同。
+
+**参数 PARAMETERS**
+
+| 参数 | 方向 | 说明 |
+| --- | --- | --- |
+| name | IN | 共享内存名，也是迁移会话键 |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error | Description |
+| --- | --- |
+| UBS\_ERR\_INVALID\_ARG | 参数无效（name 为空、格式或长度不合法） |
+| UBS\_ERR\_OUT\_OF\_MEMORY | 内存不足 |
+| UBS\_ERR\_IPC\_CONNECTION\_FAILED | SDK 建立 IPC 连接失败 |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED | UBSE 服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录（含 master 重启后） |
+| UBS\_ERR\_TIMED\_OUT | SDK IPC 请求发送、等待或接收超时 |
+| UBS\_ENGINE\_ERR\_INTERNAL | UBSE 服务端内部错误 |
+| UBS\_ENGINE\_ERR\_MIGRATE\_NOT\_ALLOWED | 当前会话状态不允许取消（不处于 INIT/EXPORTING，含终态） |
+
+**附注 NOTES**
+
+仅 INIT/EXPORTING 可受理取消；DATA_COPYING 及后续状态拒绝取消。返回 0 表示取消申请已受理，需轮询 get 确认终态；清理失败可能进入 FAILED。重复取消按会话规则幂等处理。参数非法、会话不存在或权限不满足均返回非零错误。
+
+**权限 PERMISSION**
+同 `ubs_mem_shm_migrate`。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <unistd.h>
+#include <ubs_engine.h>
+#include <ubs_engine_mem.h>
+
+int main(void)
+{
+    int32_t ret;
+    const char *path = "/var/run/ubse/ubse.sock";
+    const char *name = "test_mem";
+
+    ret = ubs_engine_client_initialize(path);
+    if (ret != UBS_SUCCESS) {
+        printf("init failed, ret=%d\n", ret);
+        return -1;
+    }
+
+    ret = ubs_mem_shm_migrate_cancel(name);
+    if (ret != UBS_SUCCESS) {
+        printf("shm migrate cancel failed, ret=%d\n", ret);
+        ubs_engine_client_finalize();
+        return -1;
+    }
+    /* 取消申请已受理，轮询 ubs_mem_shm_migrate_get 确认 CANCELED 或 FAILED */
+
+    ubs_engine_client_finalize();
+    return 0;
 }
 ```
 
@@ -4934,7 +5247,9 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 | `UBSE_EXIST` | 创建成功 |
 | `UBSE_ERR_ONLY_IMPORT` | 只存在借入 |
 | `UBSE_ERR_WAIT_UNEXPORT` | 等待 unexport 执行 |
-| `UBSE_ERR_ABNORMAL` | 删除导入失败，账本与实际状态不一致 |
+| `UBSE_ERR_ABNORMAL` | 删除导入失败，账本与实际状态不一致；原阶段为创建中或已存在时，若迁移已终态且同名资源需归还重建，也返回该值，此时按 `ubs_mem_shm_migrate` 的 1044 处理（detach/delete 后重建） |
+| `UBSE_MIGRATING` | 共享内存迁移中，详细进度通过 `migrate_get` 查询 |
+| `UBSE_END` | 类型转换边界值，不表示任何内存状态 |
 
 #### `UbseMemBorrowType`
 

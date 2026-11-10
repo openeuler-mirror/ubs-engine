@@ -246,9 +246,12 @@ roleA = objectA,objectB
 |1|[auth.user.default]|ubsmd|ubsmd用户|默认值：default_ubsm| 所有节点              |通算大数据场景|
 |2|[auth.user.default]|ubs-scheduler|openstack插件用户|默认值：default_op|所有节点| 通算虚拟化场景           |
 |3|[auth.role.default]|matrixplugin|k8s插件用户|默认值：default_k8s|所有节点| 通算虚拟化场景           |
-|4|[auth.role.default]|default_ubsm|ubsm场景角色|默认值：mem.fd,mem.numa,mem.shm,mem.stat,topo| 所有节点              |通算大数据场景|
+|4|[auth.role.default]|default_ubsm|ubsm场景角色|默认值：mem.fd,mem.numa,mem.shm,mem.stat,topo,mem.shm.migrate| 所有节点              |通算大数据场景|
 |5|[auth.role.default]|default_op|openstack场景角色|默认值：topo,npu|所有节点| 通算虚拟化场景及智算NPU直通虚机 |
 |6|[auth.role.default]|default_k8s|k8s场景角色|默认值：mem.numa,topo|所有节点| 通算虚拟化场景           |
+|7|[auth.shm.migrate]|allowedUsers|允许操作其他用户共享内存迁移任务的用户名单；受理、查询、取消共用|默认不配置；逗号分隔，忽略两端空白，大小写敏感，不支持通配符，禁止空值|所有master候选节点|共享内存故障迁移场景|
+
+详细权限约束及重启生效要求见[共享内存迁移用户配置](../design/UBSE角色访问控制设计.md#34-共享内存迁移用户配置)。
 
 **VSOCK CID用户映射配置说明**
 
@@ -278,7 +281,7 @@ ubs-scheduler = default_op
 matrixplugin = default_k8s
 [auth.role.default]
 # Section for default role-to-permission mappings.
-default_ubsm = mem.fd,mem.numa,mem.shm,mem.stat,topo
+default_ubsm = mem.fd,mem.numa,mem.shm,mem.stat,topo,mem.shm.migrate
 default_op = topo,npu
 default_k8s = mem.numa,topo
 ```

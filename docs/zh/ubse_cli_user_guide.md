@@ -522,6 +522,8 @@ ubsectl display memory -t borrow_detail [-bt <type>] [-n <name>]
 
 **约束限制**
 
+共享内存迁移期间，账本与设备实际状态可能暂时不一致，不能据此判定已生效状态；迁移结束后应重新查询。
+
 只显示集群中在位的节点，如果脱离集群或未启动，则不显示。
 
 ubsectl只能在root，ubse用户中运行，可管理所有内存资源。
