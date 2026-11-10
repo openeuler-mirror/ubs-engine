@@ -1065,6 +1065,28 @@ uint32_t ShareExportAgentCallback(const std::string& exportNodeId, UbseMemShareB
     return ShareExportDestroyingAgentCallback(resp, exportObj, name, requestNodeId, exportNodeId);
 }
 
+static void EraseReleasedShareMigrateSession(const std::string& name)
+{
+    // 调用方持有同名资源锁。旧源删除完成不代表整个共享内存已释放，
+    // 必须检查所有节点的导出和导入账本，不能只依赖当前名称索引。
+    const auto hasResource = [&name](const auto& maps) {
+        for (const auto& [nodeId, nodeMap] : maps) {
+            if (nodeMap != nullptr && nodeMap->Get(name) != nullptr) {
+                UBSE_LOG_INFO << "Retain migrate session while shared resource exists, name=" << name
+                              << ", nodeId=" << nodeId;
+                return true;
+            }
+        }
+        return false;
+    };
+    auto& ledger = UbseMemDebtLedger::GetInstance();
+    if (hasResource(ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps()) ||
+        hasResource(ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps())) {
+        return;
+    }
+    UbseMemShmMigrateSessionManager::GetInstance().EraseTerminalSession(name);
+}
+
 static uint32_t ShareExportReturnCallback(const std::string& exportNodeId, UbseMemShareBorrowExportObj& exportObj,
                                           UbseMemOperationResp& resp)
 {
@@ -1104,7 +1126,7 @@ static uint32_t ShareExportReturnCallback(const std::string& exportNodeId, UbseM
             return ret;
         }
         EraseShareExport(exportObj);
-        UbseMemShmMigrateSessionManager::GetInstance().EraseTerminalSession(exportObj.req.name);
+        EraseReleasedShareMigrateSession(exportObj.req.name);
         UBSE_LOG_INFO << "shm return, name=" << exportObj.req.name << ", requestId=" << exportObj.req.requestId;
         // requestNodeId为空则当前场景为对账删除导出账本
         if (requestNodeId.empty()) {

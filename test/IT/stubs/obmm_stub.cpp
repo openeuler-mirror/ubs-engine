@@ -32,6 +32,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <atomic>
+#include <cerrno>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -77,12 +78,28 @@ struct obmm_preimport_info {
     uint8_t priv[];
 };
 
+struct obmm_switch_import_target {
+    uint64_t pa;
+    uint32_t scna;
+    uint32_t dcna;
+    uint8_t seid[UBSE_EID_LENGTH];
+    uint8_t deid[UBSE_EID_LENGTH];
+    int base_dist;
+};
+
+struct obmm_switch_export_target {
+    size_t size[OBMM_MAX_LOCAL_NUMA_NODES];
+    int node_count;
+    unsigned long export_flags;
+};
+
 using mem_id = uint64_t;
 
 static std::atomic<uint64_t> g_next_mem_id{1000};
 static std::mutex g_records_mutex;
 static std::map<mem_id, obmm_mem_desc*> g_export_records;
 static std::map<mem_id, int> g_import_numa_records;
+static std::map<mem_id, bool> g_switch_pending;
 
 // --- Shared-memory control block (runtime fault injection) ---
 // Lazily mapped on first should_fail() call from env UBSE_IT_OBMM_SHM.
@@ -119,6 +136,15 @@ static int op_index(const char* operation)
     }
     if (strcmp(operation, "unpreimport") == 0) {
         return ObmmStubControl::OP_UNPREIMPORT;
+    }
+    if (strcmp(operation, "switch_begin_import") == 0) {
+        return ObmmStubControl::OP_SWITCH_BEGIN_IMPORT;
+    }
+    if (strcmp(operation, "switch_begin_export") == 0) {
+        return ObmmStubControl::OP_SWITCH_BEGIN_EXPORT;
+    }
+    if (strcmp(operation, "switch_end") == 0) {
+        return ObmmStubControl::OP_SWITCH_END;
     }
     return -1;
 }
@@ -362,4 +388,79 @@ int obmm_unpreimport(const struct obmm_preimport_info* preimport_info, unsigned 
 
     return 0;
 }
+
+int obmm_switch_begin_import(mem_id id, unsigned long flags, const struct obmm_switch_import_target* target,
+                             const void* priv, uint16_t priv_len)
+{
+    apply_delay("switch_begin_import");
+    if (should_fail("switch_begin_import")) {
+        return -1;
+    }
+    (void)flags;
+    (void)priv;
+    (void)priv_len;
+    if (target == nullptr) {
+        errno = EINVAL;
+        return -1;
+    }
+    std::lock_guard<std::mutex> lock(g_records_mutex);
+    if (g_import_numa_records.find(id) == g_import_numa_records.end() || g_switch_pending[id]) {
+        errno = EBUSY;
+        return -1;
+    }
+    g_switch_pending[id] = true;
+    return 0;
+}
+
+int obmm_switch_begin_export(mem_id id, unsigned long flags, const struct obmm_switch_export_target* target,
+                             struct obmm_mem_desc* desc, const void* priv, uint16_t priv_len)
+{
+    apply_delay("switch_begin_export");
+    if (should_fail("switch_begin_export")) {
+        return -1;
+    }
+    (void)flags;
+    (void)priv;
+    (void)priv_len;
+    if (target == nullptr || desc == nullptr) {
+        errno = EINVAL;
+        return -1;
+    }
+    std::lock_guard<std::mutex> lock(g_records_mutex);
+    if (g_import_numa_records.find(id) == g_import_numa_records.end() || g_switch_pending[id]) {
+        errno = EBUSY;
+        return -1;
+    }
+    g_switch_pending[id] = true;
+    desc->addr = id;
+    desc->tokenid = static_cast<uint32_t>(id);
+    return 0;
+}
+
+int obmm_switch_end(mem_id id, int success)
+{
+    apply_delay("switch_end");
+    if (should_fail("switch_end")) {
+        return -1;
+    }
+    std::lock_guard<std::mutex> lock(g_records_mutex);
+    auto it = g_switch_pending.find(id);
+    if (it == g_switch_pending.end() || !it->second) {
+        // begin 失败场景可独立模拟一次清理成功，不要求真实设备已进入 switch。
+        if (!success && g_import_numa_records.count(id) != 0) {
+            return 0;
+        }
+        errno = ESTALE;
+        return -1;
+    }
+    it->second = false;
+    (void)success;
+    return 0;
+}
+}
+
+// IT only: emulate the copy ABI; performance requires the real library.
+extern "C" void* memcpy_mt(void* dst, const void* src, size_t n, unsigned int)
+{
+    return memcpy(dst, src, n);
 }

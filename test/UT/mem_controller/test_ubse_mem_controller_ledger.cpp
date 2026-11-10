@@ -825,6 +825,48 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningShareExportHandler)
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
+TEST_F(TestUbseMemControllerLedger, ExportReconciliationUsesOrdinaryStateHandling)
+{
+    const std::string name = "retiring_shm";
+    const std::string source = "1";
+    const std::string target = "2";
+    UbseMemShareBorrowExportObj retiring{};
+    retiring.req.name = name;
+    retiring.status.state = UBSE_MEM_EXPORT_DESTROYING;
+    retiring.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
+    UbseMemDebtNumaInfo numa{};
+    numa.nodeId = source;
+    retiring.algoResult.exportNumaInfos = {numa};
+    UbseMemObmmInfo block{};
+    block.memId = 1001;
+    retiring.status.exportObmmInfo = {block};
+    PutDebtObj(source, name, retiring);
+    auto active = retiring;
+    active.algoResult.exportNumaInfos.front().nodeId = target;
+    active.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    active.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
+    PutDebtObj(target, name, active);
+    MOCKER(&DeleteShareExport).expects(never());
+
+    for (const auto state : {UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_DESTROYING}) {
+        auto agent = retiring;
+        agent.status.state = state;
+        MOCKER(&QueryShareExport).stubs().with(any(), outBound(agent)).will(returnValue(UBSE_OK));
+        EXPECT_EQ(UBSE_OK, MasterRunningShareExportHandler(source, {retiring}));
+        EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, GetDebtObj<UbseMemShareBorrowExportObj>(source, name)->status.state);
+        const auto indexed =
+            UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(name);
+        ASSERT_NE(nullptr, indexed);
+        EXPECT_EQ(source, indexed->algoResult.exportNumaInfos.front().nodeId);
+        MOCKER(&QueryShareExport).reset();
+    }
+    auto replaced = retiring;
+    ++replaced.status.exportObmmInfo.front().memId;
+    MOCKER(&QueryShareExport).stubs().with(any(), outBound(replaced)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, MasterRunningShareExportHandler(source, {retiring})); // 不删除身份不匹配的设备。
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+}
+
 TEST_F(TestUbseMemControllerLedger, MasterRunningShareImportHandler)
 {
     const std::string nodeId = "node1";

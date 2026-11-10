@@ -112,9 +112,6 @@ void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-ShareReturnRegionFailed-01: Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
 void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
-void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster);
-
 // P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
 void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster);
 

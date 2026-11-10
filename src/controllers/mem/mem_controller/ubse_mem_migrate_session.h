@@ -98,7 +98,9 @@ public:
     // 终态落定：state + failReason
     void FinishSession(const std::string& name, ubs_mem_migrate_state_t state, uint32_t failReason = 0);
 
-    // 同名资源全部释放后移除终态记录；非终态会话保留。
+    // 移除终态记录；非终态会话保留。本函数只检查会话状态，不读取资源账本。
+    // 调用方必须持有同名资源锁，并确认所有节点的同名共享导出、导入账本均已移除，
+    // 从账本检查到本函数返回期间保持该锁；仅旧源删除完成或名称索引消失不满足调用条件。
     void EraseTerminalSession(const std::string& name);
 
     // 仅测试使用：清空会话表

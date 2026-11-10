@@ -56,8 +56,12 @@ using ubse::it::infra::GetComStubControl;
 namespace ubse::com {
 
 // ====== 1. TLS mock (original behavior) ======
-// 真实实现会调用ubs_hcom_service_set_tls_opt注册TLS选项；此处空实现即不注册，等效禁用TLS
-void UbseComEngine::RegisterTLSCallbacks() {}
+// IT 使用无证书的本地模拟集群；必须显式配置，不能依赖 HCOM 的默认 TLS 开关。
+void UbseComEngine::RegisterTLSCallbacks()
+{
+    ubs_hcom_service_set_tls_opt(hcomNetService_, false, C_SERVICE_TLS_1_3, engineInfo_.GetCipherSuite(), nullptr,
+                                 nullptr, nullptr, nullptr, nullptr);
+}
 
 // ====== 2. RPC fault injection via shared memory ======
 // Uses GetComStubControl() from it_com_stub_loader.h (shared with other IT mocks).

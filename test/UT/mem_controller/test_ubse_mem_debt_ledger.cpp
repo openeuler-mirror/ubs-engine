@@ -14,6 +14,7 @@
 #include <atomic>
 #include <thread>
 #include <vector>
+#include "ubse_mem_migrate_helper.h"
 
 namespace ubse::mem::controller::debt::ut {
 
@@ -659,6 +660,93 @@ TEST_F(TestUbseMemTypeDebtMap, RemoveOtherNodeMaps_WithExportObj_ShouldClearExpo
 
     EXPECT_EQ(typeDebtMap.GetExportResourceByResId("res1"), nullptr);
     EXPECT_NE(typeDebtMap.GetExportResourceByResId("res2"), nullptr);
+}
+
+// 迁移新旧导出同名：删除旧源资源、旧源节点或其他节点均不得破坏目标的名称查询。
+TEST_F(TestUbseMemTypeDebtMap, RemoveOldExport_ShouldPreserveMigratedTargetIndex)
+{
+    for (int removal = 0; removal < 3; ++removal) {
+        SCOPED_TRACE(removal);
+        UbseMemTypeDebtMap<UbseMemShareBorrowExportObj> typeDebtMap;
+        auto source = std::make_shared<UbseMemShareBorrowExportObj>();
+        source->req.name = "test";
+        source->req.size = 1024ULL * 1024 * 1024;
+        auto target = std::make_shared<UbseMemShareBorrowExportObj>(*source);
+        target->req.baseNodeId = "2";
+        typeDebtMap.PutResource("1", "test", source);
+        typeDebtMap.PutResource("2", "test", target);
+
+        if (removal == 0) {
+            EXPECT_TRUE(typeDebtMap.RemoveResource("1", "test"));
+        } else if (removal == 1) {
+            EXPECT_TRUE(typeDebtMap.RemoveNodeMap("1"));
+        } else {
+            typeDebtMap.RemoveOtherNodeMaps("2");
+        }
+
+        EXPECT_EQ(typeDebtMap.GetResource("1", "test"), nullptr);
+        EXPECT_EQ(typeDebtMap.GetResource("2", "test"), target);
+        const auto queried = typeDebtMap.GetExportResourceByResId("test");
+        ASSERT_EQ(queried, target);
+        EXPECT_EQ(queried->req.size, source->req.size);
+        EXPECT_EQ(queried->req.baseNodeId, "2");
+        EXPECT_TRUE(typeDebtMap.RemoveResource("2", "test"));
+        EXPECT_EQ(typeDebtMap.GetExportResourceByResId("test"), nullptr);
+    }
+}
+
+TEST_F(TestUbseMemTypeDebtMap, ExportIndexTracksLastWriteRegardlessOfState)
+{
+    for (bool sharedPointer : {false, true}) {
+        UbseMemTypeDebtMap<UbseMemShareBorrowExportObj> typeDebtMap;
+        UbseMemShareBorrowExportObj active{};
+        active.req.name = "test";
+        active.req.baseNodeId = "2";
+        active.status.state = UBSE_MEM_EXPORT_SUCCESS;
+        typeDebtMap.PutResource("2", "test", active);
+        auto residual = active;
+        residual.req.baseNodeId = "1";
+        for (auto state : {UBSE_MEM_EXPORT_DESTROYING, UBSE_MEM_EXPORT_DESTROYED}) {
+            residual.status.state = state;
+            if (sharedPointer) {
+                typeDebtMap.PutResource("1", "test", std::make_shared<UbseMemShareBorrowExportObj>(residual));
+            } else {
+                typeDebtMap.PutResource("1", "test", residual);
+            }
+            const auto indexed = typeDebtMap.GetExportResourceByResId("test");
+            ASSERT_NE(nullptr, indexed);
+            EXPECT_EQ("1", indexed->req.baseNodeId);
+            EXPECT_EQ(state, indexed->status.state);
+            ASSERT_NE(nullptr, typeDebtMap.GetResource("2", "test"));
+            ASSERT_NE(nullptr, typeDebtMap.GetResource("1", "test"));
+        }
+    }
+}
+
+// 旧源删除及最终目标登记都不得破坏目标按名称查询。
+TEST_F(TestUbseMemTypeDebtMap, FinalizeMigratedExport_ShouldRestoreIndexAfterOldSourceStateUpdate)
+{
+    UbseMemTypeDebtMap<UbseMemShareBorrowExportObj> typeDebtMap;
+    UbseMemShareBorrowExportObj source{};
+    source.req.name = "test";
+    source.req.size = 1024ULL * 1024 * 1024;
+    auto target = source;
+    target.req.baseNodeId = "2";
+    target.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    typeDebtMap.PutResource("1", "test", source);
+    typeDebtMap.PutResource("2", "test", target);
+    source.status.state = UBSE_MEM_EXPORT_DESTROYING;
+    typeDebtMap.PutResource("1", "test", source);
+    ASSERT_TRUE(typeDebtMap.RemoveResource("1", "test"));
+
+    const auto committed = typeDebtMap.GetResource("2", "test");
+    ASSERT_NE(committed, nullptr);
+    typeDebtMap.PutResource("2", "test", *committed);
+    const auto queried = typeDebtMap.GetExportResourceByResId("test");
+    ASSERT_NE(queried, nullptr);
+    EXPECT_EQ(queried->req.size, target.req.size);
+    EXPECT_EQ(queried->req.baseNodeId, "2");
+    EXPECT_EQ(queried->status.state, UBSE_MEM_EXPORT_SUCCESS);
 }
 
 // Tests `GetAllNodeMaps` with empty and verifies the expected result.
@@ -1600,3 +1688,67 @@ TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_NonExistentNode_ShouldClearAll)
 }
 
 } // namespace ubse::mem::controller::debt::ut
+
+namespace ubse::mem::controller::migrate_detail {
+TEST(TestMigrateBlockLedger, RejectsDifferentBlockAndExportIdentity)
+{
+    UbseMemMigrateRpcInfo info{};
+    info.blockIndex = 1;
+    info.exportMemId = 42;
+    const auto context = MakeSwitchContext(info);
+    EXPECT_TRUE(MatchesSwitchContext(context, info));
+    info.blockIndex = 0;
+    EXPECT_FALSE(MatchesSwitchContext(context, info));
+    info.blockIndex = 1;
+    info.exportMemId = 43;
+    EXPECT_FALSE(MatchesSwitchContext(context, info));
+}
+
+TEST(TestMigrateBlockLedger, CommitChangesOnlyCurrentBlockAndPreservesLocalDevice)
+{
+    UbseMemShareBorrowImportObj obj{};
+    obj.exportObmmInfo.resize(2);
+    obj.migrateInfos.resize(2);
+    obj.status.decoderResult.resize(2);
+    obj.status.importResults.resize(2);
+    obj.status.importResults[0].memId = 17;
+    obj.exportObmmInfo[1].memId = 99;
+    obj.req.baseNodeId = "old";
+    UbseMemMigrateRpcInfo info{};
+    info.exportMemId = 42;
+    UbseMemMigrateBlockData block{};
+    block.exportInfo.memId = 42;
+    block.decoder.emplace();
+    block.decoder->hpa = 4096;
+    ApplyEndSuccess(obj, info, block);
+    EXPECT_TRUE(IsMigrateBlockCommitted(obj, info));
+    EXPECT_EQ(obj.status.importResults[0].memId, 17);
+    EXPECT_EQ(obj.exportObmmInfo[1].memId, 99);
+    EXPECT_EQ(obj.req.baseNodeId, "old");
+    info.blockIndex = 1;
+    info.exportMemId = 43;
+    block.exportInfo.memId = 43;
+    block.targetLayout.exportNumaInfos.push_back({"target", 0, 0, 8192});
+    ApplyEndSuccess(obj, info, block);
+    EXPECT_TRUE(IsMigrateBlockCommitted(obj, info));
+    EXPECT_EQ(obj.req.baseNodeId, "target");
+    EXPECT_EQ(obj.req.lenderInfo.nodeId, "target");
+    EXPECT_EQ(obj.exportObmmInfo[0].memId, 42);
+    info.blockIndex = 2;
+    EXPECT_FALSE(IsMigrateBlockCommitted(obj, info));
+}
+
+TEST(TestMigrateBlockLedger, RollbackClearsOnlySwitchingStatus)
+{
+    UbseMemShareBorrowImportObj obj{};
+    obj.exportObmmInfo.resize(2);
+    obj.exportObmmInfo[0].memId = 42;
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    const auto otherStatus = obj.exportObmmInfo[1].memIdStatus;
+    ApplyEndRollback(obj, 0);
+    EXPECT_EQ(obj.exportObmmInfo[0].memIdStatus, UB_MEM_HEALTHY);
+    EXPECT_EQ(obj.exportObmmInfo[0].memId, 42);
+    ApplyEndRollback(obj, 1);
+    EXPECT_EQ(obj.exportObmmInfo[1].memIdStatus, otherStatus);
+}
+} // namespace ubse::mem::controller::migrate_detail

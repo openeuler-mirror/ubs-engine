@@ -154,6 +154,7 @@ add_dependencies(ubse_it_runtime
     ubse_it_node_launcher
     ubse_interface_preload
     obmm_stub
+    obmm_accel_stub
     urma_uvs_stub
     xalarm_stub
     mock_plugin

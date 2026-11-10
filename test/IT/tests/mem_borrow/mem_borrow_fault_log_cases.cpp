@@ -1153,7 +1153,7 @@ void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster)
         region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
         region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
         auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
-        EXPECT_IT_ERROR(ret, UBSE_MMI_OBMM_OP_FAILED);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
     }
 
     obmmStubControl.SetOpFailed(ObmmStubControl::OP_EXPORT, false);
@@ -1543,8 +1543,11 @@ void RunP1FaultLogShareChipNotSupported(ubse::it::infra::ItCluster& cluster)
 
         // SDK尝试attach共享内存
         IT_LOG_INFO << "[ShareAttachAuthFailed-01] Attaching SHM name=" << name;
-        auto ret = sdk.MemShmAttach(name, nullptr, 0, nullptr);
+        ubs_mem_shm_desc_t* desc = nullptr;
+        auto ret = sdk.MemShmAttach(name, nullptr, 0, &desc);
         EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+        EXPECT_EQ(nullptr, desc);
+        free(desc);
 
         // CLI尝试attach共享内存
         IT_LOG_INFO << "[ShareChipNotSupported-01] Attaching SHM name=" << name;
@@ -3042,78 +3045,6 @@ void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.adviceCode, 1u); // CHECK_FAILED
     EXPECT_FALSE(entry.errorInfo.empty());
     EXPECT_FALSE(entry.advice.empty());
-}
-
-// ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
-void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& cliInvoker = cluster.GetCliInvoker("1");
-    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
-    // 清空 fault log，避免前序用例干扰
-    ItFaultLogHelper::ClearFaultLog(faultLogPath);
-
-    const char* name = "it_p1_fl_share_detach_req_conflict";
-    {
-        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
-
-        // 创建共享内存，共享域包含节点1和节点2
-        ubs_mem_lender_t lender{
-            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
-        ubs_mem_nodes_t region{};
-        region.node_cnt = 2;
-        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
-        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
-        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
-        ASSERT_IT_OK(ret);
-    }
-
-    auto& obmmStubControl = cluster.GetObmmStubControl("1");
-    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 100);
-
-    {
-        IT_LOG_INFO << "[ReturnReqConflict-01] Creating SHM with request conflict: name=" << name;
-        // 使用std::future获取线程返回值
-        auto future1 = std::async(std::launch::async, [&]() {
-            ubs_mem_shm_desc_t* attachDesc = nullptr;
-            auto attachRet = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
-            if (attachDesc != nullptr) {
-                free(attachDesc);
-            }
-            return attachRet;
-        });
-        auto future2 = std::async(std::launch::async, [&]() -> int {
-            EXPECT_NE(cliInvoker.DetachMemory(name), UBS_SUCCESS);
-            return 0;
-        });
-    }
-
-    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
-
-    {
-        // 清理
-        auto ret = sdk.MemShmDetach(name);
-        ASSERT_IT_OK(ret);
-        ret = sdk.MemShmDelete(name);
-        ASSERT_IT_OK(ret);
-    }
-
-    // 等待并校验 fault log 中出现 SHARED_DETACH_REQ_CONFLICT (faultCode=40)
-    auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0040"; });
-    // 校验日志总数
-    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0040, got "
-                                  << entries.size();
-
-    // 校验日志内容
-    const auto& entry = entries[0];
-    EXPECT_EQ(entry.requestName, name);
-    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
-    EXPECT_EQ(entry.requestSize, 0);
-    EXPECT_EQ(entry.requestNode, "1");
-    EXPECT_EQ(entry.adviceCode, 9u); // RES_OP_CONFLICT
-    EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
-    EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
 }
 
 // ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST

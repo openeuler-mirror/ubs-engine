@@ -179,6 +179,51 @@ TEST_F(TestUbseMemObjRestore, ConstructSingleShareExportObj_success)
     EXPECT_TRUE(isNormal);
 }
 
+TEST_F(TestUbseMemObjRestore, ShareRestoreUsesMigrationMarkersOnlyForV2)
+{
+    for (const auto version : {OBMM_CUSTOM_META_V1, OBMM_CUSTOM_META_V2}) {
+        std::vector<UbseMemLocalObmmMetaData> blocks(2);
+        for (size_t i = 0; i < blocks.size(); ++i) {
+            auto& block = blocks[i];
+            block.customMeta.version = version;
+            block.customMeta.memidCount = 2;
+            block.customMeta.numaSizes[0] = 1024;
+            block.localMemId = 100 + i;
+            block.usedPidCount = 1;
+            block.customMeta.exportMemid = 200 + i;
+            block.customMeta.decoderResult.marId = 10 + i;
+            block.customMeta.migrateInfo = 0x800b1000U | (1 - i);
+        }
+        const size_t first = version == OBMM_CUSTOM_META_V2 ? 1 : 0;
+        UbseMemShareBorrowExportObj exportObj{};
+        bool normal{};
+        ConstructSingleShareExportObj(blocks, exportObj, normal);
+        ASSERT_TRUE(normal);
+        ASSERT_EQ(exportObj.status.exportObmmInfo.size(), 2U);
+        EXPECT_EQ(exportObj.status.exportObmmInfo[0].memId, 100 + first);
+        UbseMemShareBorrowImportObj importObj{};
+        ConstructSingleShareImportObj(blocks, importObj, normal);
+        ASSERT_TRUE(normal);
+        ASSERT_EQ(importObj.status.importResults.size(), 2U);
+        EXPECT_EQ(importObj.status.importResults[0].memId, 100 + first);
+        EXPECT_EQ(importObj.exportObmmInfo[0].memId, 200 + first);
+        EXPECT_EQ(importObj.status.decoderResult[0].marId, 10 + first);
+        UbseMemShareBorrowImportObj selfImport{};
+        ConstructSingleShareImportObjFromExportMetaData(blocks, selfImport, normal);
+        ASSERT_TRUE(normal);
+        EXPECT_FALSE(selfImport.realExe);
+        EXPECT_EQ(selfImport.status.importResults[0].memId, 100 + first);
+        EXPECT_EQ(selfImport.migrateInfos, importObj.migrateInfos);
+        if (version == OBMM_CUSTOM_META_V2) {
+            EXPECT_EQ(exportObj.migrateInfos, (std::vector<uint32_t>{0x800b1000U, 0x800b1001U}));
+            EXPECT_EQ(importObj.migrateInfos, (std::vector<uint32_t>{0x1000U, 0x1001U}));
+        } else {
+            EXPECT_TRUE(exportObj.migrateInfos.empty());
+            EXPECT_TRUE(importObj.migrateInfos.empty());
+        }
+    }
+}
+
 TEST_F(TestUbseMemObjRestore, ConstructSingleAddrImportObj_success)
 {
     std::vector<UbseMemLocalObmmMetaData> metaDatas{};

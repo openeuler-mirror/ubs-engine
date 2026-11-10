@@ -44,8 +44,11 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/sysmacros.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <cstdarg>
@@ -421,6 +424,10 @@ extern "C" int open(const char* pathname, int flags, ...)
         return real_open_func(pathname, flags, mode);
     }
 
+    // 模拟设备访问，UBSE 仍执行真实 open/mmap/copy/munmap/close 流程。
+    if (IsObmmDevicePath(pathname)) {
+        return real_open_func("/dev/zero", flags, mode);
+    }
     const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
     if (seiPath != nullptr && seiPath[0] != '\0' && pathname != nullptr &&
         strcmp(pathname, "/proc/sys/kernel/arm64_sync_sei") == 0) {
@@ -432,6 +439,19 @@ extern "C" int open(const char* pathname, int flags, ...)
     }
 
     return real_open_func(pathname, flags, mode);
+}
+
+// 仅对模拟 OBMM 设备的 switch 偏移返回可读写零页，不模拟内核切换或数据保真。
+extern "C" void* mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
+{
+    if (g_runtimeReady && (offset == (1LL << 61) || offset == (1LL << 60))) {
+        struct stat info {
+        };
+        if (fstat(fd, &info) == 0 && S_ISCHR(info.st_mode) && info.st_rdev == makedev(1, 5)) {
+            offset = 0;
+        }
+    }
+    return reinterpret_cast<void*>(syscall(SYS_mmap, addr, length, prot, flags, fd, offset));
 }
 
 // ============================================================

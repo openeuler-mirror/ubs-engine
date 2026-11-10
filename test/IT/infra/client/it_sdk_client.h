@@ -85,6 +85,8 @@ public:
     int32_t MemShmDetach(const char* name);
     int32_t MemShmDelete(const char* name);
     int32_t MemShmGet(const char* name, ubs_mem_shm_desc_t** shmDesc);
+    int32_t MemShmMigrate(const char* name, uint32_t targetSlotId);
+    int32_t MemShmMigrateGet(const char* name, ubs_mem_shm_migrate_desc_t** desc);
     int32_t MemShmList(ubs_mem_shm_desc_t** shmDescs, uint32_t* shmDescCnt);
     // --- NPU APIs ---
     int32_t NpuDeviceListQuery(ubs_ub_devices_list_t* deviceList);

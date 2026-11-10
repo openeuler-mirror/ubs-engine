@@ -363,7 +363,7 @@ std::string AddDecoderResponseJson()
            "  \"huawei-vbussw-service:ub-memory-decoder\": {\n"
            "    \"huawei-vbussw-service:output\": {\n"
            "      \"result\": \"success\",\n"
-           "      \"hpa\": \"0\",\n"
+           "      \"hpa\": \"4294967296\",\n"
            "      \"handle\": \"0\"\n"
            "    }\n"
            "  }\n"
