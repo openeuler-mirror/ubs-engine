@@ -38,11 +38,16 @@ MpResult MpSyncDataHelper::DeInit()
 
 void GetSyncResultResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
-    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Ctx or respData is null.";
+    if (ctx == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Ctx is null.";
         return;
     }
     uint32_t& ret = *(static_cast<uint32_t*>(ctx));
+    if (respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] RespData is null.";
+        ret = static_cast<uint32_t>(MEM_POOLING_ERROR);
+        return;
+    }
     RmrsInStream builder(respData.data, respData.len);
     builder >> ret;
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] ret=" << ret;
@@ -57,7 +62,7 @@ MpResult MpSyncDataHelper::SyncDataToNode(const std::vector<std::string>& nodeId
             << "[MpElection][SyncData] SyncData to NodeId=" << nodeId << " start.";
         UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = opCode, .address = nodeId};
         UbseByteBuffer reqData = data;
-        uint32_t ret;
+        uint32_t ret = static_cast<uint32_t>(MEM_POOLING_ERROR);
         uint32_t retRpc = UbseRpcSend(endpoint, reqData, &ret, GetSyncResultResHandler);
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpElection][SyncData] UbseRpcSend to NodeId=" << nodeId << " start.";

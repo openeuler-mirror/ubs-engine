@@ -122,9 +122,11 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteResHandler_Succeed)
     uint32_t ctx = 0;
     UbseByteBuffer resp;
     resp.len = 1;
+    resp.data = new uint8_t[1];
     uint32_t resCode = MEM_POOLING_OK;
     OverCommitFaultManagementHandler::MemIdExecuteResHandler(&ctx, resp, resCode);
     EXPECT_EQ(ctx, MEM_POOLING_OK);
+    delete[] resp.data;
 }
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteResHandler_Failed)
@@ -132,9 +134,11 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteResHandler_Failed)
     uint32_t ctx = 1;
     UbseByteBuffer resp;
     resp.len = 1;
+    resp.data = new uint8_t[1];
     uint32_t resCode = MEM_POOLING_ERROR;
     OverCommitFaultManagementHandler::MemIdExecuteResHandler(&ctx, resp, resCode);
     EXPECT_NE(ctx, MEM_POOLING_OK);
+    delete[] resp.data;
 }
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteResHandler_Succeed)

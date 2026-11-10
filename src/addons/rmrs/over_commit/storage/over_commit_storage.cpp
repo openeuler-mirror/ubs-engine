@@ -250,6 +250,15 @@ MpResult OverCommitStorage::UpdateBindTypeDB(const std::string& nodeId, const Nu
     return MEM_POOLING_OK;
 }
 
+MpResult OverCommitStorage::UpdateBindTypeMap(const std::unordered_map<std::string, NumaBindType>& bindMap)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    for (const auto& [k, v] : bindMap) {
+        mNodeNumaBindMap[k] = v;
+    }
+    return MEM_POOLING_OK;
+}
+
 MpResult OverCommitStorage::SelectBindTypeDB()
 {
     std::lock_guard<std::mutex> lock(mtx);
