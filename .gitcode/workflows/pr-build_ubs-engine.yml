@@ -8,11 +8,30 @@ on:
       - update
     branches:
       - master
+      - openEuler*
+      - br_UnifiedBus
+    paths:
+      - "src/**"
+      - "!src/addons/virt_agent/**"
+      - "!src/addons/rmrs/**"
+      - "!src/addons/ucache/**"
+      - "!src/addons/process_mem/**"
+      - "test/**"
+      - "!test/UT/exclusive_executable/virt_agent/**"
+      - "!test/UT/exclusive_executable/rmrs/**"
+      - "!test/UT/exclusive_executable/ucache/**"
+      - "!test/UT/exclusive_executable/process_mem/**"
+      - "scripts/**"
+      - "build.sh"
+      - "CMakeLists.txt"
+      - "src/include/**"
   pull_request_comment:
     types: [created]
     comments: [ '^recompile$' ]
     branches:
       - master
+      - openEuler*
+      - br_UnifiedBus
 env:
   pr_id: ${{ atomgit.event.pull_request.number }}
 
@@ -31,84 +50,57 @@ permissions:
   pr: write
 
 stages:
-  codecheck:
-    name: CodeCheck
-    jobs:
-      CodeCheck_pre_commit:
-        name: CodeCheck_pre_commit
-        runs-on: [self-hosted, openeuler, x86, cpu=16]
-        container:
-          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
-        steps:
-          - name: checkout
-            uses: checkout
-            with:
-              ref: refs/merge-requests/${{ env.pr_id }}/merge
-              allow-unsafe-pr-checkout: true
-          - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
-          - name: Install System pre-commit
-            run: | 
-                set -eux
-                clang-format --version
-                PYTHON3_BIN=$(dirname "$(which python3)")
-                ln -sf "$(which python3)" "$PYTHON3_BIN/python"
-                echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
-                python --version
-                python -m pip install --upgrade pip --timeout 120 --ignore-installed
-                pip3 config set global.index-url https://mirrors.huaweicloud.com/repository/pypi/simple
-                cd ${ATOMGIT_WORKSPACE}
-                pip3 install pre-commit==4.3.0 pre-commit-hooks && pre-commit install --install-hooks
-          - name: RPM Build ubs-comm
-            run: bash scripts/ci_prepare_ubs-comm.sh
-          - name: install gitleaks 
-            run: | 
-                cd ${ATOMGIT_WORKSPACE} 
-                cp -rf /opt/buildtools/gitleaks ./ 
-                cd -
-          - name: pre-commit
-            uses: openlibing-pre-commit-action
   compile:
     name: Compile and DT
     jobs:
       ubs-engine_compile:
         name: ubs-engine_compile
-        runs-on: [self-hosted, openeuler, x86, cpu=16]
+        runs-on: [self-hosted, openeuler, arm, cpu=16]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
         steps:
-          - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm
           - name: Checkout Source Code
             uses: checkout
             with:
               ref: refs/merge-requests/${{ env.pr_id }}/merge
               allow-unsafe-pr-checkout: true
-          - name: RPM Build ubs-comm
-            run: bash scripts/ci_prepare_ubs-comm.sh
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
           - name: Build ubs-engine
             run: | 
                 set -eux
                 ls -al
-                bash build.sh
+                bash build.sh ubse
+                bash build.sh ubsectl
+                bash build.sh ubse_sdk
       ubs-engine_ut:
         name: ubs-engine_ut
-        runs-on: [self-hosted, openeuler, x86, cpu=32]
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
         steps:
-          - name: Checkout Platform Code
-            run: git clone -b openEuler-24.03-LTS-Next https://gitcode.com/src-openeuler/ubs-comm.git /tmp/src/ubs-comm 
           - name: Checkout Source Code
             uses: checkout
             with:
               ref: refs/merge-requests/${{ env.pr_id }}/merge
               allow-unsafe-pr-checkout: true
-          - name: RPM Build ubs-comm
-            run: bash scripts/ci_prepare_ubs-comm.sh
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
           - name: UT ubs-engine
             run: | 
                 set -eux
                 sudo dnf install -y gmock-devel
                 ls -al
-                bash build.sh ut -j 3
+                bash build.sh ubs-engine_ut_independent_ut -C -j 8

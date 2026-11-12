@@ -9,12 +9,14 @@ on:
     branches:
       - master
       - openEuler*
+      - br_UnifiedBus
   pull_request_comment:
     types: [created]
     comments: [ 'checkissue' ]
     branches:
       - master
       - openEuler*
+      - br_UnifiedBus
 env:
   pr_id: ${{ atomgit.event.pull_request.number }}
   atomgit_token: ${{  atomgit.token  }}
@@ -31,6 +33,7 @@ concurrency:
 
 permissions:
   project: read
+  pr: read
   repository: read
   id-token: write
 

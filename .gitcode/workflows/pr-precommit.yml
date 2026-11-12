@@ -1,0 +1,70 @@
+name: pre-commit
+
+on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+  pull_request_comment:
+    types: [created]
+    comments: [ '^recompile$' ]
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 5
+  exceed-action: QUEUE
+
+permissions:
+  project: read
+  repository: read
+  pr: write
+
+stages:
+  codecheck:
+    name: CodeCheck
+    jobs:
+      CodeCheck_pre_commit:
+        name: CodeCheck_pre_commit
+        runs-on: [self-hosted, openeuler, x86, cpu=16]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: Install System pre-commit
+            run: | 
+                set -eux
+                clang-format --version
+                PYTHON3_BIN=$(dirname "$(which python3)")
+                ln -sf "$(which python3)" "$PYTHON3_BIN/python"
+                echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
+                python --version
+                python -m pip install --upgrade pip --timeout 120 --ignore-installed
+                pip3 config set global.index-url https://mirrors.huaweicloud.com/repository/pypi/simple
+                cd ${ATOMGIT_WORKSPACE}
+                pip3 install pre-commit==4.3.0 pre-commit-hooks && pre-commit install --install-hooks
+          - name: install gitleaks 
+            run: | 
+                cd ${ATOMGIT_WORKSPACE} 
+                cp -rf /opt/buildtools/gitleaks ./ 
+                cd -
+          - name: pre-commit
+            uses: openlibing-pre-commit-action
