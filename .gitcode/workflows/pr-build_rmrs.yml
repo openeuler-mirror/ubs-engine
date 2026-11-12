@@ -1,0 +1,100 @@
+name: rmrs_build
+
+on:
+  pull_request:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+    paths:
+      - "src/addons/rmrs/**"
+      - "test/UT/exclusive_executable/rmrs/**"
+      - "scripts/**"
+      - "build.sh"
+      - "CMakeLists.txt"
+      - "src/include/**"
+      - "test/CMakeLists.txt"
+      - "test/UT/main.cpp"
+      - "test/UT/CMakeLists.txt"
+
+  pull_request_comment:
+    types: [created]
+    comments: [ '^recompile$' ]
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 5
+  exceed-action: QUEUE
+
+permissions:
+  project: read
+  repository: read
+  pr: write
+
+stages:
+  compile:
+    name: Compile and DT
+    jobs:
+      rmrs_compile:
+        name: rmrs_compile
+        runs-on: [self-hosted, openeuler, arm, cpu=16]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build rmrs
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh mempooling
+      rmrs_ut:
+        name: rmrs_ut
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT rmrs
+            run: | 
+                set -eux
+                sudo dnf install -y gmock-devel
+                ls -al
+                bash build.sh ubs-engine_rmrs_plugin_ut_independent_ut -C -j 8

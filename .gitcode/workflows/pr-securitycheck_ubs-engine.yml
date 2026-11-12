@@ -8,11 +8,15 @@ on:
       - update
     branches:
       - master
+      - openEuler*
+      - br_UnifiedBus
   pull_request_comment:
     types: [created]
     comments: [ '^reccheck$' ]
     branches:
       - master
+      - openEuler*
+      - br_UnifiedBus
 env:
   pr_id: ${{ atomgit.event.pull_request.number }}
 
