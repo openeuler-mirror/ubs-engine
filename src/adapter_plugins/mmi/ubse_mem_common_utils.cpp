@@ -122,21 +122,18 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std:
 UbseResult RmCommonUtils::GetFileFirstLine(const std::string& path, std::string& line)
 {
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    ubse::security::CapabilityGuard capsGuard(caps);
     std::ifstream file(path);
     if (!file.is_open()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Open file " << path << " failed.";
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_MMI_OPEN_FAILED;
     }
     if (!std::getline(file, line)) {
         file.close();
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get file context failed.";
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_MMI_OPEN_FAILED;
     }
     file.close();
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 
