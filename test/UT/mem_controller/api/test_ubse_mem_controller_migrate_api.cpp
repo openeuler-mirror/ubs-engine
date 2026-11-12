@@ -18,6 +18,7 @@
 
 using ubse::mem::scheduler::SchedulerImpl;
 #include <atomic>
+#include <chrono>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -43,6 +44,20 @@ using ubse::mem::scheduler::SchedulerImpl;
 namespace ubse::mem::controller {
 uint32_t ShareExportMasterCallback(const std::string& exportNodeId,
                                    ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj& exportObj);
+}
+
+// 符号插入覆盖libc的sleep，仅本fixture内生效（SetUp开、TearDown关）：
+// 开启时生产重试路径(SendMigrateMessage等)立即返回，不真实休眠；关闭时转发真实休眠，
+// 不影响同一UT二进制内其它依赖真实sleep的用例(uds_server/ipc_server/thread_pool等)。
+// 普通C函数线程安全；不得改回MOCKER(&::sleep)——libc级mockcpp hook会被泄漏的后台
+// 线程并发进入(mockcpp非线程安全)，曾导致malloc(): unaligned tcache chunk detected。
+std::atomic<bool> g_fastMigrateSleep{false};
+extern "C" unsigned int sleep(unsigned int seconds)
+{
+    if (!g_fastMigrateSleep.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(std::chrono::seconds(seconds));
+    }
+    return 0;
 }
 
 namespace ubse::mem_controller::share::ut {
@@ -93,6 +108,7 @@ void TestUbseMemControllerMigrateApi::SetUp()
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::SetUp();
+    g_fastMigrateSleep = true; // 本fixture内sleep立即返回，重试路径不真实休眠
     MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(&MigrateTimerRegisterStub));
     MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs().will(invoke(&MigrateTimerUnregisterStub));
 }
@@ -105,6 +121,7 @@ void TestUbseMemControllerMigrateApi::TearDown()
     if (g_migrateExecutor != nullptr) {
         g_migrateExecutor->Wait();
     }
+    g_fastMigrateSleep = false; // fixture外恢复真实sleep，避免影响同二进制其它用例
     {
         std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
         g_migrateTimers.clear();
@@ -399,22 +416,15 @@ void MigrateScheduleMockSet()
 // comModule + 链路拓扑查询桩(逐块迁移 ComputeMigrateImportLinks 依赖, 不含 RpcSend, 由调用方按需注入)
 ubse::task_executor::UbseTaskExecutorPtr MigrateExecutorStub(const std::string& name);
 
-std::atomic<uint32_t> g_migrateSendSleeps{0};
-unsigned int CountMigrateSendSleep(unsigned int seconds)
-{
-    EXPECT_EQ(SEND_RETRY_DURATION, seconds);
-    ++g_migrateSendSleeps;
-    return 0;
-}
-
 void MigrateComMockSet()
 {
+    // 不mock全局::sleep：libc级hook会被泄漏的后台线程并发进入，mockcpp非线程安全，曾导致堆破坏。
+    // sleep已由本文件符号插入覆盖，且仅本fixture(SetUp开/TearDown关)内立即返回，
+    // 重试次数由各桩自身的原子计数断言。
     g_holdAllDeletes = false;
     g_holdOldDelete = false;
     g_failDeleteSend = false;
     MOCKER(&DeleteShareExport).stubs().will(invoke(&MigrateDeleteShareExportStub));
-    g_migrateSendSleeps.store(0);
-    MOCKER(&::sleep).stubs().will(invoke(&CountMigrateSendSleep));
     MOCKER(&ubse::mem::util::GetCurNodeId).stubs().will(returnValue(std::string("1")));
     MOCKER(&ubse::mem::util::GetExecutor).stubs().will(invoke(&MigrateExecutorStub));
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>)
@@ -2711,6 +2721,8 @@ std::atomic<bool> g_targetEndHeld{false};
 HeldMigrateResult g_targetEndResultInfo{};
 std::atomic<uint32_t> g_mappedImportRemovals{0};
 std::atomic<uint32_t> g_mappedExportCommits{0};
+// begin发送计数：替代mockcpp的expects(exactly(n))，异步驱动下expectation匹配非线程安全。
+std::atomic<uint32_t> g_mappedBeginSends{0};
 
 UbseResult MappedImportAccountStub(SchedulerImpl*, UbseMemShareBorrowImportObj& obj)
 {
@@ -2734,6 +2746,7 @@ UbseResult MappedExportAccountFailOnceStub(SchedulerImpl* impl, UbseMemShareBorr
 UbseResult MappedBeginRpcStub(UbseComModule*, const SendParam&, MappedBeginPtr& req, UbseBaseMessagePtr& ack,
                               const bool withCopy)
 {
+    ++g_mappedBeginSends;
     const auto resultInfo = req->GetUbseMesgInfo().rpcInfo;
     const auto request = req->GetUbseMesgInfo();
     UbseMemMigrateBeginExportResp response{};
@@ -3419,7 +3432,6 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateMasterSendRetriesThenSucceeds)
     EXPECT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().Execute(SHM_NAME));
     ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
     EXPECT_EQ(3U, g_masterExportAttempts);
-    EXPECT_EQ(2U, g_migrateSendSleeps.load());
     UbseMemShmMigrateSession snapshot{};
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
@@ -3439,8 +3451,6 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateMasterSendRetryExhausted)
     EXPECT_EQ(UBSE_ERROR, UbseMemShmMigrateService::GetInstance().Execute(SHM_NAME));
     ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
     EXPECT_EQ(SEND_RETRY_TIMES, g_masterExportAttempts);
-    // 仅两次发送之间休眠，最后一次失败后直接返回。
-    EXPECT_EQ(SEND_RETRY_TIMES - 1, g_migrateSendSleeps.load());
     UbseMemShmMigrateSession snapshot{};
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, snapshot.state);
@@ -3797,9 +3807,6 @@ void CheckImportCommittedRollback(bool otherImport, bool hasBlock, bool otherRol
     EXPECT_EQ(0U, snapshot.completedBlocks.value_or(0));
     EXPECT_TRUE(snapshot.rebuildRequired);
     EXPECT_EQ(businessFailure ? 1U : SEND_RETRY_TIMES, g_lostCommitSendAttempts.load());
-    if (businessFailure) {
-        EXPECT_EQ(0U, g_migrateSendSleeps.load());
-    }
     for (const auto step : g_migratePhaseOrder) {
         EXPECT_LT(step, 3U); // 失败收尾不能开始下一块。
     }
@@ -3881,7 +3888,7 @@ void CheckExportCommittedRollback(uint32_t blockIndex, bool hasBlock)
         .will(invoke(&MappedImportAccountStub));
     MigrateComMockSet();
     const auto begin = &UbseComModule::RpcSend<MappedBeginPtr, UbseBaseMessagePtr>;
-    MOCKER_CPP(begin).expects(exactly(blockIndex + 1)).will(invoke(&MappedBeginCheckFaultStub));
+    MOCKER_CPP(begin).stubs().will(invoke(&MappedBeginCheckFaultStub));
     const auto copy = &UbseComModule::RpcSend<MappedCopyPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(copy).stubs().will(invoke(&MappedCopyRpcStub));
     const auto end = &UbseComModule::RpcSend<MappedEndPtr, UbseBaseMessagePtr>;
@@ -3891,9 +3898,11 @@ void CheckExportCommittedRollback(uint32_t blockIndex, bool hasBlock)
     g_lostCommitSendAttempts = 0;
     g_mappedImportRemovals = 0;
     g_mappedExportCommits = 0;
+    g_mappedBeginSends = 0;
     g_rollbackNodes.clear();
     ASSERT_EQ(UBSE_OK, service.Execute(SHM_NAME));
     ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    EXPECT_EQ(blockIndex + 1, g_mappedBeginSends.load());
     UbseMemShmMigrateSession snapshot{};
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, snapshot.state);
