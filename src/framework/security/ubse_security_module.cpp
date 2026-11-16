@@ -77,7 +77,9 @@ void CapabilityGuard::Disable()
         return;
     }
     enabled_ = false;
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps_, false);
+    if (auto ret = UbseSecurityModule::ModifyEffectiveCapabilities(caps_, false); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to disable capabilities, " << FormatRetCode(ret);
+    }
 }
 
 bool CapabilityGuard::IsEnabled() const
