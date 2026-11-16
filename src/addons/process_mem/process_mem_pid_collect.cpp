@@ -17,6 +17,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <exception>
 #include <filesystem>
@@ -30,6 +31,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_security.h"
+#include "ubse_security_module.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_decision.h"
@@ -972,11 +974,29 @@ std::string NumaListToString(const std::vector<uint32_t>& nodes)
     return out.empty() ? "-" : out;
 }
 
+// 无 CAP_SYS_PTRACE permitted 位时开启会持续失败(每个 pid/每轮刷新), WARN 仅首次打印, 其余降 DEBUG
+void LogPtraceCapabilityDegrade(pid_t pid)
+{
+    static std::atomic<bool> warned{false};
+    if (warned.exchange(true, std::memory_order_relaxed)) {
+        UBSE_LOG_DEBUG << "[process_mem] enable CAP_SYS_PTRACE failed, pid=" << pid << ", continue best-effort read";
+        return;
+    }
+    UBSE_LOG_WARN << "[process_mem] enable CAP_SYS_PTRACE failed, degrade to best-effort /proc read "
+                     "(cross-owner read may fail without the capability)";
+}
+
 // 读取进程 NUMA 绑定快照: numa_maps 各 VMA 策略 token;
 // 进程不存在/numa_maps 不可读返回 nullopt(纳管流程对读取失败不敏感)
 std::optional<def::NumaBindingInfo> ReadProcessNumaBinding(pid_t pid)
 {
     std::string numaMapsPath = "/proc/" + std::to_string(pid) + "/numa_maps";
+    // 跨属主读取 other 进程的 numa_maps 需要 CAP_SYS_PTRACE 通过内核 ptrace 校验, 仅读取期间开启(RAII 析构关闭);
+    // 开启失败不影响同属主读取, 降级为 best-effort
+    ubse::security::CapabilityGuard ptraceGuard(std::vector<__u32>{CAP_SYS_PTRACE});
+    if (!ptraceGuard.IsEnabled()) {
+        LogPtraceCapabilityDegrade(pid);
+    }
     std::ifstream file(numaMapsPath);
     if (!file.is_open()) {
         UBSE_LOG_DEBUG << "[process_mem] pid=" << pid << " read numa binding failed: cannot open " << numaMapsPath;
@@ -1086,6 +1106,13 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistributionBySample(
     pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution, size_t samplePages)
 {
     numaMemDistribution.clear();
+
+    // 读 /proc/<pid>/maps 与 move_pages 查询均受内核 ptrace 校验, 跨属主需 CAP_SYS_PTRACE, 仅采样期间开启
+    // (RAII 析构关闭); 开启失败不影响同属主采样, 降级为 best-effort
+    ubse::security::CapabilityGuard ptraceGuard(std::vector<__u32>{CAP_SYS_PTRACE});
+    if (!ptraceGuard.IsEnabled()) {
+        LogPtraceCapabilityDegrade(pid);
+    }
 
     std::vector<ProcVmaRange> vmas;
     if (!ParseSampleableProcMaps(pid, vmas)) {
