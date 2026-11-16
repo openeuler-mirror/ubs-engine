@@ -37,7 +37,8 @@ struct ImportDecoderParam {
     uint64_t handle;           // 预引入需要传入预引入的handle
     bool isHighSafety = false; // 是否为高安配置
     adapter_plugins::mmi::UbseTrustRingData trustRingData{};
-    std::string type; // 借用类型
+    std::string type;     // 借用类型
+    uint32_t blockSize{}; // 借出节点芯片拆分粒度, 单位MB, 用于换算decoder表项aligned
 };
 
 struct PreImportDecoderParam {
@@ -104,6 +105,7 @@ public:
                                           UbseMamiMemImportResult& outValue);
     static UbseResult GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap& handleMap);
     static uint8_t GetDecoderIdByPrivData(const ubse::adapter_plugins::mmi::UbseMemPrivData& privData);
+    static UbseResult GetAlignedByBlockSize(uint32_t blockSizeMb, uint8_t& aligned);
 };
 } // namespace ubse::mem::decoder::utils
 

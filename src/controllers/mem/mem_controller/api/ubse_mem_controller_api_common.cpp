@@ -324,6 +324,15 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
     status.decoderResult.clear();
     UbseMamiMemImportInfo mamiImportInfo{};
     SetMamiImportInfoByDecoderParam(chipDiePair, importDecoderParam, mamiImportInfo);
+    // aligned 仅借用类(numa/addr)按借出节点 blockSize 换算, 共享类(fd/share)保持默认值 0
+    if (importDecoderParam.type == decoder::utils::DecoderBorrowType::NUMA ||
+        importDecoderParam.type == decoder::utils::DecoderBorrowType::ADDR) {
+        if (auto ret = decoder::utils::MemDecoderUtils::GetAlignedByBlockSize(importDecoderParam.blockSize,
+                                                                              mamiImportInfo.aligned);
+            ret != UBSE_OK) {
+            return ret;
+        }
+    }
     if (importDecoderParam.isHighSafety &&
         exportObmmInfo.size() != importDecoderParam.trustRingData.lendSignedDatas.size()) {
         UBSE_LOG_ERROR << "The size of of signed data is illegal.";
@@ -374,7 +383,9 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
         status.decoderResult.emplace_back(importResult);
     }
     UBSE_LOG_INFO << "Add decoder entry, marId=" << mamiImportInfo.marId << ", dstCNA=" << mamiImportInfo.dstCNA
-                  << ", flag=" << mamiImportInfo.flag;
+                  << ", flag=" << mamiImportInfo.flag << ", type=" << importDecoderParam.type
+                  << ", blockSize=" << importDecoderParam.blockSize << "MB"
+                  << ", aligned=" << static_cast<uint32_t>(mamiImportInfo.aligned);
     return UBSE_OK;
 }
 

@@ -34,6 +34,26 @@ uint8_t MemDecoderUtils::GetDecoderIdByPrivData(const UbseMemPrivData& privData)
     return privData.cacheableFlag == 1 ? 0 : 1;
 }
 
+UbseResult MemDecoderUtils::GetAlignedByBlockSize(uint32_t blockSizeMb, uint8_t& aligned)
+{
+    if (blockSizeMb == 0) {
+        UBSE_LOG_ERROR << "Invalid block size for decoder aligned";
+        return UBSE_ERROR;
+    }
+    // blockSize 取值范围 [4, 4096] MB；低于 1G 时按 blockSize 对应档位编码，
+    // 大于等于 1G 时对齐粒度固定为 1G
+    if (blockSizeMb < 256) {
+        aligned = 0;
+    } else if (blockSizeMb < 512) {
+        aligned = 1;
+    } else if (blockSizeMb < 1024) {
+        aligned = 2;
+    } else {
+        aligned = 3;
+    }
+    return UBSE_OK;
+}
+
 UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<uint32_t, uint32_t>& chipDiePair)
 {
     bool isSocketIdExit = false;

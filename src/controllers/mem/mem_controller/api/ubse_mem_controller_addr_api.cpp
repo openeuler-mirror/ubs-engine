@@ -678,6 +678,7 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
     decoder::utils::ImportDecoderParam importParam{};
     const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.ubseMemPrivData.wrDelayComp);
+    importParam.blockSize = importObj.algoResult.blockSize;
     importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
