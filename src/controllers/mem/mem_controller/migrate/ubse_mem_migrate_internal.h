@@ -52,6 +52,20 @@ struct MigrationRunContext {
 uint32_t StartNewExport(MigrationRunContext ctx);
 uint32_t ExecuteMappedTargetMigration(MigrationRunContext& ctx);
 
+enum class RecoveryBlockState
+{
+    OLD,        // 仍引用旧后端，尚未开始本块切换。
+    GAP,        // 账本记录块处于切换中，执行时由agent核实设备状态。
+    COMMITTED,  // 正式账本的版本、目标memId和健康状态均匹配本轮目标。
+    INCOMPLETE, // 账本缺失、块未对齐或必要信息不足；首次恢复判失败，不等待重试。
+    INVALID     // 状态、版本或引用不符合本轮迁移，或已有结束决定、业务失败。
+};
+RecoveryBlockState ReadRecoveryBlock(const MigrationRunContext& ctx, const std::string& nodeId, uint32_t blockIndex);
+// 从已恢复的块索引接续，不重新受理、调度或清零进度。
+void ResumeMigration(MigrationRunContext ctx, uint32_t blockIndex);
+// 只处理指定块的失败收尾，不继续搬迁；保留会话中的原始失败原因。
+void CleanupMigration(MigrationRunContext ctx, uint32_t blockIndex);
+
 } // namespace migrate_detail
 } // namespace ubse::mem::controller
 #endif

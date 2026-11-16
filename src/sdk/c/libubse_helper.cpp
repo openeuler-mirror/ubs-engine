@@ -2329,7 +2329,7 @@ ubs_error_t ubse_mem_shm_migrate_get_resp_unpack(uint8_t* buffer, uint32_t len, 
         IPC_LOG_ERROR << "Failed to unpack err_code. Error code: " << ret;
         return ret;
     }
-    ret = unpack_string(&ctx, desc->name, UBS_MEM_MAX_NAME_LENGTH);
+    ret = unpack_string(&ctx, desc->name, UBS_MEM_NAME_BUFFER_SIZE);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack name. Error code: " << ret;
         return ret;

@@ -618,9 +618,9 @@ typedef enum
 
 // 查询描述: 进度字段由会话派生
 typedef struct {
-    char name[UBS_MEM_MAX_NAME_LENGTH]; // 共享内存名(会话唯一键)
-    uint32_t src_slot_id;               // 故障导出节点
-    uint32_t dst_slot_id;               // 新借出节点
+    char name[UBS_MEM_NAME_BUFFER_SIZE]; // 共享内存名(会话唯一键)
+    uint32_t src_slot_id;                // 故障导出节点
+    uint32_t dst_slot_id;                // 新借出节点
     ubs_mem_migrate_state_t state;
     uint32_t total_memids;    // 需迁移块数
     uint32_t migrated_memids; // 已完成块数
@@ -646,7 +646,8 @@ typedef struct {
  *         UBS_ENGINE_ERR_NOT_EXIST（name 借用关系不存在）；
  *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（ExportObj 状态不允许/目标节点非法或容量不足）；
  *         UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS（同name存在非终态迁移任务）；
- *         UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED（禁止新增使用/重新迁移，需detach/delete后重建）
+ *         UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED（禁止新增使用/重新迁移，需detach/delete后重建）；
+ *         UBS_ENGINE_ERR_MASTER_NOT_READY（主备倒换后对账采集中，暂不受理，可重试）
  */
 int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id);
 
@@ -658,7 +659,8 @@ int32_t ubs_mem_shm_migrate(const char* name, uint32_t target_slot_id);
  * @param desc [out] 会话快照，由接口 malloc 分配，调用方 free
  * @return 0；
  *         UBS_ERR_INVALID_ARG（name 空）；
- *         UBS_ENGINE_ERR_NOT_EXIST（无任何会话记录，含 master 重启后）
+ *         UBS_ENGINE_ERR_NOT_EXIST（无任何会话记录，含 master 重启后）；
+ *         UBS_ENGINE_ERR_MASTER_NOT_READY（主备倒换后对账采集中，暂无法给出结论，可重试等待或者重建）
  */
 int32_t ubs_mem_shm_migrate_get(const char* name, ubs_mem_shm_migrate_desc_t** desc);
 
@@ -669,7 +671,8 @@ int32_t ubs_mem_shm_migrate_get(const char* name, ubs_mem_shm_migrate_desc_t** d
  * @return 0 取消受理成功（取消清理期间重复请求幂等返回0，终态后拒绝）；
  *         UBS_ERR_INVALID_ARG（name 空）；
  *         UBS_ENGINE_ERR_NOT_EXIST（无会话记录）；
- *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（DATA_COPYING 及之后，含终态）
+ *         UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED（DATA_COPYING 及之后，含终态）；
+ *         UBS_ENGINE_ERR_MASTER_NOT_READY（主备倒换后对账采集中，暂不受理，可重试等待或者重建）
  */
 int32_t ubs_mem_shm_migrate_cancel(const char* name);
 

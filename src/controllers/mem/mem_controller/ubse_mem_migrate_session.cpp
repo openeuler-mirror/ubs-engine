@@ -11,6 +11,8 @@
  */
 
 #include "ubse_mem_migrate_session.h"
+#include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 
@@ -218,9 +220,35 @@ void UbseMemShmMigrateSessionManager::EraseTerminalSession(const std::string& na
     UBSE_LOG_INFO << "Erased terminal migrate session after resource release, name=" << name;
 }
 
+void UbseMemShmMigrateSessionManager::ClearSessionsIfNotLeader()
+{
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "elc module not load";
+        return;
+    }
+    if (module->IsLeader()) {
+        return;
+    }
+    ClearSessions();
+}
+
 void UbseMemShmMigrateSessionManager::ClearSessions()
 {
     std::lock_guard<std::mutex> lock(mutex_);
     sessions_.clear();
+}
+
+std::pair<std::shared_ptr<UbseMemShmMigrateSession>, bool> UbseMemShmMigrateSessionManager::RestoreSession(
+    const UbseMemShmMigrateSession& snapshot)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = sessions_.find(snapshot.name);
+    if (it != sessions_.end()) {
+        return {it->second, false};
+    }
+    auto session = std::make_shared<UbseMemShmMigrateSession>(snapshot);
+    sessions_.emplace(snapshot.name, session);
+    return {session, true};
 }
 } // namespace ubse::mem::controller

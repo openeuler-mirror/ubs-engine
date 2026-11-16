@@ -52,7 +52,11 @@ public:
 
     UbseResult ShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success) override;
 
+    UbseResult ReadShmSwitchState(uint64_t memId, uint8_t& switchState) override;
+
     UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) override;
+    UbseResult ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,
+                                     UbseMemMigrateBlockData& block) override;
 
     UbseResult AddrImportExecutor(UbseMemAddrBorrowImportObj& importObj) override;
 

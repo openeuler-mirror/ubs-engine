@@ -320,6 +320,28 @@ UbseResult MemDecoderUtils::GetAllHandleFromImportObj(DecoderLocTohandleMap& han
     return UBSE_OK;
 }
 
+bool MemDecoderUtils::HasUnverifiedMigrateGap()
+{
+    auto curNode = nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+    if (curNode.empty()) {
+        return false;
+    }
+    const auto memDebtInfo = controller::GetNodeMemDebtInfoById(curNode);
+    for (const auto& [name, obj] : memDebtInfo.shareImportObjMap) {
+        if (obj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED) {
+            continue;
+        }
+        // 恢复/迁移中的 gap 块：其新 decoder 引用尚未核实，差集删除可能误删恢复所需 decoder
+        for (const auto& info : obj.exportObmmInfo) {
+            if (info.memIdStatus == ubse::adapter_plugins::mmi::UB_MEM_SWITCHING) {
+                UBSE_LOG_WARN << "Unverified migrate gap block exists, name is " << name << ", memId is " << info.memId;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 UbseResult MemDecoderUtils::GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap& handleMap)
 {
     ubse::adapter_plugins::mmi::NodeMemDebtInfo memDebtInfo{};

@@ -3771,7 +3771,7 @@ int32_t ubs_mem_shm_migrate_get(const char *name, ubs_mem_shm_migrate_desc_t **d
  } ubs_mem_migrate_state_t;
 
  typedef struct {
-  char name[UBS_MEM_MAX_NAME_LENGTH];     // 共享内存名（会话唯一键）
+  char name[UBS_MEM_NAME_BUFFER_SIZE];    // 共享内存名（会话唯一键）
   uint32_t src_slot_id;                   // 原导出节点
   uint32_t dst_slot_id;                   // 目标导出节点
   ubs_mem_migrate_state_t state;          // 迁移状态

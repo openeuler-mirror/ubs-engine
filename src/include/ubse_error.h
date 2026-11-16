@@ -101,6 +101,7 @@
 #define UBSE_ERR_MIGRATE_IN_PROGRESS UBSE_ERROR_DEF(1042)          /* 迁移执行中 */
 #define UBSE_ERR_MIGRATE_NOT_ALLOWED UBSE_ERROR_DEF(1043)          /* 迁移预检不通过 */
 #define UBSE_ERR_MIGRATE_REBUILD_REQUIRED UBSE_ERROR_DEF(1044) /* 不能再次迁移/新增使用，需归还重建 */
+#define UBSE_ERR_MASTER_NOT_READY UBSE_ERROR_DEF(1045) /* master未上任/主备倒换中, 迁移受理可重试 */
 
 /* ****************************************************** */
 /* Node Controller模块错误码定义，全局唯一，范围1100~1199，记录系统的标准错误返回 */

@@ -20,6 +20,7 @@
 #include <vector>
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -28,6 +29,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
 #include "../logging_lock_guard.h"
+#include "../ubse_init_ledger_state.h"
 #include "../ubse_mem_async_processor.h"
 #include "../ubse_mem_controller_ledger.h"
 
@@ -155,6 +157,32 @@ UbseMemShmMigrateService& UbseMemShmMigrateService::GetInstance()
     return instance;
 }
 
+bool UbseMemShmMigrateService::IsReconciliationPending(const std::string& name)
+{
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        return false;
+    }
+    // 与迁移恢复触发使用同一名单：静态名单节点 + 本节点；名单收齐前账本仍在采集中。
+    std::vector<std::string> nodeIds;
+    for (const auto& node : UbseNodeController::GetInstance().GetStaticNodeInfo()) {
+        nodeIds.push_back(node.nodeId);
+    }
+    const auto localNodeId = UbseNodeController::GetInstance().GetCurNode().nodeId;
+    if (!localNodeId.empty()) {
+        nodeIds.push_back(localNodeId);
+    }
+    if (nodeIds.empty()) {
+        return false;
+    }
+    // 名单收齐后、恢复扫描执行完之前仍处于对账窗口，避免会话未登记时 get 短暂返回 NOT_EXIST。
+    if (UbseInitLedgerState::GetInstance().IsInitLedgerDoneForAll(nodeIds) &&
+        UbseInitLedgerState::GetInstance().IsMigrationRecoveryCompleted()) {
+        return false;
+    }
+    return NameHasMigrationTrace(name);
+}
+
 uint32_t UbseMemShmMigrateService::CheckUserPermission(const std::string& name, const UbseUdsInfo& caller,
                                                        bool sessionOnly)
 {
@@ -172,6 +200,14 @@ uint32_t UbseMemShmMigrateService::CheckUserPermission(const std::string& name, 
     } else {
         UbseMemShmMigrateSession session{};
         if (!UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(name, session)) {
+            // 会话未登记时区分两种情况：
+            // 1) 非Leader节点会话表非权威(主备倒换期间路由可能短暂指向备节点)，统一按未就绪应答引导重试；
+            // 2) Leader节点对账窗口内会话尚未恢复登记，按对账采集中应答；对账收齐后仍无会话才是真不存在。
+            auto election = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+            if (election == nullptr || !election->IsLeader() || IsReconciliationPending(name)) {
+                UBSE_LOG_INFO << "Migration session pending on non-leader or reconciliation, name=" << name;
+                return UBSE_ERR_MASTER_NOT_READY;
+            }
             UBSE_LOG_WARN << "Migration permission resource missing, name=" << name;
             return UBSE_ERR_NOT_EXIST;
         }
@@ -246,6 +282,17 @@ uint32_t UbseMemShmMigrateService::CheckOperationAllowed(const std::string& name
 
 uint32_t UbseMemShmMigrateService::Accept(const UbseMemShmMigrateReq& req)
 {
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        // 主备倒换期间路由可能短暂指向备节点，统一按未就绪应答引导调用方重试（重试后命中新主）。
+        UBSE_LOG_WARN << "shm migrate accept rejected on non-leader, name=" << req.name;
+        return UBSE_ERR_MASTER_NOT_READY;
+    }
+    // 主备倒换后初始对账未收齐且该 name 存在迁移痕迹时，禁止新建迁移，等待恢复扫描给出结论。
+    if (IsReconciliationPending(req.name)) {
+        UBSE_LOG_WARN << "shm migrate accept deferred during reconciliation, name=" << req.name;
+        return UBSE_ERR_MASTER_NOT_READY;
+    }
     UBSE_LOG_INFO << "shm migrate request, name=" << req.name << ", targetNodeId=" << req.targetNodeId;
     const auto authRet = CheckUserPermission(req.name, req.caller);
     if (authRet != UBSE_OK) {
@@ -319,8 +366,25 @@ uint32_t UbseMemShmMigrateService::Accept(const UbseMemShmMigrateReq& req)
 
 void UbseMemShmMigrateService::Get(const std::string& name, UbseMemShmMigrateGetResp& resp)
 {
+    // dispatcher 把 migrate_get 转发到"当前master", 若master决议过期会命中旧主残留会话;
+    // 非Leader本地会话表可能是失主前的残留(清表事件丢失时), 拒绝应答避免返回僵尸进度。
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        // 与Accept一致：非Leader拒绝应答会话进度，按未就绪应答引导调用方重试，避免窗口内泄漏非预期错误码。
+        UBSE_LOG_WARN << "shm migrate get rejected on non-leader, name=" << name;
+        resp.errCode = UBSE_ERR_MASTER_NOT_READY;
+        return;
+    }
     UbseMemShmMigrateSession session{};
     if (!UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(name, session)) {
+        // 会话尚未恢复登记：若初始对账未收齐且该 name 存在迁移痕迹，按对账采集中应答，
+        // 由调用方稍后重试；对账收齐后仍无会话才返回 NOT_EXIST。
+        if (IsReconciliationPending(name)) {
+            UBSE_LOG_INFO << "shm migrate get deferred during reconciliation, name=" << name;
+            resp.errCode = UBSE_ERR_MASTER_NOT_READY;
+            resp.errMsg = "master switchover reconciliation in progress, retry later";
+            return;
+        }
         UBSE_LOG_INFO << "shm migrate get not exist, name=" << name;
         resp.errCode = UBSE_ERR_NOT_EXIST;
         return;
@@ -331,6 +395,20 @@ void UbseMemShmMigrateService::Get(const std::string& name, UbseMemShmMigrateGet
 
 void UbseMemShmMigrateService::Cancel(const std::string& name, UbseMemMigrateCancelResp& resp)
 {
+    // 与Get相同: 非Leader拒绝操作本地会话表, 防止取消请求落在失主残留会话上。
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        // 与Get/Accept一致：非Leader拒绝操作本地会话表，按未就绪应答引导调用方重试。
+        UBSE_LOG_WARN << "shm migrate cancel rejected on non-leader, name=" << name;
+        resp.errCode = UBSE_ERR_MASTER_NOT_READY;
+        return;
+    }
+    // 与Get/Accept同一拦截点: 对账采集中会话尚未恢复登记, 暂不按NOT_EXIST拒绝, 提示调用方重试。
+    if (IsReconciliationPending(name)) {
+        UBSE_LOG_WARN << "shm migrate cancel deferred during reconciliation, name=" << name;
+        resp.errCode = UBSE_ERR_MASTER_NOT_READY;
+        return;
+    }
     // 竞态控制在会话表锁内完成: 判定状态 + 置 cancelRequested;
     // 清理由Execute启动检查点或导出完成回调消费取消标志后异步执行(异步, 回包≠清理完成, CMA 用 migrate_get 轮询 CANCELED)
     resp.errCode = UbseMemShmMigrateSessionManager::GetInstance().RequestMigrateCancel(name);
@@ -353,6 +431,10 @@ uint32_t UbseMemShmMigrateService::CheckSessionExecutable(const std::string& nam
 
 uint32_t UbseMemShmMigrateService::Execute(const std::string& name)
 {
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        return UBSE_ERR_MIGRATE_NOT_ALLOWED;
+    }
     auto lock = LoggingLockGuard(name);
     UbseMemShmMigrateSession session{};
     MigrationRunContext ctx;

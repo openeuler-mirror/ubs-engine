@@ -158,6 +158,15 @@ public:
     virtual UbseResult ShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success) = 0;
 
     /**
+    * @brief   按本地memId读取obmm设备内核切换状态(sysfs switch_state)，gap内可正常读取
+    *
+    * @param memId           [IN]  本地设备memId
+    * @param switchState     [OUT] obmm切换状态(ObmmSwitchState)
+    * @return UbseResult    0：读取成功；非0：失败(不能当成IDLE)
+    */
+    virtual UbseResult ReadShmSwitchState(uint64_t memId, uint8_t& switchState) = 0;
+
+    /**
     * @brief   shm类型故障迁移块级双后端映射拷贝执行器
     *
     * @param memId          [IN] 切换间隙内的设备ID
@@ -166,6 +175,10 @@ public:
     * @return UbseResult    0：操作成功；非0：失败
     */
     virtual UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) = 0;
+
+    // end后读取已生效的单块信息；gap返回UBSE_ERR_MIGRATE_IN_PROGRESS，不扫描或卸载其他设备。
+    virtual UbseResult ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,
+                                             UbseMemMigrateBlockData& block) = 0;
 
     /**
     * @brief   addr借用import对象的执行器

@@ -11,10 +11,13 @@
  */
 #include "ubse_mmi_interface_impl.h"
 
+#include <utility>
+
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mmi_module.h"
+#include "ubse_obmm_meta_restore.h"
 
 namespace ubse::adapter_plugins::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -189,6 +192,12 @@ UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchEndExecutor(const UbseMemShmSwi
     return mmiModule->UbseMemShmSwitchEndExecutor(switchObj, success);
 }
 
+UbseResult UbseMmiInterfaceDefaultImpl::ReadShmSwitchState(uint64_t memId, uint8_t& switchState)
+{
+    using namespace ubse::mmi;
+    return RmObmmDevRead::GetStableSwitchState(static_cast<mem_id>(memId), switchState);
+}
+
 UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
 {
     const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
@@ -196,6 +205,67 @@ UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, u
         return UBSE_ERROR_NULLPTR;
     }
     return mmiModule->UbseMemShmMigrateCopyExecutor(memId, size, cacheable);
+}
+
+UbseResult UbseMmiInterfaceDefaultImpl::ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,
+                                                              UbseMemMigrateBlockData& block)
+{
+    using namespace ubse::mmi;
+    uint8_t state{};
+    auto ret = RmObmmDevRead::GetStableSwitchState(localMemId, state);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (state == static_cast<uint8_t>(ObmmSwitchState::AWAIT_READY)) {
+        return UBSE_ERR_MIGRATE_IN_PROGRESS;
+    }
+    if (state != static_cast<uint8_t>(ObmmSwitchState::IDLE)) {
+        return UBSE_ERR_MIGRATE_NOT_ALLOWED;
+    }
+    UbseMemLocalObmmMetaData meta;
+    ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaData("obmm_shmdev" + std::to_string(localMemId), meta);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    const auto& custom = meta.customMeta;
+    const bool isExport = ShmMigrateIsExport(custom.migrateInfo);
+    const auto expectedMarker = isExport ? info.migrateInfo : ShmMigrateImportInfo(info.migrateInfo);
+    const auto expectedType = static_cast<uint8_t>(isExport ? UbseObmmType::EXPORT : UbseObmmType::IMPORT);
+    const auto actualExportMemId = isExport ? localMemId : custom.exportMemid;
+    if (custom.version != OBMM_CUSTOM_META_V2 || custom.type != static_cast<uint8_t>(UbseBorrowType::SHARE_BORROW) ||
+        std::string(custom.name) != info.name || custom.migrateInfo != expectedMarker ||
+        meta.localMemId != localMemId || meta.memIdType != expectedType || actualExportMemId != info.exportMemId ||
+        meta.totalSize == 0) {
+        return UBSE_ERROR_INVAL;
+    }
+    UbseMemMigrateBlockData restored;
+    restored.exportInfo = {info.exportMemId, meta.obmmMemExportInfo, UB_MEM_HEALTHY};
+    restored.exportInfo.desc.length = meta.totalSize;
+    restored.targetLayout.attachSocketId = custom.attachSocket;
+    if (!isExport) {
+        if (custom.decoderResult.hpa == 0) {
+            return UBSE_ERROR_INVAL;
+        }
+        restored.decoder = custom.decoderResult;
+    }
+    const auto exportNode = isExport ? info.srcNodeId : std::string(custom.exportNodeId);
+    for (int i = 0; i < TOPOLOGY_MAX_NUMA_PER_SOCKET; ++i) {
+        if (custom.numaSizes[i] == 0) {
+            continue;
+        }
+        restored.targetLayout.exportNumaInfos.push_back(
+            {exportNode, custom.exportSocket, custom.exportNumaIds[i], custom.numaSizes[i]});
+        if (!isExport) {
+            restored.targetLayout.importNumaInfos.push_back({info.srcNodeId, custom.importSocket,
+                                                             custom.importNumaIds[i], custom.numaSizes[i],
+                                                             custom.portId, custom.chipId});
+        }
+    }
+    if (restored.targetLayout.exportNumaInfos.empty()) {
+        return UBSE_ERROR_INVAL;
+    }
+    block = std::move(restored);
+    return UBSE_OK;
 }
 
 UbseResult UbseMmiInterfaceDefaultImpl::AddrImportExecutor(UbseMemAddrBorrowImportObj& importObj)

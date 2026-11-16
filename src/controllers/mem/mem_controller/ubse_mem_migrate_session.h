@@ -30,7 +30,7 @@ enum class UbseMemMigrateTargetKind : uint8_t
     IMPORT_NODE = 1,
 };
 
-// 迁移会话（master 内存表，不持久化；master 重启即丢，可重新受理）
+// 迁移会话（master内存表，不持久化；接管后根据对账现场恢复）
 struct UbseMemShmMigrateSession {
     ubse::adapter_plugins::mmi::UbseUdsInfo owner{}; // 原共享内存创建者，终态鉴权继续使用
     std::string name{};                              // 会话唯一键
@@ -103,8 +103,14 @@ public:
     // 从账本检查到本函数返回期间保持该锁；仅旧源删除完成或名称索引消失不满足调用条件。
     void EraseTerminalSession(const std::string& name);
 
-    // 仅测试使用：清空会话表
+    // 非主节点时仅清空会话，旧任务通过发送或完成/超时处理自行退出。
+    void ClearSessionsIfNotLeader();
+
+    // 无条件清空会话表；供内部清理及测试使用。
     void ClearSessions();
+
+    // 仅登记缺失会话，不覆盖任何已存在的会话，避免重复重建。
+    std::pair<std::shared_ptr<UbseMemShmMigrateSession>, bool> RestoreSession(const UbseMemShmMigrateSession& snapshot);
 
 private:
     UbseMemShmMigrateSessionManager() = default;

@@ -12,6 +12,7 @@
 
 #include "ubse_init_ledger_state.h"
 
+#include <algorithm>
 #include <chrono>
 
 namespace ubse::mem::controller {
@@ -37,11 +38,65 @@ bool UbseInitLedgerState::IsInitLedgerDone(const std::string& nodeId)
     return initLedgerDoneSet_.find(nodeId) != initLedgerDoneSet_.end();
 }
 
+std::vector<std::string> UbseInitLedgerState::GetInitLedgerDoneNodes()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return {initLedgerDoneSet_.begin(), initLedgerDoneSet_.end()};
+}
+
+bool UbseInitLedgerState::IsInitLedgerDoneForAll(const std::vector<std::string>& nodeIds)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return std::all_of(nodeIds.begin(), nodeIds.end(),
+                       [this](const auto& nodeId) { return initLedgerDoneSet_.count(nodeId) != 0; });
+}
+
 bool UbseInitLedgerState::WaitInitLedgerDone(const std::string& nodeId, uint32_t timeoutMs)
 {
     std::unique_lock<std::mutex> lock(mutex_);
     return cv_.wait_for(lock, std::chrono::milliseconds(timeoutMs),
                         [this, &nodeId]() { return initLedgerDoneSet_.find(nodeId) != initLedgerDoneSet_.end(); });
+}
+
+void UbseInitLedgerState::ResetMigrationRecovery(bool leader)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    // 新主必须重新采集各节点账本，不能复用上一轮的完成记录。
+    initLedgerDoneSet_.clear();
+    migrationRecoveryAllowed_ = leader;
+    migrationRecoveryCompleted_ = false;
+}
+
+MigrationRecoveryAction UbseInitLedgerState::TryStartMigrationRecovery(const std::vector<std::string>& nodeIds)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!migrationRecoveryAllowed_) {
+        return MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED;
+    }
+    if (nodeIds.empty() || !std::all_of(nodeIds.begin(), nodeIds.end(),
+                                        [this](const auto& nodeId) { return initLedgerDoneSet_.count(nodeId) != 0; })) {
+        return MigrationRecoveryAction::WAIT_FOR_RECONCILIATION;
+    }
+    migrationRecoveryAllowed_ = false;
+    return MigrationRecoveryAction::REBUILD_MIGRATION_TASKS;
+}
+
+void UbseInitLedgerState::RetryMigrationRecovery()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    migrationRecoveryAllowed_ = true;
+}
+
+void UbseInitLedgerState::MarkMigrationRecoveryCompleted()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    migrationRecoveryCompleted_ = true;
+}
+
+bool UbseInitLedgerState::IsMigrationRecoveryCompleted()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return migrationRecoveryCompleted_;
 }
 
 } // namespace ubse::mem::controller

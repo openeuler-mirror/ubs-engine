@@ -34,6 +34,8 @@ using ubse::adapter_plugins::mmi::UbseMemPrivData;
 using ubse::common::def::UbseResult;
 constexpr uint32_t BASE_16 = 16;
 
+bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSize,
+                         std::vector<std::array<size_t, MAX_NUMA_NODES>>& result);
 using ObmmEncodedMeta = std::array<uint8_t, OBMM_CUSTOM_META_MAX_LENGTH>;
 UbseResult EncodeObmmCustomMeta(const UbseMemLocalObmmCustomMeta& meta, const UbMemPrivData& privData,
                                 ObmmEncodedMeta& buffer, uint32_t& length);

@@ -29,6 +29,7 @@
 
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api_common.h"
@@ -66,7 +67,8 @@ static uint32_t StartMappedMigration(MigrationRunContext&& ctx);
 
 // 与普通借用一致：RpcSend只等待对端handler入队确认，业务结果另行RPC上报。
 template <typename Message>
-uint32_t SendMigrateMessage(const std::string& nodeId, UbseMemBorrowCallbackOpCode opCode, const Message& data)
+uint32_t SendMigrateMessage(const std::string& nodeId, UbseMemBorrowCallbackOpCode opCode, const Message& data,
+                            const MigrationRunContext& ctx)
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -86,6 +88,9 @@ uint32_t SendMigrateMessage(const std::string& nodeId, UbseMemBorrowCallbackOpCo
     SendParam param(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW), static_cast<uint16_t>(opCode));
     auto ret = UBSE_ERROR;
     for (uint32_t attempt = 0; attempt < SEND_RETRY_TIMES; ++attempt) {
+        if (!IsCurrentMigration(ctx)) {
+            return UBSE_ERR_MIGRATE_NOT_ALLOWED;
+        }
         ret = comModule->RpcSend(param, request, response);
         if (ret == UBSE_OK) {
             return UBSE_OK;
@@ -285,6 +290,7 @@ struct MigrationTask {
     std::string failureDetail; // 仅诊断：保存清理前的失败阶段，避免最终日志只剩回退阶段。
     bool targetBlockCommitted{false}; // 当前块目标end(1)已确认，不再向目标发送end(0)
     uint32_t blockIndex{0};
+    bool recovering{false}; // 恢复任务按实际块状态跳过已执行步骤。
 
     std::shared_ptr<MigrationStep> step;
 };
@@ -312,13 +318,23 @@ std::string MigrationStepLog(const MigrationStep& step)
 
 std::shared_ptr<MigrationTask> CreateMigrationTask(MigrationRunContext&& ctx)
 {
+    std::lock_guard<std::mutex> lock(g_migrateTasksMutex);
+    if (!IsCurrentMigration(ctx)) {
+        UBSE_LOG_WARN << "Ignore task creation for stale migration, name=" << ctx.name;
+        return nullptr;
+    }
     auto task = std::make_shared<MigrationTask>();
     task->ctx = std::move(ctx);
-    std::lock_guard<std::mutex> lock(g_migrateTasksMutex);
-    if (!g_migrateTasks.emplace(task->ctx.name, task).second) {
-        UBSE_LOG_ERROR << "Reject duplicate migrate task, name=" << task->ctx.name
-                       << ", dstNodeId=" << task->ctx.dstNodeId;
-        return nullptr;
+    const auto [it, inserted] = g_migrateTasks.emplace(task->ctx.name, task);
+    if (!inserted) {
+        if (it->second->ctx.sessionToken == task->ctx.sessionToken) {
+            UBSE_LOG_ERROR << "Reject duplicate migrate task, name=" << task->ctx.name
+                           << ", dstNodeId=" << task->ctx.dstNodeId;
+            return nullptr;
+        }
+        // 已失效会话的任务仍可等待超时退出，但不能占用新会话的同名入口。
+        UBSE_LOG_INFO << "Replace stale migrate task, name=" << task->ctx.name;
+        it->second = task;
     }
     return task;
 }
@@ -569,8 +585,14 @@ void RecordMigrationLocalFailure(const std::shared_ptr<MigrationTask>& task, con
 uint32_t MigratePhaseTimeout(const std::shared_ptr<MigrationTask>& task, const std::shared_ptr<MigrationStep>& step)
 {
     {
-        std::lock_guard<std::mutex> lock(task->mutex);
-        if (task->finished || task->step != step || step->state == MigrationStepState::CALLBACK_STARTED) {
+        std::unique_lock<std::mutex> lock(task->mutex);
+        if (task->finished || task->step != step) {
+            lock.unlock();
+            // 任务结束或阶段切换后，迟注册的旧定时器在本次回调中自行注销。
+            timer::UbseTimerHandlerUnregister(step->timerName);
+            return UBSE_OK;
+        }
+        if (step->state == MigrationStepState::CALLBACK_STARTED) {
             return UBSE_OK;
         }
         const auto now = std::chrono::steady_clock::now();
@@ -622,7 +644,11 @@ void SendMigrateBlockRequest(const std::shared_ptr<MigrationTask>& task, const s
     UBSE_LOG_INFO << "name=" << request.rpcInfo.name << ", indexId=" << request.rpcInfo.blockIndex
                   << ", operation=" << MigrationOperationName(step->operation) << ", Send migrate block request, "
                   << MigrateRpcLog(request.rpcInfo);
-    const auto ret = SendMigrateMessage(request.rpcInfo.srcNodeId, opCode, request);
+    const auto ret = SendMigrateMessage(request.rpcInfo.srcNodeId, opCode, request, task->ctx);
+    if (ret == UBSE_ERR_MIGRATE_NOT_ALLOWED || !IsCurrentMigration(task->ctx)) {
+        FinishMigrationTask(task);
+        return;
+    }
     if (ret != UBSE_OK) {
         RecordMigrationLocalFailure(task, step, nodeIndex, ret, MIGRATE_FAIL_RPC);
     } else {
@@ -654,9 +680,61 @@ bool SetCurrentExportSwitching(const std::shared_ptr<MigrationTask>& task, bool 
     });
 }
 
-// 调用方持有task锁：所有阶段共用块身份校验，目标已导入时，设备身份来自入口已校验的原导入快照。
+// 恢复end(0)使用已采集的设备身份和旧引用，不依赖丢失的临时export描述。
+static bool BuildRecoveryRollbackRequest(const MigrationRunContext& ctx, const std::string& nodeId, uint32_t b,
+                                         UbseMemMigrateRpcInfo& info)
+{
+    const auto obj =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, ctx.name);
+    if (!obj || b >= obj->status.importResults.size() || b >= obj->exportObmmInfo.size() ||
+        b >= obj->migrateInfos.size() || obj->status.importResults[b].memId == 0 ||
+        ShmMigrateIndex(obj->migrateInfos[b]) != b) {
+        UBSE_LOG_ERROR << "Cannot build recovery end(0): local block identity missing, name=" << ctx.name
+                       << ", nodeId=" << nodeId << ", block=" << b;
+        return false;
+    }
+    info = {ctx.name, b, nodeId, 0, 0, true};
+    if (obj->switchContext && obj->switchContext->blockIndex == b) {
+        info.exportMemId = obj->switchContext->exportMemId;
+        info.migrateInfo = obj->switchContext->migrateInfo;
+    } else {
+        info.exportMemId = obj->exportObmmInfo[b].memId;
+        if (ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE && nodeId == ctx.dstNodeId) {
+            info.exportMemId = obj->status.importResults[b].memId;
+        }
+        if (b < ctx.newExportObj.migrateInfos.size()) {
+            info.migrateInfo = ctx.newExportObj.migrateInfos[b];
+        } else {
+            auto source = ctx.srcNodeId;
+            if (source.empty() && !obj->algoResult.exportNumaInfos.empty()) {
+                source = obj->algoResult.exportNumaInfos.front().nodeId;
+            }
+            uint32_t origin = 0;
+            if (ConvertStrToUint32(source, origin) != UBSE_OK || origin == 0 ||
+                origin > SHM_MIGRATE_MAX_ORIGIN_NODE_ID) {
+                UBSE_LOG_ERROR << "Cannot build recovery end(0): source identity missing, name=" << ctx.name
+                               << ", nodeId=" << nodeId << ", block=" << b << ", source=" << source;
+                return false;
+            }
+            const auto version = (ShmMigrateVersion(obj->migrateInfos[b]) + 1U) & 0xfU;
+            info.migrateInfo = MakeShmMigrateInfo(version, b, origin, true);
+        }
+    }
+    if (info.exportMemId == 0 || !ShmMigrateIsExport(info.migrateInfo) || ShmMigrateOrigin(info.migrateInfo) == 0 ||
+        ShmMigrateIndex(info.migrateInfo) != b) {
+        UBSE_LOG_ERROR << "Cannot build recovery end(0): invalid request identity, " << MigrateRpcLog(info);
+        return false;
+    }
+    return true;
+}
+
+// 调用方持有task锁；恢复回退另按各节点实际账本构造身份，其他阶段校验目标块信息。
 static uint32_t CheckMigrationBlockIdentity(const MigrationTask& task, MigrationOperation operation)
 {
+    if (task.recovering &&
+        (operation == MigrationOperation::ROLLBACK_IMPORT || operation == MigrationOperation::ROLLBACK_EXPORT)) {
+        return UBSE_OK;
+    }
     const auto& blocks = task.ctx.newExportObj.status.exportObmmInfo;
     const auto& markers = task.ctx.newExportObj.migrateInfos;
     const auto b = task.blockIndex;
@@ -760,11 +838,10 @@ std::shared_ptr<MigrationStep> StartMigrationOperation(
     const auto& ctx = task->ctx;
     const auto b = task->blockIndex;
     const bool mappedTarget = ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE;
-    const auto memId = mappedTarget ? ctx.targetImportObj->status.importResults[b].memId :
-                                      ctx.newExportObj.status.exportObmmInfo[b].memId;
     const auto timeoutSeconds = MigrationOperationTimeout(*task, operation);
     const bool rollback = operation == MigrationOperation::ROLLBACK_IMPORT ||
                           operation == MigrationOperation::ROLLBACK_EXPORT;
+    const bool recoveryRollback = task->recovering && rollback;
     const auto step = task->step = std::make_shared<MigrationStep>(
         MigrationStep{operation, b, MigrationStepState::WAITING_RESULT, timeoutSeconds, onComplete});
     step->timerName = ctx.name + "_" + std::to_string(reinterpret_cast<uintptr_t>(task.get())) + "_" +
@@ -772,11 +849,22 @@ std::shared_ptr<MigrationStep> StartMigrationOperation(
     step->nodeResults.assign(nodes.size(), {});
     for (size_t n = 0; n < nodes.size(); ++n) {
         auto& info = step->nodeResults[n].request;
+        if (recoveryRollback) {
+            if (!BuildRecoveryRollbackRequest(ctx, nodes[n], b, info)) {
+                const auto reason = task->cleanupReason.value_or(MIGRATE_FAIL_LAYOUT);
+                lock.unlock();
+                FinishMigrationTask(task);
+                FailMigration(task->ctx, reason, ExportCleanup::PRESERVE);
+                return nullptr;
+            }
+            continue;
+        }
         info.name = ctx.name;
         info.blockIndex = b;
         info.srcNodeId = nodes[n];
         info.rollback = rollback;
-        info.exportMemId = memId;
+        info.exportMemId = mappedTarget ? ctx.targetImportObj->status.importResults[b].memId :
+                                          ctx.newExportObj.status.exportObmmInfo[b].memId;
         info.migrateInfo = ctx.newExportObj.migrateInfos[b];
     }
     UBSE_LOG_INFO << "name=" << ctx.name << ", indexId=" << b << ", operation=" << MigrationOperationName(operation)
@@ -798,14 +886,15 @@ bool MatchesMigrateRequest(const UbseMemMigrateRpcInfo& expected, const UbseMemM
 
 static bool IsCurrentMigration(const MigrationRunContext& ctx)
 {
-    return ctx.sessionToken != nullptr &&
+    auto module = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    return module != nullptr && module->IsLeader() && ctx.sessionToken != nullptr &&
            UbseMemShmMigrateSessionManager::GetInstance().GetSession(ctx.name) == ctx.sessionToken;
 }
 
 uint32_t StartNewExport(MigrationRunContext ctx)
 {
-    const auto ret =
-        SendMigrateMessage(ctx.dstNodeId, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT, ctx.newExportObj);
+    const auto ret = SendMigrateMessage(ctx.dstNodeId, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT,
+                                        ctx.newExportObj, ctx);
     if (ret != UBSE_OK) {
         FailMigration(ctx, MIGRATE_FAIL_RPC, ExportCleanup::PRESERVE);
     }
@@ -908,17 +997,23 @@ bool IsMigrationOperationCurrent(const std::shared_ptr<MigrationTask>& task, con
 void StartAsyncBeginImport(const std::shared_ptr<MigrationTask>& task)
 {
     const auto& ctx = task->ctx;
-    const auto step =
-        StartMigrationOperation(task, MigrationOperation::BEGIN_IMPORT, ctx.importNodes, OnBeginImportCompleted);
-    for (size_t n = 0; n < ctx.importNodes.size(); ++n) {
+    auto nodes = ctx.importNodes;
+    if (task->recovering) {
+        nodes.erase(std::remove_if(nodes.begin(), nodes.end(),
+                                   [&](const auto& node) {
+                                       return ReadRecoveryBlock(ctx, node, task->blockIndex) != RecoveryBlockState::OLD;
+                                   }),
+                    nodes.end());
+    }
+    const auto step = StartMigrationOperation(task, MigrationOperation::BEGIN_IMPORT, nodes, OnBeginImportCompleted);
+    for (size_t n = 0; n < nodes.size(); ++n) {
         if (!IsMigrationOperationCurrent(task, step)) {
             break;
         }
         UbseMemMigrateSwitchBeginImportReq req{};
-        if (!PrepareBeginImportRequest(ctx, ctx.importNodes[n], task->blockIndex, req)) {
+        if (!PrepareBeginImportRequest(ctx, nodes[n], task->blockIndex, req)) {
             UBSE_LOG_ERROR << "name=" << ctx.name << ", indexId=" << task->blockIndex
-                           << ", operation=begin_import, Cannot prepare migrate begin request, nodeId="
-                           << ctx.importNodes[n];
+                           << ", operation=begin_import, Cannot prepare migrate begin request, nodeId=" << nodes[n];
             RecordMigrationLocalFailure(task, step, n, UBSE_ERR_INTERNAL, MIGRATE_FAIL_REQUEST_PREPARE);
             break;
         }
@@ -967,7 +1062,7 @@ void StartMappedEndExport(const std::shared_ptr<MigrationTask>& task, bool succe
     UbseMemMigrateEndExportReq req{success ? 1U : 0U};
     const auto step = StartMigrationOperation(task, operation, {ctx.dstNodeId},
                                               success ? OnEndExportCompleted : OnExportRollbackCompleted);
-    SendMigrateBlockRequest(task, step, 0, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT_END, req);
+    SendMigrateBlockRequest(task, step, 0, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_SWITCH_END_EXPORT, req);
 }
 
 // 目标未导入时先结束 copy 节点，再释放其余节点；目标已导入时，copy 节点已由目标 end_export 关闭。
@@ -982,6 +1077,41 @@ bool HasConfirmedImportCommit(const UbseMemShareBorrowImportObj& obj, const Ubse
            obj.switchContext->endDecision == true;
 }
 
+// 在下发前统一筛选：恢复提交跳过已提交块，恢复回退只关闭未确认提交的 gap。
+bool ShouldEndImport(const MigrationTask& task, const std::string& nodeId, bool success)
+{
+    if (success) {
+        return !task.recovering ||
+               ReadRecoveryBlock(task.ctx, nodeId, task.blockIndex) != RecoveryBlockState::COMMITTED;
+    }
+
+    const auto obj =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, task.ctx.name);
+    if (task.recovering) {
+        if (!obj || task.blockIndex >= obj->exportObmmInfo.size() ||
+            obj->exportObmmInfo[task.blockIndex].memIdStatus != UB_MEM_SWITCHING) {
+            return false;
+        }
+        if (!obj->switchContext || obj->switchContext->blockIndex != task.blockIndex ||
+            obj->switchContext->endDecision != true) {
+            return true;
+        }
+    } else {
+        const UbseMemMigrateRpcInfo info{task.ctx.name,
+                                         task.blockIndex,
+                                         nodeId,
+                                         task.ctx.newExportObj.status.exportObmmInfo[task.blockIndex].memId,
+                                         task.ctx.newExportObj.migrateInfos[task.blockIndex],
+                                         true};
+        if (!obj || !HasConfirmedImportCommit(*obj, info)) {
+            return true;
+        }
+    }
+    UBSE_LOG_WARN << "Skip end(0): import block commit confirmed, name=" << task.ctx.name << ", nodeId=" << nodeId
+                  << ", block=" << task.blockIndex;
+    return false;
+}
+
 void StartImportEndRange(const std::shared_ptr<MigrationTask>& task, bool success, size_t first, size_t count,
                          void (*onComplete)(const std::shared_ptr<MigrationTask>&,
                                             const std::shared_ptr<MigrationStep>&))
@@ -993,23 +1123,9 @@ void StartImportEndRange(const std::shared_ptr<MigrationTask>& task, bool succes
     std::vector<std::string> nodes;
     for (size_t n = first; n < first + count; ++n) {
         const auto& nodeId = task->ctx.importNodes[n];
-        if (!success) {
-            const auto local = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
-                nodeId, task->ctx.name);
-            const UbseMemMigrateRpcInfo info{task->ctx.name,
-                                             task->blockIndex,
-                                             nodeId,
-                                             task->ctx.newExportObj.status.exportObmmInfo[task->blockIndex].memId,
-                                             task->ctx.newExportObj.migrateInfos[task->blockIndex],
-                                             true};
-            if (local && HasConfirmedImportCommit(*local, info)) {
-                UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << info.blockIndex
-                              << ", operation=end_import, Skip end(0) for confirmed committed import, nodeId="
-                              << info.srcNodeId;
-                continue;
-            }
+        if (ShouldEndImport(*task, nodeId, success)) {
+            nodes.push_back(nodeId);
         }
-        nodes.push_back(nodeId);
     }
     const auto step = StartMigrationOperation(task, operation, nodes, onComplete);
     for (size_t n = 0; n < nodes.size(); ++n) {
@@ -1025,21 +1141,11 @@ void StartImportEnd(const std::shared_ptr<MigrationTask>& task, bool success)
 {
     const auto& ctx = task->ctx;
     if (ctx.targetKind == UbseMemMigrateTargetKind::NOT_IMPORT_NODE && !ctx.importNodes.empty()) {
-        if (!success) {
-            // 已确认 copy 节点提交时，其入口已关闭，失败清理只需处理其余节点。
-            const auto copyLedger =
-                UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
-                    ctx.importNodes.front(), ctx.name);
-            const UbseMemMigrateRpcInfo info{ctx.name, task->blockIndex, ctx.importNodes.front(),
-                                             ctx.newExportObj.status.exportObmmInfo[task->blockIndex].memId,
-                                             ctx.newExportObj.migrateInfos[task->blockIndex]};
-            if (copyLedger && HasConfirmedImportCommit(*copyLedger, info)) {
-                UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << info.blockIndex
-                              << ", operation=end_import, Skip end(0) for confirmed committed copy node, nodeId="
-                              << info.srcNodeId;
-                StartImportEndRange(task, false, 1, ctx.importNodes.size() - 1, OnRollbackCompleted);
-                return;
-            }
+        if (!ShouldEndImport(*task, ctx.importNodes.front(), success)) {
+            // copy 节点无需 end，直接处理其余节点，保持先关闭 copy 入口的顺序。
+            StartImportEndRange(task, success, 1, ctx.importNodes.size() - 1,
+                                success ? OnEndCompleted : OnRollbackCompleted);
+            return;
         }
         // 回退同样先关闭 copy 节点，否则失败清理也可能与迟到 copy 并发。
         StartImportEndRange(task, success, 0, 1, OnCopyNodeEndCompleted);
@@ -1159,6 +1265,8 @@ void OnCopyCompleted(const std::shared_ptr<MigrationTask>& task, const std::shar
 }
 
 // 仅全部相关节点提交成功后调用；先提交账本，再发布完成进度。
+void ResumeCurrentBlock(const std::shared_ptr<MigrationTask>& task);
+
 void CompleteCurrentBlock(const std::shared_ptr<MigrationTask>& task)
 {
     auto& ctx = task->ctx;
@@ -1181,6 +1289,8 @@ void CompleteCurrentBlock(const std::shared_ptr<MigrationTask>& task)
     if (task->blockIndex == ctx.newExportObj.migrateInfos.size()) {
         FinishMigrationTask(task);
         FinishMigration(ctx);
+    } else if (task->recovering) {
+        ResumeCurrentBlock(task);
     } else if (ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE) {
         StartMappedBeginExport(task);
     } else {
@@ -1267,6 +1377,12 @@ bool AllImportsRolledBack(const MigrationRunContext& ctx, uint32_t blockIndex)
 
 void OnRollbackCompleted(const std::shared_ptr<MigrationTask>& task, const std::shared_ptr<MigrationStep>& step)
 {
+    if (task->recovering && task->ctx.dstNodeId.empty()) {
+        UBSE_LOG_INFO << "Recovery end(0) without target completed, name=" << task->ctx.name
+                      << ", block=" << task->blockIndex << ", allEndsConfirmed=" << AllImportEndsConfirmed(*step);
+        FinishCleanup(task, CleanupConclusion::PRESERVE_RESOURCES);
+        return;
+    }
     const bool clean = AllImportEndsConfirmed(*step) && SetCurrentExportSwitching(task, false);
     // 发送过end(1)不等于已经提交；只有所有旧块回退事实完整时才解除保留。
     const bool restored = clean && task->blockIndex == 0 && AllImportsRolledBack(task->ctx, task->blockIndex);
@@ -1297,7 +1413,7 @@ void OnBeginExportCompleted(const std::shared_ptr<MigrationTask>& task, const st
         return;
     }
     const auto b = task->blockIndex;
-    if (b == 0) {
+    if (b == 0 && !snapshot.completedBlocks.has_value()) {
         const auto decision = mgr.TryStartCopy(ctx.name, ctx.sessionToken);
         if (decision == UbseMemShmMigrateSessionManager::CopyStartResult::CANCELED) {
             BeginFailureCleanup(task, UBSE_OK);
@@ -1473,11 +1589,105 @@ static uint32_t StartMappedMigration(MigrationRunContext&& ctx)
     return UBSE_OK;
 }
 
+void ResumeCurrentBlock(const std::shared_ptr<MigrationTask>& task)
+{
+    auto& ctx = task->ctx;
+    const auto b = task->blockIndex;
+    bool committed = false;
+    bool old = false;
+    bool allCommitted = true;
+    bool invalid = false;
+    RecoveryBlockState targetState = RecoveryBlockState::OLD;
+    auto participants = ctx.importNodes;
+    const bool mapped = ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE;
+    if (mapped) {
+        participants.push_back(ctx.dstNodeId);
+    }
+    for (const auto& node : participants) {
+        const auto state = ReadRecoveryBlock(ctx, node, b);
+        if (node == ctx.dstNodeId) {
+            targetState = state;
+        }
+        committed = committed || state == RecoveryBlockState::COMMITTED;
+        old = old || state == RecoveryBlockState::OLD;
+        allCommitted = allCommitted && state == RecoveryBlockState::COMMITTED;
+        invalid = invalid || state == RecoveryBlockState::INVALID || state == RecoveryBlockState::INCOMPLETE;
+    }
+    ctx.endCommitStarted = ctx.endCommitStarted || committed;
+    if (mapped) {
+        ctx.targetBeginStarted = ctx.targetBeginStarted || targetState != RecoveryBlockState::OLD;
+        task->targetBlockCommitted = targetState == RecoveryBlockState::COMMITTED;
+    }
+    if (invalid || (committed && old)) {
+        // 没有完整提交依据，不补copy或猜测提交，沿现有失败收尾处理。
+        task->step = std::make_shared<MigrationStep>();
+        task->step->operation = MigrationOperation::BEGIN_IMPORT;
+        BeginFailureCleanup(task, MIGRATE_FAIL_CONVERGE);
+        return;
+    }
+    if (allCommitted) {
+        CompleteCurrentBlock(task);
+        return;
+    }
+    if (committed) {
+        if (mapped && targetState != RecoveryBlockState::COMMITTED) {
+            StartMappedEndExport(task, true);
+            return;
+        }
+        StartImportEnd(task, true);
+    } else if (mapped && targetState == RecoveryBlockState::OLD) {
+        StartMappedBeginExport(task);
+    } else {
+        ctx.targetBeginStarted = mapped;
+        StartAsyncBeginImport(task);
+    }
+}
+
+void ResumeMigration(MigrationRunContext ctx, uint32_t blockIndex)
+{
+    if (blockIndex == ctx.newExportObj.migrateInfos.size()) {
+        FinishMigration(ctx);
+        return;
+    }
+    auto task = CreateMigrationTask(std::move(ctx));
+    if (!task) {
+        return;
+    }
+    task->recovering = true;
+    task->blockIndex = blockIndex;
+    ResumeCurrentBlock(task);
+}
+
+void CleanupMigration(MigrationRunContext ctx, uint32_t blockIndex)
+{
+    auto task = CreateMigrationTask(std::move(ctx));
+    if (!task) {
+        return;
+    }
+    task->recovering = true;
+    task->blockIndex = blockIndex;
+    if (task->ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE) {
+        UbseMemMigrateRpcInfo info;
+        const auto target = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
+            task->ctx.dstNodeId, task->ctx.name);
+        if (target && BuildRecoveryRollbackRequest(task->ctx, task->ctx.dstNodeId, blockIndex, info)) {
+            task->targetBlockCommitted = HasConfirmedImportCommit(*target, info);
+        }
+    }
+    // 恢复收尾先关闭导入节点的gap，再处理目标begin_export产生的临时后端。
+    task->step = std::make_shared<MigrationStep>();
+    task->step->operation = MigrationOperation::BEGIN_IMPORT;
+    UbseMemShmMigrateSession session;
+    UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(task->ctx.name, session);
+    BeginFailureCleanup(task, session.failReason == UBSE_OK ? MIGRATE_FAIL_CONVERGE : session.failReason);
+}
+
 // false表示本次结果已忽略或已完成失败收尾，调用方直接返回。
-bool ReadNewExportMigrationSession(const UbseMemShareBorrowExportObj& obj, UbseMemShmMigrateSession& session)
+bool ReadNewExportMigrationSession(const UbseMemShareBorrowExportObj& obj, UbseMemShmMigrateSession& session,
+                                   std::shared_ptr<UbseMemShmMigrateSession>& token)
 {
     auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
-    if (!mgr.ReadSessionSnapshot(obj.req.name, session)) {
+    if (!mgr.ReadSessionSnapshot(obj.req.name, session, &token)) {
         UBSE_LOG_WARN << "Ignore migrate export result: session not found, name=" << obj.req.name;
         return false;
     }
@@ -1500,11 +1710,20 @@ bool ReadNewExportMigrationSession(const UbseMemShareBorrowExportObj& obj, UbseM
                       << ", expectedNodeId=" << session.dstNodeId << ", exportNodeId=" << exportNodeId;
         return false;
     }
+    const auto prepared = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
+        exportNodeId, obj.req.name);
+    if (prepared == nullptr || prepared->req.requestId != obj.req.requestId ||
+        prepared->req.requestNodeId != obj.req.requestNodeId) {
+        UBSE_LOG_WARN << "Ignore stale migrate export result, name=" << obj.req.name
+                      << ", requestId=" << obj.req.requestId;
+        return false;
+    }
     return true;
 }
 
 // 调用方持有name锁；复用已校验的会话快照，取消竞争由启动前的原子检查收敛。
-void ContinueNewExportMigration(const UbseMemShareBorrowExportObj& result, const UbseMemShmMigrateSession& session)
+void ContinueNewExportMigration(const UbseMemShareBorrowExportObj& result, const UbseMemShmMigrateSession& session,
+                                const std::shared_ptr<UbseMemShmMigrateSession>& token)
 {
     MigrationRunContext ctx{};
     std::optional<uint32_t> cleanupReason;
@@ -1513,7 +1732,7 @@ void ContinueNewExportMigration(const UbseMemShareBorrowExportObj& result, const
     ctx.srcNodeId = session.srcNodeId;
     ctx.dstNodeId = session.dstNodeId;
     auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
-    ctx.sessionToken = mgr.GetSession(ctx.name);
+    ctx.sessionToken = token;
     if (session.state == UBS_MEM_MIGRATE_STATE_FAILED) {
         cleanupReason = session.failReason == UBSE_OK ? MIGRATE_FAIL_CONVERGE : session.failReason;
         UBSE_LOG_WARN << "Handle late migrate export result for cleanup, name=" << ctx.name
@@ -1567,6 +1786,16 @@ void ContinueNewExportMigration(const UbseMemShareBorrowExportObj& result, const
 
 void UbseMemShmMigrateService::NewExportResult(const UbseMemShareBorrowExportObj& result)
 {
+    auto module = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr || !module->IsLeader()) {
+        return;
+    }
+    auto nameLock = LoggingLockGuard(result.req.name);
+    UbseMemShmMigrateSession session{};
+    std::shared_ptr<UbseMemShmMigrateSession> token;
+    if (!ReadNewExportMigrationSession(result, session, token)) {
+        return;
+    }
     UBSE_LOG_INFO << "Master received migrate business result, name=" << result.req.name << ", operation=new_export, "
                   << MigrateExportLog(result);
     if (const auto ret = CommitExportRsp(result); ret != UBSE_OK) {
@@ -1577,12 +1806,11 @@ void UbseMemShmMigrateService::NewExportResult(const UbseMemShareBorrowExportObj
         mgr.FinishSession(result.req.name, UBS_MEM_MIGRATE_STATE_FAILED, MIGRATE_FAIL_CONVERGE);
         return;
     }
-    auto nameLock = LoggingLockGuard(result.req.name);
-    UbseMemShmMigrateSession session{};
-    if (!ReadNewExportMigrationSession(result, session)) {
+    // 落账期间仍允许取消，刷新会话状态，继续沿用校验时取得的token。
+    if (!UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(result.req.name, session)) {
         return;
     }
-    ContinueNewExportMigration(result, session);
+    ContinueNewExportMigration(result, session, token);
 }
 
 bool IsSameExportResource(const UbseMemShareBorrowExportObj& left, const UbseMemShareBorrowExportObj& right)

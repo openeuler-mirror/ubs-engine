@@ -14,6 +14,7 @@
 
 #include <algorithm>
 
+#include "ubse_logger.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_instance_inner.h"
 #include "ubse_obmm_meta_restore.h"
@@ -49,7 +50,129 @@ std::vector<UbseMemLocalObmmMetaData> SortShareBlocksByIndex(const std::vector<U
     return sortedMetaDatas;
 }
 
+// 仅 V2 保证存在 switch_state；读取失败不能当成 IDLE，也不单独触发保护。
+bool ReadShareBlockSwitchState(const UbseMemLocalObmmMetaData& metaData, uint8_t& switchState)
+{
+    if (metaData.customMeta.version != OBMM_CUSTOM_META_V2) {
+        return false;
+    }
+    const auto ret = RmObmmDevRead::GetStableSwitchState(metaData.localMemId, switchState);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Read block switch state fail, memId=" << metaData.localMemId
+                       << ", ret=" << ret;
+    }
+    return ret == UBSE_OK;
+}
+
+bool HasNextShareMigrationVersion(const std::vector<UbseMemLocalObmmMetaData>& importMetaDatas,
+                                  const std::vector<UbseMemLocalObmmMetaData>& exportMetaDatas)
+{
+    // V1 解码得到的 migrateInfo 为默认零值，不能参与迁移版本比较。
+    if (importMetaDatas.empty() || exportMetaDatas.empty() || !HasShareMigrationMarkers(importMetaDatas) ||
+        !HasShareMigrationMarkers(exportMetaDatas)) {
+        return false;
+    }
+    const auto importVersion = ShmMigrateVersion(importMetaDatas.front().customMeta.migrateInfo);
+    const auto expectedExportVersion = (importVersion + 1U) & 0xfU;
+    // 两侧各自必须属于同一代；迁移版本为 4 bit，15 的下一代是 0。
+    const bool allImportsSameVersion = std::all_of(
+        importMetaDatas.begin(), importMetaDatas.end(),
+        [importVersion](const auto& item) { return ShmMigrateVersion(item.customMeta.migrateInfo) == importVersion; });
+    const bool allExportsNextVersion =
+        std::all_of(exportMetaDatas.begin(), exportMetaDatas.end(), [expectedExportVersion](const auto& item) {
+            return ShmMigrateVersion(item.customMeta.migrateInfo) == expectedExportVersion;
+        });
+    return allImportsSameVersion && allExportsNextVersion;
+}
+
+bool ShouldProtectShareName(const std::vector<UbseMemLocalObmmMetaData>& importBlocks,
+                            const std::vector<UbseMemLocalObmmMetaData>& exportBlocks)
+{
+    bool allIdle = true;
+    for (const auto* blocks : {&importBlocks, &exportBlocks}) {
+        for (const auto& block : *blocks) {
+            uint8_t switchState{};
+            if (!ReadShareBlockSwitchState(block, switchState)) {
+                allIdle = false;
+                continue;
+            }
+            if (switchState == static_cast<uint8_t>(ObmmSwitchState::AWAIT_READY) ||
+                switchState == static_cast<uint8_t>(ObmmSwitchState::STRANDED)) {
+                return true;
+            }
+            allIdle = allIdle && switchState == static_cast<uint8_t>(ObmmSwitchState::IDLE);
+        }
+    }
+    // 全部块都是 IDLE，且有版本切换依赖关系 也为切换中
+    return allIdle && HasNextShareMigrationVersion(importBlocks, exportBlocks);
+}
+
+// 逐块读取后直接更新账本，gap 标记迁移中，STRANDED 标记不可用。
+void RestoreShareBlockSwitchStates(const std::vector<UbseMemLocalObmmMetaData>& metaDatas,
+                                   UbseMemShareBorrowImportObj& importObj)
+{
+    for (size_t i = 0; i < metaDatas.size(); ++i) {
+        uint8_t switchState{};
+        if (!ReadShareBlockSwitchState(metaDatas[i], switchState)) {
+            continue;
+        }
+        if (switchState == static_cast<uint8_t>(ObmmSwitchState::AWAIT_READY)) {
+            if (i < importObj.exportObmmInfo.size()) {
+                importObj.exportObmmInfo[i].memIdStatus = UB_MEM_SWITCHING;
+            }
+        } else if (switchState == static_cast<uint8_t>(ObmmSwitchState::STRANDED)) {
+            if (i < importObj.exportObmmInfo.size()) {
+                importObj.exportObmmInfo[i].memIdStatus = UB_MEM_STRANDED;
+            }
+        }
+    }
+}
+
+void RestoreShareBlockSwitchStates(const std::vector<UbseMemLocalObmmMetaData>& metaDatas,
+                                   UbseMemShareBorrowExportObj& exportObj)
+{
+    for (size_t i = 0; i < metaDatas.size(); ++i) {
+        uint8_t switchState{};
+        if (!ReadShareBlockSwitchState(metaDatas[i], switchState)) {
+            continue;
+        }
+        if (switchState == static_cast<uint8_t>(ObmmSwitchState::AWAIT_READY)) {
+            if (i < exportObj.status.exportObmmInfo.size()) {
+                exportObj.status.exportObmmInfo[i].memIdStatus = UB_MEM_SWITCHING;
+            }
+        } else if (switchState == static_cast<uint8_t>(ObmmSwitchState::STRANDED)) {
+            if (i < exportObj.status.exportObmmInfo.size()) {
+                exportObj.status.exportObmmInfo[i].memIdStatus = UB_MEM_STRANDED;
+            }
+        }
+    }
+}
 } // namespace
+
+std::unordered_set<std::string> GetProtectedShareNames(const LocalObmmMetaData& localObmmMetaData)
+{
+    std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> importGroups;
+    std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportGroups;
+    GetBorrowObjMap(localObmmMetaData.ShmImportMetaData, importGroups);
+    GetBorrowObjMap(localObmmMetaData.ShmExportMetaData, exportGroups);
+    std::unordered_set<std::string> protectedNames;
+    const std::vector<UbseMemLocalObmmMetaData> emptyBlocks;
+    for (const auto& [name, importBlocks] : importGroups) {
+        const auto exportIt = exportGroups.find(name);
+        const auto& exportBlocks = exportIt == exportGroups.end() ? emptyBlocks : exportIt->second;
+        if (ShouldProtectShareName(importBlocks, exportBlocks)) {
+            protectedNames.emplace(name);
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Protect share recovery name=" << name;
+        }
+    }
+    for (const auto& [name, exportBlocks] : exportGroups) {
+        if (importGroups.count(name) == 0 && ShouldProtectShareName(emptyBlocks, exportBlocks)) {
+            protectedNames.emplace(name);
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Protect share recovery name=" << name;
+        }
+    }
+    return protectedNames;
+}
 
 void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
                                 UbseMemFdBorrowImportObj& ubseMemFdBorrowImportObj, bool& isNormal)
@@ -469,7 +592,8 @@ void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData& obmmMetaData, std::strin
 }
 
 UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
-                                   UbseMemShareImportObjMap& normalImportObjMap)
+                                   UbseMemShareImportObjMap& normalImportObjMap,
+                                   const std::unordered_set<std::string>& protectedNames)
 {
     UbseResult ret = UBSE_OK;
     UbseMemShareImportObjMap abnormalImportObjMap{};
@@ -479,7 +603,13 @@ UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
         UbseMemShareBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleShareImportObj(importObjItem.second, mxeMemImportObj, isNormal);
-        if (isNormal) {
+        const bool isProtectedName = protectedNames.count(importObjItem.first) != 0;
+        if (isProtectedName) {
+            // gap/STRANDED/迁移混合对象保留在正常账本中，不进入残缺对象卸载，避免恢复过程unimport设备
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Protected share import obj kept in ledger, name=" << importObjItem.first
+                          << ", protectedName=" << isProtectedName << ", groupComplete=" << isNormal;
+            normalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
+        } else if (isNormal) {
             normalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
         } else {
             abnormalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
@@ -519,8 +649,7 @@ static bool AfterConstructSingleShareImportObj(const std::vector<UbseMemLocalObm
     mxeMemShareBorrowImportObj.shareAttr = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                                             obmmMetaData.totalSize};
     if (status.importResults.size() != obmmMetaData.customMeta.memidCount) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Recovered shared import incomplete; unload abnormal object, name=" << req.name
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Recovered shared import block group incomplete, name=" << req.name
                        << ", expectedBlocks=" << obmmMetaData.customMeta.memidCount
                        << ", actualBlocks=" << status.importResults.size();
         return false;
@@ -630,10 +759,13 @@ void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     }
     isNormal = AfterConstructSingleShareImportObj(importLocalObmmMetaDatas, mxeMemShareBorrowImportObj, obmmMetaData,
                                                   req, algoResult);
+    // 仅回填切换状态，是否保护由 protectedNames 统一决定。
+    RestoreShareBlockSwitchStates(importLocalObmmMetaDatas, mxeMemShareBorrowImportObj);
 }
 
 UbseResult ConstructShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap)
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap,
+    const std::unordered_set<std::string>& protectedNames)
 {
     UbseResult ret = UBSE_OK;
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
@@ -642,8 +774,15 @@ UbseResult ConstructShareImportObjFromExportMetaData(
         UbseMemShareBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleShareImportObjFromExportMetaData(exportObjItem.second, mxeMemImportObj, isNormal);
-        if (isNormal) {
-            importObjMap.emplace(exportObjItem.first, mxeMemImportObj);
+        // 构造早退的空候选仍跳过；已恢复的残缺对象按 name 保护。
+        if (isNormal ||
+            (protectedNames.count(exportObjItem.first) != 0 && !mxeMemImportObj.status.importResults.empty())) {
+            // 迁移混合对象即使组内存在gap/STRANDED也保留，不进入残缺对象卸载
+            // 同名 import 已恢复时保留原条目，self-import 不能覆盖其中的导入块。
+            if (!importObjMap.emplace(exportObjItem.first, mxeMemImportObj).second) {
+                UBSE_LOG_WARN << MMI_LOG_INFO
+                              << "Keep existing share import obj, skip self-import, name=" << exportObjItem.first;
+            }
         }
     }
     return ret;
@@ -691,10 +830,13 @@ void ConstructSingleShareImportObjFromExportMetaData(const std::vector<UbseMemLo
     algoResult.blockSize = RmCommonUtils::GetInstance().SizeByte2Mb(obmmMetaData.totalSize);
     isNormal = AfterConstructSingleShareImportObjFromExportMetaData(
         exportLocalObmmMetaDatas, mxeMemShareBorrowImportObj, obmmMetaData, req, algoResult);
+    // self-import 同样按实际切换状态处理，避免丢弃 gap/STRANDED 记录。
+    RestoreShareBlockSwitchStates(exportLocalObmmMetaDatas, mxeMemShareBorrowImportObj);
 }
 
 UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
-                                   UbseMemShareExportObjMap& normalExportObjMap)
+                                   UbseMemShareExportObjMap& normalExportObjMap,
+                                   const std::unordered_set<std::string>& protectedNames)
 {
     UbseResult ret = UBSE_OK;
     UbseMemShareExportObjMap abnormalExportObjMap{};
@@ -704,7 +846,13 @@ UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& 
         UbseMemShareBorrowExportObj mxeMemNumaBorrowExportObj{};
         bool isNormal = true;
         ConstructSingleShareExportObj(exportItem.second, mxeMemNumaBorrowExportObj, isNormal);
-        if (isNormal) {
+        const bool isProtectedName = protectedNames.count(exportItem.first) != 0;
+        if (isProtectedName) {
+            // gap/STRANDED/迁移混合对象保留在正常账本中，不进入残缺对象卸载，避免恢复过程unexport设备
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Protected share export obj kept in ledger, name=" << exportItem.first
+                          << ", protectedName=" << isProtectedName << ", groupComplete=" << isNormal;
+            normalExportObjMap.emplace(exportItem.first, mxeMemNumaBorrowExportObj);
+        } else if (isNormal) {
             normalExportObjMap.emplace(exportItem.first, mxeMemNumaBorrowExportObj);
         } else {
             abnormalExportObjMap.emplace(exportItem.first, mxeMemNumaBorrowExportObj);
@@ -795,6 +943,8 @@ void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& 
         }
     }
     isNormal = status.exportObmmInfo.size() == obmmMetaData.customMeta.memidCount;
+    // 仅回填切换状态，是否保护由 protectedNames 统一决定。
+    RestoreShareBlockSwitchStates(exportLocalObmmMetaDatas, mxeMemShareBorrowExportObj);
 }
 
 UbseResult ConstructAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,

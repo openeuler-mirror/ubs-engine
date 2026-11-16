@@ -491,7 +491,6 @@ UbseResult RmObmmExecutor::ObmmSwitchBeginImport(const ObmmSwitchParam& param)
                        << ", errno=" << switchErrno
                        << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(switchErrno, buf, STR_ERROR_BUF_SIZE);
         if (switchErrno == EBUSY) {
-            // 该内存已有切换进行中：不是失败，说明上一轮 begin 已生效，编排层按"begin 已完成"处理
             return UBSE_ERROR_BUSY;
         }
         return UBSE_MMI_OBMM_OP_FAILED;
@@ -559,8 +558,6 @@ UbseResult RmObmmExecutor::ObmmSwitchBeginExport(const ObmmSwitchExportParam& pa
 
 UbseResult RmObmmExecutor::ObmmSwitchEnd(mem_id oldImportMemId, bool success)
 {
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm SwitchEnd interface, memId=" << oldImportMemId
-                   << ", success=" << success;
     if (obmmSwitchEndFunc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmSwitchEndFunc is nullptr, please check.";
         return UBSE_ERROR_NULLPTR;
@@ -575,6 +572,14 @@ UbseResult RmObmmExecutor::ObmmSwitchEnd(mem_id oldImportMemId, bool success)
     int ret = obmmSwitchEndFunc(oldImportMemId, success ? 1 : 0);
     const int switchErrno = errno;
     switchCapGuard.Disable();
+    // ESTALE 表示间隙已结束；回退收尾按幂等成功处理，继续清理账本和临时 decoder。
+    // 提交仍需由上层核实实际结果，不能据此判定 end(1) 成功。
+    if (ret != 0 && !success && switchErrno == ESTALE) {
+        UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO
+                      << "obmm_switch_end rollback already finished, memId=" << oldImportMemId
+                      << ", errno=" << switchErrno;
+        return UBSE_OK;
+    }
     if (ret != 0) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_end error! memId=" << oldImportMemId
@@ -588,8 +593,6 @@ UbseResult RmObmmExecutor::ObmmSwitchEnd(mem_id oldImportMemId, bool success)
         }
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_switch_end memId=" << oldImportMemId
-                  << ", success=" << success;
     return UBSE_OK;
 }
 
@@ -684,39 +687,6 @@ UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id>& id, uint64_t 
         successfulList.push_back(memId);
     }
     return UBSE_OK;
-}
-
-bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSize,
-                         std::vector<std::array<size_t, MAX_NUMA_NODES>>& result)
-{
-    size_t blockNum[MAX_NUMA_NODES]{};
-    size_t blockAll{0};
-    if (blockSize == 0u) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Block size=0 is invalid.";
-        return false;
-    }
-    for (int i = 0; i < MAX_NUMA_NODES; ++i) {
-        bool isOverflow = false;
-        blockNum[i] = (RmCommonUtils::GetInstance().SafeAdd(size[i], blockSize, isOverflow) - 1) / blockSize;
-        if (isOverflow) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Overflow occurred during addition. size[" << i << "]=" << size[i]
-                           << ", blockSize=" << blockSize;
-            return false;
-        }
-        blockAll += blockNum[i];
-    }
-    result.clear();
-    result.reserve(blockAll);
-    for (int i = 0; i < blockAll; ++i) {
-        result.push_back({});
-    }
-    int index = 0;
-    for (int i = 0; i < MAX_NUMA_NODES; ++i) {
-        for (int j = 0; j < blockNum[i]; ++j) {
-            result[index++][i] = blockSize;
-        }
-    }
-    return !result.empty();
 }
 
 std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,

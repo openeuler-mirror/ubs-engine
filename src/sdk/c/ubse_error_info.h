@@ -57,6 +57,9 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
     [UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED",
                             "New use or migration is blocked; detach/delete and recreate shared memory"},
+    [UBS_ENGINE_ERR_MASTER_NOT_READY - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBS_ENGINE_ERR_MASTER_NOT_READY",
+                            "Master is not ready (election or switchover in progress); migrate request is retryable"},
 };
 
 #ifdef __cplusplus

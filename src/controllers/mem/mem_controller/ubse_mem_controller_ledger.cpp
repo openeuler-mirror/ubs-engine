@@ -5,6 +5,7 @@
 #include "ubse_mem_controller_ledger.h"
 
 #include <ubse_node.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <set>
@@ -620,12 +621,75 @@ UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType 
     return ret;
 }
 
+static void TryStartMigrationRecovery()
+{
+    if (!CheckNodeIsMaster()) {
+        return;
+    }
+    // 静态名单包含尚未建链的节点，不能用升主后逐步重建的角色活跃集合判断账本已收齐。
+    std::vector<std::string> nodeIds;
+    const auto staticNodes = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    if (staticNodes.empty()) {
+        UBSE_LOG_ERROR << "Static node info empty, skip migration recovery";
+        return;
+    }
+    for (const auto& node : staticNodes) {
+        nodeIds.push_back(node.nodeId);
+    }
+    const auto localNodeId = GetCurNodeId();
+    if (localNodeId.empty()) {
+        return;
+    }
+    nodeIds.push_back(localNodeId);
+    std::sort(nodeIds.begin(), nodeIds.end());
+    nodeIds.erase(std::unique(nodeIds.begin(), nodeIds.end()), nodeIds.end());
+    const auto action = UbseInitLedgerState::GetInstance().TryStartMigrationRecovery(nodeIds);
+    auto joinNodeIds = [](const std::vector<std::string>& ids) {
+        std::string result;
+        for (const auto& id : ids) {
+            if (!result.empty()) {
+                result += ",";
+            }
+            result += id;
+        }
+        return result;
+    };
+    if (action == MigrationRecoveryAction::WAIT_FOR_RECONCILIATION) {
+        const auto doneNodeIds = UbseInitLedgerState::GetInstance().GetInitLedgerDoneNodes();
+        UBSE_LOG_INFO << "Migration recovery wait for reconciliation, staticNodeIds=" << joinNodeIds(nodeIds)
+                      << ", initLedgerDoneNodeIds=" << joinNodeIds(doneNodeIds);
+        return;
+    }
+    if (action != MigrationRecoveryAction::REBUILD_MIGRATION_TASKS) {
+        return;
+    }
+    auto task = []() {
+        if (CheckNodeIsMaster()) {
+            // 参与节点暂不可用时暂缓本轮恢复，重置恢复触发标记，等节点上线通知后再次扫描。
+            if (!UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation()) {
+                UbseInitLedgerState::GetInstance().RetryMigrationRecovery();
+                UBSE_LOG_INFO << "Migration recovery deferred, retry when all participants working";
+            } else {
+                // 扫描执行完毕才标记完成，消除"名单收齐但扫描未执行完"窗口内 get 返回 NOT_EXIST 的竞态。
+                UbseInitLedgerState::GetInstance().MarkMigrationRecoveryCompleted();
+            }
+        }
+    };
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr || !resourceExecutor->Execute(std::move(task))) {
+        // 尚未执行恢复扫描，允许后续通知重投；已扫描的name不再重建。
+        UbseInitLedgerState::GetInstance().RetryMigrationRecovery();
+        UBSE_LOG_ERROR << "Submit migration recovery failed";
+    }
+}
+
 UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
 {
     if (node.clusterState == UbseNodeClusterState::UBSE_NODE_INIT) {
         UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, false);
     } else if (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
         UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, true);
+        TryStartMigrationRecovery();
     }
 
     if (node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
