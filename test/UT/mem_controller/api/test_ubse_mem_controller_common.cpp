@@ -51,6 +51,83 @@ void TestUbseMemControllerCommonHelper::TearDown()
     GlobalMockObject::verify();
 }
 
+TEST_F(TestUbseMemControllerCommonHelper, MigrationRecoveryWaitsForAllNodesAndStartsOnce)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    const std::vector<std::string> nodes{"1", "2", "3"};
+    state.SetInitLedgerDone("2", false);
+    state.SetInitLedgerDone("3", false);
+    state.ResetMigrationRecovery(true);
+    state.SetInitLedgerDone("1", true);
+    state.SetInitLedgerDone("2", true);
+    EXPECT_EQ(MigrationRecoveryAction::WAIT_FOR_RECONCILIATION, state.TryStartMigrationRecovery(nodes));
+    state.SetInitLedgerDone("3", true);
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    // 普通对账重复通知不能启动第二轮重建。
+    state.SetInitLedgerDone("3", false);
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    state.SetInitLedgerDone("3", true);
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(false);
+    state.SetInitLedgerDone("2", false);
+    state.SetInitLedgerDone("3", false);
+}
+
+TEST_F(TestUbseMemControllerCommonHelper, MigrationRecoveryResetsOnTakeover)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    const std::vector<std::string> nodes{"1"};
+    state.ResetMigrationRecovery(true);
+    state.SetInitLedgerDone("1", true);
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(true);
+    // 未重启节点不一定重新收到INIT，升主时必须主动清空旧记录。
+    EXPECT_FALSE(state.IsInitLedgerDone("1"));
+    EXPECT_EQ(MigrationRecoveryAction::WAIT_FOR_RECONCILIATION, state.TryStartMigrationRecovery(nodes));
+    state.SetInitLedgerDone("1", true);
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(false);
+    state.SetInitLedgerDone("1", true);
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(false);
+}
+
+TEST_F(TestUbseMemControllerCommonHelper, MigrationRecoveryWaitsForFreshLedgersFromAllStaticNodes)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    const std::vector<std::string> nodes{"1", "2", "3", "4"};
+    for (const auto& nodeId : nodes) {
+        state.SetInitLedgerDone(nodeId, true);
+    }
+    state.ResetMigrationRecovery(true);
+    EXPECT_TRUE(state.GetInitLedgerDoneNodes().empty());
+
+    // 新主本地export先对账，目标export和import后到；旧主未回归时也不能启动扫描。
+    for (const auto& nodeId : {"2", "3", "4"}) {
+        state.SetInitLedgerDone(nodeId, true);
+        EXPECT_EQ(MigrationRecoveryAction::WAIT_FOR_RECONCILIATION, state.TryStartMigrationRecovery(nodes));
+    }
+    state.SetInitLedgerDone("1", true);
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(false);
+}
+
+TEST_F(TestUbseMemControllerCommonHelper, MigrationRecoveryRetriesOnlyWhenSubmissionFails)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    const std::vector<std::string> nodes{"1"};
+    state.ResetMigrationRecovery(true);
+    EXPECT_EQ(MigrationRecoveryAction::WAIT_FOR_RECONCILIATION, state.TryStartMigrationRecovery({}));
+    state.SetInitLedgerDone("1", true);
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    state.RetryMigrationRecovery();
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(nodes));
+    EXPECT_EQ(MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED, state.TryStartMigrationRecovery(nodes));
+    state.ResetMigrationRecovery(false);
+}
+
 TEST_F(TestUbseMemControllerCommonHelper, SendParamSwitcherTest)
 {
     UbseMemOperationResp resp;

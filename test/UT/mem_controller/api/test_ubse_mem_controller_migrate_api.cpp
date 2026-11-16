@@ -25,7 +25,10 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include <optional>
 #include <thread>
 #include "ubse_com_module.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
+#include "ubse_init_ledger_state.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_ledger.h"
@@ -108,6 +111,10 @@ void TestUbseMemControllerMigrateApi::SetUp()
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::SetUp();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
     g_fastMigrateSleep = true; // 本fixture内sleep立即返回，重试路径不真实休眠
     MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(&MigrateTimerRegisterStub));
     MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs().will(invoke(&MigrateTimerUnregisterStub));
@@ -533,6 +540,26 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateMappedPreparationReturnsSchedu
     EXPECT_TRUE(target.status.exportObmmInfo.empty());
 }
 
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigratePreparationUsesNewRequestIdForEachSession)
+{
+    auto source =
+        std::make_shared<UbseMemShareBorrowExportObj>(BuildMigrateExportObj(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES));
+    source->status.exportObmmInfo.resize(1);
+    source->req.requestId = 123;
+    MOCKER(&ubse::mem::util::GetCurNodeId).stubs().will(returnValue(std::string("1")));
+    MOCKER(&ShareBorrowSchedule).stubs().will(invoke(&MigratePreparedScheduleStub));
+
+    UbseMemShareBorrowExportObj first{};
+    UbseMemShareBorrowExportObj second{};
+    ASSERT_EQ(UBSE_OK, migrate_detail::PrepareMigrateExport(source, MIGRATE_DST_NODE_ID, nullptr, first));
+    ASSERT_EQ(UBSE_OK, migrate_detail::PrepareMigrateExport(source, MIGRATE_DST_NODE_ID, nullptr, second));
+    EXPECT_NE(source->req.requestId, first.req.requestId);
+    EXPECT_NE(first.req.requestId, second.req.requestId);
+    EXPECT_EQ("1", first.req.requestNodeId);
+    EXPECT_EQ(first.req.requestNodeId, second.req.requestNodeId);
+    EXPECT_EQ(first.migrateInfos, second.migrateInfos); // 同一源版本重新准备，也必须区分两次请求。
+}
+
 // 在账本放一个活跃导入节点，块数与迁移导出桩保持一致
 // algoResult.exportNumaInfos 指向源节点(GetMaxRefCountExportObj 按 baseNodeId 关联导入 obj, 缺失则不入组)
 void PutMigrateImportObj(const std::string& importNodeId)
@@ -953,6 +980,495 @@ testing::AssertionResult WaitMigrateTerminal(const std::string& name)
                                        << ", failReason=" << session.failReason;
 }
 } // namespace
+
+namespace {
+migrate_detail::MigrationRunContext BuildMigrationRecoveryScene()
+{
+    BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
+    auto source = *GetShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
+    for (auto& block : source.status.exportObmmInfo) {
+        block.desc.length = MIGRATE_SIZE_BYTES / MIGRATE_EXPECT_BLOCK_COUNT;
+    }
+    PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, source);
+    PutMigrateImportObj("13");
+    auto imp = *GetShareImportObj("13", SHM_NAME);
+    imp.exportObmmInfo = source.status.exportObmmInfo;
+    PutShareImportObj("13", SHM_NAME, imp);
+    auto target = BuildExportResponse(source);
+    target.req.baseNodeId = MIGRATE_DST_NODE_ID;
+    target.algoResult.exportNumaInfos.front().nodeId = MIGRATE_DST_NODE_ID;
+    for (uint32_t b = 0; b < MIGRATE_EXPECT_BLOCK_COUNT; ++b) {
+        target.migrateInfos[b] = MakeShmMigrateInfo(1, b, SRC_SLOT_ID, true);
+        target.status.exportObmmInfo[b].desc.addr = 0x1000 + b * 0x1000;
+    }
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, target);
+    migrate_detail::MigrationRunContext ctx;
+    ctx.name = SHM_NAME;
+    ctx.srcNodeId = MIGRATE_SRC_NODE_ID;
+    ctx.dstNodeId = MIGRATE_DST_NODE_ID;
+    ctx.oldObj = GetShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
+    ctx.newExportObj = target;
+    ctx.importNodes = {"13"};
+    ctx.exportConfirmed = true;
+    return ctx;
+}
+
+migrate_detail::MigrationRunContext BuildCompletedMigrationRecoveryScene(uint32_t version = 1)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    ctx.newExportObj.algoResult.exportNumaInfos.front().size = MIGRATE_SIZE_BYTES;
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo = ctx.newExportObj.status.exportObmmInfo;
+    for (uint32_t b = 0; b < obj.migrateInfos.size(); ++b) {
+        ctx.newExportObj.migrateInfos[b] = MakeShmMigrateInfo(version, b, SRC_SLOT_ID, true);
+        obj.migrateInfos[b] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[b]);
+    }
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    PutShareImportObj("13", SHM_NAME, obj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().RemoveResource(MIGRATE_SRC_NODE_ID,
+                                                                                              SHM_NAME);
+    return ctx;
+}
+
+void IgnoreRecoveredTask(migrate_detail::MigrationRunContext ctx, uint32_t block)
+{
+    EXPECT_EQ(SHM_NAME, ctx.name);
+    EXPECT_EQ(1U, block);
+}
+void IgnoreRecoveredCleanup(migrate_detail::MigrationRunContext ctx, uint32_t block)
+{
+    EXPECT_EQ(SHM_NAME, ctx.name);
+    EXPECT_EQ(0U, block);
+    EXPECT_TRUE(ctx.sessionToken);
+}
+void ResumeRecoveredFromFirstBlock(migrate_detail::MigrationRunContext ctx, uint32_t block)
+{
+    EXPECT_EQ(SHM_NAME, ctx.name);
+    EXPECT_EQ(0U, block);
+}
+
+void ExpectRecoveryFailed(uint32_t reason)
+{
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation();
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, session.state);
+    EXPECT_TRUE(session.rebuildRequired);
+    EXPECT_EQ(reason, session.failReason);
+}
+
+} // namespace
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryClassifiesOldGapCommittedAndUnavailableBlocks)
+{
+    using namespace migrate_detail;
+    const auto ctx = BuildMigrationRecoveryScene();
+    EXPECT_EQ(RecoveryBlockState::OLD, ReadRecoveryBlock(ctx, "13", 0));
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::GAP, ReadRecoveryBlock(ctx, "13", 0));
+    const UbseMemMigrateRpcInfo info{SHM_NAME, 0, "13", ctx.newExportObj.status.exportObmmInfo[0].memId,
+                                     ctx.newExportObj.migrateInfos[0]};
+    obj.switchContext = MakeSwitchContext(info);
+    obj.switchContext->target = UbseMemMigrateBlockData{ctx.newExportObj.status.exportObmmInfo[0],
+                                                        ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult{},
+                                                        ctx.newExportObj.algoResult};
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::GAP, ReadRecoveryBlock(ctx, "13", 0));
+    // 匹配的临时上下文不能代替旧块的版本核对。
+    const auto oldMarker = obj.migrateInfos[0];
+    obj.migrateInfos[0] = MakeShmMigrateInfo(3, 0, 0, false);
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::INVALID, ReadRecoveryBlock(ctx, "13", 0));
+    obj.migrateInfos[0] = oldMarker;
+    obj.switchContext->endDecision = false;
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::INVALID, ReadRecoveryBlock(ctx, "13", 0));
+    obj.switchContext.reset();
+    obj.exportObmmInfo[0] = ctx.newExportObj.status.exportObmmInfo[0];
+    obj.migrateInfos[0] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[0]);
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::COMMITTED, ReadRecoveryBlock(ctx, "13", 0));
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_STRANDED;
+    PutShareImportObj("13", SHM_NAME, obj);
+    EXPECT_EQ(RecoveryBlockState::INVALID, ReadRecoveryBlock(ctx, "13", 0));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryStrandedCreatesFailedSessionWithoutStartingTask)
+{
+    BuildMigrationRecoveryScene();
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_STRANDED;
+    PutShareImportObj("13", SHM_NAME, obj);
+    ExpectRecoveryFailed(MIGRATE_FAIL_RECOVERY_STRANDED);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryMissingTargetFailsAndDoesNotRetryAfterLedgerIsRepaired)
+{
+    const auto ctx = BuildMigrationRecoveryScene();
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().RemoveResource(MIGRATE_DST_NODE_ID,
+                                                                                              SHM_NAME);
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj("13", SHM_NAME, obj);
+    auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    MOCKER(&migrate_detail::CleanupMigration).expects(once()).will(invoke(&IgnoreRecoveredCleanup));
+    UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation();
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, session.state);
+    EXPECT_TRUE(session.rebuildRequired);
+    EXPECT_EQ(0U, session.completedBlocks.value_or(99));
+    EXPECT_EQ(MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN, session.failReason);
+    const auto token = UbseMemShmMigrateSessionManager::GetInstance().GetSession(SHM_NAME);
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation();
+    EXPECT_EQ(token, UbseMemShmMigrateSessionManager::GetInstance().GetSession(SHM_NAME));
+    UbseMemShmMigrateGetResp response;
+    UbseMemShmMigrateService::GetInstance().Get(SHM_NAME, response);
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, response.state);
+    EXPECT_EQ(MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN, response.failReason);
+    EXPECT_NE(std::string::npos, response.errMsg.find("target"));
+    EXPECT_NE(std::string::npos, response.errMsg.find("rebuild"));
+    EXPECT_EQ(UBSE_ERR_MIGRATE_NOT_ALLOWED,
+              UbseMemShmMigrateSessionManager::GetInstance().RequestMigrateCancel(SHM_NAME));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryUnavailableNodeFailsWithExplicitReason)
+{
+    BuildMigrationRecoveryScene();
+    // 参与节点暂不可用：不登记终态会话，等待节点上线后重新扫描，避免将可恢复的迁移误判为终态失败。
+    const auto unknownNode = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_UNKNOWN, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(unknownNode));
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    EXPECT_FALSE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    UbseMemShmMigrateSession session;
+    EXPECT_FALSE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+
+    // 节点上线后重扫：登记 DATA_COPYING 会话并从首块续跑。
+    MOCKER(&UbseNodeController::GetNodeById).reset();
+    const auto workingNode = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(workingNode));
+    MOCKER(&migrate_detail::ResumeMigration).reset();
+    MOCKER(&migrate_detail::ResumeMigration).stubs().will(invoke(&ResumeRecoveredFromFirstBlock));
+    EXPECT_TRUE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_DATA_COPYING, session.state);
+    EXPECT_FALSE(session.rebuildRequired);
+    EXPECT_EQ(0U, session.completedBlocks.value_or(99));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryIncompleteBlocksFailWithExplicitReason)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    ctx.newExportObj.status.exportObmmInfo.pop_back();
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    ExpectRecoveryFailed(MIGRATE_FAIL_RECOVERY_INCOMPLETE);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryInconsistentVersionsFailWithExplicitReason)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    ctx.newExportObj.migrateInfos.back() = MakeShmMigrateInfo(2, MIGRATE_EXPECT_BLOCK_COUNT - 1, SRC_SLOT_ID, true);
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    ExpectRecoveryFailed(MIGRATE_FAIL_RECOVERY_INCONSISTENT);
+}
+
+namespace {
+std::vector<std::string> g_recoveryCleanupOrder;
+using RecoveryEndExportPtr = ubse::simpo::util::UbseAutoSimpoPtr<UbseMemMigrateEndExportReq>;
+
+UbseResult RecoveryImportRollbackRpc(UbseComModule* module, const SendParam& param,
+                                     UbseMemMigrateSwitchEndImportReqSimpoPtr& req, UbseBaseMessagePtr& ack,
+                                     const bool copy)
+{
+    EXPECT_EQ(0U, req->GetUbseMesgInfo().success);
+    EXPECT_TRUE(req->GetUbseMesgInfo().rpcInfo.rollback);
+    g_recoveryCleanupOrder.push_back("import:" + param.GetRemoteId());
+    return MigrateSwitchEndImportRpcOkStub(module, param, req, ack, copy);
+}
+
+UbseResult RecoveryExportRollbackRpc(UbseComModule*, const SendParam& param, RecoveryEndExportPtr& req,
+                                     UbseBaseMessagePtr&, const bool)
+{
+    const auto& data = req->GetUbseMesgInfo();
+    EXPECT_EQ(0U, data.success);
+    EXPECT_EQ(1U, data.rpcInfo.blockIndex);
+    EXPECT_TRUE(data.rpcInfo.rollback);
+    const auto local = GetShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    EXPECT_EQ(local->status.importResults[1].memId, data.rpcInfo.exportMemId);
+    g_recoveryCleanupOrder.push_back("export:" + param.GetRemoteId());
+    UbseMemMigrateOpResp result{UBSE_OK};
+    result.rpcInfo = data.rpcInfo;
+    const auto executor = ubse::mem::util::GetExecutor("ubseMemController");
+    return executor->Execute([result]() { UbseMemShmMigrateService::GetInstance().EndResult(result); }) ? UBSE_OK :
+                                                                                                          UBSE_ERROR;
+}
+} // namespace
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryCleanupWithoutTargetUsesRestoredImportIdentity)
+{
+    BuildMigrationRecoveryScene();
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj("13", SHM_NAME, obj);
+    migrate_detail::MigrationRunContext ctx;
+    ctx.name = SHM_NAME;
+    ctx.importNodes = {"13"};
+    ctx.endCommitStarted = true;
+    UbseMemShmMigrateSession session;
+    session.name = SHM_NAME;
+    session.state = UBS_MEM_MIGRATE_STATE_FAILED;
+    session.rebuildRequired = true;
+    session.failReason = MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN;
+    ctx.sessionToken = UbseMemShmMigrateSessionManager::GetInstance().RestoreSession(session).first;
+    MigrateComMockSet();
+    const auto begin = &UbseComModule::RpcSend<UbseMemMigrateSwitchBeginImportReqSimpoPtr, UbseBaseMessagePtr>;
+    const auto copy = &UbseComModule::RpcSend<UbseMemMigrateDataCopyReqSimpoPtr, UbseBaseMessagePtr>;
+    const auto end = &UbseComModule::RpcSend<UbseMemMigrateSwitchEndImportReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(begin).expects(never());
+    MOCKER_CPP(copy).expects(never());
+    MOCKER_CPP(end).expects(once()).will(invoke(&RecoveryImportRollbackRpc));
+    g_recoveryCleanupOrder.clear();
+    migrate_detail::CleanupMigration(std::move(ctx), 0);
+    ASSERT_TRUE(g_migrateExecutor != nullptr);
+    g_migrateExecutor->Wait();
+    EXPECT_EQ(std::vector<std::string>({"import:13"}), g_recoveryCleanupOrder);
+    EXPECT_EQ(UB_MEM_HEALTHY, GetShareImportObj("13", SHM_NAME)->exportObmmInfo[0].memIdStatus);
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, session.state);
+    EXPECT_EQ(MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN, session.failReason);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryCleanupMappedGapWithoutCurrentExportRecord)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    PutMigrateImportObj(MIGRATE_DST_NODE_ID);
+    auto target = *GetShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    target.exportObmmInfo = ctx.oldObj->status.exportObmmInfo;
+    target.migrateInfos[0] = MakeShmMigrateInfo(1, 0, 0, false);
+    target.exportObmmInfo[0].memId = target.status.importResults[0].memId;
+    target.exportObmmInfo[1].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME, target);
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.migrateInfos[0] = MakeShmMigrateInfo(1, 0, 0, false);
+    obj.exportObmmInfo[0].memId = target.status.importResults[0].memId;
+    obj.exportObmmInfo[1].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj("13", SHM_NAME, obj);
+    ctx.newExportObj.migrateInfos.resize(1);
+    ctx.newExportObj.status.exportObmmInfo.resize(1);
+    ctx.newExportObj.status.exportObmmInfo[0].memId = target.status.importResults[0].memId;
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    ctx.targetKind = UbseMemMigrateTargetKind::IMPORT_NODE;
+    ctx.targetImportObj = GetShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    ctx.targetBeginStarted = true;
+    ctx.endCommitStarted = true;
+    UbseMemShmMigrateSession session;
+    session.name = SHM_NAME;
+    session.state = UBS_MEM_MIGRATE_STATE_FAILED;
+    session.rebuildRequired = true;
+    session.failReason = MIGRATE_FAIL_RECOVERY_INCOMPLETE;
+    ctx.sessionToken = UbseMemShmMigrateSessionManager::GetInstance().RestoreSession(session).first;
+    MigrateComMockSet();
+    const auto endImport = &UbseComModule::RpcSend<UbseMemMigrateSwitchEndImportReqSimpoPtr, UbseBaseMessagePtr>;
+    const auto endExport = &UbseComModule::RpcSend<RecoveryEndExportPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(endImport).expects(once()).will(invoke(&RecoveryImportRollbackRpc));
+    MOCKER_CPP(endExport).expects(once()).will(invoke(&RecoveryExportRollbackRpc));
+    g_recoveryCleanupOrder.clear();
+    migrate_detail::CleanupMigration(std::move(ctx), 1);
+    ASSERT_TRUE(g_migrateExecutor != nullptr);
+    g_migrateExecutor->Wait();
+    EXPECT_EQ(std::vector<std::string>({"import:13", "export:12"}), g_recoveryCleanupOrder);
+    EXPECT_EQ(UB_MEM_HEALTHY, GetShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->exportObmmInfo[1].memIdStatus);
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_FAILED, session.state);
+    EXPECT_EQ(MIGRATE_FAIL_RECOVERY_INCOMPLETE, session.failReason);
+    EXPECT_EQ(1U, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->status.exportObmmInfo.size());
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryRestoresCompletedPrefixAndDoesNotStartTwice)
+{
+    const auto ctx = BuildMigrationRecoveryScene();
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0] = ctx.newExportObj.status.exportObmmInfo[0];
+    obj.migrateInfos[0] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[0]);
+    PutShareImportObj("13", SHM_NAME, obj);
+    auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::ResumeMigration).expects(once()).will(invoke(&IgnoreRecoveredTask));
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    service.RecoverAfterReconciliation();
+    service.RecoverAfterReconciliation();
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_DATA_COPYING, session.state);
+    EXPECT_EQ(1U, session.completedBlocks.value_or(99));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryTaskContinuesAfterCompletedPrefix)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    obj.exportObmmInfo[0] = ctx.newExportObj.status.exportObmmInfo[0];
+    obj.migrateInfos[0] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[0]);
+    PutShareImportObj("13", SHM_NAME, obj);
+    UbseMemShmMigrateSession snapshot;
+    snapshot.name = SHM_NAME;
+    snapshot.srcNodeId = MIGRATE_SRC_NODE_ID;
+    snapshot.dstNodeId = MIGRATE_DST_NODE_ID;
+    snapshot.state = UBS_MEM_MIGRATE_STATE_DATA_COPYING;
+    snapshot.totalMemids = MIGRATE_EXPECT_BLOCK_COUNT;
+    snapshot.completedBlocks = 1;
+    const auto restored = UbseMemShmMigrateSessionManager::GetInstance().RestoreSession(snapshot);
+    ASSERT_TRUE(restored.second);
+    ctx.sessionToken = restored.first;
+    ctx.endCommitStarted = true;
+    MigrateScheduleMockSet();
+    MigrateComMockSet();
+    MigratePhase2RpcMockSet(&MigrateSwitchBeginImportRpcOkStub, &MigrateDataCopyRpcOkStub,
+                            &MigrateSwitchEndImportRpcOkStub);
+    MOCKER(&migrate_detail::StartNewExport).expects(never());
+    g_migratePhaseOrder.clear();
+    migrate_detail::ResumeMigration(std::move(ctx), 1);
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+    EXPECT_EQ(MIGRATE_EXPECT_BLOCK_COUNT, snapshot.completedBlocks.value_or(0));
+    ASSERT_FALSE(g_migratePhaseOrder.empty());
+    EXPECT_EQ(3U, g_migratePhaseOrder.front()); // 从块1的begin开始，不重复块0。
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryPartiallyCommittedBlockOnlyCompletesRemainingEnds)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    auto first = *GetShareImportObj("13", SHM_NAME);
+    first.exportObmmInfo[0] = ctx.newExportObj.status.exportObmmInfo[0];
+    first.migrateInfos[0] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[0]);
+    PutShareImportObj("13", SHM_NAME, first);
+    auto second = first;
+    second.importNodeId = "14";
+    second.exportObmmInfo = ctx.oldObj->status.exportObmmInfo;
+    second.migrateInfos[0] = MakeShmMigrateInfo(0, 0, 0, false);
+    second.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    const UbseMemMigrateRpcInfo info{SHM_NAME, 0, "14", ctx.newExportObj.status.exportObmmInfo[0].memId,
+                                     ctx.newExportObj.migrateInfos[0]};
+    second.switchContext = migrate_detail::MakeSwitchContext(info);
+    // 对齐 begin_import 路径：导入布局由新导出 NUMA 和新链路构造，commit 落账要求 importNumaInfos 非空。
+    auto targetLayout = ctx.newExportObj.algoResult;
+    const auto& exportNuma = targetLayout.exportNumaInfos.front();
+    targetLayout.importNumaInfos.push_back(
+        {"14", static_cast<int>(targetLayout.attachSocketId), exportNuma.numaId, exportNuma.size});
+    second.switchContext->target = UbseMemMigrateBlockData{
+        ctx.newExportObj.status.exportObmmInfo[0],
+        ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult{0, 0x8000, 0x9000}, targetLayout};
+    PutShareImportObj("14", SHM_NAME, second);
+    ctx.importNodes.push_back("14");
+    UbseMemShmMigrateSession snapshot;
+    snapshot.name = SHM_NAME;
+    snapshot.srcNodeId = MIGRATE_SRC_NODE_ID;
+    snapshot.dstNodeId = MIGRATE_DST_NODE_ID;
+    snapshot.state = UBS_MEM_MIGRATE_STATE_DATA_COPYING;
+    snapshot.totalMemids = MIGRATE_EXPECT_BLOCK_COUNT;
+    snapshot.completedBlocks = 0;
+    ctx.sessionToken = UbseMemShmMigrateSessionManager::GetInstance().RestoreSession(snapshot).first;
+    MigrateScheduleMockSet();
+    MigrateComMockSet();
+    MigratePhase2RpcMockSet(&MigrateSwitchBeginImportRpcOkStub, &MigrateDataCopyRpcOkStub,
+                            &MigrateSwitchEndImportRpcOkStub);
+    g_migratePhaseOrder.clear();
+    migrate_detail::ResumeMigration(std::move(ctx), 0);
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+    EXPECT_EQ(g_migratePhaseOrder.end(), std::find(g_migratePhaseOrder.begin(), g_migratePhaseOrder.end(), 0U));
+    EXPECT_EQ(g_migratePhaseOrder.end(), std::find(g_migratePhaseOrder.begin(), g_migratePhaseOrder.end(), 1U));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryRestoresCompletedSessionWithoutDispatch)
+{
+    const auto ctx = BuildCompletedMigrationRecoveryScene();
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    MOCKER(&migrate_detail::CleanupMigration).expects(never());
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    EXPECT_TRUE(service.RecoverAfterReconciliation());
+    auto& manager = UbseMemShmMigrateSessionManager::GetInstance();
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(manager.ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, session.state);
+    EXPECT_EQ(MIGRATE_EXPECT_BLOCK_COUNT, session.completedBlocks.value_or(0));
+    EXPECT_FALSE(session.rebuildRequired);
+    EXPECT_EQ(ctx.newExportObj.req.udsInfo.username, session.owner.username);
+    const auto token = manager.GetSession(SHM_NAME);
+    EXPECT_TRUE(service.RecoverAfterReconciliation());
+    EXPECT_EQ(token, manager.GetSession(SHM_NAME));
+
+    UbseMemShmMigrateGetResp response;
+    service.Get(SHM_NAME, response);
+    EXPECT_EQ(UBSE_OK, response.errCode);
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, response.state);
+    EXPECT_EQ(MIGRATE_SRC_NODE_ID, response.srcNodeId);
+    EXPECT_EQ(MIGRATE_DST_NODE_ID, response.dstNodeId);
+    EXPECT_EQ(MIGRATE_EXPECT_BLOCK_COUNT, response.totalMemids);
+    EXPECT_EQ(response.totalMemids, response.migratedMemids);
+    EXPECT_EQ(MIGRATE_SIZE_BYTES, response.totalSize);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryRestoresCompletedSessionWithWrappedVersionAndSelfImport)
+{
+    const auto ctx = BuildCompletedMigrationRecoveryScene(0);
+    auto target = *GetShareImportObj("13", SHM_NAME);
+    target.importNodeId = MIGRATE_DST_NODE_ID;
+    target.realExe = false;
+    for (uint32_t b = 0; b < target.status.importResults.size(); ++b) {
+        target.status.importResults[b].memId = ctx.newExportObj.status.exportObmmInfo[b].memId;
+    }
+    PutShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME, target);
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    MOCKER(&migrate_detail::CleanupMigration).expects(never());
+    EXPECT_TRUE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, session.state);
+    EXPECT_EQ(MIGRATE_EXPECT_BLOCK_COUNT, session.completedBlocks.value_or(0));
+    EXPECT_EQ(UbseMemMigrateTargetKind::IMPORT_NODE, session.targetKind);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryDoesNotInventCompletedSessionFromHistoricalVersion)
+{
+    BuildCompletedMigrationRecoveryScene();
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    ++obj.exportObmmInfo.back().memId; // 版本一致仍不足以证明已提交，实际引用必须匹配。
+    PutShareImportObj("13", SHM_NAME, obj);
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    MOCKER(&migrate_detail::CleanupMigration).expects(never());
+    EXPECT_TRUE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    EXPECT_EQ(nullptr, UbseMemShmMigrateSessionManager::GetInstance().GetSession(SHM_NAME));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryDoesNotInventCompletedSessionForUnmigratedResource)
+{
+    auto ctx = BuildCompletedMigrationRecoveryScene(0);
+    auto obj = *GetShareImportObj("13", SHM_NAME);
+    for (uint32_t b = 0; b < obj.migrateInfos.size(); ++b) {
+        ctx.newExportObj.migrateInfos[b] = MakeShmMigrateInfo(0, b, 0, true);
+        obj.migrateInfos[b] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[b]);
+    }
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    PutShareImportObj("13", SHM_NAME, obj);
+    MOCKER(&migrate_detail::ResumeMigration).expects(never());
+    EXPECT_TRUE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    EXPECT_EQ(nullptr, UbseMemShmMigrateSessionManager::GetInstance().GetSession(SHM_NAME));
+}
 
 /*
  * 用例描述：内部参数校验，name或targetNodeId为空（SDK的slotId校验在SDK入口）
@@ -1594,6 +2110,61 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateAsyncResultsGateNextPhase)
     ASSERT_EQ(MIGRATE_EXPECT_BLOCK_COUNT * 3, g_migratePhaseOrder.size());
     for (uint32_t step = 0; step < g_migratePhaseOrder.size(); ++step) {
         EXPECT_EQ(step, g_migratePhaseOrder[step]);
+    }
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateLateTimerUnregistersWithoutStoppingCurrentStep)
+{
+    BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
+    MigrateNodeMockSetForExecute();
+    AcceptMigrateOnly();
+    MigrateScheduleMockSet();
+    MigrateRpcSuccessMockSet();
+    g_migratePhaseOrder.clear();
+    g_beginHeld.store(false);
+    g_copyHeld.store(false);
+    MigratePhase2RpcMockSet(&MigrateBeginHoldFirstStub, &MigrateCopyHoldFirstStub, &MigrateSwitchEndImportRpcOkStub);
+
+    ASSERT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().Execute(SHM_NAME));
+    ASSERT_TRUE(WaitHeld(g_beginHeld));
+    g_migrateExecutor->Wait();
+    std::string oldTimerName;
+    UbseTimerHandler oldTimer;
+    {
+        std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
+        ASSERT_EQ(1U, g_migrateTimers.size());
+        oldTimerName = g_migrateTimers.begin()->first;
+        oldTimer = g_migrateTimers.begin()->second;
+    }
+
+    ASSERT_EQ(UBSE_OK, ReportMigrateResult(g_beginResultInfo, g_beginHeldResponse));
+    g_beginResultInfo = {};
+    ASSERT_TRUE(WaitHeld(g_copyHeld));
+    g_migrateExecutor->Wait();
+    // 模拟旧阶段定时器在注销后才完成注册，只能清掉自身，不能影响当前copy阶段。
+    ASSERT_EQ(UBSE_OK, MigrateTimerRegisterStub(oldTimerName, oldTimer, 1));
+    EXPECT_EQ(UBSE_OK, oldTimer());
+    {
+        std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
+        EXPECT_EQ(0U, g_migrateTimers.count(oldTimerName));
+        EXPECT_EQ(1U, g_migrateTimers.size());
+    }
+    EXPECT_EQ(2U, g_migratePhaseOrder.size());
+
+    ASSERT_EQ(UBSE_OK, ReportMigrateResult(g_copyResultInfo, UbseMemMigrateOpResp{UBSE_OK}));
+    g_copyResultInfo = {};
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    g_migrateExecutor->Wait();
+    UbseMemShmMigrateSession snapshot{};
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+
+    // 任务已结束时，晚注册的定时器也在下一次触发时自行注销。
+    ASSERT_EQ(UBSE_OK, MigrateTimerRegisterStub(oldTimerName, oldTimer, 1));
+    EXPECT_EQ(UBSE_OK, oldTimer());
+    {
+        std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
+        EXPECT_TRUE(g_migrateTimers.empty());
     }
 }
 
@@ -2372,6 +2943,130 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateGetTerminalRetained)
 }
 
 /*
+ * 用例描述：对账采集中查询拦截：主备倒换后初始对账未收齐且 name 存在迁移痕迹时，
+ * get 不返回 NOT_EXIST，改为 MASTER_NOT_READY 提示重试；名单收齐但恢复扫描未执行完
+ * 仍按采集中应答，扫描完成标记后恢复 NOT_EXIST
+ * 预期结果：采集中 errCode=UBSE_ERR_MASTER_NOT_READY，errMsg 含 reconciliation 提示；
+ * 全部节点 SetInitLedgerDone 后仍返回 UBSE_ERR_MASTER_NOT_READY；
+ * MarkMigrationRecoveryCompleted 后返回 UBSE_ERR_NOT_EXIST
+ */
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateGetDeferredDuringReconciliation)
+{
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
+    UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
+    BuildMigrationRecoveryScene();
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    std::vector<ubse::nodeController::UbseNodeInfo> staticNodes{node};
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+
+    // 对账采集中：会话未恢复登记，按采集中应答
+    UbseMemShmMigrateGetResp resp{};
+    UbseMemShmMigrateService::GetInstance().Get(SHM_NAME, resp);
+    EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, resp.errCode);
+    EXPECT_NE(std::string::npos, resp.errMsg.find("reconciliation"));
+
+    // 对账收齐（静态名单+本节点）：恢复扫描未执行完，仍按采集中应答
+    UbseInitLedgerState::GetInstance().SetInitLedgerDone("13", true);
+    const auto localNodeId = UbseNodeController::GetInstance().GetCurNode().nodeId;
+    if (!localNodeId.empty()) {
+        UbseInitLedgerState::GetInstance().SetInitLedgerDone(localNodeId, true);
+    }
+    UbseMemShmMigrateGetResp scanPendingResp{};
+    UbseMemShmMigrateService::GetInstance().Get(SHM_NAME, scanPendingResp);
+    EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, scanPendingResp.errCode);
+
+    // 恢复扫描执行完毕：仍无会话则恢复 NOT_EXIST
+    UbseInitLedgerState::GetInstance().MarkMigrationRecoveryCompleted();
+    UbseMemShmMigrateGetResp settledResp{};
+    UbseMemShmMigrateService::GetInstance().Get(SHM_NAME, settledResp);
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, settledResp.errCode);
+    UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
+}
+
+/*
+ * 用例描述：对账采集中受理/取消拦截：accept 与 cancel 在鉴权前按采集中拒绝，
+ * 不创建会话也不按 NOT_EXIST 拒绝
+ * 预期结果：Accept 与 Cancel 均返回 UBSE_ERR_MASTER_NOT_READY
+ */
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateAcceptAndCancelDeferredDuringReconciliation)
+{
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
+    UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
+    BuildMigrationRecoveryScene();
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    std::vector<ubse::nodeController::UbseNodeInfo> staticNodes{node};
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+
+    EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, UbseMemShmMigrateService::GetInstance().Accept(BuildMigrateReq(DST_SLOT_ID)));
+    UbseMemMigrateCancelResp cancelResp{};
+    UbseMemShmMigrateService::GetInstance().Cancel(SHM_NAME, cancelResp);
+    EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, cancelResp.errCode);
+    UbseMemShmMigrateSession session;
+    EXPECT_FALSE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
+}
+
+struct MigrationTraceCase {
+    const char* name;
+    bool isExport;
+    bool hasMarker;
+    bool hasContext;
+    UbMemFaultType blockStatus;
+};
+
+class TestMigrationTrace
+    : public TestUbseMemControllerMigrateApi
+    , public testing::WithParamInterface<MigrationTraceCase> {
+};
+
+TEST_P(TestMigrationTrace, DetectsIsolatedTraceAndIgnoresDestroyedObject)
+{
+    const auto& param = GetParam();
+    EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
+    // 每次只放入一个对象、一种痕迹，避免其他判定条件掩盖被测分支。
+    const bool expected = param.hasMarker || param.hasContext || param.blockStatus != UB_MEM_HEALTHY;
+    if (param.isExport) {
+        auto obj = BuildMigrateExportObj(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES);
+        obj.migrateInfos = param.hasMarker ? std::vector<uint32_t>{MakeShmMigrateInfo(1, 0, 0, true)} :
+                                             std::vector<uint32_t>{};
+        obj.status.exportObmmInfo.resize(1);
+        obj.status.exportObmmInfo[0].memIdStatus = param.blockStatus;
+        PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, obj);
+        EXPECT_EQ(expected, NameHasMigrationTrace(SHM_NAME));
+        obj.status.state = UBSE_MEM_EXPORT_DESTROYED;
+        PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, obj);
+    } else {
+        PutMigrateImportObj("13");
+        auto obj = *GetShareImportObj("13", SHM_NAME);
+        obj.migrateInfos = param.hasMarker ? std::vector<uint32_t>{MakeShmMigrateInfo(1, 0, 0, false)} :
+                                             std::vector<uint32_t>{};
+        obj.switchContext.reset();
+        if (param.hasContext) {
+            obj.switchContext = migrate_detail::MakeSwitchContext(UbseMemMigrateRpcInfo{});
+        }
+        obj.exportObmmInfo.resize(1);
+        obj.exportObmmInfo[0].memIdStatus = param.blockStatus;
+        PutShareImportObj("13", SHM_NAME, obj);
+        EXPECT_EQ(expected, NameHasMigrationTrace(SHM_NAME));
+        obj.status.state = UBSE_MEM_IMPORT_DESTROYED;
+        PutShareImportObj("13", SHM_NAME, obj);
+    }
+    EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
+}
+
+INSTANTIATE_TEST_SUITE_P(MigrationRecovery, TestMigrationTrace,
+                         testing::Values(MigrationTraceCase{"ExportWithoutTrace", true, false, false, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ExportMarker", true, true, false, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ExportSwitching", true, false, false, UB_MEM_SWITCHING},
+                                         MigrationTraceCase{"ExportStranded", true, false, false, UB_MEM_STRANDED},
+                                         MigrationTraceCase{"ImportWithoutTrace", false, false, false, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ImportMarker", false, true, false, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ImportContext", false, false, true, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ImportSwitching", false, false, false, UB_MEM_SWITCHING},
+                                         MigrationTraceCase{"ImportStranded", false, false, false, UB_MEM_STRANDED}),
+                         [](const testing::TestParamInfo<MigrationTraceCase>& info) { return info.param.name; });
+
+/*
  * 用例描述：终态后重新受理覆盖旧终态记录：新会话可见、旧终态记录被覆盖
  * 预期结果：重新受理后查询指向 INIT 新会话
  */
@@ -2679,7 +3374,119 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateExportLateResultCannotChangeNe
     ASSERT_TRUE(mgr.ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_INIT, snapshot.state);
     EXPECT_TRUE(!snapshot.completedBlocks.has_value());
-    EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->status.state);
+    EXPECT_EQ(UBSE_MEM_EXPORT_RUNNING, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->status.state);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateOldTaskDoesNotBlockNewSession)
+{
+    BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
+    MigrateNodeMockSetForExecute();
+    AcceptMigrateOnly();
+    MigrateScheduleMockSet();
+    MigrateRpcSuccessMockSet();
+    MigratePhase2RpcMockSet(&MigrateBeginHoldFirstStub, &MigrateDataCopyRpcOkStub, &MigrateSwitchEndImportRpcOkStub);
+    g_migratePhaseOrder.clear();
+    g_beginHeld.store(false);
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
+    const auto oldSession = mgr.GetSession(SHM_NAME);
+    ASSERT_EQ(UBSE_OK, service.Execute(SHM_NAME));
+    ASSERT_TRUE(WaitHeld(g_beginHeld));
+    g_migrateExecutor->Wait();
+    std::string oldTimerName;
+    UbseTimerHandler oldTimer;
+    {
+        std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
+        ASSERT_EQ(1U, g_migrateTimers.size());
+        oldTimerName = g_migrateTimers.begin()->first;
+        oldTimer = g_migrateTimers.begin()->second;
+    }
+
+    // 旧阶段结果已收齐，完成事件暂时无法投递，保留task等待定时器重投。
+    auto oldResult = g_beginHeldResponse;
+    oldResult.rpcInfo = g_beginResultInfo.rpcInfo;
+    g_migrateExecutorUnavailable.store(true);
+    service.BeginImportResult(oldResult);
+    g_migrateExecutorUnavailable.store(false);
+    mgr.ClearSessions();
+    AcceptMigrateOnly();
+    const auto newSession = mgr.GetSession(SHM_NAME);
+    ASSERT_NE(oldSession, newSession);
+
+    g_beginHeld.store(false);
+    ASSERT_EQ(UBSE_OK, service.Execute(SHM_NAME));
+    ASSERT_TRUE(WaitHeld(g_beginHeld));
+    g_migrateExecutor->Wait();
+    ASSERT_EQ(2U, g_migratePhaseOrder.size()); // 新task已发出begin，未被残留旧task挡住。
+    UbseMemShmMigrateSession snapshot{};
+    ASSERT_TRUE(mgr.ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_DATA_COPYING, snapshot.state);
+
+    // 旧task退出只能注销自己的定时器，不能移除同名新task。
+    EXPECT_EQ(UBSE_OK, oldTimer());
+    g_migrateExecutor->Wait();
+    {
+        std::lock_guard<std::mutex> lock(g_migrateTimersMutex);
+        EXPECT_EQ(0U, g_migrateTimers.count(oldTimerName));
+        EXPECT_EQ(1U, g_migrateTimers.size());
+    }
+    EXPECT_EQ(newSession, mgr.GetSession(SHM_NAME));
+    ASSERT_EQ(UBSE_OK, ReportMigrateResult(g_beginResultInfo, g_beginHeldResponse));
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    g_migrateExecutor->Wait();
+    ASSERT_TRUE(mgr.ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateLateExportCannotAdvanceNewExportingSession)
+{
+    BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
+    MigrateNodeMockSetForExecute();
+    AcceptMigrateOnly();
+    MigrateScheduleMockSet();
+    MigrateComMockSet();
+    const auto exportFunc = &UbseComModule::RpcSend<MigrateExportReqPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(exportFunc).stubs().will(invoke(&MigrateExportHoldCreateStub));
+    MigratePhase2RpcMockSet(&MigrateSwitchBeginImportRpcOkStub, &MigrateDataCopyRpcOkStub,
+                            &MigrateSwitchEndImportRpcOkStub);
+    g_migratePhaseOrder.clear();
+    g_exportHeld.store(false);
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
+    ASSERT_EQ(UBSE_OK, service.Execute(SHM_NAME));
+    ASSERT_TRUE(WaitHeld(g_exportHeld));
+    const auto oldResult = g_exportHeldResponse;
+
+    mgr.ClearSessions();
+    AcceptMigrateOnly();
+    g_exportHeld.store(false);
+    ASSERT_EQ(UBSE_OK, service.Execute(SHM_NAME));
+    ASSERT_TRUE(WaitHeld(g_exportHeld));
+    const auto newResult = g_exportHeldResponse;
+    ASSERT_NE(oldResult.req.requestId, newResult.req.requestId);
+    ASSERT_EQ(oldResult.migrateInfos, newResult.migrateInfos);
+    service.NewExportResult(oldResult);
+    auto wrongMasterResult = newResult;
+    wrongMasterResult.req.requestNodeId = "99";
+    service.NewExportResult(wrongMasterResult);
+
+    UbseMemShmMigrateSession snapshot{};
+    ASSERT_TRUE(mgr.ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_EXPORTING, snapshot.state);
+    EXPECT_FALSE(snapshot.completedBlocks.has_value());
+    EXPECT_FALSE(snapshot.rebuildRequired);
+    const auto prepared = GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    ASSERT_NE(nullptr, prepared);
+    EXPECT_EQ(newResult.req.requestId, prepared->req.requestId);
+    EXPECT_EQ(UBSE_MEM_EXPORT_RUNNING, prepared->status.state);
+    EXPECT_FALSE(prepared->isCreateReportReceived);
+    EXPECT_TRUE(g_migratePhaseOrder.empty());
+
+    ASSERT_EQ(UBSE_OK, ReportExportResult({}, newResult));
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    g_migrateExecutor->Wait();
+    ASSERT_TRUE(mgr.ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
 }
 
 uint32_t ExportAndSaveLedgerStub(UbseMemShareBorrowExportObj& obj, const std::string& slot)
@@ -2696,6 +3503,7 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateNewExportRetryDoesNotAllocateT
     UbseMemShareBorrowExportObj req{};
     req.req.name = "migrate_create_retry";
     req.req.requestId = 0;
+    req.req.requestNodeId = "1";
     UbseMemDebtNumaInfo numa{};
     numa.nodeId = MIGRATE_DST_NODE_ID;
     req.algoResult.exportNumaInfos.push_back(numa);
@@ -2706,11 +3514,17 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateNewExportRetryDoesNotAllocateT
     ASSERT_EQ(UBSE_OK, first.status.errCode);
     ASSERT_EQ(UBSE_MEM_EXPORT_SUCCESS, first.status.state);
     req.req.requestId = 123; // 借用请求ID变化不影响同一资源的去重。
+    req.req.requestNodeId = "2";
     service.Export(req, second);
     ASSERT_EQ(UBSE_OK, second.status.errCode);
     ASSERT_EQ(UBSE_MEM_EXPORT_SUCCESS, second.status.state);
     EXPECT_EQ(first.status.errCode, second.status.errCode);
-    EXPECT_EQ(first.req.requestId, second.req.requestId);
+    EXPECT_EQ(req.req.requestId, second.req.requestId);
+    EXPECT_EQ(req.req.requestNodeId, second.req.requestNodeId);
+    const auto local = GetShareExportObj(MIGRATE_DST_NODE_ID, req.req.name);
+    ASSERT_NE(nullptr, local);
+    EXPECT_EQ(first.req.requestId, local->req.requestId);
+    EXPECT_EQ(first.req.requestNodeId, local->req.requestNodeId);
 }
 
 using MappedBeginPtr = ubse::simpo::util::UbseAutoSimpoPtr<UbseMemMigrateBeginExportReq>;
@@ -3338,23 +4152,20 @@ UbseResult CancelExportAccountStub(SchedulerImpl*, UbseMemShareBorrowExportObj& 
     return UBSE_OK;
 }
 
-TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateExportResultAccountsWithoutSession)
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateExportResultIgnoredWithoutSession)
 {
     UbseMemShareBorrowExportObj result{};
     result.req.name = SHM_NAME;
     result.status.state = UBSE_MEM_EXPORT_SUCCESS;
     result.algoResult.exportNumaInfos.push_back({MIGRATE_DST_NODE_ID});
     g_cancelExportAccountNotifications.store(0);
-    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>)
-        .expects(once())
-        .will(invoke(&CancelExportAccountStub));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).expects(never());
     auto& service = UbseMemShmMigrateService::GetInstance();
     service.NewExportResult(result);
     service.NewExportResult(result);
     const auto ledger = GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
-    ASSERT_NE(nullptr, ledger);
-    EXPECT_TRUE(ledger->isCreateReportReceived);
-    EXPECT_EQ(1U, g_cancelExportAccountNotifications.load());
+    EXPECT_EQ(nullptr, ledger);
+    EXPECT_EQ(0U, g_cancelExportAccountNotifications.load());
     EXPECT_EQ(nullptr, UbseMemShmMigrateSessionManager::GetInstance().GetSession(SHM_NAME));
 }
 
@@ -3991,6 +4802,48 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateCommittedLastTargetRollbackCon
 TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateIncompleteTargetResultPreservesExistingLedger)
 {
     CheckExportCommittedRollback(MIGRATE_EXPECT_BLOCK_COUNT - 1, false);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateClearSessionsKeepsLeaderSessions)
+{
+    auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
+    const auto [session, created] = mgr.GetOrCreateSession(SHM_NAME, NODE_ONE, NODE_TWO, 1);
+    ASSERT_TRUE(created);
+
+    mgr.ClearSessionsIfNotLeader();
+
+    EXPECT_EQ(session, mgr.GetSession(SHM_NAME));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateClearSessionsOnFollowerDoesNotCancel)
+{
+    auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
+    const auto [session, created] = mgr.GetOrCreateSession(SHM_NAME, NODE_ONE, NODE_TWO, 1);
+    ASSERT_TRUE(created);
+    mgr.UpdateSessionState(SHM_NAME, UBS_MEM_MIGRATE_STATE_EXPORTING);
+    MOCKER_CPP(&UbseElectionModule::IsLeader).reset();
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+
+    mgr.ClearSessionsIfNotLeader();
+
+    EXPECT_EQ(nullptr, mgr.GetSession(SHM_NAME));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_EXPORTING, session->state);
+    EXPECT_FALSE(session->cancelRequested);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateClearSessionsSkipsWithoutElectionModule)
+{
+    auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
+    const auto [session, created] = mgr.GetOrCreateSession(SHM_NAME, NODE_ONE, NODE_TWO, 1);
+    ASSERT_TRUE(created);
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseElectionModule>).reset();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseElectionModule>{}));
+
+    mgr.ClearSessionsIfNotLeader();
+
+    EXPECT_EQ(session, mgr.GetSession(SHM_NAME));
 }
 
 } // namespace ubse::mem_controller::share::ut
