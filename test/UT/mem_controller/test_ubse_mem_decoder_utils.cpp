@@ -217,6 +217,19 @@ TEST_F(TestUbseMemDecoderUtils, GetDecoderIdByPrivData)
     EXPECT_EQ(MemDecoderUtils::GetDecoderIdByPrivData(privData), 1);
 }
 
+TEST_F(TestUbseMemDecoderUtils, GetAlignedByBlockSize)
+{
+    uint8_t aligned{};
+    const std::vector<std::pair<uint32_t, uint8_t>> cases{
+        {4, 0},   {8, 0},   {16, 0},   {32, 0},   {64, 0},   {128, 0},  {255, 0},  {256, 1},  {300, 1},
+        {511, 1}, {512, 2}, {1023, 2}, {1024, 3}, {1536, 3}, {2047, 3}, {2048, 3}, {3000, 3}, {4096, 3}};
+    for (const auto& [blockSizeMb, expected] : cases) {
+        EXPECT_EQ(MemDecoderUtils::GetAlignedByBlockSize(blockSizeMb, aligned), UBSE_OK);
+        EXPECT_EQ(aligned, expected);
+    }
+    EXPECT_EQ(MemDecoderUtils::GetAlignedByBlockSize(0, aligned), UBSE_ERROR);
+}
+
 TEST_F(TestUbseMemDecoderUtils, SetParamMarIdSuccess)
 {
     std::map<std::string, nodeController::PhysicalLink> linkMap;

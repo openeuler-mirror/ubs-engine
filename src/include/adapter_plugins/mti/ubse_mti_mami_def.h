@@ -83,6 +83,7 @@ struct UbseMamiMemImportInfo {
     uint64_t uba{};     // 访问远端内存（提供方）的UBA地址
     uint64_t
         handle{}; // 标记的一次内存借入句柄；普通内存借入/共享填0即可；从静态预引入/动态预引入内存段的内存借入时，需要指定为最初静态预引入/动态预引入的handle
+    uint8_t aligned{}; // decoder表项对齐粒度编码：128M=0, 256M=1, 512M=2, 1G及以上=3
 };
 
 /* 删除表项信息 */

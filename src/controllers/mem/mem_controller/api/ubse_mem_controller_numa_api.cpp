@@ -807,6 +807,7 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp& resp, UbseMemNumaBorrowI
     decoder::utils::ImportDecoderParam importParam{};
     const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam);
+    importParam.blockSize = importObj.algoResult.blockSize;
     importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;

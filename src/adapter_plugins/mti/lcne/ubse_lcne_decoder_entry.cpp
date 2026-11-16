@@ -87,6 +87,7 @@ UbseResult BuildAddReqStr(const UbseMamiMemImportInfo& importInfo,
     auto tmpUba = std::to_string(importInfo.uba);
     innerObj.AddMember("uba", Value(tmpUba.c_str(), allocator).Move(), allocator);
     innerObj.AddMember("size", importInfo.size, allocator);
+    innerObj.AddMember("aligned", importInfo.aligned, allocator);
     innerObj.AddMember("handle", importInfo.handle, allocator);
 
     if (trustRingData.isHighSafety) {
