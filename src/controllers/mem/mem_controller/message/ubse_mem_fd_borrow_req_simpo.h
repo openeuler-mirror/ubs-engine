@@ -12,35 +12,29 @@
 
 #ifndef UBSE_MANAGER_UBSE_MEM_FD_BORROW_REQ_SIMPO_H
 #define UBSE_MANAGER_UBSE_MEM_FD_BORROW_REQ_SIMPO_H
-#include "ubse_base_message.h"
+#include "ubse_mem_auto_serial.h"
+#include "src/framework/misc/ubse_auto_simpo.hpp"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller::message {
 using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
 using ubse::common::def::UbseResult;
-using ubse::message::UbseBaseMessage;
 using ubse::utils::Ref;
-class UbseMemFdBorrowReqSimpo : public UbseBaseMessage {
+class UbseMemFdBorrowReqSimpo : public ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq> {
 public:
     UbseMemFdBorrowReqSimpo() = default;
     explicit UbseMemFdBorrowReqSimpo(uint8_t* data, uint32_t size)
+        : ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>(data, size)
     {
-        SetInputRawData(data, size);
     }
     inline void SetUbseMemFdBorrowReq(UbseMemFdBorrowReq request)
     {
-        req_ = std::move(request);
+        SetUbseMesgInfo(std::move(request));
     }
 
     inline UbseMemFdBorrowReq GetUbseMemFdBorrowReq()
     {
-        return req_;
+        return GetUbseMesgInfo();
     }
-    UbseResult Serialize() override;
-
-    UbseResult Deserialize() override;
-
-private:
-    UbseMemFdBorrowReq req_;
 };
 using UbseMemFdBorrowReqSimpoPtr = Ref<UbseMemFdBorrowReqSimpo>;
 } // namespace ubse::mem::controller::message

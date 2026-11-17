@@ -13,40 +13,32 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_FD_BORROW_EXPORTOBJ_SIMPO_H
 #define UBSE_MANAGER_UBSE_MEM_FD_BORROW_EXPORTOBJ_SIMPO_H
 
-#include "ubse_base_message.h"
-#include "ubse_mem_controller_serial.h"
+#include "ubse_mem_auto_serial.h"
+#include "src/framework/misc/ubse_auto_simpo.hpp"
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::message {
 using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
-using ubse::message::UbseBaseMessage;
 using ubse::utils::Ref;
 
-class UbseMemFdBorrowExportobjSimpo : public UbseBaseMessage {
+class UbseMemFdBorrowExportobjSimpo : public ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj> {
 public:
     UbseMemFdBorrowExportobjSimpo() = default;
 
     explicit UbseMemFdBorrowExportobjSimpo(uint8_t* data, uint32_t size)
+        : ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>(data, size)
     {
-        SetInputRawData(data, size);
     }
 
     inline void SetUbseMemFdBorrowExportobj(UbseMemFdBorrowExportObj obj)
     {
-        exportObj_ = std::move(obj);
+        SetUbseMesgInfo(std::move(obj));
     }
 
     inline UbseMemFdBorrowExportObj GetUbseMemFdBorrowExportObj()
     {
-        return exportObj_;
+        return GetUbseMesgInfo();
     }
-
-    UbseResult Serialize() override;
-
-    UbseResult Deserialize() override;
-
-private:
-    UbseMemFdBorrowExportObj exportObj_{};
 };
 using UbseMemFdBorrowExportobjSimpoPtr = Ref<UbseMemFdBorrowExportobjSimpo>;
 
