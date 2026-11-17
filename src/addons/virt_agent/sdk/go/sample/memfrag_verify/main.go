@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-// Package main mem_fragmentation.md 内存碎片化治理接口的集成冒烟验证程序。
-// 覆盖 mem_fragmentation.md 的全部接口（按文档顺序）：
+// Package main Go接口参考手册.md 第 3 章（虚机场景—内存碎片接口）的集成冒烟验证程序。
+// 覆盖该章全部接口（按文档顺序）：
 //  1. UbsMemBorrowExecute（borrow-exec）
 //  2. UbsMemReturn（return）
 //  3. UbsMemRollback（rollback）
@@ -19,7 +19,7 @@
 //  5. UbsMemBorrow（borrow）
 //  6. UbsMemFragmentationHeartbeat（默认/heartbeat）
 //
-// query.md 的只读查询接口（NodeInfo/VmInfo/NodeInfoList/VmInfoList）由 query_verify 覆盖。
+// 第 4 章（虚机场景—公共接口）的只读查询接口由 query_verify 覆盖。
 //
 // 前置条件：
 //  1. 所有集群节点已安装相同版本的 ubse RPM
@@ -108,7 +108,7 @@ func usage() {
   borrow ...        大规格虚机按节点借用（UbsMemBorrow）
   return [-async]   归还本节点全部借用内存（UbsMemReturn），慎用
   rollback ...      借用回滚（UbsMemRollback）
-只读查询（query.md：NodeInfo/VmInfo/NodeInfoList/VmInfoList）请使用 query_verify。
+只读查询（Go接口参考手册.md 第 4 章：NodeInfo/VmInfo/NodeInfoList/VmInfoList）请使用 query_verify。
 各写操作子命令的参数说明见其 -h 输出。
 `)
 }

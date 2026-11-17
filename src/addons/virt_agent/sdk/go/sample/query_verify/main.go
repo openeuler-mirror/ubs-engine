@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-// Package main query.md 只读查询接口的集成冒烟验证程序。
-// 覆盖 query.md 的全部接口（按文档顺序）：
+// Package main Go接口参考手册.md 第 4 章（虚机场景—公共接口）只读查询接口的集成冒烟验证程序。
+// 覆盖该章全部接口（按文档顺序）：
 //  1. UbsMemFragmentationNodeInfo（本节点NUMA碎片信息）
 //  2. UbsMemFragmentationVmInfo（本节点虚机信息）
 //  3. UbsMemFragmentationNodeInfoList（集群节点列表）
 //  4. UbsMemFragmentationVmInfoList（集群虚机列表）
 //
-// mem_fragmentation.md 的治理/心跳接口由 memfrag_verify 覆盖。
+// 第 3 章（虚机场景—内存碎片接口）的接口由 memfrag_verify 覆盖。
 //
 // 前置条件：
 //  1. 所有集群节点已安装相同版本的 ubse RPM（混合版本会导致部分节点数据缺失）
@@ -43,7 +43,7 @@ import (
 	"atomgit.com/openeuler/ubs-engine.git/src/addons/virt_agent/sdk/go/memfragmentation"
 )
 
-// queryResult query.md 四个只读接口结果的JSON载体
+// queryResult Go接口参考手册.md 第 4 章四个只读接口结果的JSON载体
 type queryResult struct {
 	NodeNumaInfo   []memfragmentation.NumaInfo     `json:"nodeNumaInfo,omitempty"`
 	NodeVmInfo     []memfragmentation.VmDomainInfo `json:"nodeVmInfo,omitempty"`
@@ -127,7 +127,7 @@ func countCurrentVmNode(nodes []memfragmentation.VmNodeInfo) int {
 	return n
 }
 
-// runQuery 依次执行 query.md 的4个只读接口，任意一个判定失败则整体失败
+// runQuery 依次执行 Go接口参考手册.md 第 4 章的4个只读接口，任意一个判定失败则整体失败
 func runQuery(jsonPath string) bool {
 	ok := true
 	result := queryResult{}
