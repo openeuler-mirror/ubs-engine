@@ -192,10 +192,16 @@ UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchEndExecutor(const UbseMemShmSwi
     return mmiModule->UbseMemShmSwitchEndExecutor(switchObj, success);
 }
 
-UbseResult UbseMmiInterfaceDefaultImpl::ReadShmSwitchState(uint64_t memId, uint8_t& switchState)
+UbseResult UbseMmiInterfaceDefaultImpl::ReadShmSwitchState(uint64_t memId, ObmmSwitchState& switchState)
 {
     using namespace ubse::mmi;
-    return RmObmmDevRead::GetStableSwitchState(static_cast<mem_id>(memId), switchState);
+    // 内核读取边界保持 uint8_t，校验合法后收敛为枚举，保证对外只暴露合法状态值
+    uint8_t state{};
+    const auto ret = RmObmmDevRead::GetStableSwitchState(static_cast<mem_id>(memId), state);
+    if (ret == UBSE_OK) {
+        switchState = static_cast<ObmmSwitchState>(state);
+    }
+    return ret;
 }
 
 UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)

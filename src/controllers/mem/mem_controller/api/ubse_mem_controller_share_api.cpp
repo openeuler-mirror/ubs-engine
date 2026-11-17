@@ -1337,15 +1337,14 @@ bool CloseStuckSwitchGapBlocks(const UbseMemShareBorrowImportObj& importObj)
     const auto& importResults = importObj.status.importResults;
     bool triggered = false;
     for (size_t b = 0; b < importResults.size(); ++b) {
-        uint8_t switchState{};
+        ubse::adapter_plugins::mmi::ObmmSwitchState switchState{};
         if (UbseMmiInterface::GetInstance().ReadShmSwitchState(importResults[b].memId, switchState) != UBSE_OK) {
             UBSE_LOG_WARN << "Read switch state failed during unimport, name=" << importObj.req.name
                           << ", indexId=" << b << ", memId=" << importResults[b].memId;
             continue;
         }
-        // obmm gap态(AWAIT_READY=2)：等待switch_end，其余状态不执行end
-        constexpr uint8_t OBMM_SWITCH_STATE_AWAIT_READY = 2;
-        if (switchState != OBMM_SWITCH_STATE_AWAIT_READY) {
+        // obmm gap态：等待switch_end，其余状态不执行end
+        if (switchState != ubse::adapter_plugins::mmi::ObmmSwitchState::AWAIT_READY) {
             continue;
         }
         UbseMemShmSwitchObj device{};

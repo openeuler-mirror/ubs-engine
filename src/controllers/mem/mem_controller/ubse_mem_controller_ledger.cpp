@@ -656,7 +656,7 @@ static void TryStartMigrationRecovery()
     };
     if (action == MigrationRecoveryAction::WAIT_FOR_RECONCILIATION) {
         const auto doneNodeIds = UbseInitLedgerState::GetInstance().GetInitLedgerDoneNodes();
-        UBSE_LOG_INFO << "Migration recovery wait for reconciliation, staticNodeIds=" << joinNodeIds(nodeIds)
+        UBSE_LOG_WARN << "Migration recovery wait for reconciliation, staticNodeIds=" << joinNodeIds(nodeIds)
                       << ", initLedgerDoneNodeIds=" << joinNodeIds(doneNodeIds);
         return;
     }

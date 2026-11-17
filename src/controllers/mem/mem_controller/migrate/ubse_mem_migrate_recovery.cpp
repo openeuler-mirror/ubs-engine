@@ -257,6 +257,33 @@ void FillRecoveryTotals(const MigrationRunContext& ctx, UbseMemShmMigrateSession
     }
 }
 
+// mapped 后端逐块创建；重启只能读到已存在设备的标记，补齐计划但不补造设备。
+uint32_t RestoreMappedMigrationMarkers(MigrationRunContext& ctx, const UbseMemShmMigrateSession& session)
+{
+    auto& markers = ctx.newExportObj.migrateInfos;
+    const auto count = session.totalMemids;
+    if (ctx.targetKind != UbseMemMigrateTargetKind::IMPORT_NODE || markers.size() >= count) {
+        return UBSE_OK;
+    }
+    if (!ctx.targetImportObj || markers.empty() || count > 0x1000U ||
+        ctx.targetImportObj->status.importResults.size() != count ||
+        ctx.targetImportObj->migrateInfos.size() != count ||
+        markers.size() != ctx.newExportObj.status.exportObmmInfo.size()) {
+        return MIGRATE_FAIL_RECOVERY_INCOMPLETE;
+    }
+    const auto version = ShmMigrateVersion(markers.front());
+    const auto origin = ShmMigrateOrigin(markers.front());
+    for (uint32_t b = 0; b < markers.size(); ++b) {
+        if (markers[b] != MakeShmMigrateInfo(version, b, origin, true)) {
+            return MIGRATE_FAIL_RECOVERY_INCONSISTENT;
+        }
+    }
+    for (uint32_t b = static_cast<uint32_t>(markers.size()); b < count; ++b) {
+        markers.push_back(MakeShmMigrateInfo(version, b, origin, true));
+    }
+    return UBSE_OK;
+}
+
 // 实际迁移痕迹用于确认待续跑目标；历史版本需所有导入块已提交才能恢复SUCCESS会话。
 bool BuildRecoveryContext(const std::string& name, MigrationRunContext& ctx, UbseMemShmMigrateSession& session)
 {
@@ -322,6 +349,10 @@ bool BuildRecoveryContext(const std::string& name, MigrationRunContext& ctx, Ubs
     }
     BuildRecoveryParticipants(ctx, session, imports);
     FillRecoveryTotals(ctx, session, imports);
+    if (!session.rebuildRequired) {
+        session.failReason = RestoreMappedMigrationMarkers(ctx, session);
+        session.rebuildRequired = session.failReason != UBSE_OK;
+    }
     ctx.exportConfirmed = ctx.newExportObj.status.state == UBSE_MEM_EXPORT_SUCCESS;
     return true;
 }
@@ -347,6 +378,7 @@ uint32_t CheckRecoveryResources(const MigrationRunContext& ctx, const UbseMemShm
                            ctx.targetImportObj->status.importResults.size() :
                            ctx.newExportObj.status.exportObmmInfo.size();
     if (count != session.totalMemids || ctx.newExportObj.migrateInfos.size() != session.totalMemids ||
+        ctx.newExportObj.status.exportObmmInfo.size() > session.totalMemids ||
         ctx.newExportObj.algoResult.exportNumaInfos.empty()) {
         return MIGRATE_FAIL_RECOVERY_INCOMPLETE;
     }
@@ -407,8 +439,12 @@ uint32_t RestoreRecoveryProgress(const MigrationRunContext& ctx, UbseMemShmMigra
         bool allCommitted = true;
         for (const auto& node : participants) {
             const auto state = ReadRecoveryBlock(ctx, node, b);
+            // 缺失后端仅允许 mapped 尚未开始的后缀；GAP/COMMITTED 均必须有真实目标后端。
+            const bool missingBackend = b >= ctx.newExportObj.status.exportObmmInfo.size();
             if (state == RecoveryBlockState::INCOMPLETE || state == RecoveryBlockState::INVALID ||
-                (requireOld && state != RecoveryBlockState::OLD)) {
+                (requireOld && state != RecoveryBlockState::OLD) ||
+                (missingBackend &&
+                 (ctx.targetKind != UbseMemMigrateTargetKind::IMPORT_NODE || state != RecoveryBlockState::OLD))) {
                 const auto reason = state == RecoveryBlockState::INCOMPLETE ? MIGRATE_FAIL_RECOVERY_INCOMPLETE :
                                                                               MIGRATE_FAIL_RECOVERY_INCONSISTENT;
                 UBSE_LOG_WARN << "Migration recovery progress check failed, name=" << ctx.name << ", block=" << b
@@ -538,6 +574,13 @@ bool RecoverName(const std::string& name)
         UBSE_LOG_INFO << "Migration recovery deferred for unavailable participants, name=" << name
                       << ", srcNodeId=" << ctx.srcNodeId << ", dstNodeId=" << ctx.dstNodeId;
         return false;
+    }
+    if (session.failReason == UBSE_OK && ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE &&
+        !UpdateMigrateExport(ctx.dstNodeId, name, [&](auto& obj) {
+            obj.migrateInfos = ctx.newExportObj.migrateInfos;
+            return true;
+        })) {
+        session.failReason = MIGRATE_FAIL_RECOVERY_INCOMPLETE;
     }
     session.rebuildRequired = session.failReason != UBSE_OK;
     session.state = session.rebuildRequired ? UBS_MEM_MIGRATE_STATE_FAILED : UBS_MEM_MIGRATE_STATE_DATA_COPYING;

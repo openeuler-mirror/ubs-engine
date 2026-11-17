@@ -225,9 +225,6 @@ static uint32_t AllocateNewExport(const UbseMemShareBorrowExportObj& oldObj, con
                        << ", dstNodeId=" << dstNodeId << ", exportNumaInfos empty";
         return UBSE_ERR_ALLOCATE;
     }
-    // 决策不携带共享域，避免全节点可达性约束导致决策失败；成功后按当前全节点回填账本共享域
-    // （与未指定region的普通借用默认行为一致），供迁移后挂载校验、归还权限及恢复检查使用。
-
     return UBSE_OK;
 }
 

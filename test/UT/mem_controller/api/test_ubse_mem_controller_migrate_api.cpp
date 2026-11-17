@@ -1292,6 +1292,96 @@ TEST_F(TestUbseMemControllerMigrateApi, RecoveryCleanupMappedGapWithoutCurrentEx
     EXPECT_EQ(1U, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->status.exportObmmInfo.size());
 }
 
+namespace {
+migrate_detail::MigrationRunContext BuildMappedPrefixRecoveryScene(uint32_t version = 1)
+{
+    auto ctx = BuildMigrationRecoveryScene();
+    auto source = *ctx.oldObj;
+    for (uint32_t b = 0; b < MIGRATE_EXPECT_BLOCK_COUNT; ++b) {
+        source.migrateInfos[b] = MakeShmMigrateInfo((version + 15U) & 0xfU, b, 0, true);
+        ctx.newExportObj.migrateInfos[b] = MakeShmMigrateInfo(version, b, SRC_SLOT_ID, true);
+    }
+    PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, source);
+    PutMigrateImportObj(MIGRATE_DST_NODE_ID);
+    for (const auto& node : {std::string("13"), std::string(MIGRATE_DST_NODE_ID)}) {
+        auto imp = *GetShareImportObj(node, SHM_NAME);
+        imp.exportObmmInfo = source.status.exportObmmInfo;
+        for (uint32_t b = 0; b < MIGRATE_EXPECT_BLOCK_COUNT; ++b) {
+            imp.migrateInfos[b] = ShmMigrateImportInfo(source.migrateInfos[b]);
+        }
+        imp.exportObmmInfo[0] = ctx.newExportObj.status.exportObmmInfo[0];
+        imp.migrateInfos[0] = ShmMigrateImportInfo(ctx.newExportObj.migrateInfos[0]);
+        PutShareImportObj(node, SHM_NAME, imp);
+    }
+    ctx.newExportObj.status.exportObmmInfo.resize(1);
+    ctx.newExportObj.migrateInfos.resize(1);
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    return ctx;
+}
+
+void CheckRecoveredMappedPrefix(migrate_detail::MigrationRunContext ctx, uint32_t block)
+{
+    EXPECT_EQ(block, 1U);
+    EXPECT_EQ(ctx.targetKind, UbseMemMigrateTargetKind::IMPORT_NODE);
+    EXPECT_EQ(ctx.newExportObj.migrateInfos.size(), MIGRATE_EXPECT_BLOCK_COUNT);
+    EXPECT_EQ(ctx.newExportObj.status.exportObmmInfo.size(), 1U);
+    EXPECT_EQ(GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME)->migrateInfos, ctx.newExportObj.migrateInfos);
+    for (uint32_t b = 0; b < MIGRATE_EXPECT_BLOCK_COUNT; ++b) {
+        EXPECT_EQ(ShmMigrateIndex(ctx.newExportObj.migrateInfos[b]), b);
+        EXPECT_EQ(ShmMigrateVersion(ctx.newExportObj.migrateInfos[b]),
+                  ShmMigrateVersion(ctx.newExportObj.migrateInfos.front()));
+    }
+}
+
+void CheckMappedPrefixRecovery()
+{
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::ResumeMigration).expects(once()).will(invoke(&CheckRecoveredMappedPrefix));
+    EXPECT_TRUE(UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation());
+    UbseMemShmMigrateSession session;
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
+    EXPECT_EQ(session.state, UBS_MEM_MIGRATE_STATE_DATA_COPYING);
+    EXPECT_FALSE(session.rebuildRequired);
+    EXPECT_EQ(session.completedBlocks.value_or(99), 1U);
+    EXPECT_EQ(session.totalMemids, MIGRATE_EXPECT_BLOCK_COUNT);
+}
+} // namespace
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryMappedPrefixRestoresFullPlanWithoutInventingDevices)
+{
+    BuildMappedPrefixRecoveryScene();
+    CheckMappedPrefixRecovery();
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryMappedPrefixSupportsWrappedVersion)
+{
+    BuildMappedPrefixRecoveryScene(0);
+    CheckMappedPrefixRecovery();
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryMappedPrefixRejectsMissingBackendWithGap)
+{
+    BuildMappedPrefixRecoveryScene();
+    auto obj = *GetShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    obj.exportObmmInfo[1].memIdStatus = UB_MEM_SWITCHING;
+    PutShareImportObj(MIGRATE_DST_NODE_ID, SHM_NAME, obj);
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    MOCKER(&migrate_detail::CleanupMigration).stubs();
+    ExpectRecoveryFailed(MIGRATE_FAIL_RECOVERY_INCONSISTENT);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, RecoveryMappedPrefixRejectsNonPrefixIndex)
+{
+    auto ctx = BuildMappedPrefixRecoveryScene();
+    ctx.newExportObj.migrateInfos[0] = MakeShmMigrateInfo(1, 1, SRC_SLOT_ID, true);
+    PutShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME, ctx.newExportObj);
+    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    ExpectRecoveryFailed(MIGRATE_FAIL_RECOVERY_INCONSISTENT);
+}
+
 TEST_F(TestUbseMemControllerMigrateApi, RecoveryRestoresCompletedPrefixAndDoesNotStartTwice)
 {
     const auto ctx = BuildMigrationRecoveryScene();

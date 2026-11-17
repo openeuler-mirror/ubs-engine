@@ -624,6 +624,38 @@ TEST_F(TestUbseMemObjRestore, MemGetObjData_ShouldUseOriginalCleanupWhenMixedVer
     EXPECT_TRUE(debt.shareExportObjMap.empty());
 }
 
+TEST_F(TestUbseMemObjRestore, ConstructShareExportObj_ShouldKeepCommittedPrefixBackend)
+{
+    const std::string name = "committed_prefix";
+    auto exportBlock = MakeShareRecoveryBlock(name, 100, UbseObmmType::EXPORT, 0, 2);
+    auto committed = MakeShareRecoveryBlock(name, 101, UbseObmmType::IMPORT, 0, 2);
+    committed.customMeta.exportMemid = exportBlock.localMemId;
+    committed.customMeta.migrateInfo =
+        ubse::adapter_plugins::mmi::ShmMigrateImportInfo(exportBlock.customMeta.migrateInfo);
+    const auto oldBlock = MakeShareRecoveryBlock(name, 102, UbseObmmType::IMPORT, 1, 2);
+    LocalObmmMetaData meta{};
+    meta.ShmImportMetaData = {oldBlock, committed};
+    meta.ShmExportMetaData = {exportBlock};
+    MOCKER(&RmObmmDevRead::GetSwitchState).stubs().will(invoke(GetBlockSwitchStateMocker));
+    MOCKER(&RmObmmExecutor::ObmmUnExport, UbseResult(RmObmmExecutor::*)(mem_id)).expects(never());
+
+    // 仅同代或同 index 不足以证明引用；必须匹配实际后端和完整 import 标记。
+    meta.ShmImportMetaData[1].customMeta.exportMemid++;
+    EXPECT_TRUE(GetProtectedShareNames(meta).empty());
+    meta.ShmImportMetaData[1] = committed;
+    meta.ShmImportMetaData[1].customMeta.migrateInfo =
+        ubse::adapter_plugins::mmi::ShmMigrateImportInfo(ubse::adapter_plugins::mmi::MakeShmMigrateInfo(2, 1, 1, true));
+    EXPECT_TRUE(GetProtectedShareNames(meta).empty());
+    meta.ShmImportMetaData[1] = committed;
+    const auto protectedNames = GetProtectedShareNames(meta);
+    ASSERT_EQ(protectedNames.count(name), 1U);
+    UbseMemShareExportObjMap exports{};
+    EXPECT_EQ(ConstructShareExportObj(meta.ShmExportMetaData, exports, protectedNames), UBSE_OK);
+    ASSERT_EQ(exports.count(name), 1U);
+    ASSERT_EQ(exports.at(name).status.exportObmmInfo.size(), 1U);
+    EXPECT_EQ(exports.at(name).status.exportObmmInfo[0].memId, exportBlock.localMemId);
+}
+
 TEST_F(TestUbseMemObjRestore, GetProtectedShareNames_ShouldCheckEveryBlockVersion)
 {
     const std::string name = "mixed_generations";

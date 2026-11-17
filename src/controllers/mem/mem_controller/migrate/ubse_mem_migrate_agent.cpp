@@ -292,7 +292,7 @@ void RollbackPreparedSwitching(const UbseMemMigrateRpcInfo& info)
     });
 }
 
-// 临时方案：旧 decoder 暂存到最后一块提交或回退收尾；回退同时清理目标 decoder。
+// 旧 decoder 暂存到最后一块提交或回退收尾；回退同时清理目标 decoder。
 void CleanupMigrateDecoder(const UbseMemMigrateRpcInfo& info, const UbseMemShareBorrowImportObj& local, bool success)
 {
     using ubse::adapter_plugins::mti::mami::UbseMamiMemWithdraw;
@@ -758,7 +758,12 @@ uint32_t CheckBeginExportTemplate(const UbseMemMigrateBeginExportReq& req, const
     if (target.req.name != info.name || target.algoResult.exportNumaInfos.empty() ||
         target.algoResult.exportNumaInfos.front().nodeId != GetCurNodeId() || b >= target.migrateInfos.size() ||
         target.migrateInfos[b] != info.migrateInfo || local.status.importResults[b].memId != info.exportMemId ||
-        (existing && (b >= existing->migrateInfos.size() || existing->migrateInfos[b] != info.migrateInfo))) {
+        target.migrateInfos.size() != local.migrateInfos.size() ||
+        (existing &&
+         (existing->migrateInfos.size() > target.migrateInfos.size() ||
+          !std::equal(existing->migrateInfos.begin(), existing->migrateInfos.end(), target.migrateInfos.begin()) ||
+          (b >= existing->migrateInfos.size() &&
+           (b != existing->migrateInfos.size() || b != existing->status.exportObmmInfo.size()))))) {
         UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
                        << ", operation=begin_export, Invalid begin export template";
         return UBSE_ERROR_INVAL;
@@ -884,6 +889,12 @@ uint32_t UbseMemShmMigrateService::SwitchBeginExport(const UbseMemMigrateBeginEx
     }
     if (!existing) {
         exports.PutResource(GetCurNodeId(), info.name, req.exportObj);
+    } else if (!UpdateMigrateExport(GetCurNodeId(), info.name, [&](auto& obj) {
+                   // master 已核验完整计划；本地恢复的 export 可能仅携带已提交前缀标记。
+                   obj.migrateInfos = req.exportObj.migrateInfos;
+                   return true;
+               })) {
+        return UBSE_ERR_INTERNAL;
     }
     auto context = MakeSwitchContext(info);
     UbseMemShmSwitchExportObj device{};

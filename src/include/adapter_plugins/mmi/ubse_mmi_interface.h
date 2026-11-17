@@ -164,7 +164,7 @@ public:
     * @param switchState     [OUT] obmm切换状态(ObmmSwitchState)
     * @return UbseResult    0：读取成功；非0：失败(不能当成IDLE)
     */
-    virtual UbseResult ReadShmSwitchState(uint64_t memId, uint8_t& switchState) = 0;
+    virtual UbseResult ReadShmSwitchState(uint64_t memId, ObmmSwitchState& switchState) = 0;
 
     /**
     * @brief   shm类型故障迁移块级双后端映射拷贝执行器

@@ -2226,6 +2226,45 @@ TEST_F(TestUbseMemRpc, MigrateImportEndRejectsMissingFinalLayoutBeforeDeviceComm
     EXPECT_EQ(before, GetSwitchTestImportObj());
 }
 
+TEST_F(TestUbseMemRpc, MigrateMappedBeginExtendsRestoredCommittedPrefixPlan)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    const auto old = BuildSwitchTestImportObj();
+    PutSwitchTestImportObj(old);
+    const auto target = BuildMappedSwitchTarget(old);
+    MOCKER(&nodeController::UbseNodeController::GetLocalEidBySocket).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchBeginExportExecutor)
+        .expects(exactly(2))
+        .will(invoke(&MappedBeginBlock));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    auto info = AgentRpc(0);
+    info.exportMemId = old.status.importResults[0].memId;
+    UbseMemMigrateBeginExportResp begin{};
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginExport({target, info}, "1", begin));
+    UbseMemMigrateOpResp end{};
+    ASSERT_EQ(UBSE_OK, service.SwitchEndExport({1, info}, "1", end));
+    auto& exports = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
+    auto restored = *exports.GetResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    const auto prefix = restored.status.exportObmmInfo[0];
+    restored.migrateInfos.resize(1);
+    exports.PutResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME, restored);
+
+    info = AgentRpc(1);
+    info.exportMemId = old.status.importResults[1].memId;
+    auto invalid = target;
+    invalid.migrateInfos[0] = MakeShmMigrateInfo(2, 0, 1, true);
+    EXPECT_EQ(UBSE_ERROR_INVAL, service.SwitchBeginExport({invalid, info}, "1", begin));
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginExport({target, info}, "1", begin));
+    const auto extended = exports.GetResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    EXPECT_EQ(extended->migrateInfos, target.migrateInfos);
+    ASSERT_EQ(extended->status.exportObmmInfo.size(), 2U);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].memId, prefix.memId);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].desc.addr, prefix.desc.addr);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].memIdStatus, UB_MEM_HEALTHY);
+}
+
 TEST_F(TestUbseMemRpc, MigrateBPreservesTemplateAndConvertsLastBlockWithoutFinalize)
 {
     SwitchTestMockSet();

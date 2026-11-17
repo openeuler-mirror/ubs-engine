@@ -1628,8 +1628,9 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIp
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        UBSE_LOG_ERROR << "master not ready when migrating cancel, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UbseMemMigrateCancelReq cancelReq{};
     ret = UbseMemMigrateCancelReqUnpack(buffer, cancelReq);
@@ -1659,8 +1660,9 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIp
     }
     ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        UBSE_LOG_ERROR << "master unreachable when migrating cancel, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemMigrateCancelRespMessage>(respMessagePtr);

@@ -17,20 +17,14 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_mem_types.h"
+#include "ubse_mmi_def.h"
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
 using ubse::common::def::UbseResult;
 
-// 内核 obmm 设备切换状态，取值与 sysfs switch_state 一一对应
-enum class ObmmSwitchState : uint8_t
-{
-    IDLE = 0,        // 空闲，无切换进行
-    SWAPPING = 1,    // begin 执行中
-    AWAIT_READY = 2, // 切换间隙，等待 switch_end
-    FINISHING = 3,   // end 已确认，收尾中
-    STRANDED = 4     // 终态：后端已丢失
-};
+// 内核 obmm 设备切换状态枚举真值源在公共头 ubse_mmi_def.h（ubse::adapter_plugins::mmi 命名空间）
+using ObmmSwitchState = ubse::adapter_plugins::mmi::ObmmSwitchState;
 
 class RmObmmMetaRestore {
 public:

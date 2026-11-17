@@ -85,6 +85,26 @@ bool HasNextShareMigrationVersion(const std::vector<UbseMemLocalObmmMetaData>& i
     return allImportsSameVersion && allExportsNextVersion;
 }
 
+// mapped 逐块提交后，import 可以混合新旧代；已提交块对本地 export 的引用必须保留。
+bool HasCommittedShareBackend(const std::vector<UbseMemLocalObmmMetaData>& importBlocks,
+                              const std::vector<UbseMemLocalObmmMetaData>& exportBlocks)
+{
+    for (const auto& exportBlock : exportBlocks) {
+        if (exportBlock.customMeta.version != OBMM_CUSTOM_META_V2 || exportBlock.localMemId == 0 ||
+            !ShmMigrateIsExport(exportBlock.customMeta.migrateInfo)) {
+            continue;
+        }
+        if (std::any_of(importBlocks.begin(), importBlocks.end(), [&exportBlock](const auto& importBlock) {
+                return importBlock.customMeta.version == OBMM_CUSTOM_META_V2 &&
+                       importBlock.customMeta.exportMemid == exportBlock.localMemId &&
+                       importBlock.customMeta.migrateInfo == ShmMigrateImportInfo(exportBlock.customMeta.migrateInfo);
+            })) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ShouldProtectShareName(const std::vector<UbseMemLocalObmmMetaData>& importBlocks,
                             const std::vector<UbseMemLocalObmmMetaData>& exportBlocks)
 {
@@ -104,7 +124,8 @@ bool ShouldProtectShareName(const std::vector<UbseMemLocalObmmMetaData>& importB
         }
     }
     // 全部块都是 IDLE，且有版本切换依赖关系 也为切换中
-    return allIdle && HasNextShareMigrationVersion(importBlocks, exportBlocks);
+    return allIdle && (HasNextShareMigrationVersion(importBlocks, exportBlocks) ||
+                       HasCommittedShareBackend(importBlocks, exportBlocks));
 }
 
 // 逐块读取后直接更新账本，gap 标记迁移中，STRANDED 标记不可用。

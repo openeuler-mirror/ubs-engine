@@ -73,6 +73,16 @@ enum class MemOperationType
     COMMON_RETURN // 用于没匹配到任何归还时，回调处理
 };
 
+// 内核 obmm 设备切换状态，取值与 sysfs switch_state 一一对应
+enum class ObmmSwitchState : uint8_t
+{
+    IDLE = 0,        // 空闲，无切换进行
+    SWAPPING = 1,    // begin 执行中
+    AWAIT_READY = 2, // 切换间隙，等待 switch_end
+    FINISHING = 3,   // end 已确认，收尾中
+    STRANDED = 4     // 终态：后端已丢失
+};
+
 // 使用方进程信息
 struct UbseUdsInfo {
     uid_t uid; // 使用方进程的运行用户的uid
@@ -502,7 +512,7 @@ public:
     // self-import仅为逻辑账本，所共享的物理export设备priv仍标记为导出。
     std::vector<uint32_t> migrateInfos{};
     std::optional<UbseMemMigrateSwitchContext> switchContext;
-    // 临时方案：本地暂存旧 decoder，最后一块提交或回退收尾时批量删除；不持久化、不保护周期清理。
+    // 本地暂存旧 decoder，最后一块提交或回退收尾时批量删除；不持久化、不保护周期清理。
     std::vector<adapter_plugins::mti::mami::UbseMamiMemWithdraw> deferredMigrateDecoders;
     friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& obj);
 };
