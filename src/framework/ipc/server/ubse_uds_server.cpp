@@ -60,14 +60,6 @@ static std::string SafeStrError(int errnum)
     return std::string(errBuf);
 }
 
-static bool CheckClientPermission(const UbseClientInfo& client, const UbseClientInfo& peer)
-{
-    if (client.type == AF_VSOCK || peer.type == AF_VSOCK) {
-        return client.type == peer.type && client.cid == peer.cid;
-    }
-    return client.uid == peer.uid;
-}
-
 // 添加事件到epoll
 bool UbseUDSServer::AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
@@ -1011,12 +1003,6 @@ uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, con
         UbseClientInfo peerClientInfo{};
         if (!GetClientInfoByFd(fd, peerClientInfo)) {
             UBSE_LOG_WARN << "GetClientInfoByFd failed for fd=" << fd << ", skip sending.";
-            continue;
-        }
-        if (!CheckClientPermission(clientInfo, peerClientInfo)) {
-            UBSE_LOG_INFO << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
-                          << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
-                          << ", peerPid=" << peerClientInfo.pid;
             continue;
         }
         auto sendRet = SendReq(fd, requestMessage, ctx, handler);
