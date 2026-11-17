@@ -23,9 +23,10 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_scheduler_impl.h"
+#include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
+#include "ubse_request_id_util.h"
 #include "ubse_str_util.h"
-#include "../logging_lock_guard.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "api/ubse_mem_controller_share_api.h"
 
@@ -66,6 +67,16 @@ struct MigrateFailureDescription {
     const char* message;
 };
 constexpr MigrateFailureDescription MIGRATE_FAILURES[] = {
+    {MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN, "MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN",
+     "migration recovery target cannot be uniquely determined; rebuild the resource"},
+    {MIGRATE_FAIL_RECOVERY_INCOMPLETE, "MIGRATE_FAIL_RECOVERY_INCOMPLETE",
+     "migration recovery ledger or block information is incomplete; rebuild the resource"},
+    {MIGRATE_FAIL_RECOVERY_NODE_UNAVAILABLE, "MIGRATE_FAIL_RECOVERY_NODE_UNAVAILABLE",
+     "a node required for migration recovery is unavailable; rebuild the resource"},
+    {MIGRATE_FAIL_RECOVERY_STRANDED, "MIGRATE_FAIL_RECOVERY_STRANDED",
+     "migration recovery found a stranded device; rebuild the resource"},
+    {MIGRATE_FAIL_RECOVERY_INCONSISTENT, "MIGRATE_FAIL_RECOVERY_INCONSISTENT",
+     "migration recovery versions, block states or commit order are inconsistent; rebuild the resource"},
     {MIGRATE_FAIL_ALLOCATE, "MIGRATE_FAIL_ALLOCATE", "schedule allocate failed"},
     {MIGRATE_FAIL_RPC, "MIGRATE_FAIL_RPC", "migration RPC send or admission ACK failed"},
     {MIGRATE_FAIL_OBMM_EXPORT, "MIGRATE_FAIL_OBMM_EXPORT", "agent obmm export failed"},
@@ -110,16 +121,41 @@ std::string MigrateFailReasonToMsg(uint32_t reason)
     return failure ? failure->message : "migrate failed, failReason=" + std::to_string(reason);
 }
 
-static UbseMemShareBorrowReq BuildMigrateReq(const UbseMemShareBorrowExportObj& oldObj, const std::string& dstNodeId)
+static uint32_t BuildMigrateReq(const UbseMemShareBorrowExportObj& oldObj, const std::string& dstNodeId,
+                                UbseMemShareBorrowReq& req)
 {
-    auto req = oldObj.req;
-    UbseMemLenderInfo lenderInfo = {
-        .lender_size = req.size,
-        .nodeId = dstNodeId,
-    };
-    req.lenderInfo = lenderInfo;
+    const auto& oldReq = oldObj.req;
+    req = {};
+    req.name = oldReq.name;
+    req.size = oldReq.size;
+    req.ubseMemPrivData = oldReq.ubseMemPrivData;
+    req.shmAnonymous = oldReq.shmAnonymous;
+    req.udsInfo = oldReq.udsInfo; // 属主信息，迁移后归还/挂载权限校验依赖
+    static_assert(UBSE_MAX_USR_INFO_LEN > 0);
+    std::copy(std::begin(oldReq.usrInfo), std::end(oldReq.usrInfo), std::begin(req.usrInfo)); // 查询原样返回
+    req.lenderInfo.lender_size = req.size;
+    req.lenderInfo.nodeId = dstNodeId;
     req.requestNodeId = GetCurNodeId(); // master 自身
-    return req;
+    uint32_t nodeId = 0;
+    ConvertStrToUint32(req.requestNodeId, nodeId);
+    static UbseRequestIdUtil requestIdUtil(UbseRequestType::INNER_REQUEST);
+    // 每轮准备独立请求标识，后续发送及重试均沿用准备账本中的值。
+    req.requestId = requestIdUtil.GenerateRequestId(static_cast<uint8_t>(nodeId));
+    NormalizeShareRegion(req);
+    if (SetNodeIndex(req) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to SetNodeIndex, name=" << req.name << ", requestNodeId=" << req.requestNodeId
+                       << ", requestId=" << req.requestId;
+        return UBSE_ERR_INTERNAL;
+    }
+    if (IsHighSafety()) {
+        if (const auto res =
+                UbseMemSignVerifier::Sign("share", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
+            res != UBSE_OK) {
+            UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
+            return res;
+        }
+    }
+    return UBSE_OK;
 }
 
 std::vector<std::string> CollectImportNodes(const std::string& name, const std::string& panicNodeId)
@@ -172,8 +208,12 @@ static uint32_t AllocateNewExport(const UbseMemShareBorrowExportObj& oldObj, con
     if (SetNextMigrateMarkers(oldObj, newExportObj) != UBSE_OK) {
         return UBSE_ERROR_INVAL;
     }
-    const auto newReq = BuildMigrateReq(oldObj, dstNodeId);
-    auto ret = ShareBorrowSchedule(newReq, newExportObj, true);
+    UbseMemShareBorrowReq newReq{};
+    auto ret = BuildMigrateReq(oldObj, dstNodeId, newReq);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = ShareBorrowSchedule(newReq, newExportObj, true);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Migrate target scheduling failed, name=" << oldObj.req.name << ", dstNodeId=" << dstNodeId
                        << ", ret=" << FormatRetCode(ret);
@@ -220,9 +260,9 @@ void DiscardPreparedExport(const UbseMemShareBorrowExportObj& exportObj)
     exportMap.RemoveResource(dstNodeId, exportObj.req.name);
 }
 
+// 调用方持有name锁，并已核对本轮请求身份。
 uint32_t CommitExportRsp(const UbseMemShareBorrowExportObj& result)
 {
-    auto nameLock = LoggingLockGuard(result.req.name);
     const auto& name = result.req.name;
     const auto& exportNodeId = result.algoResult.exportNumaInfos.front().nodeId;
     auto& exports = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();

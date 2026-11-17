@@ -151,6 +151,19 @@ uint32_t CheckMigrateWithoutContext(const UbseMemMigrateRpcInfo& info, AgentOper
     const auto nextVersion = (ShmMigrateVersion(local.migrateInfos[b]) + 1U) & 0xfU;
     const bool previousBlockCommitted = b == 0 ||
                                         local.migrateInfos[b - 1] == MakeShmMigrateInfo(version, b - 1, 0, false);
+    if (!context && local.exportObmmInfo[b].memIdStatus == UB_MEM_SWITCHING && version == nextVersion &&
+        previousBlockCommitted &&
+        (operation == AgentOperation::COPY || operation == AgentOperation::END_IMPORT ||
+         operation == AgentOperation::END_EXPORT)) {
+        UbseMemMigrateBlockData actual;
+        const auto ret =
+            UbseMmiInterface::GetInstance().ReadShmMigrationBlock(local.status.importResults[b].memId, info, actual);
+        // 重启丢失上下文时，只对实际gap放行copy；实际已提交时只允许补end(1)后的账本。
+        if (ret == UBSE_ERR_MIGRATE_IN_PROGRESS || (ret == UBSE_OK && commitEnd)) {
+            return UBSE_OK;
+        }
+        return ret == UBSE_OK ? UBSE_ERR_MIGRATE_NOT_ALLOWED : ret;
+    }
     if (local.exportObmmInfo[b].memIdStatus != UB_MEM_HEALTHY || version != nextVersion || !previousBlockCommitted) {
         UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << b << ", operation=" << AgentOperationName(operation)
                       << ", Migrate block is not next in ledger, memIdStatus=" << local.exportObmmInfo[b].memIdStatus
@@ -266,9 +279,23 @@ uint32_t CloseFailedOperation(const UbseMemMigrateRpcInfo& info, UbseMemMigrateS
     return ret;
 }
 
-// 只消费本次调用的旧快照，删除失败由既有周期清理按账本差异回收。
+// begin同步返回失败: 回退内核调用前预置的SWITCHING标记，
+// 否则end(0)会误入内核关窗路径去关闭不存在的间隙(ESTALE)，导致master误判回退失败、资源误保留。
+void RollbackPreparedSwitching(const UbseMemMigrateRpcInfo& info)
+{
+    UpdateMigrateImport(GetCurNodeId(), info.name, [&](auto& obj) {
+        if (info.blockIndex < obj.exportObmmInfo.size() &&
+            obj.exportObmmInfo[info.blockIndex].memIdStatus == UB_MEM_SWITCHING) {
+            obj.exportObmmInfo[info.blockIndex].memIdStatus = UB_MEM_HEALTHY;
+        }
+        return true;
+    });
+}
+
+// 旧 decoder 暂存到最后一块提交或回退收尾；回退同时清理目标 decoder。
 void CleanupMigrateDecoder(const UbseMemMigrateRpcInfo& info, const UbseMemShareBorrowImportObj& local, bool success)
 {
+    using ubse::adapter_plugins::mti::mami::UbseMamiMemWithdraw;
     const ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult* entry = nullptr;
     auto socketId = local.algoResult.attachSocketId;
     if (success && info.blockIndex < local.status.decoderResult.size() &&
@@ -278,29 +305,44 @@ void CleanupMigrateDecoder(const UbseMemMigrateRpcInfo& info, const UbseMemShare
         entry = &*local.switchContext->target->decoder;
         socketId = local.switchContext->target->targetLayout.attachSocketId;
     }
-    if (entry == nullptr) {
-        return;
+    std::optional<UbseMamiMemWithdraw> current;
+    if (entry != nullptr) {
+        std::pair<uint32_t, uint32_t> chipDie{};
+        if (decoder::utils::MemDecoderUtils::GetChipAndDieId(socketId, chipDie) == UBSE_OK) {
+            current = UbseMamiMemWithdraw{
+                chipDie.first, chipDie.second, entry->marId,
+                decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(local.req.ubseMemPrivData), entry->handle};
+        } else {
+            UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
+                           << ", operation=end, Migrate decoder location unavailable; defer to cycle cleanup, socketId="
+                           << socketId;
+        }
     }
-    std::pair<uint32_t, uint32_t> chipDie{};
-    if (decoder::utils::MemDecoderUtils::GetChipAndDieId(socketId, chipDie) != UBSE_OK) {
-        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
-                       << ", operation=end, Migrate decoder location unavailable; defer to cycle cleanup, socketId="
-                       << socketId;
-        return;
+    std::vector<UbseMamiMemWithdraw> withdrawals;
+    UpdateMigrateImport(GetCurNodeId(), info.name, [&](auto& obj) {
+        if (success && current) {
+            obj.deferredMigrateDecoders.push_back(*current);
+        }
+        if (!success || info.blockIndex + 1 == local.status.importResults.size()) {
+            withdrawals.swap(obj.deferredMigrateDecoders);
+        }
+        return true;
+    });
+    if (!success && current) {
+        withdrawals.push_back(*current);
     }
-    const ubse::adapter_plugins::mti::mami::UbseMamiMemWithdraw withdraw{
-        chipDie.first, chipDie.second, entry->marId,
-        decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(local.req.ubseMemPrivData), entry->handle};
-    UBSE_LOG_INFO << "name=" << info.name << ", indexId=" << info.blockIndex
-                  << ", operation=end, Migrate decoder cleanup, success=" << success << ", ubpuId=" << chipDie.first
-                  << ", iouId=" << chipDie.second << ", marId=" << entry->marId
-                  << ", decoderId=" << static_cast<uint32_t>(withdraw.decoderIdx) << ", handle=" << entry->handle
-                  << ", nodeId=" << info.srcNodeId;
-    const auto ret = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(withdraw);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
-                       << ", operation=end, Migrate decoder cleanup failed; defer to cycle cleanup, success=" << success
-                       << ", ret=" << FormatRetCode(ret);
+    for (const auto& withdraw : withdrawals) {
+        UBSE_LOG_INFO << "name=" << info.name << ", indexId=" << info.blockIndex
+                      << ", operation=end, Migrate decoder cleanup, success=" << success
+                      << ", ubpuId=" << withdraw.ubpuId << ", iouId=" << withdraw.iouId << ", marId=" << withdraw.marId
+                      << ", decoderId=" << static_cast<uint32_t>(withdraw.decoderIdx) << ", handle=" << withdraw.handle
+                      << ", nodeId=" << info.srcNodeId;
+        const auto ret = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(withdraw);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
+                           << ", operation=end, Migrate decoder cleanup failed; defer to cycle cleanup, success="
+                           << success << ", ret=" << FormatRetCode(ret);
+        }
     }
 }
 
@@ -390,113 +432,255 @@ uint32_t BeginImport(const UbseMemMigrateSwitchBeginImportReq& req, const UbseMe
     }
     ret = UbseMmiInterface::GetInstance().ShmSwitchBeginImportExecutor(target);
     if (ret != UBSE_OK) {
+        RollbackPreparedSwitching(info);
         return CloseFailedOperation(info, context, ret);
     }
     result.block = context.target;
     return UBSE_OK;
 }
 
-uint32_t EndBlock(const UbseMemMigrateRpcInfo& info, bool success, bool exportTarget, const CheckedMigrateBlock& block,
-                  const ConstExportObjPtr& exp, UbseMemMigrateOpResp& result)
+void PrepareExportEnd(UbseMemShareBorrowExportObj& obj, uint32_t b, bool success)
+{
+    // begin 尚未产生当前块时，回退无需清除该块；提交路径已由入口检查索引。
+    if (b >= obj.status.exportObmmInfo.size()) {
+        return;
+    }
+    auto& block = obj.status.exportObmmInfo[b];
+    if (block.memIdStatus == UB_MEM_SWITCHING) {
+        block.memIdStatus = UB_MEM_HEALTHY;
+    }
+    if (!success) {
+        block.desc = {};
+    } else if (b + 1 == obj.migrateInfos.size()) {
+        obj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+        obj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
+    }
+}
+
+// 只修改准备副本；设备 end 成功后才发布结束决定。
+void PrepareEndContext(const UbseMemMigrateRpcInfo& info, bool success, UbseMemShareBorrowImportObj& obj)
+{
+    auto context = obj.switchContext && MatchesSwitchContext(*obj.switchContext, info) ? *obj.switchContext :
+                                                                                         MakeSwitchContext(info);
+    context.endDecision = success;
+    context.target.reset();
+    obj.switchContext = std::move(context);
+    obj.status.errCode = UBSE_OK;
+}
+
+uint32_t EndBlockDevice(const UbseMemMigrateRpcInfo& info, bool success, const CheckedMigrateBlock& block)
 {
     const auto& local = *block.local;
+    if (success && block.IsCommitConfirmed()) {
+        return UBSE_OK; // 已确认end(1)，只重试尚未完成的回读与落账。
+    }
+    if (success && !block.context) {
+        UbseMemMigrateBlockData actual;
+        if (UbseMmiInterface::GetInstance().ReadShmMigrationBlock(local.status.importResults[info.blockIndex].memId,
+                                                                  info, actual) == UBSE_OK) {
+            return UBSE_OK; // end已生效，但重启前尚未落账。
+        }
+    }
+    if (local.exportObmmInfo[info.blockIndex].memIdStatus != UB_MEM_SWITCHING) {
+        return UBSE_OK; // begin 未进入切换态时，回退只需清理账本。
+    }
+    UbseMemShmSwitchObj device{};
+    device.name = info.name;
+    device.importNodeId = GetCurNodeId();
+    device.oldImportMemId = local.status.importResults[info.blockIndex].memId;
+    const auto ret = UbseMmiInterface::GetInstance().ShmSwitchEndExecutor(device, success);
+    if (ret != UBSE_OK) {
+        auto context = block.context ? *block.context : MakeSwitchContext(info);
+        if (!success) {
+            context.endDecision = false;
+        }
+        SaveContext(info, context, ret);
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
+                       << ", Migrate end unconfirmed; device cleanup still required, success=" << success
+                       << ", ret=" << FormatRetCode(ret) << ", nodeId=" << info.srcNodeId;
+    }
+    return ret;
+}
+
+// 导入端只更新当前导入块及最后一块的来源布局。
+void PublishImportEnd(const UbseMemMigrateRpcInfo& info, bool success, const UbseMemShareBorrowImportObj& prepared,
+                      const CheckedMigrateBlock& block)
+{
+    UpdateMigrateImport(GetCurNodeId(), info.name, [&](auto& obj) {
+        if (success) {
+            ApplyEndSuccess(obj, info, *block.context->target);
+        } else {
+            ApplyEndRollback(obj, info.blockIndex);
+        }
+        obj.switchContext = prepared.switchContext;
+        obj.status.errCode = UBSE_OK;
+        return true;
+    });
+}
+
+// 导出端同时维护导出块与 self-import；最后一块发布准备好的身份转换结果。
+void PublishExportEnd(const UbseMemMigrateRpcInfo& info, bool success, const UbseMemShareBorrowImportObj& prepared,
+                      const ConstExportObjPtr& exp)
+{
+    const auto nodeId = GetCurNodeId();
     const auto b = info.blockIndex;
-    result.committed = block.committed;
-    // 正式块已提交时直接回报，不重写账本或重复转换self-import。
-    if (block.committed) {
-        UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << info.blockIndex
-                      << ", operation=" << (exportTarget ? "end_export" : "end_import")
-                      << ", Skip device end: block already committed, success=" << success
-                      << ", nodeId=" << info.srcNodeId;
-        result.block = ReadMigrateBlock(local, b);
-        return UBSE_OK;
-    }
-    auto context = block.context ? *block.context : MakeSwitchContext(info);
-    // end 是同名锁内的同步调用；回退决定保留，提交事实只在 end(1) 成功后记录。
-    if (!success) {
-        context.endDecision = false;
-    }
-    if (local.exportObmmInfo[b].memIdStatus == UB_MEM_SWITCHING) {
-        UbseMemShmSwitchObj device{};
-        device.name = info.name;
-        device.importNodeId = GetCurNodeId();
-        device.oldImportMemId = local.status.importResults[b].memId;
-        const auto ret = UbseMmiInterface::GetInstance().ShmSwitchEndExecutor(device, success);
-        if (ret != UBSE_OK) {
-            SaveContext(info, context, ret);
-            UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
-                           << ", operation=" << (exportTarget ? "end_export" : "end_import")
-                           << ", Migrate end unconfirmed; device cleanup still required, success=" << success
-                           << ", ret=" << FormatRetCode(ret) << ", nodeId=" << info.srcNodeId;
-            return ret;
-        }
-        result.committed = success;
-    } else {
-        UBSE_LOG_INFO << "name=" << info.name << ", indexId=" << info.blockIndex
-                      << ", operation=" << (exportTarget ? "end_export" : "end_import")
-                      << ", Skip device end according to ledger, success=" << success
-                      << ", committed=" << result.committed << ", memIdStatus=" << local.exportObmmInfo[b].memIdStatus
-                      << ", nodeId=" << info.srcNodeId;
-    }
-    // 结束决定与正式导入块在同一次更新中合入。
-    context.endDecision = success;
-    if (exportTarget && exp) {
-        if (!UpdateMigrateExport(GetCurNodeId(), info.name, [&](auto& obj) {
-                if (b >= obj.status.exportObmmInfo.size()) {
-                    UBSE_LOG_WARN << "name=" << info.name << ", indexId=" << b
-                                  << ", operation=end_export(0), No successful begin result to clear";
-                    return !success;
-                }
-                auto& block = obj.status.exportObmmInfo[b];
-                if (block.memIdStatus == UB_MEM_SWITCHING) {
-                    block.memIdStatus = UB_MEM_HEALTHY;
-                }
-                if (!success) {
-                    block.desc = {};
-                } else if (b + 1 == obj.migrateInfos.size()) {
-                    obj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-                    obj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
-                }
-                return true;
-            })) {
-            return UBSE_ERR_INTERNAL;
-        }
-    }
-    const auto committedExport =
-        exportTarget && success ?
-            UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(GetCurNodeId(),
-                                                                                                   info.name) :
-            nullptr;
-    if (!UpdateMigrateImport(GetCurNodeId(), info.name, [&](auto& obj) {
-            if (success && exportTarget) {
-                if (!committedExport || !CommitSelfImportBlock(obj, *committedExport, b)) {
-                    return false;
-                }
-            } else if (success && context.target) {
-                ApplyEndSuccess(obj, info, *context.target);
-            }
-            if (!success) {
-                ApplyEndRollback(obj, b);
-            }
-            context.target.reset();
-            obj.switchContext = context;
-            obj.status.errCode = UBSE_OK;
-            result.block = ReadMigrateBlock(obj, b);
+    if (exp) {
+        UpdateMigrateExport(nodeId, info.name, [&](auto& obj) {
+            PrepareExportEnd(obj, b, success);
             return true;
-        })) {
+        });
+    }
+    UpdateMigrateImport(nodeId, info.name, [&](auto& obj) {
+        if (success) {
+            obj.exportObmmInfo[b] = prepared.exportObmmInfo[b];
+            obj.migrateInfos[b] = prepared.migrateInfos[b];
+            if (b < obj.status.decoderResult.size()) {
+                obj.status.decoderResult[b] = {};
+            }
+            if (b + 1 == exp->migrateInfos.size()) {
+                obj.status.decoderResult.clear();
+                obj.algoResult.exportNumaInfos = prepared.algoResult.exportNumaInfos;
+                obj.req.baseNodeId = prepared.req.baseNodeId;
+                obj.req.lenderInfo.nodeId = prepared.req.lenderInfo.nodeId;
+                obj.realExe = prepared.realExe;
+                obj.req.trustRingData = prepared.req.trustRingData;
+                obj.status.state = prepared.status.state;
+                obj.status.expectState = prepared.status.expectState;
+            }
+        } else {
+            ApplyEndRollback(obj, b);
+        }
+        obj.switchContext = prepared.switchContext;
+        obj.status.errCode = UBSE_OK;
+        return true;
+    });
+    if (!success && exp && b == 0) {
+        // 首块回退删除临时导出；后续块回退保留前面已经提交的块。
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().RemoveResource(nodeId, info.name);
+    }
+}
+
+// 恢复提交先保存已提交事实，再回读设备；回读失败也不得重新copy或回退。
+uint32_t CommitAndReadRecoveryBlock(const UbseMemMigrateRpcInfo& info, const CheckedMigrateBlock& block,
+                                    UbseMemMigrateOpResp& result, UbseMemMigrateBlockData& actual)
+{
+    if (const auto ret = EndBlockDevice(info, true, block); ret != UBSE_OK) {
+        return ret;
+    }
+    result.committed = true;
+    auto context = MakeSwitchContext(info);
+    context.endDecision = true;
+    if (!SaveContext(info, context)) {
         return UBSE_ERR_INTERNAL;
     }
-    // 入口按正式迁移标记保证逐块提交；非首块回退时，前面的已提交导出必须保留。
-    if (exportTarget && !success && exp && b == 0) {
-        if (!UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().RemoveResource(GetCurNodeId(),
-                                                                                                       info.name)) {
-            UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
-                           << ", operation=" << (exportTarget ? "end_export" : "end_import")
-                           << ", Remove aborted export ledger failed";
+    return UbseMmiInterface::GetInstance().ReadShmMigrationBlock(
+        block.local->status.importResults[info.blockIndex].memId, info, actual);
+}
+
+uint32_t EndImportBlock(const UbseMemMigrateRpcInfo& info, bool success, const CheckedMigrateBlock& block,
+                        UbseMemMigrateOpResp& result)
+{
+    result.committed = block.committed;
+    if (block.committed) {
+        result.block = ReadMigrateBlock(*block.local, info.blockIndex);
+        return UBSE_OK;
+    }
+    auto prepared = *block.local;
+    if (success && (!block.context || !block.context->target)) {
+        UbseMemMigrateBlockData actual;
+        const auto ret = CommitAndReadRecoveryBlock(info, block, result, actual);
+        if (ret != UBSE_OK || !actual.decoder || actual.targetLayout.exportNumaInfos.empty()) {
+            return ret == UBSE_OK ? UBSE_ERR_INTERNAL : ret;
+        }
+        PrepareEndContext(info, true, prepared);
+        actual.targetLayout.blockSize = prepared.algoResult.blockSize;
+        const bool updated = UpdateMigrateImport(GetCurNodeId(), info.name, [&](auto& obj) {
+            obj.status.decoderResult.resize(obj.status.importResults.size());
+            ApplyEndSuccess(obj, info, actual);
+            obj.switchContext = prepared.switchContext;
+            obj.status.errCode = UBSE_OK;
+            return true;
+        });
+        if (!updated) {
             return UBSE_ERR_INTERNAL;
         }
+        result.block = actual;
+        CleanupMigrateDecoder(info, *block.local, true);
+        return UBSE_OK;
     }
-    CleanupMigrateDecoder(info, local, success);
+    if (success) {
+        const auto& target = *block.context->target;
+        if (!target.decoder || (info.blockIndex + 1 == prepared.status.importResults.size() &&
+                                target.targetLayout.exportNumaInfos.empty())) {
+            UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
+                           << ", Cannot prepare end_import: pending block or layout missing";
+            return UBSE_ERR_INTERNAL;
+        }
+        ApplyEndSuccess(prepared, info, target);
+    } else {
+        ApplyEndRollback(prepared, info.blockIndex);
+    }
+    PrepareEndContext(info, success, prepared);
+    auto resultBlock = ReadMigrateBlock(prepared, info.blockIndex);
+    if (const auto ret = EndBlockDevice(info, success, block); ret != UBSE_OK) {
+        return ret;
+    }
+    PublishImportEnd(info, success, prepared, block);
+    result.committed = success;
+    result.block = std::move(resultBlock);
+    CleanupMigrateDecoder(info, *block.local, success);
+    return UBSE_OK;
+}
+
+uint32_t EndExportBlock(const UbseMemMigrateRpcInfo& info, bool success, const CheckedMigrateBlock& block,
+                        const ConstExportObjPtr& exp, UbseMemMigrateOpResp& result)
+{
+    result.committed = block.committed;
+    if (block.committed) {
+        result.block = ReadMigrateBlock(*block.local, info.blockIndex);
+        return UBSE_OK;
+    }
+    auto prepared = *block.local;
+    auto effectiveExport = exp;
+    const bool recoveryCommit = success && (!block.context || block.context->endDecision == true);
+    if (recoveryCommit) {
+        UbseMemMigrateBlockData actual;
+        const auto ret = CommitAndReadRecoveryBlock(info, block, result, actual);
+        if (ret != UBSE_OK || actual.decoder) {
+            return ret == UBSE_OK ? UBSE_ERR_INTERNAL : ret;
+        }
+        auto restored = *exp;
+        restored.status.exportObmmInfo[info.blockIndex] = actual.exportInfo;
+        effectiveExport = std::make_shared<UbseMemShareBorrowExportObj>(std::move(restored));
+    }
+    if (success) {
+        auto preparedExport = *effectiveExport;
+        PrepareExportEnd(preparedExport, info.blockIndex, true);
+        // 在副本上校验并准备 self-import 更新及最后一块的身份转换，设备成功后才发布。
+        if (!CommitSelfImportBlock(prepared, preparedExport, info.blockIndex)) {
+            return UBSE_ERR_INTERNAL;
+        }
+    } else {
+        ApplyEndRollback(prepared, info.blockIndex);
+    }
+    PrepareEndContext(info, success, prepared);
+    auto resultBlock = ReadMigrateBlock(prepared, info.blockIndex);
+    // 恢复路径已完成设备提交；正常路径在准备好账本后执行end。
+    if (!recoveryCommit) {
+        if (const auto ret = EndBlockDevice(info, success, block); ret != UBSE_OK) {
+            return ret;
+        }
+    }
+    if (recoveryCommit) {
+        UpdateMigrateExport(GetCurNodeId(), info.name, [&](auto& obj) {
+            obj.status.exportObmmInfo[info.blockIndex] = effectiveExport->status.exportObmmInfo[info.blockIndex];
+            return true;
+        });
+    }
+    PublishExportEnd(info, success, prepared, effectiveExport);
+    result.committed = success;
+    result.block = std::move(resultBlock);
+    CleanupMigrateDecoder(info, *block.local, success);
     return UBSE_OK;
 }
 
@@ -521,7 +705,9 @@ uint32_t AgentSendMigrateMessage(const std::string& requestMasterNodeId, UbseMem
     SendParam param(requestMasterNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                     static_cast<uint16_t>(opCode));
     auto ret = UBSE_ERROR;
-    const uint32_t maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION;
+    // 最多上报5次，失败间隔1s，累计休眠最多5s（不含RPC调用耗时）。
+    // Master普通阶段超时后会进入清理，额外长时间重发无意义
+    const uint32_t maxRetryTimes = SEND_RETRY_TIMES;
     for (uint32_t attempt = 0; attempt < maxRetryTimes; ++attempt) {
         if (requestMasterNodeId.empty()) { // 普通新建导出沿用原有上报路由；块操作始终绑定请求发起 Master。
             std::string masterNodeId;
@@ -572,7 +758,12 @@ uint32_t CheckBeginExportTemplate(const UbseMemMigrateBeginExportReq& req, const
     if (target.req.name != info.name || target.algoResult.exportNumaInfos.empty() ||
         target.algoResult.exportNumaInfos.front().nodeId != GetCurNodeId() || b >= target.migrateInfos.size() ||
         target.migrateInfos[b] != info.migrateInfo || local.status.importResults[b].memId != info.exportMemId ||
-        (existing && (b >= existing->migrateInfos.size() || existing->migrateInfos[b] != info.migrateInfo))) {
+        target.migrateInfos.size() != local.migrateInfos.size() ||
+        (existing &&
+         (existing->migrateInfos.size() > target.migrateInfos.size() ||
+          !std::equal(existing->migrateInfos.begin(), existing->migrateInfos.end(), target.migrateInfos.begin()) ||
+          (b >= existing->migrateInfos.size() &&
+           (b != existing->migrateInfos.size() || b != existing->status.exportObmmInfo.size()))))) {
         UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
                        << ", operation=begin_export, Invalid begin export template";
         return UBSE_ERROR_INVAL;
@@ -598,15 +789,7 @@ uint32_t BuildBeginExportDevice(const UbseMemMigrateBeginExportReq& req, const U
     device.importMemId = local.status.importResults[b].memId;
     device.blockIndex = b;
     device.exportObj = target;
-    const auto numaId = target.algoResult.exportNumaInfos.front().numaId;
-    if (numaId < 0 || numaId >= ubse::mmi::OBMM_MAX_LOCAL_NUMA_NODES) {
-        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
-                       << ", operation=begin_export, Invalid scheduled NUMA, numaId=" << numaId;
-        return UBSE_ERROR_INVAL;
-    }
-    // 决策只有一个NUMA；切换后端必须保持原导入设备的块长。
-    device.numaSizes.resize(static_cast<size_t>(numaId) + 1, 0);
-    device.numaSizes[numaId] = local.exportObmmInfo[b].desc.length;
+    device.blockLength = local.exportObmmInfo[b].desc.length;
     FillEid16FromU32(device.deid, localEid);
     return UBSE_OK;
 }
@@ -706,6 +889,12 @@ uint32_t UbseMemShmMigrateService::SwitchBeginExport(const UbseMemMigrateBeginEx
     }
     if (!existing) {
         exports.PutResource(GetCurNodeId(), info.name, req.exportObj);
+    } else if (!UpdateMigrateExport(GetCurNodeId(), info.name, [&](auto& obj) {
+                   // master 已核验完整计划；本地恢复的 export 可能仅携带已提交前缀标记。
+                   obj.migrateInfos = req.exportObj.migrateInfos;
+                   return true;
+               })) {
+        return UBSE_ERR_INTERNAL;
     }
     auto context = MakeSwitchContext(info);
     UbseMemShmSwitchExportObj device{};
@@ -718,10 +907,12 @@ uint32_t UbseMemShmMigrateService::SwitchBeginExport(const UbseMemMigrateBeginEx
     ubse_mem_obmm_mem_desc desc{};
     const auto ret = UbseMmiInterface::GetInstance().ShmSwitchBeginExportExecutor(device, desc);
     if (ret != UBSE_OK) {
+        RollbackPreparedSwitching(info);
         return CloseFailedOperation(info, context, ret);
     }
     if (desc.addr == 0) {
         UBSE_LOG_ERROR << "Migrate begin_export returned empty address, name=" << info.name << ", indexId=" << b;
+        RollbackPreparedSwitching(info);
         return CloseFailedOperation(info, context, UBSE_ERROR_INVAL);
     }
     result.block = {device.importMemId, desc, UB_MEM_SWITCHING};
@@ -753,7 +944,7 @@ uint32_t UbseMemShmMigrateService::DataCopy(const UbseMemMigrateDataCopyReq& req
         local->status.importResults[info.blockIndex].memId, local->exportObmmInfo[info.blockIndex].desc.length,
         local->req.ubseMemPrivData.cacheableFlag != 0);
     if (ret != UBSE_OK) {
-        auto context = *block.context;
+        auto context = block.context ? *block.context : MakeSwitchContext(info);
         return CloseFailedOperation(info, context, ret);
     }
     return UBSE_OK;
@@ -775,25 +966,69 @@ uint32_t UbseMemShmMigrateService::SwitchEndImport(const UbseMemMigrateSwitchEnd
         }
         return ret;
     }
-    if (info.blockIndex >= local->status.decoderResult.size()) {
+    const bool hasTarget = block.context && block.context->target.has_value();
+    if (info.blockIndex >= local->status.decoderResult.size() && hasTarget) {
         UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
                        << ", operation=end_import, End import missing decoder slot";
         return UBSE_ERR_INTERNAL;
     }
-    if (!block.committed && req.success != 0 && (!block.context->target || !block.context->target->decoder)) {
+    if (!block.committed && req.success != 0 && hasTarget && !block.context->target->decoder) {
         UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << info.blockIndex
                        << ", operation=end_import, Commit missing pending resources";
         SaveContext(info, *block.context, UBSE_ERR_INTERNAL);
         return UBSE_ERR_INTERNAL;
     }
-    return EndBlock(info, req.success != 0, false, block, nullptr, result);
+    return EndImportBlock(info, req.success != 0, block, result);
+}
+
+// end_export 账本身份校验：在 name+blockIndex 锁内逐项核对本地导入结果与账本导出快照，
+// 任一项失败时打印对应日志并返回 false。exp 为空仅允许回滚（success == 0）路径。
+bool CheckExportLedgerIdentity(const UbseMemMigrateRpcInfo& info, const ConstImportObjPtr& local, uint32_t success,
+                               const ConstExportObjPtr& exp)
+{
+    const auto b = info.blockIndex;
+    if (local->status.importResults[b].memId != info.exportMemId) {
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", operation=end_export, End export import result memId mismatch, expectMemId="
+                       << info.exportMemId << ", actualMemId=" << local->status.importResults[b].memId;
+        return false;
+    }
+    if (success == 1 && !exp) {
+        // end(1)时, 导出账本不能为空
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", operation=end_export, End export success without ledger resource";
+        return false;
+    }
+    if (exp && b >= exp->migrateInfos.size() && success != 0) {
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", ledgerMigrateInfoCount=" << exp->migrateInfos.size()
+                       << ", operation=end_export, End export ledger migrate info index out of range";
+        return false;
+    }
+    if (exp && b < exp->migrateInfos.size() && exp->migrateInfos[b] != info.migrateInfo) {
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", operation=end_export, End export ledger migrate info mismatch";
+        return false;
+    }
+    if (exp && b < exp->status.exportObmmInfo.size() && exp->status.exportObmmInfo[b].memId != info.exportMemId) {
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", operation=end_export, End export ledger obmm info memId mismatch, expectMemId="
+                       << info.exportMemId << ", actualMemId=" << exp->status.exportObmmInfo[b].memId;
+        return false;
+    }
+    if (exp && b >= exp->status.exportObmmInfo.size() && success != 0) {
+        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
+                       << ", ledgerObmmInfoCount=" << exp->status.exportObmmInfo.size()
+                       << ", operation=end_export, End export success without ledger obmm info";
+        return false;
+    }
+    return true;
 }
 
 uint32_t UbseMemShmMigrateService::SwitchEndExport(const UbseMemMigrateEndExportReq& req,
                                                    const std::string& requestMasterNodeId, UbseMemMigrateOpResp& result)
 {
     const auto& info = req.rpcInfo;
-    const auto b = info.blockIndex;
     auto lock = LoggingLockGuard(MigrateBlockLockKey(info));
     CheckedMigrateBlock block;
     const auto& local = block.local;
@@ -807,15 +1042,10 @@ uint32_t UbseMemShmMigrateService::SwitchEndExport(const UbseMemMigrateEndExport
     }
     const auto exp = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
         GetCurNodeId(), info.name);
-    if (local->status.importResults[b].memId != info.exportMemId || (req.success != 0 && !exp) ||
-        (exp && (b >= exp->migrateInfos.size() || exp->migrateInfos[b] != info.migrateInfo ||
-                 (b < exp->status.exportObmmInfo.size() ? exp->status.exportObmmInfo[b].memId != info.exportMemId :
-                                                          req.success != 0)))) {
-        UBSE_LOG_ERROR << "name=" << info.name << ", indexId=" << b
-                       << ", operation=end_export, End export ledger identity mismatch";
+    if (!CheckExportLedgerIdentity(info, local, req.success, exp)) {
         return UBSE_ERR_MIGRATE_NOT_ALLOWED;
     }
-    return EndBlock(info, req.success != 0, true, block, exp, result);
+    return EndExportBlock(info, req.success != 0, block, exp, result);
 }
 
 void UbseMemShmMigrateService::Export(const UbseMemShareBorrowExportObj& obj, UbseMemShareBorrowExportObj& rsp)
@@ -826,6 +1056,9 @@ void UbseMemShmMigrateService::Export(const UbseMemShareBorrowExportObj& obj, Ub
         GetCurNodeId(), obj.req.name);
     if (local && (local->status.state == UBSE_MEM_EXPORT_SUCCESS || local->status.state == UBSE_MEM_EXPORT_DESTROYED)) {
         rsp = *local;
+        // 复用实际设备结果，回包关联本次请求；不改本地账本中的创建记录。
+        rsp.req.requestId = obj.req.requestId;
+        rsp.req.requestNodeId = obj.req.requestNodeId;
         return;
     }
     rsp.status.errCode = ShareExportExecute(rsp, GetCurNodeId());

@@ -176,7 +176,7 @@ public:
 
     /**
     * @brief   shm类型故障迁移块级数据拷贝执行器
-    * @param memId  [IN] 切换间隙设备ID，双后端映射后使用memcpy_mt拷贝
+    * @param memId  [IN] 切换间隙设备ID，双后端映射后使用memcpy_nc_mt拷贝
     * @param size   [IN] 块大小(字节)
     * @return int    0：操作成功；非0：失败
     */

@@ -1330,6 +1330,35 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp& resp, UbseMemShar
     return res;
 }
 
+// unimport失败时的切换gap收尾：逐块读取switch_state，处于AWAIT_READY的块执行end(0)
+// 回退结束切换，供上层重试unimport；状态读取失败、非gap状态均不触发end。
+bool CloseStuckSwitchGapBlocks(const UbseMemShareBorrowImportObj& importObj)
+{
+    const auto& importResults = importObj.status.importResults;
+    bool triggered = false;
+    for (size_t b = 0; b < importResults.size(); ++b) {
+        ubse::adapter_plugins::mmi::ObmmSwitchState switchState{};
+        if (UbseMmiInterface::GetInstance().ReadShmSwitchState(importResults[b].memId, switchState) != UBSE_OK) {
+            UBSE_LOG_WARN << "Read switch state failed during unimport, name=" << importObj.req.name
+                          << ", indexId=" << b << ", memId=" << importResults[b].memId;
+            continue;
+        }
+        // obmm gap态：等待switch_end，其余状态不执行end
+        if (switchState != ubse::adapter_plugins::mmi::ObmmSwitchState::AWAIT_READY) {
+            continue;
+        }
+        UbseMemShmSwitchObj device{};
+        device.name = importObj.req.name;
+        device.importNodeId = importObj.importNodeId;
+        device.oldImportMemId = importResults[b].memId;
+        triggered = true;
+        const auto ret = UbseMmiInterface::GetInstance().ShmSwitchEndExecutor(device, false);
+        UBSE_LOG_WARN << "Close stuck switch gap on unimport, name=" << importObj.req.name << ", indexId=" << b
+                      << ", memId=" << importResults[b].memId << ", ret=" << ret;
+    }
+    return triggered;
+}
+
 uint32_t ShareImportDestroyingHandler(UbseMemOperationResp& resp, UbseMemShareBorrowImportObj& importObj,
                                       const std::string& name, const std::string& requestNodeId)
 {
@@ -1343,7 +1372,14 @@ uint32_t ShareImportDestroyingHandler(UbseMemOperationResp& resp, UbseMemShareBo
         return UBSE_OK;
     }
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
-    if (auto ret = UbseMmiInterface::GetInstance().ShmUnImportExecutor(importObj); ret != UBSE_OK) {
+    auto ret = UbseMmiInterface::GetInstance().ShmUnImportExecutor(importObj);
+    if (ret != UBSE_OK && CloseStuckSwitchGapBlocks(importObj)) {
+        // 残留gap已通过end(0)回退结束切换，重试一次unimport
+        UBSE_LOG_WARN << "Retry share unimport after closing stuck switch gap, name=" << name
+                      << ", requestId=" << importObj.req.requestId;
+        ret = UbseMmiInterface::GetInstance().ShmUnImportExecutor(importObj);
+    }
+    if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unimport name=" << name << ", requestId=" << importObj.req.requestId;
         BorrowFailedAdvice({MemFault::RETURN_OBMM_IMPORT_FAILED, importObj.req.name, MemType::SHM, 0,
                             importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, requestNodeId});

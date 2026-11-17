@@ -20,6 +20,39 @@
 
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
+bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSize,
+                         std::vector<std::array<size_t, MAX_NUMA_NODES>>& result)
+{
+    size_t blockNum[MAX_NUMA_NODES]{};
+    size_t blockAll{0};
+    if (blockSize == 0u) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Block size=0 is invalid.";
+        return false;
+    }
+    for (int i = 0; i < MAX_NUMA_NODES; ++i) {
+        bool isOverflow = false;
+        blockNum[i] = (RmCommonUtils::GetInstance().SafeAdd(size[i], blockSize, isOverflow) - 1) / blockSize;
+        if (isOverflow) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Overflow occurred during addition. size[" << i << "]=" << size[i]
+                           << ", blockSize=" << blockSize;
+            return false;
+        }
+        blockAll += blockNum[i];
+    }
+    result.clear();
+    result.reserve(blockAll);
+    for (int i = 0; i < blockAll; ++i) {
+        result.push_back({});
+    }
+    int index = 0;
+    for (int i = 0; i < MAX_NUMA_NODES; ++i) {
+        for (int j = 0; j < blockNum[i]; ++j) {
+            result[index++][i] = blockSize;
+        }
+    }
+    return !result.empty();
+}
+
 using namespace ubse::security;
 constexpr uint32_t HASH_MIN_VAL = 4;
 constexpr uint32_t HASH_RANGE_SIZE = 14;

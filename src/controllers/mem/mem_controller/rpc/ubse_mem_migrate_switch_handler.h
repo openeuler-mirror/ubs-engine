@@ -82,7 +82,7 @@ public:
 
     uint16_t GetOpCode() override
     {
-        return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT_END);
+        return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_SWITCH_END_EXPORT);
     }
 
     uint16_t GetModuleCode() override

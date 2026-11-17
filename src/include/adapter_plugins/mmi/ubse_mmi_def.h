@@ -73,6 +73,16 @@ enum class MemOperationType
     COMMON_RETURN // 用于没匹配到任何归还时，回调处理
 };
 
+// 内核 obmm 设备切换状态，取值与 sysfs switch_state 一一对应
+enum class ObmmSwitchState : uint8_t
+{
+    IDLE = 0,        // 空闲，无切换进行
+    SWAPPING = 1,    // begin 执行中
+    AWAIT_READY = 2, // 切换间隙，等待 switch_end
+    FINISHING = 3,   // end 已确认，收尾中
+    STRANDED = 4     // 终态：后端已丢失
+};
+
 // 使用方进程信息
 struct UbseUdsInfo {
     uid_t uid; // 使用方进程的运行用户的uid
@@ -147,6 +157,7 @@ enum UbMemFaultType
     MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000, // 无故障
     UB_MEM_SWITCHING = 1001, // 当前迁移或结束待确认的块，同一资源最多一块，不等同于内核gap状态
+    UB_MEM_STRANDED = 1002, // 切换后端丢失，不可再迁移，只能删除后重建
 };
 
 enum UbseNodeStatus
@@ -501,6 +512,8 @@ public:
     // self-import仅为逻辑账本，所共享的物理export设备priv仍标记为导出。
     std::vector<uint32_t> migrateInfos{};
     std::optional<UbseMemMigrateSwitchContext> switchContext;
+    // 本地暂存旧 decoder，最后一块提交或回退收尾时批量删除；不持久化、不保护周期清理。
+    std::vector<adapter_plugins::mti::mami::UbseMamiMemWithdraw> deferredMigrateDecoders;
     friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& obj);
 };
 
@@ -512,7 +525,7 @@ constexpr uint32_t UBSE_SHM_SWITCH_EID_LENGTH = 16u;
 struct UbseMemShmSwitchExportObj {
     uint64_t importMemId{0};
     uint32_t blockIndex{0};
-    std::vector<uint64_t> numaSizes{};
+    uint64_t blockLength{0}; // 原设备块长，MMI 根据完整调度计算本块 NUMA 分配
     uint64_t exportFlags{0};
     std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> seid{};
     std::array<uint8_t, UBSE_SHM_SWITCH_EID_LENGTH> deid{};
@@ -621,6 +634,11 @@ enum UbseMemMigrateFailReason
     MIGRATE_FAIL_REQUEST_PREPARE = 17, // Master准备当前块请求失败，尚未发起RPC
     MIGRATE_FAIL_ROLLBACK_IMPORT = 18, // Agent返回end_import(0)业务失败
     MIGRATE_FAIL_ROLLBACK_EXPORT = 19, // Agent返回end_export(0)业务失败
+    MIGRATE_FAIL_RECOVERY_TARGET_UNKNOWN = 20,   // 恢复时无法唯一确定目标
+    MIGRATE_FAIL_RECOVERY_INCOMPLETE = 21,       // 恢复账本或块信息不完整
+    MIGRATE_FAIL_RECOVERY_NODE_UNAVAILABLE = 22, // 恢复所需节点未就绪
+    MIGRATE_FAIL_RECOVERY_STRANDED = 23,         // 存在不可恢复的STRANDED设备
+    MIGRATE_FAIL_RECOVERY_INCONSISTENT = 24,     // 恢复版本、块状态或提交顺序不一致
 };
 
 // 请求RPC仅确认入队，结果以name定位任务，按块、节点及已有业务资源信息确认归属。

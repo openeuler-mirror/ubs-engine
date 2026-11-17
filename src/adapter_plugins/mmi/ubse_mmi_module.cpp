@@ -383,23 +383,47 @@ uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExpor
 
 uint32_t UbseMmiModule::UbseMemShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj)
 {
-    return MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchBeginImportExecutor, name=" << switchObj.name
+                  << ", importNodeId=" << switchObj.importNodeId << ", memId=" << switchObj.oldImportMemId
+                  << ", newPa=" << switchObj.newPa << ", scna=" << switchObj.newScna << ", dcna=" << switchObj.newDcna
+                  << ", privLen=" << switchObj.priv.size();
+    auto ret = MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchBeginImportExecutor end, ret=" << ret
+                  << ", name=" << switchObj.name << ", memId=" << switchObj.oldImportMemId;
+    return ret;
 }
 
 uint32_t UbseMmiModule::UbseMemShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
                                                             ubse_mem_obmm_mem_desc& desc)
 {
-    return MemInstanceInnerShm::GetInstance().MemShmSwitchBeginExportExecutor(switchObj, desc);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchBeginExportExecutor, name=" << switchObj.exportObj.req.name
+                  << ", memId=" << switchObj.importMemId << ", blockIndex=" << switchObj.blockIndex
+                  << ", blockLength=" << switchObj.blockLength << ", privLen=" << switchObj.priv.size();
+    auto ret = MemInstanceInnerShm::GetInstance().MemShmSwitchBeginExportExecutor(switchObj, desc);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchBeginExportExecutor end, ret=" << ret
+                  << ", name=" << switchObj.exportObj.req.name << ", memId=" << switchObj.importMemId
+                  << ", blockIndex=" << switchObj.blockIndex;
+    return ret;
 }
 
 uint32_t UbseMmiModule::UbseMemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success)
 {
-    return MemInstanceInnerShm::GetInstance().MemShmSwitchEndExecutor(switchObj, success);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchEndExecutor, name=" << switchObj.name
+                  << ", memId=" << switchObj.oldImportMemId << ", success=" << success;
+    auto ret = MemInstanceInnerShm::GetInstance().MemShmSwitchEndExecutor(switchObj, success);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmSwitchEndExecutor end, ret=" << ret << ", name=" << switchObj.name
+                  << ", memId=" << switchObj.oldImportMemId << ", success=" << success;
+    return ret;
 }
 
 uint32_t UbseMmiModule::UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
 {
-    return MemInstanceInnerShm::GetInstance().MemShmMigrateCopyExecutor(memId, size, cacheable);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmMigrateCopyExecutor, memId=" << memId << ", size=" << size
+                  << ", cacheable=" << cacheable;
+    auto ret = MemInstanceInnerShm::GetInstance().MemShmMigrateCopyExecutor(memId, size, cacheable);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmMigrateCopyExecutor end, ret=" << ret << ", memId=" << memId
+                  << ", size=" << size << ", cacheable=" << cacheable;
+    return ret;
 }
 
 /**

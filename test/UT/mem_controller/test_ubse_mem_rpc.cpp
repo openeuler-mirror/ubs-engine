@@ -21,6 +21,7 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_mem_api.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_common_utils.h"
@@ -38,6 +39,7 @@
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_mmi_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_thread_pool.h"
@@ -1347,6 +1349,15 @@ void MigrateControllerMockSet()
     MOCKER(&mem::decoder::utils::MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
 }
 
+// migrate get/cancel 走 IsLeader 校验, handler 级 UT 需模拟当前节点为主
+void MigrateLeaderMockSet()
+{
+    MOCKER(&context::UbseContext::GetModule<ubse::election::UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<ubse::election::UbseElectionModule>()));
+    MOCKER(&ubse::election::UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+}
+
 UbseMemShareBorrowImportObj BuildSwitchTestImportObj(uint32_t count = 2)
 {
     UbseMemShareBorrowImportObj obj{};
@@ -1500,7 +1511,10 @@ TEST_F(TestUbseMemRpc, MigrateDecoderMatchesEachBlockAndPeer)
         .expects(exactly(2))
         .will(invoke(&CheckDistinctBlockSwitch));
     MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(exactly(2)).will(returnValue(UBSE_OK));
-    MockDecoderDelete();
+    auto& mti = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti, &ubse::adapter_plugins::mti::UbseMtiInterface::DeleteDecoderEntry)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
     auto& service = UbseMemShmMigrateService::GetInstance();
     for (uint32_t b = 0; b < 2; ++b) {
         auto req = AgentBegin(b);
@@ -1513,6 +1527,13 @@ TEST_F(TestUbseMemRpc, MigrateDecoderMatchesEachBlockAndPeer)
         EXPECT_EQ(req.targetBlock.memId, result.block->exportInfo.memId);
         EXPECT_EQ(0x9000U + b, result.block->decoder->handle);
         ASSERT_EQ(UBSE_OK, service.SwitchEndImport({1, req.rpcInfo}, "1", result));
+        const auto local = GetSwitchTestImportObj();
+        if (b == 0) {
+            ASSERT_EQ(1U, local->deferredMigrateDecoders.size());
+            EXPECT_EQ(0x7100U, local->deferredMigrateDecoders.front().handle);
+        } else {
+            EXPECT_TRUE(local->deferredMigrateDecoders.empty());
+        }
     }
     const auto obj = GetSwitchTestImportObj();
     for (uint32_t b = 0; b < 2; ++b) {
@@ -1578,9 +1599,12 @@ TEST_F(TestUbseMemRpc, MigrateBeginFailureRetainsNewDecoderForRollback)
     ASSERT_TRUE(ledger->switchContext->target->decoder);
     EXPECT_EQ(0x9000, ledger->switchContext->target->decoder->handle);
     EXPECT_EQ(false, ledger->switchContext->endDecision);
+    // begin同步失败即内核未开窗, 预置的SWITCHING必须回退, 否则end(0)会误关不存在的间隙
+    EXPECT_EQ(UB_MEM_HEALTHY, ledger->exportObmmInfo[0].memIdStatus);
     EXPECT_EQ(UBSE_ERR_MIGRATE_NOT_ALLOWED, service.SwitchBeginImport(req, "1", response));
     MockDecoderDelete();
-    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    // 块未进切换态, end(0)只清账本, 不得调用内核end(内核begin从未成功, 内核end会返回ESTALE)
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(never());
     auto info = req.rpcInfo;
     info.rollback = true;
     EXPECT_EQ(UBSE_OK, service.SwitchEndImport({0, info}, "1", response));
@@ -1588,6 +1612,28 @@ TEST_F(TestUbseMemRpc, MigrateBeginFailureRetainsNewDecoderForRollback)
     EXPECT_EQ(1001, ledger->exportObmmInfo[0].memId);
     EXPECT_EQ(UB_MEM_HEALTHY, ledger->exportObmmInfo[0].memIdStatus);
     EXPECT_FALSE(ledger->switchContext->target);
+}
+
+TEST_F(TestUbseMemRpc, MigrateBeginBusyIsFailureAndCannotBeReusedAsSuccess)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    PutSwitchTestImportObj(BuildSwitchTestImportObj());
+    MOCKER(&RealImportDecoder).expects(once()).will(invoke(&CreateOneDecoder));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchBeginImportExecutor).expects(once()).will(returnValue(UBSE_ERROR_BUSY));
+    UbseMemMigrateOpResp response{};
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    const auto req = AgentBegin();
+    EXPECT_EQ(UBSE_ERROR_BUSY, service.SwitchBeginImport(req, "1", response));
+    EXPECT_FALSE(response.committed);
+    EXPECT_FALSE(response.block);
+    const auto ledger = GetSwitchTestImportObj();
+    ASSERT_NE(nullptr, ledger);
+    ASSERT_TRUE(ledger->switchContext);
+    EXPECT_EQ(false, ledger->switchContext->endDecision);
+    EXPECT_EQ(UBSE_ERROR_BUSY, ledger->status.errCode);
+    EXPECT_EQ(UBSE_ERR_MIGRATE_NOT_ALLOWED, service.SwitchBeginImport(req, "1", response));
+    EXPECT_FALSE(response.block);
 }
 
 TEST_F(TestUbseMemRpc, MigrateDuplicateBeginDoesNotReallocateIncompletePendingBlock)
@@ -1609,6 +1655,88 @@ TEST_F(TestUbseMemRpc, MigrateDuplicateBeginDoesNotReallocateIncompletePendingBl
     EXPECT_EQ(1001, ledger->exportObmmInfo[0].memId);
     ASSERT_TRUE(ledger->switchContext->target);
     EXPECT_FALSE(ledger->switchContext->target->decoder);
+}
+
+TEST_F(TestUbseMemRpc, MigrateRestartedGapCanCopyWithoutPendingDecoder)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    auto obj = BuildSwitchTestImportObj();
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutSwitchTestImportObj(obj);
+    auto& mmiInterface = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmiInterface, &UbseMmiInterface::ReadShmMigrationBlock)
+        .expects(once())
+        .will(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmMigrateCopyExecutor).expects(once()).will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().DataCopy({AgentRpc()}, "1"));
+    EXPECT_FALSE(GetSwitchTestImportObj()->switchContext);
+}
+
+TEST_F(TestUbseMemRpc, MigrateRestartedGapCommitsThenReadsEffectiveBlock)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    auto obj = BuildSwitchTestImportObj();
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutSwitchTestImportObj(obj);
+    const auto begin = AgentBegin();
+    UbseMemMigrateBlockData actual{begin.targetBlock,
+                                   ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult{0, 0x8000, 0x9000},
+                                   begin.targetLayout};
+    actual.exportInfo.memIdStatus = UB_MEM_HEALTHY;
+    auto& mmiInterface = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmiInterface, &UbseMmiInterface::ReadShmMigrationBlock)
+        .expects(exactly(3))
+        .with(any(), any(), outBound(actual))
+        .will(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS))
+        .then(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS))
+        .then(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    MockDecoderDelete();
+    UbseMemMigrateOpResp result;
+    EXPECT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_TRUE(result.committed);
+    ASSERT_TRUE(result.block);
+    const auto restored = GetSwitchTestImportObj();
+    EXPECT_EQ(4001U, restored->exportObmmInfo[0].memId);
+    EXPECT_EQ(3001U, restored->status.importResults[0].memId);
+    EXPECT_EQ(UB_MEM_HEALTHY, restored->exportObmmInfo[0].memIdStatus);
+    EXPECT_EQ(0x9000U, restored->status.decoderResult[0].handle);
+}
+
+TEST_F(TestUbseMemRpc, MigrateReadFailureAfterCommitOnlyRetriesAccounting)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    auto obj = BuildSwitchTestImportObj();
+    obj.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutSwitchTestImportObj(obj);
+    const auto begin = AgentBegin();
+    UbseMemMigrateBlockData actual{begin.targetBlock,
+                                   ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult{0, 0x8000, 0x9000},
+                                   begin.targetLayout};
+    actual.exportInfo.memIdStatus = UB_MEM_HEALTHY;
+    auto& mmiInterface = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmiInterface, &UbseMmiInterface::ReadShmMigrationBlock)
+        .expects(exactly(4))
+        .with(any(), any(), outBound(actual))
+        .will(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS))
+        .then(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS))
+        .then(returnValue(UBSE_ERROR))
+        .then(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmMigrateCopyExecutor).expects(never());
+    MockDecoderDelete();
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    UbseMemMigrateOpResp result;
+    EXPECT_EQ(UBSE_ERROR, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_TRUE(result.committed);
+    ASSERT_TRUE(GetSwitchTestImportObj()->switchContext);
+    EXPECT_EQ(true, GetSwitchTestImportObj()->switchContext->endDecision);
+    EXPECT_EQ(UBSE_ERR_MIGRATE_NOT_ALLOWED, service.DataCopy({AgentRpc()}, "1"));
+    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_EQ(UB_MEM_HEALTHY, GetSwitchTestImportObj()->exportObmmInfo[0].memIdStatus);
 }
 
 TEST_F(TestUbseMemRpc, MigrateCopyRepeatsActualWorkAndUsesLocalLedger)
@@ -1793,7 +1921,53 @@ TEST_F(TestUbseMemRpc, MigrateRejectedRollbackReportsOnlyMatchingCommittedBlock)
     EXPECT_EQ(faulted, GetSwitchTestImportObj());
 }
 
-TEST_F(TestUbseMemRpc, MigrateCommittedDecoderCleanupDelegatesToCycleCheck)
+TEST_F(TestUbseMemRpc, MigrateFirstCommitDefersOldDecoderAndDuplicateDoesNotAppend)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    PutPendingImport();
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto& mti = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti, &ubse::adapter_plugins::mti::UbseMtiInterface::DeleteDecoderEntry).expects(never());
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    UbseMemMigrateOpResp result{};
+    ASSERT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    ASSERT_EQ(1U, GetSwitchTestImportObj()->deferredMigrateDecoders.size());
+    EXPECT_EQ(0x7100U, GetSwitchTestImportObj()->deferredMigrateDecoders.front().handle);
+    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_EQ(1U, GetSwitchTestImportObj()->deferredMigrateDecoders.size());
+}
+
+TEST_F(TestUbseMemRpc, MigrateRollbackCleansDeferredOldDecoderAndPendingDecoder)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    PutPendingImport();
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(exactly(2)).will(returnValue(UBSE_OK));
+    MOCKER(&RealImportDecoder).expects(once()).will(invoke(&CreateDistinctBlockDecoder));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchBeginImportExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto& mti = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti, &ubse::adapter_plugins::mti::UbseMtiInterface::DeleteDecoderEntry)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    UbseMemMigrateOpResp result{};
+    ASSERT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    ASSERT_EQ(1U, GetSwitchTestImportObj()->deferredMigrateDecoders.size());
+    auto req = AgentBegin(1);
+    req.targetBlock.desc.addr += 0x1000;
+    req.targetLayout.exportNumaInfos.front().socketId = 99;
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginImport(req, "1", result));
+    auto info = AgentRpc(1);
+    info.rollback = true;
+    ASSERT_EQ(UBSE_OK, service.SwitchEndImport({0, info}, "1", result));
+    const auto local = GetSwitchTestImportObj();
+    EXPECT_TRUE(local->deferredMigrateDecoders.empty());
+    EXPECT_EQ(0x9000U, local->status.decoderResult[0].handle);
+    EXPECT_EQ(0x7101U, local->status.decoderResult[1].handle);
+}
+
+TEST_F(TestUbseMemRpc, MigrateRollbackWithoutPendingDecoderCleansDeferredOldDecoder)
 {
     SwitchTestMockSet();
     MigrateControllerMockSet();
@@ -1802,17 +1976,38 @@ TEST_F(TestUbseMemRpc, MigrateCommittedDecoderCleanupDelegatesToCycleCheck)
     auto& mti = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance();
     MOCKER_CPP_VIRTUAL(mti, &ubse::adapter_plugins::mti::UbseMtiInterface::DeleteDecoderEntry)
         .expects(once())
+        .will(returnValue(UBSE_OK));
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    UbseMemMigrateOpResp result{};
+    ASSERT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    ASSERT_EQ(1U, GetSwitchTestImportObj()->deferredMigrateDecoders.size());
+    auto info = AgentRpc(1);
+    info.rollback = true;
+    ASSERT_EQ(UBSE_OK, service.SwitchEndImport({0, info}, "1", result));
+    EXPECT_TRUE(GetSwitchTestImportObj()->deferredMigrateDecoders.empty());
+}
+
+TEST_F(TestUbseMemRpc, MigrateCommittedDecoderCleanupDelegatesToCycleCheck)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    PutPendingImport(1);
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto& mti = ubse::adapter_plugins::mti::UbseMtiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti, &ubse::adapter_plugins::mti::UbseMtiInterface::DeleteDecoderEntry)
+        .expects(once())
         .will(returnValue(UBSE_ERROR));
     auto& service = UbseMemShmMigrateService::GetInstance();
     UbseMemMigrateOpResp result{};
-    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc(1)}, "1", result));
     EXPECT_TRUE(result.committed);
     const auto obj = GetSwitchTestImportObj();
-    EXPECT_EQ(4001, obj->exportObmmInfo[0].memId);
+    EXPECT_EQ(4002, obj->exportObmmInfo[1].memId);
+    EXPECT_TRUE(obj->deferredMigrateDecoders.empty());
     EXPECT_FALSE(obj->switchContext->target);
     EXPECT_EQ(true, obj->switchContext->endDecision);
     EXPECT_EQ(UBSE_OK, obj->status.errCode);
-    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc()}, "1", result));
+    EXPECT_EQ(UBSE_OK, service.SwitchEndImport({1, AgentRpc(1)}, "1", result));
 }
 
 TEST_F(TestUbseMemRpc, MigrateLateCommittedEndDoesNotReplaceNextPendingBlock)
@@ -1891,7 +2086,7 @@ UbseResult MappedBeginBlock(mmi::UbseMmiModule*, const UbseMemShmSwitchExportObj
     EXPECT_EQ(1U, device.exportObj.algoResult.exportNumaInfos.size());
     EXPECT_EQ(256U, device.exportObj.algoResult.exportNumaInfos.front().size);
     desc.addr = 0x200000 + device.blockIndex * 128;
-    desc.length = device.numaSizes.front();
+    desc.length = device.blockLength;
     desc.tokenid = 17;
     return UBSE_OK;
 }
@@ -1925,6 +2120,151 @@ void ExpectMappedSwitchStatus(std::optional<uint32_t> currentBlock)
 }
 } // namespace
 
+TEST_F(TestUbseMemRpc, MigrateRecoveredBeginExportCanRollbackWithoutTemporaryExport)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    auto old = BuildSwitchTestImportObj();
+    old.exportObmmInfo[0].memIdStatus = UB_MEM_SWITCHING;
+    PutSwitchTestImportObj(old);
+    auto& mmiInterface = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmiInterface, &UbseMmiInterface::ReadShmMigrationBlock)
+        .expects(once())
+        .will(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto info = AgentRpc();
+    info.exportMemId = old.status.importResults[0].memId;
+    info.rollback = true;
+    UbseMemMigrateOpResp result;
+    EXPECT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().SwitchEndExport({0, info}, "1", result));
+    EXPECT_FALSE(result.committed);
+    EXPECT_EQ(UB_MEM_HEALTHY, GetSwitchTestImportObj()->exportObmmInfo[0].memIdStatus);
+    EXPECT_EQ(old.status.importResults[0].memId, GetSwitchTestImportObj()->status.importResults[0].memId);
+    EXPECT_EQ(nullptr, UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
+                           MIG_SWITCH_NODE, MIG_SWITCH_NAME));
+}
+
+TEST_F(TestUbseMemRpc, MigrateRecoveredBeginExportCanRollbackWithOnlyCommittedPrefix)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    auto old = BuildSwitchTestImportObj();
+    old.migrateInfos[0] = MakeShmMigrateInfo(1, 0, 0, false);
+    old.exportObmmInfo[0].memId = old.status.importResults[0].memId;
+    old.status.decoderResult[0] = {};
+    old.exportObmmInfo[1].memIdStatus = UB_MEM_SWITCHING;
+    PutSwitchTestImportObj(old);
+    auto target = BuildMappedSwitchTarget(old);
+    target.migrateInfos.resize(1);
+    target.status.exportObmmInfo.resize(1);
+    target.status.exportObmmInfo[0].desc.addr = 0x200000;
+    target.status.exportObmmInfo[0].desc.length = 128;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(MIG_SWITCH_NODE,
+                                                                                           MIG_SWITCH_NAME, target);
+    auto& mmiInterface = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmiInterface, &UbseMmiInterface::ReadShmMigrationBlock)
+        .expects(once())
+        .will(returnValue(UBSE_ERR_MIGRATE_IN_PROGRESS));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto info = AgentRpc(1);
+    info.exportMemId = old.status.importResults[1].memId;
+    info.rollback = true;
+    UbseMemMigrateOpResp result;
+    EXPECT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().SwitchEndExport({0, info}, "1", result));
+    EXPECT_FALSE(result.committed);
+    EXPECT_EQ(UB_MEM_HEALTHY, GetSwitchTestImportObj()->exportObmmInfo[1].memIdStatus);
+    const auto retained = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
+        MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    ASSERT_NE(nullptr, retained);
+    ASSERT_EQ(1U, retained->status.exportObmmInfo.size());
+    EXPECT_EQ(target.status.exportObmmInfo[0].memId, retained->status.exportObmmInfo[0].memId);
+    EXPECT_EQ(target.migrateInfos, retained->migrateInfos);
+}
+
+TEST_F(TestUbseMemRpc, MigrateExportEndPreparesSelfImportBeforeDeviceCommit)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    const auto old = BuildSwitchTestImportObj();
+    PutSwitchTestImportObj(old);
+    MOCKER(&nodeController::UbseNodeController::GetLocalEidBySocket).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchBeginExportExecutor).expects(once()).will(invoke(&MappedBeginBlock));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(never());
+    auto info = AgentRpc(0);
+    info.exportMemId = old.status.importResults[0].memId;
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    UbseMemMigrateBeginExportResp begin{};
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginExport({BuildMappedSwitchTarget(old), info}, "1", begin));
+    const auto importBefore = GetSwitchTestImportObj();
+    const auto exportBefore = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
+        MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    MOCKER(&migrate_detail::CommitSelfImportBlock).expects(once()).will(returnValue(false));
+    UbseMemMigrateOpResp result{};
+    EXPECT_EQ(UBSE_ERR_INTERNAL, service.SwitchEndExport({1, info}, "1", result));
+    EXPECT_FALSE(result.committed);
+    EXPECT_FALSE(result.block);
+    EXPECT_EQ(importBefore, GetSwitchTestImportObj());
+    EXPECT_EQ(exportBefore, UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(
+                                MIG_SWITCH_NODE, MIG_SWITCH_NAME));
+}
+
+TEST_F(TestUbseMemRpc, MigrateImportEndRejectsMissingFinalLayoutBeforeDeviceCommit)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    PutPendingImport(1);
+    auto local = *GetSwitchTestImportObj();
+    local.switchContext->target->targetLayout.exportNumaInfos.clear();
+    PutSwitchTestImportObj(local);
+    const auto before = GetSwitchTestImportObj();
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(never());
+    UbseMemMigrateOpResp result{};
+    EXPECT_EQ(UBSE_ERR_INTERNAL,
+              UbseMemShmMigrateService::GetInstance().SwitchEndImport({1, AgentRpc(1)}, "1", result));
+    EXPECT_FALSE(result.committed);
+    EXPECT_FALSE(result.block);
+    EXPECT_EQ(before, GetSwitchTestImportObj());
+}
+
+TEST_F(TestUbseMemRpc, MigrateMappedBeginExtendsRestoredCommittedPrefixPlan)
+{
+    SwitchTestMockSet();
+    MigrateControllerMockSet();
+    const auto old = BuildSwitchTestImportObj();
+    PutSwitchTestImportObj(old);
+    const auto target = BuildMappedSwitchTarget(old);
+    MOCKER(&nodeController::UbseNodeController::GetLocalEidBySocket).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchBeginExportExecutor)
+        .expects(exactly(2))
+        .will(invoke(&MappedBeginBlock));
+    MOCKER(&mmi::UbseMmiModule::UbseMemShmSwitchEndExecutor).expects(once()).will(returnValue(UBSE_OK));
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    auto info = AgentRpc(0);
+    info.exportMemId = old.status.importResults[0].memId;
+    UbseMemMigrateBeginExportResp begin{};
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginExport({target, info}, "1", begin));
+    UbseMemMigrateOpResp end{};
+    ASSERT_EQ(UBSE_OK, service.SwitchEndExport({1, info}, "1", end));
+    auto& exports = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
+    auto restored = *exports.GetResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    const auto prefix = restored.status.exportObmmInfo[0];
+    restored.migrateInfos.resize(1);
+    exports.PutResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME, restored);
+
+    info = AgentRpc(1);
+    info.exportMemId = old.status.importResults[1].memId;
+    auto invalid = target;
+    invalid.migrateInfos[0] = MakeShmMigrateInfo(2, 0, 1, true);
+    EXPECT_EQ(UBSE_ERROR_INVAL, service.SwitchBeginExport({invalid, info}, "1", begin));
+    ASSERT_EQ(UBSE_OK, service.SwitchBeginExport({target, info}, "1", begin));
+    const auto extended = exports.GetResource(MIG_SWITCH_NODE, MIG_SWITCH_NAME);
+    EXPECT_EQ(extended->migrateInfos, target.migrateInfos);
+    ASSERT_EQ(extended->status.exportObmmInfo.size(), 2U);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].memId, prefix.memId);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].desc.addr, prefix.desc.addr);
+    EXPECT_EQ(extended->status.exportObmmInfo[0].memIdStatus, UB_MEM_HEALTHY);
+}
+
 TEST_F(TestUbseMemRpc, MigrateBPreservesTemplateAndConvertsLastBlockWithoutFinalize)
 {
     SwitchTestMockSet();
@@ -1950,6 +2290,11 @@ TEST_F(TestUbseMemRpc, MigrateBPreservesTemplateAndConvertsLastBlockWithoutFinal
         ExpectMappedSwitchStatus(b);
         UbseMemMigrateOpResp end{};
         ASSERT_EQ(UBSE_OK, service.SwitchEndExport({1, info}, "1", end));
+        const auto deferred = GetSwitchTestImportObj()->deferredMigrateDecoders;
+        EXPECT_EQ(b == 0 ? 1U : 0U, deferred.size());
+        if (b == 0) {
+            EXPECT_EQ(old.status.decoderResult[0].handle, deferred.front().handle);
+        }
         EXPECT_TRUE(end.committed);
         ASSERT_TRUE(end.block);
         EXPECT_EQ(info.exportMemId, end.block->exportInfo.memId);
@@ -2101,6 +2446,7 @@ TEST_F(TestUbseMemRpc, UbseMemShmMigrateGetMessage_SerializeRoundtrip)
  */
 TEST_F(TestUbseMemRpc, UbseMemShmMigrateGetHandler_NotExist)
 {
+    MigrateLeaderMockSet();
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     UbseMemShmMigrateGetHandler handler{};
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShmMigrateGetReqMessage(UbseMemShmMigrateGetReq{});
@@ -2119,6 +2465,7 @@ TEST_F(TestUbseMemRpc, UbseMemShmMigrateGetHandler_NotExist)
  */
 TEST_F(TestUbseMemRpc, UbseMemShmMigrateGetHandler_ActiveSession)
 {
+    MigrateLeaderMockSet();
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     const std::string name = "migrate_get_active_mem";
     auto [session, isNew] = UbseMemShmMigrateSessionManager::GetInstance().GetOrCreateSession(
@@ -2188,6 +2535,7 @@ TEST_F(TestUbseMemRpc, UbseMemMigrateCancelMessage_SerializeRoundtrip)
  */
 TEST_F(TestUbseMemRpc, UbseMemShmMigrateCancelHandler_NotExist)
 {
+    MigrateLeaderMockSet();
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     UbseMemShmMigrateCancelHandler handler{};
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemMigrateCancelReqMessage(UbseMemMigrateCancelReq{});
@@ -2207,6 +2555,7 @@ TEST_F(TestUbseMemRpc, UbseMemShmMigrateCancelHandler_NotExist)
  */
 TEST_F(TestUbseMemRpc, UbseMemShmMigrateCancelHandler_AcceptAndIdempotent)
 {
+    MigrateLeaderMockSet();
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     const std::string name = "migrate_cancel_active_mem";
     auto [session, isNew] = UbseMemShmMigrateSessionManager::GetInstance().GetOrCreateSession(name, "3", "4", 4);
@@ -2459,7 +2808,7 @@ void AgentRetryMockSet()
         .stubs()
         .will(returnValue(std::make_shared<UbseComModule>()));
     MOCKER(&ubse::election::UbseGetMasterNodeId).stubs().will(invoke(&RetryTestMasterLookup));
-    MOCKER(&GetWaitTimeOut).stubs().will(returnValue(3U * SEND_RETRY_DURATION));
+    MOCKER(&GetWaitTimeOut).expects(never());
     MOCKER(&::sleep).stubs().will(invoke(&RetryTestAgentSleep));
     const auto send = &UbseComModule::RpcSend<UbseMemShareBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(send).stubs().will(invoke(&RetryTestReportSend));
@@ -2492,7 +2841,7 @@ TEST_F(TestUbseMemRpc, MigrateBlockResultRetryStaysWithRequestController)
     MOCKER(&context::UbseContext::GetModule<UbseComModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseComModule>()));
-    MOCKER(&GetWaitTimeOut).stubs().will(returnValue(3U * SEND_RETRY_DURATION));
+    MOCKER(&GetWaitTimeOut).expects(never());
     MOCKER(&::sleep).expects(once()).will(returnValue(0U));
     const auto send = &UbseComModule::RpcSend<UbseMemMigrateOpRespSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(send).stubs().will(invoke(&RetryTestBlockReportSend));
@@ -2519,9 +2868,9 @@ TEST_F(TestUbseMemRpc, UbseMemMigrateAgentReportLookupRetryExhausted)
     AgentRetryMockSet();
     g_agentLookupFails = true;
     UbseMemShmMigrateService::GetInstance().ProcessExportRequest(AgentRetryRequest());
-    EXPECT_EQ(3U, g_agentMasterQueries);
+    EXPECT_EQ(5U, g_agentMasterQueries);
     EXPECT_EQ(0U, g_agentReportSends);
-    EXPECT_EQ(3U, g_agentRetrySleeps);
+    EXPECT_EQ(5U, g_agentRetrySleeps);
 }
 
 TEST_F(TestUbseMemRpc, UbseMemMigrateAgentReportSendRetryExhausted)
@@ -2530,10 +2879,10 @@ TEST_F(TestUbseMemRpc, UbseMemMigrateAgentReportSendRetryExhausted)
     AgentRetryMockSet();
     g_agentSendFails = true;
     UbseMemShmMigrateService::GetInstance().ProcessExportRequest(AgentRetryRequest());
-    EXPECT_EQ(3U, g_agentMasterQueries);
-    EXPECT_EQ(3U, g_agentReportSends);
-    EXPECT_EQ(3U, g_agentRetrySleeps);
-    EXPECT_EQ((std::vector<std::string>{"11", "12", "13"}), g_agentReportTargets);
+    EXPECT_EQ(5U, g_agentMasterQueries);
+    EXPECT_EQ(5U, g_agentReportSends);
+    EXPECT_EQ(5U, g_agentRetrySleeps);
+    EXPECT_EQ((std::vector<std::string>{"11", "12", "13", "14", "15"}), g_agentReportTargets);
 }
 
 TEST_F(TestUbseMemRpc, UbseMemMigrateAgentReportStopsAfterSuccess)

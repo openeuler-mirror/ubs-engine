@@ -3690,6 +3690,7 @@ int32_t ubs_mem_shm_migrate(const char *name, uint32_t target_slot_id);
 | UBS\_ENGINE\_ERR\_ALLOCATE | 目标资源调度分配失败 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE | 服务端参数非法（name 或目标节点标识为空）|
 | UBS\_ENGINE\_ERR\_INVALID\_PARAM | 服务端判定请求非法（协议层错误码映射） |
+| UBS\_ENGINE\_ERR\_MASTER\_NOT\_READY | 主备倒换后对账采集中，暂不受理，可重试（1045） |
 
 **附注 NOTES**
 
@@ -3771,7 +3772,7 @@ int32_t ubs_mem_shm_migrate_get(const char *name, ubs_mem_shm_migrate_desc_t **d
  } ubs_mem_migrate_state_t;
 
  typedef struct {
-  char name[UBS_MEM_MAX_NAME_LENGTH];     // 共享内存名（会话唯一键）
+  char name[UBS_MEM_NAME_BUFFER_SIZE];    // 共享内存名（会话唯一键）
   uint32_t src_slot_id;                   // 原导出节点
   uint32_t dst_slot_id;                   // 目标导出节点
   ubs_mem_migrate_state_t state;          // 迁移状态
@@ -3796,13 +3797,14 @@ int32_t ubs_mem_shm_migrate_get(const char *name, ubs_mem_shm_migrate_desc_t **d
 | UBS\_ERR\_OUT\_OF\_MEMORY | 内存不足 |
 | UBS\_ERR\_IPC\_CONNECTION\_FAILED | SDK 建立 IPC 连接失败 |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED | UBSE 服务端鉴权不通过 |
-| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录（含 master 重启后） |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录 |
 | UBS\_ERR\_TIMED\_OUT | SDK IPC 请求发送、等待或接收超时 |
 | UBS\_ENGINE\_ERR\_INTERNAL | UBSE 服务端内部错误 |
+| UBS\_ENGINE\_ERR\_MASTER\_NOT\_READY | 主备倒换后对账采集中，暂无法给出结论，可重试等待或重建（1045） |
 
 **附注 NOTES**
 
-终态（SUCCESS/FAILED/CANCELED）保留最近一条记录，可继续查询；新受理后覆盖旧记录，资源销毁清理时可移除会话，之后查询返回不存在。会话仅存 master 内存，master 重启后不保留。`migrated_memids` 表示整块完成提交的块数，不表示 copy 已完成但尚未提交的块。
+终态（SUCCESS/FAILED/CANCELED）保留最近一条记录，可继续查询；新受理后覆盖旧记录，资源销毁清理时可移除会话，之后查询返回不存在。`migrated_memids` 表示整块完成提交的块数，不表示 copy 已完成但尚未提交的块。
 
 | error_code | 含义 |
 | --- | --- |
@@ -3903,10 +3905,11 @@ int32_t ubs_mem_shm_migrate_cancel(const char *name);
 | UBS\_ERR\_OUT\_OF\_MEMORY | 内存不足 |
 | UBS\_ERR\_IPC\_CONNECTION\_FAILED | SDK 建立 IPC 连接失败 |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED | UBSE 服务端鉴权不通过 |
-| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录（含 master 重启后） |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST | 无迁移会话记录 |
 | UBS\_ERR\_TIMED\_OUT | SDK IPC 请求发送、等待或接收超时 |
 | UBS\_ENGINE\_ERR\_INTERNAL | UBSE 服务端内部错误 |
 | UBS\_ENGINE\_ERR\_MIGRATE\_NOT\_ALLOWED | 当前会话状态不允许取消（不处于 INIT/EXPORTING，含终态） |
+| UBS\_ENGINE\_ERR\_MASTER\_NOT\_READY | 主备倒换后对账采集中，暂不受理，可重试（1045） |
 
 **附注 NOTES**
 

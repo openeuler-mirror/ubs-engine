@@ -108,6 +108,7 @@ typedef enum
     UBS_ENGINE_ERR_MIGRATE_IN_PROGRESS = 1042,      // 迁移执行中
     UBS_ENGINE_ERR_MIGRATE_NOT_ALLOWED = 1043,      // 迁移预检不通过
     UBS_ENGINE_ERR_MIGRATE_REBUILD_REQUIRED = 1044, // 不允许再次迁移/新增使用，需归还重建
+    UBS_ENGINE_ERR_MASTER_NOT_READY = 1045,         // 主备倒换中, 迁移受理可重试
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */

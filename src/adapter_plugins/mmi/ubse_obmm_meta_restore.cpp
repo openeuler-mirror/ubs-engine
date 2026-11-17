@@ -26,6 +26,7 @@
 #include "ubse_logger.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
+#include "ubse_mmi_def.h"
 #include "ubse_obmm_utils.h"
 #include "ubse_security_module.h"
 #include "fcntl.h"
@@ -164,9 +165,8 @@ UbseResult RmObmmMetaRestore::ReadAgentLocalObmmMetaData(
         obmmMetaData.usedPidSet = usedPidSets[i];
         auto ret = RestoreAgentLocalObmmMetaData(obmmShmDevPath[i], obmmMetaData);
         if (ret != UBSE_OK) {
-            // 设备采集失败，沿用原恢复流程，由同名对象完整性校验触发异常清理。
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm Meta collect fail; continue with abnormal object cleanup, path="
-                           << obmmShmDevPath[i] << ", ret=" << ret;
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm Meta collect fail, skip device, path=" << obmmShmDevPath[i]
+                           << ", memId=" << obmmMetaData.localMemId << ", ret=" << ret;
             continue;
         }
         ubseMemLocalObmmMetaDatas.push_back(obmmMetaData);
@@ -224,10 +224,107 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(const uint
     return ret;
 }
 
+namespace {
+// 过渡态（SWAPPING/FINISHING）短间隔、有限次数重试，等待当前切换操作收敛
+constexpr int SWITCH_TRANSIENT_RETRY_TIMES = 5;
+constexpr useconds_t SWITCH_TRANSIENT_RETRY_INTERVAL_US = 100 * 1000; // 100ms
+
+bool IsSwitchTransientState(uint8_t switchState)
+{
+    return switchState == static_cast<uint8_t>(ObmmSwitchState::SWAPPING) ||
+           switchState == static_cast<uint8_t>(ObmmSwitchState::FINISHING);
+}
+} // namespace
+
+UbseResult RmObmmDevRead::GetStableSwitchState(mem_id memId, uint8_t& switchState)
+{
+    auto ret = RmObmmDevRead::GetSwitchState(memId, switchState);
+    for (int i = 0; ret == UBSE_OK && IsSwitchTransientState(switchState) && i < SWITCH_TRANSIENT_RETRY_TIMES; ++i) {
+        (void)usleep(SWITCH_TRANSIENT_RETRY_INTERVAL_US);
+        ret = RmObmmDevRead::GetSwitchState(memId, switchState);
+    }
+    if (ret == UBSE_OK && IsSwitchTransientState(switchState)) {
+        // 重试耗尽仍处于过渡态：本设备读取失败，不能默认成 IDLE。
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Switch state still transient after retry, memId=" << memId
+                       << ", state=" << static_cast<uint32_t>(switchState);
+        return UBSE_MMI_OPEN_FAILED;
+    }
+    return ret;
+}
+
+// AWAIT_READY 只读 memId、size、priv，跳过 type、import_info/export_info 等不可读身份字段；
+// STRANDED 恢复 memId 及可读元数据，保留不可用资源记录。旧身份与引用按 priv 恢复，不伪造 pending 目标。
+// priv 已在版本识别阶段读取，这里不再重复读取。
+UbseResult RestoreAgentLocalObmmMetaDataInSwitch(const std::string& path, UbseMemLocalObmmMetaData& localObmmMetaData,
+                                                 ObmmSwitchState switchState)
+{
+    auto ret = RmObmmDevRead::GetTotalSize(OBMM_META_PATH + path, localObmmMetaData.totalSize);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get total size fail in switch state! Path=" << path
+                       << ", state=" << static_cast<uint32_t>(switchState);
+        return ret;
+    }
+    localObmmMetaData.obmmMemExportInfo.length = localObmmMetaData.totalSize;
+
+    // AWAIT_READY/STRANDED 内身份类 sysfs 不可读，导入/导出身份按旧 priv 的迁移标记恢复；
+    // 非共享 V2 设备不应处于切换态，无法恢复身份时按采集失败处理
+    if (localObmmMetaData.customMeta.version != OBMM_CUSTOM_META_V2) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Device in switch state without V2 migrate marker! Path=" << path
+                       << ", state=" << static_cast<uint32_t>(switchState)
+                       << ", version=" << static_cast<uint32_t>(localObmmMetaData.customMeta.version);
+        return UBSE_ERROR_INVAL;
+    }
+    localObmmMetaData.memIdType =
+        ubse::adapter_plugins::mmi::ShmMigrateIsExport(localObmmMetaData.customMeta.migrateInfo) ?
+            static_cast<uint8_t>(UbseObmmType::EXPORT) :
+            static_cast<uint8_t>(UbseObmmType::IMPORT);
+
+    UBSE_LOG_WARN << MMI_LOG_INFO << "Restore device in switch state, path=" << path
+                  << ", memId=" << localObmmMetaData.localMemId << ", state=" << static_cast<uint32_t>(switchState)
+                  << ", memIdType=" << static_cast<uint32_t>(localObmmMetaData.memIdType)
+                  << ", name=" << localObmmMetaData.customMeta.name;
+    return UBSE_OK;
+}
+
 UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& path,
                                                             UbseMemLocalObmmMetaData& localObmmMetaData)
 {
-    auto ret = RmObmmDevRead::GetMemIdType(OBMM_META_PATH + path, localObmmMetaData.memIdType);
+    // memId 从目录名解析，不依赖身份类文件，任何切换状态下都可读
+    auto ret = RmObmmDevRead::GetLocalMemId(OBMM_META_PATH + path, localObmmMetaData.localMemId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get local memId fail! Path=" << path;
+        return ret;
+    }
+
+    // 先读 priv 识别元数据版本：priv 在 AWAIT_READY 中仍可读取， type、import_info/export_info 等
+    // 不可读；switch_state 自 V2 起才必然存在，V1 及之前不强制读取，避免旧设备因缺少
+    // 该文件而恢复失败
+    ret = RmObmmDevRead::GetCustomMeta(OBMM_META_PATH + path, localObmmMetaData.customMeta, localObmmMetaData.privData);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get custom meta fail! Path=" << path;
+        return ret;
+    }
+
+    if (localObmmMetaData.customMeta.version == OBMM_CUSTOM_META_V2) {
+        // V2 必须读取切换状态（memId 已确定读到，路径拼接收在读取函数内部）：过渡态（SWAPPING/FINISHING）
+        // 短间隔、有限次数重试，稳定后重新分支；读取失败或重试耗尽按采集失败上报，不能当成 IDLE
+        uint8_t switchState{};
+        ret = RmObmmDevRead::GetStableSwitchState(localObmmMetaData.localMemId, switchState);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Get switch state fail or unstable! Path=" << path
+                           << ", memId=" << localObmmMetaData.localMemId << ", ret=" << ret;
+            return ret;
+        }
+        if (switchState == static_cast<uint8_t>(ObmmSwitchState::AWAIT_READY) ||
+            switchState == static_cast<uint8_t>(ObmmSwitchState::STRANDED)) {
+            return RestoreAgentLocalObmmMetaDataInSwitch(path, localObmmMetaData,
+                                                         static_cast<ObmmSwitchState>(switchState));
+        }
+    }
+
+    // V2 的 IDLE（或过渡态收敛后回到 IDLE）、V1 及之前，走现有正常恢复逻辑，读取实际身份、引用及描述
+    //（priv 已在版本识别阶段读取，不再重复读取）
+    ret = RmObmmDevRead::GetMemIdType(OBMM_META_PATH + path, localObmmMetaData.memIdType);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memory type fail! Path=" << path;
         return ret;
@@ -246,25 +343,39 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& p
         return ret;
     }
 
-    ret = RmObmmDevRead::GetLocalMemId(OBMM_META_PATH + path, localObmmMetaData.localMemId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get local memId fail! Path=" << path;
-        return ret;
-    }
-
     ret = RmObmmDevRead::GetMemUbMemInfo(OBMM_META_PATH + path, localObmmMetaData.memIdType,
                                          localObmmMetaData.obmmMemExportInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path=" << path;
         return ret;
     }
-
-    ret = RmObmmDevRead::GetCustomMeta(OBMM_META_PATH + path, localObmmMetaData.customMeta, localObmmMetaData.privData);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get custom meta fail! Path=" << path;
-        return ret;
+    if (localObmmMetaData.memIdType == static_cast<uint8_t>(UbseObmmType::IMPORT)) {
+        localObmmMetaData.obmmMemExportInfo.length = localObmmMetaData.totalSize;
     }
 
+    return UBSE_OK;
+}
+
+UbseResult RmObmmDevRead::GetSwitchState(mem_id memId, uint8_t& switchState)
+{
+    // 路径由 memId 在内部拼接，调用方只关心设备编号
+    std::string path2switchState =
+        std::string(OBMM_META_PATH) + "obmm_shmdev" + std::to_string(memId) + "/switch_state";
+    std::string stateStr;
+    auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2switchState, stateStr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get switch_state from obmm meta. Path=" << path2switchState
+                       << ", memId=" << memId;
+        return ret;
+    }
+    uint64_t state = 0;
+    if (!RmCommonUtils::GetInstance().StrToULL(stateStr, state) ||
+        state > static_cast<uint64_t>(ObmmSwitchState::STRANDED)) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid switch_state value, path=" << path2switchState
+                       << ", value=" << stateStr;
+        return UBSE_ERROR_INVAL;
+    }
+    switchState = static_cast<uint8_t>(state);
     return UBSE_OK;
 }
 

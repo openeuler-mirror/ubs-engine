@@ -118,6 +118,13 @@ UbseResult CycleCheckDecoderHandle()
         return res;
     }
 
+    // READY 后的 decoder 差集删除保护：存在新 decoder 引用尚未核实的迁移 gap 时暂停本轮删除，
+    // 待后续必要 end 完成并恢复有效引用后再启用
+    if (decoder::utils::MemDecoderUtils::HasUnverifiedMigrateGap()) {
+        UBSE_LOG_WARN << "Unverified migrate gap exists, pause decoder diff delete this cycle";
+        return UBSE_OK;
+    }
+
     std::vector<UbseMamiMemWithdraw> faultInfo{};
     DelHandleByMapDiff(allHandleValues, handleMap, faultInfo, temporaryHandles);
     if (!faultInfo.empty()) {

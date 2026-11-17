@@ -16,6 +16,7 @@
 
 #include "ubse_file_util.h"
 #include "ubse_logger.h"
+#include "ubse_mem_common_utils.h"
 #include "ubse_mem_instance_inner.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
@@ -40,15 +41,6 @@ using namespace ubse::nodeController;
 static int gAddrImportCount = 0;
 static int gUnPreImportCount = 0;
 static std::vector<mem_id> gUnimportMemIds{};
-static std::vector<std::pair<ubse::log::UbseLogLevel, std::string>> gSwitchLogEntries{};
-
-static bool CaptureSwitchLog(ubse::log::UbseLog*, ubse::log::UbseLoggerEntry& entry)
-{
-    std::ostringstream out;
-    entry.OutPutLog(out);
-    gSwitchLogEntries.emplace_back(entry.GetLogLevel(), out.str());
-    return true;
-}
 
 mem_id MockAddrImportWithUpdatedNuma(RmObmmExecutor* mockClass, const ubse_mem_obmm_mem_desc& desc,
                                      const ObmmOpParam& opParam, int* numa)
@@ -558,38 +550,88 @@ TEST_F(TestMemInstanceInner, MemShmSwitchBeginImportExecutor_IllegalParam)
     EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestMemInstanceInner, MemShmSwitchBeginImportExecutor_PaOnlyInDebugLog)
+// 故障迁移 begin_export：内核 size 表只承载本块分配；priv 必须保留完整调度模板，
+// 否则恢复侧会按 priv 重建出幻影多 NUMA 布局和错误总量。
+TEST_F(TestMemInstanceInner, MemShmSwitchBeginExportExecutor_PrivKeepsFullTemplate)
 {
-    gSwitchLogEntries.clear();
-    MOCKER_CPP(ubse::log::UbseIsLog, bool (*)(ubse::log::UbseLogLevel)).stubs().will(returnValue(true));
-    MOCKER_CPP(&ubse::log::UbseLog::operator==).stubs().will(invoke(CaptureSwitchLog));
-    MOCKER_CPP(&RmObmmExecutor::ObmmSwitchBeginImport).stubs().will(returnValue(UBSE_OK));
-
-    UbseMemShmSwitchObj switchObj{};
-    switchObj.name = "migrate-log-test";
-    switchObj.importNodeId = "4";
-    switchObj.oldImportMemId = 42;
-    switchObj.newPa = 0x1234567800ULL;
-    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_OK);
-    switchObj.oldImportMemId = 0;
-    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginImportExecutor(switchObj), UBSE_ERROR_INVAL);
-
-    bool hasDebugPa = false;
-    bool hasInfo = false;
-    bool hasError = false;
-    const auto address = std::to_string(switchObj.newPa);
-    for (const auto& [level, message] : gSwitchLogEntries) {
-        if (level == ubse::log::UbseLogLevel::DEBUG) {
-            hasDebugPa = hasDebugPa || message.find(address) != std::string::npos;
-        } else {
-            EXPECT_EQ(message.find(address), std::string::npos);
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    auto& executor = RmObmmExecutor::GetInstance();
+    // RAII 恢复全局函数指针，避免 ASSERT 失败跳过清理污染后续用例。
+    struct BeginExportFuncGuard {
+        RmObmmExecutor& executor;
+        ObmmSwitchBeginExportPtr oldFunc;
+        ~BeginExportFuncGuard()
+        {
+            executor.obmmSwitchBeginExportFunc = oldFunc;
         }
-        hasInfo = hasInfo || level == ubse::log::UbseLogLevel::INFO;
-        hasError = hasError || level == ubse::log::UbseLogLevel::ERROR;
+    } funcGuard{executor, executor.obmmSwitchBeginExportFunc};
+
+    static struct obmm_switch_export_target captured {
+    };
+    static uint8_t capturedPriv[OBMM_MAX_PRIV_LEN] = {};
+    static uint16_t capturedLen = 0;
+    executor.obmmSwitchBeginExportFunc = [](mem_id, unsigned long, const struct obmm_switch_export_target* target,
+                                            struct obmm_mem_desc* desc, const void* priv, uint16_t privLen) {
+        captured = *target;
+        if (privLen > 0) {
+            memcpy_s(capturedPriv, sizeof(capturedPriv), priv, privLen);
+        }
+        capturedLen = privLen;
+        desc->addr = 0x1234;
+        return 0;
+    };
+
+    const uint64_t giga = 1024ULL * 1024 * 1024;
+    UbseMemShareBorrowExportObj exportObj{};
+    exportObj.req.name = "migrate-export-test";
+    exportObj.req.requestNodeId = "2";
+    exportObj.req.size = 16ULL * giga;
+    exportObj.req.udsInfo = {100, 200, 1000, "ut"};
+    exportObj.req.shmRegion.nodeNum = 1;
+    exportObj.req.shmRegion.nodelist.push_back({0});
+    // 容器顺序与 NUMA ID 升序相反：按普通导出规则，numa0 的 4G 是块 0，numa1 的 12G 占块 1~3。
+    exportObj.algoResult.exportNumaInfos = {{"1", 0, 1, 12ULL * giga}, {"1", 0, 0, 4ULL * giga}};
+    exportObj.algoResult.importNumaInfos = {{"2", 0, 1, 12ULL * giga}, {"2", 0, 0, 4ULL * giga}};
+    std::vector<uint32_t> markers;
+    for (uint32_t i = 0; i < 4; ++i) {
+        markers.push_back(MakeShmMigrateInfo(0, i, 1, true));
     }
-    EXPECT_TRUE(hasDebugPa);
-    EXPECT_TRUE(hasInfo);
-    EXPECT_TRUE(hasError);
+    exportObj.migrateInfos = markers;
+
+    UbseMemShmSwitchExportObj switchObj{};
+    switchObj.importMemId = 42;
+    switchObj.blockIndex = 3; // 块 3 落点 numa1
+    switchObj.blockLength = 4ULL * giga;
+    switchObj.exportObj = exportObj;
+
+    ubse_mem_obmm_mem_desc desc{};
+    EXPECT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginExportExecutor(switchObj, desc), UBSE_OK);
+    // 内核 size 表只含本块分配：numa0 为 0，numa1 为块长。
+    EXPECT_EQ(captured.node_count, 2);
+    EXPECT_EQ(captured.size[0], 0U);
+    EXPECT_EQ(captured.size[1], 4ULL * giga);
+    EXPECT_EQ(desc.addr, 0x1234U);
+
+    // priv 保持完整调度模板，不被本块分配改写。
+    ASSERT_GT(capturedLen, 0U);
+    UbseMemLocalObmmCustomMeta meta{};
+    UbMemPrivData privData{};
+    ASSERT_EQ(DecodeObmmCustomMeta(capturedPriv, capturedLen, meta, privData), UBSE_OK);
+    EXPECT_EQ(meta.exportNumaIds[0], 1);
+    EXPECT_EQ(meta.numaSizes[0], 12ULL * giga);
+    EXPECT_EQ(meta.exportNumaIds[1], 0);
+    EXPECT_EQ(meta.numaSizes[1], 4ULL * giga);
+    EXPECT_EQ(meta.memidCount, 4U);
+    EXPECT_EQ(meta.migrateInfo, MakeShmMigrateInfo(0, 3, 1, true));
+    for (uint32_t b = 0; b < 4; ++b) {
+        switchObj.blockIndex = b;
+        ASSERT_EQ(MemInstanceInnerShm::GetInstance().MemShmSwitchBeginExportExecutor(switchObj, desc), UBSE_OK);
+        EXPECT_EQ(captured.size[0], b == 0 ? 4ULL * giga : 0);
+        EXPECT_EQ(captured.size[1], b == 0 ? 0 : 4ULL * giga);
+        EXPECT_EQ(desc.length, 4ULL * giga);
+        ASSERT_EQ(DecodeObmmCustomMeta(capturedPriv, capturedLen, meta, privData), UBSE_OK);
+        EXPECT_EQ(meta.migrateInfo, markers[b]);
+    }
 }
 
 TEST_F(TestMemInstanceInner, ImportObjectFormattingIncludesCurrentAddresses)

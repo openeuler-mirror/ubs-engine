@@ -34,6 +34,9 @@ using ubse::adapter_plugins::mmi::UbseMemShmMigrateReq;
 // 判断两个导出对象是否指向同一份资源：迁移标记一致且各块设备memId一致；用于迟到回包与当前资源的归属核验。
 bool IsSameExportResource(const UbseMemShareBorrowExportObj& left, const UbseMemShareBorrowExportObj& right);
 
+// 该 name 在已采集账本中是否存在迁移痕迹(迁移标记/切换中/导入switchContext)。
+bool NameHasMigrationTrace(const std::string& name);
+
 // 共享内存故障迁移服务门面；实现分布于mem_controller/migrate的API、master、agent和账本单元。
 class UbseMemShmMigrateService {
 public:
@@ -50,6 +53,12 @@ public:
     void Cancel(const std::string& name, UbseMemMigrateCancelResp& resp);
     /* 执行体：使用受理时登记的导出账本执行普通导出或原导入设备就地切换；块级回调推进并完成收尾。 */
     uint32_t Execute(const std::string& name);
+    // 本轮可联通节点首次对账全部完成后，统一重建会话并按当前块接续；
+    // 返回 false 表示存在因参与节点暂不可用而暂缓处理的 name，调用方需重置恢复触发标记，待节点上线后重新扫描。
+    bool RecoverAfterReconciliation();
+    // 主备倒换后初始对账未收齐，且该 name 在已采集账本中存在迁移痕迹时返回 true：
+    // 查询按"对账采集中"应答(不返回 NOT_EXIST)，受理被拦截；对账收齐或无痕迹时返回 false。
+    bool IsReconciliationPending(const std::string& name);
     void Export(const UbseMemShareBorrowExportObj& obj, UbseMemShareBorrowExportObj& rsp);
     /* agent 执行入口：name+blockIndex 块级写锁内统一校验，copy与end在同块串行；requestMasterNodeId 为请求发起 Master，来自可信 RPC 上下文。 */
     uint32_t SwitchBeginImport(const UbseMemMigrateSwitchBeginImportReq& req, const std::string& requestMasterNodeId,

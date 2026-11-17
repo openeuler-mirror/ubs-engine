@@ -941,6 +941,76 @@ TEST_F(TestUbseMemControllerLedger, LedgerHandler)
     EXPECT_EQ(LedgerHandler(node), UBSE_OK);
 }
 
+TEST_F(TestUbseMemControllerLedger, MigrationRecoveryWaitsForAllStaticNodeLedgers)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    state.ResetMigrationRecovery(true);
+    std::vector<nodeController::UbseNodeInfo> staticNodes;
+    for (const auto& nodeId : {"1", "2", "3", "4"}) {
+        nodeController::UbseNodeInfo node;
+        node.nodeId = nodeId;
+        staticNodes.push_back(node);
+    }
+    MOCKER(&CheckNodeIsMaster).stubs().will(returnValue(true));
+    MOCKER(&GetCurNodeId).stubs().will(returnValue(std::string{"2"}));
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+    MOCKER(&UbseNodeGetLinkUpNodes).expects(never());
+    MOCKER(&GetExecutor).expects(never());
+
+    nodeController::UbseNodeInfo node;
+    node.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    // 本地export先到，远端export/import随后到；静态名单中的旧主仍未完成对账。
+    for (const auto& nodeId : {"2", "3", "4"}) {
+        node.nodeId = nodeId;
+        EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+    }
+    MOCKER(&GetExecutor).reset();
+    MOCKER(&GetExecutor).expects(once()).will(returnValue(UbseTaskExecutorPtr{}));
+    node.nodeId = "1";
+    EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+    state.ResetMigrationRecovery(false);
+}
+
+TEST_F(TestUbseMemControllerLedger, MigrationRecoveryKeepsCompletedLedgerUntilInit)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    state.ResetMigrationRecovery(true);
+    nodeController::UbseNodeInfo node;
+    node.nodeId = "1";
+    state.SetInitLedgerDone(node.nodeId, true);
+    for (const auto status : {UbseNodeClusterState::UBSE_NODE_UNKNOWN, UbseNodeClusterState::UBSE_NODE_FAULT,
+                              UbseNodeClusterState::UBSE_NODE_PRE_BMC}) {
+        node.clusterState = status;
+        EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+        EXPECT_TRUE(state.IsInitLedgerDone(node.nodeId));
+    }
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery({node.nodeId}));
+    node.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+    EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+    EXPECT_FALSE(state.IsInitLedgerDone(node.nodeId));
+    state.ResetMigrationRecovery(false);
+}
+
+TEST_F(TestUbseMemControllerLedger, MigrationRecoveryDoesNotConsumeGateWithoutStaticNodes)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    MOCKER(&CheckNodeIsMaster).stubs().will(returnValue(true));
+    MOCKER(&UbseNodeController::GetStaticNodeInfo)
+        .stubs()
+        .will(returnValue(std::vector<nodeController::UbseNodeInfo>{}));
+    MOCKER(&GetExecutor).expects(never());
+    nodeController::UbseNodeInfo node;
+    node.nodeId = "2";
+    node.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    // 名单为空不能降级成只等本地节点，也不能消耗恢复入口。
+    {
+        state.ResetMigrationRecovery(true);
+        EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+        EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery({node.nodeId}));
+    }
+    state.ResetMigrationRecovery(false);
+}
+
 TEST_F(TestUbseMemControllerLedger, FdBorrowLedger)
 {
     std::string nodeId = "1";

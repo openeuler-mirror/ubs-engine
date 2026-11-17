@@ -17,10 +17,14 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_mem_types.h"
+#include "ubse_mmi_def.h"
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
 using ubse::common::def::UbseResult;
+
+// 内核 obmm 设备切换状态枚举真值源在公共头 ubse_mmi_def.h（ubse::adapter_plugins::mmi 命名空间）
+using ObmmSwitchState = ubse::adapter_plugins::mmi::ObmmSwitchState;
 
 class RmObmmMetaRestore {
 public:
@@ -122,6 +126,18 @@ public:
 
     static UbseResult GetNameByMemId(mem_id memId, std::string& name);
     static UbseResult GetBorrowTypeByMemId(mem_id memId, uint8_t& borrowType);
+
+    /**
+     * @brief 按本地 memId 读取 obmm 设备的内核切换状态（sysfs switch_state），gap 内可正常读取；
+     *        memId 对应的路径在本函数内部拼接（memId=12 -> /sys/devices/obmm/obmm_shmdev12/switch_state）
+     * @param memId 本地设备编号
+     * @param switchState ObmmSwitchState 取值
+     * @return code 0 返回成功 非0错误
+     */
+    static UbseResult GetSwitchState(mem_id memId, uint8_t& switchState);
+
+    // 过渡态短间隔重试，返回稳定状态；读取失败或重试耗尽时返回错误。
+    static UbseResult GetStableSwitchState(mem_id memId, uint8_t& switchState);
 };
 } // namespace ubse::mmi
 

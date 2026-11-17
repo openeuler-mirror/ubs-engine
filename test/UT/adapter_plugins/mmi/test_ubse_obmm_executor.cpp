@@ -1,4 +1,5 @@
 #include <cstring>
+#include "ubse_mem_common_utils.h"
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
@@ -14,6 +15,7 @@
 #include "test_ubse_obmm_executor.h"
 
 #include <sys/mman.h>
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -312,6 +314,26 @@ TEST_F(TestUbseObmmSwitch, SharedImportPrivClearsExportIdentityAndOrigin)
     EXPECT_EQ(executor.ObmmImport(desc, param, status, nullptr).size(), 1);
 }
 
+// 容量拆分规则锁定：按 NUMA ID 升序分块，普通导出与迁移 begin_export 共用同一块序。
+TEST_F(TestUbseObmmSwitch, SplitObmmExportSizeOrdersBlocksByNumaId)
+{
+    size_t sizes[MAX_NUMA_NODES]{};
+    sizes[1] = 12ULL << 30;
+    sizes[0] = 4ULL << 30;
+    std::vector<std::array<size_t, MAX_NUMA_NODES>> blocks;
+    ASSERT_TRUE(SplitObmmExportSize(sizes, 4ULL << 30, blocks));
+    ASSERT_EQ(blocks.size(), 4U);
+    EXPECT_EQ(blocks[0][0], 4ULL << 30);
+    EXPECT_EQ(blocks[1][1], 4ULL << 30);
+    EXPECT_EQ(blocks[2][1], 4ULL << 30);
+    EXPECT_EQ(blocks[3][1], 4ULL << 30);
+    for (const auto& block : blocks) {
+        EXPECT_EQ(std::count_if(block.begin(), block.end(), [](size_t size) { return size != 0; }), 1);
+    }
+    // 非法输入：块长为 0 拆分失败。
+    EXPECT_FALSE(SplitObmmExportSize(sizes, 0, blocks));
+}
+
 // 结构体布局锁定（与 ubse_mem_types.h 中 static_assert 双保险）
 TEST_F(TestUbseObmmSwitch, SwitchBeginImportTargetLayout)
 {
@@ -514,7 +536,7 @@ TEST_F(TestUbseObmmSwitch, SwitchBeginExport_LastBlockUsesSameNumaDecision)
         UbseMemLocalObmmCustomMeta meta{};
         UbMemPrivData prefix{};
         EXPECT_EQ(DecodeObmmCustomMeta(static_cast<const uint8_t*>(priv), privLen, meta, prefix), UBSE_OK);
-        EXPECT_EQ(meta.numaSizes[0], 128ULL << 20);
+        EXPECT_EQ(meta.numaSizes[0], 1024ULL << 20);
         EXPECT_EQ(meta.exportNumaIds[0], 2);
         EXPECT_EQ(meta.memidCount, 8);
         EXPECT_EQ(meta.migrateInfo, 0x800b1007U);
@@ -526,7 +548,7 @@ TEST_F(TestUbseObmmSwitch, SwitchBeginExport_LastBlockUsesSameNumaDecision)
     ubse::adapter_plugins::mmi::UbseMemShmSwitchExportObj request{};
     request.importMemId = TEST_SWITCH_MEM_ID;
     request.blockIndex = 7;
-    request.numaSizes = {0, 0, 128ULL << 20};
+    request.blockLength = 128ULL << 20;
     request.exportObj.req.name = "mapped_eight_blocks";
     request.exportObj.req.requestNodeId = "2";
     request.exportObj.algoResult.exportNumaInfos = {{"2", 0, 2, 1024ULL << 20}};
@@ -563,7 +585,9 @@ TEST_F(TestUbseObmmSwitch, SwitchBeginExport_UsesOnlyReturnedCredentials)
     };
     ubse::adapter_plugins::mmi::UbseMemShmSwitchExportObj request{};
     request.importMemId = TEST_SWITCH_MEM_ID;
-    request.numaSizes = {2u << 20, 4u << 20};
+    request.blockLength = 6u << 20;
+    request.exportObj.algoResult.exportNumaInfos = {{"2", 0, 1, 6u << 20}};
+    request.exportObj.migrateInfos.resize(1);
     request.priv = {3};
     request.seid[0] = 0x12;
     request.seid[1] = 0x34;
@@ -596,12 +620,27 @@ TEST_F(TestUbseObmmSwitch, SwitchBeginExport_InvalidInputDoesNotReachObmm)
     ubse_mem_obmm_mem_desc desc{};
     auto& inner = MemInstanceInnerShm::GetInstance();
     EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
-    request.numaSizes.assign(OBMM_MAX_LOCAL_NUMA_NODES + 1, 2u << 20);
+    request.blockLength = 2u << 20;
+    request.exportObj.algoResult.exportNumaInfos = {{"2", 0, OBMM_MAX_LOCAL_NUMA_NODES, 2u << 20}};
     EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
-    request.numaSizes = {2u << 20};
+    request.exportObj.algoResult.exportNumaInfos = {{"2", 0, 0, 2u << 20}};
+    request.exportObj.migrateInfos.resize(1);
     request.importMemId = 0;
     EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
     request.importMemId = TEST_SWITCH_MEM_ID;
+    const auto valid = request;
+    request.exportObj.algoResult.exportNumaInfos.push_back({"2", 0, 0, 2u << 20});
+    EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
+    request = valid;
+    request.exportObj.algoResult.exportNumaInfos.push_back({"2", 0, 1, 3u << 20});
+    EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
+    request = valid;
+    request.exportObj.migrateInfos.clear();
+    EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
+    request = valid;
+    request.blockIndex = 1;
+    EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
+    request = valid;
     request.priv.resize(OBMM_MAX_PRIV_LEN + 1);
     EXPECT_EQ(inner.MemShmSwitchBeginExportExecutor(request, desc), UBSE_ERROR_INVAL);
 }
@@ -622,7 +661,7 @@ TEST_F(TestUbseObmmSwitch, SwitchEnd_SuccessAndSuccessParamMapping)
     EXPECT_EQ(capturedSuccess, 0);
 }
 
-// switch_end 三态：EAGAIN 可重试 / ESTALE 切换已不存在，不得混同一般失败
+// EAGAIN 可重试；ESTALE 回退按幂等成功处理，提交仍返回切换不存在供上层核实。
 TEST_F(TestUbseObmmSwitch, SwitchEnd_ErrnoTranslation)
 {
     static int errToSet = 0;
@@ -636,28 +675,15 @@ TEST_F(TestUbseObmmSwitch, SwitchEnd_ErrnoTranslation)
 
     errToSet = EAGAIN;
     EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, true), UBSE_ERROR_AGAIN);
+    EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, false), UBSE_ERROR_AGAIN);
 
     errToSet = ESTALE;
     EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, true), UBSE_MMI_OBMM_SWITCH_NOT_EXIST);
+    EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, false), UBSE_OK);
 
     errToSet = EINVAL;
     EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, true), UBSE_MMI_OBMM_OP_FAILED);
+    EXPECT_EQ(executor.ObmmSwitchEnd(TEST_SWITCH_MEM_ID, false), UBSE_MMI_OBMM_OP_FAILED);
 }
 
-TEST_F(TestUbseObmmSwitch, MemcpyMtCopiesWithEightThreads)
-{
-    auto& executor = RmObmmExecutor::GetInstance();
-    auto saved = executor.memcpyMtFunc;
-    executor.memcpyMtFunc = [](void* dst, const void* src, size_t size, unsigned int threads) -> void* {
-        EXPECT_EQ(8U, threads);
-        return std::memcpy(dst, src, size);
-    };
-    const char src[] = "migration";
-    char dst[sizeof(src)]{};
-    EXPECT_EQ(UBSE_OK, executor.MemcpyMt(dst, src, sizeof(src)));
-    EXPECT_EQ(0, std::memcmp(dst, src, sizeof(src)));
-    executor.memcpyMtFunc = nullptr;
-    EXPECT_EQ(UBSE_ERROR_INVAL, executor.MemcpyMt(dst, src, sizeof(src)));
-    executor.memcpyMtFunc = saved;
-}
 } // namespace ubse::ut::mmi

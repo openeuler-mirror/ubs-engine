@@ -16,11 +16,13 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <limits>
 
 #include "ubse_error.h"
 #include "ubse_file_util.h"
+#include "ubse_logger.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_obj_restore.h"
@@ -419,12 +421,6 @@ uint32_t MemInstanceInnerShm::MemShmUnImportExecutor(const UbseMemShareBorrowImp
 
 uint32_t MemInstanceInnerShm::MemShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "MemShmSwitchBeginImportExecutor, name=" << switchObj.name
-                  << ", memId=" << switchObj.oldImportMemId << ", scna=" << switchObj.newScna
-                  << ", dcna=" << switchObj.newDcna << ", privLen=" << switchObj.priv.size();
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "Switch begin_import address, name=" << switchObj.name
-                   << ", importNodeId=" << switchObj.importNodeId << ", memId=" << switchObj.oldImportMemId
-                   << ", newPa=" << switchObj.newPa;
     if (switchObj.oldImportMemId == 0 || switchObj.newPa == 0) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Switch param illegal, name=" << switchObj.name
                        << ", memid=" << switchObj.oldImportMemId << ", hasNewPa=" << (switchObj.newPa != 0);
@@ -445,31 +441,36 @@ uint32_t MemInstanceInnerShm::MemShmSwitchBeginImportExecutor(const UbseMemShmSw
 uint32_t MemInstanceInnerShm::MemShmSwitchBeginExportExecutor(const UbseMemShmSwitchExportObj& switchObj,
                                                               ubse_mem_obmm_mem_desc& desc)
 {
-    if (switchObj.importMemId == 0 || switchObj.exportFlags != 0 || switchObj.numaSizes.empty() ||
-        switchObj.numaSizes.size() > OBMM_MAX_LOCAL_NUMA_NODES) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemShmSwitchBeginExport param illegal, importMemId=" << switchObj.importMemId
-                       << ", exportFlags=" << switchObj.exportFlags << ", numaSizeCount=" << switchObj.numaSizes.size();
+    if (switchObj.importMemId == 0 || switchObj.exportFlags != 0 || switchObj.blockLength == 0) {
+        return UBSE_ERROR_INVAL;
+    }
+    size_t sizes[MAX_NUMA_NODES]{};
+    for (const auto& numa : switchObj.exportObj.algoResult.exportNumaInfos) {
+        if (numa.numaId < 0 || numa.numaId >= OBMM_MAX_LOCAL_NUMA_NODES || numa.size == 0 ||
+            numa.size % switchObj.blockLength != 0 || sizes[numa.numaId] != 0) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid switch export layout, numaId=" << numa.numaId
+                           << ", size=" << numa.size << ", blockLength=" << switchObj.blockLength;
+            return UBSE_ERROR_INVAL;
+        }
+        sizes[numa.numaId] = numa.size;
+    }
+    std::vector<std::array<size_t, MAX_NUMA_NODES>> blocks;
+    if (!SplitObmmExportSize(sizes, switchObj.blockLength, blocks) ||
+        blocks.size() != switchObj.exportObj.migrateInfos.size() || switchObj.blockIndex >= blocks.size()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid switch export block, index=" << switchObj.blockIndex
+                       << ", blocks=" << blocks.size() << ", markers=" << switchObj.exportObj.migrateInfos.size();
         return UBSE_ERROR_INVAL;
     }
     ObmmSwitchExportParam param{};
     param.importMemId = switchObj.importMemId;
-    param.target.node_count = static_cast<int>(switchObj.numaSizes.size());
-    param.target.export_flags = static_cast<unsigned long>(switchObj.exportFlags);
-    uint64_t totalSize = 0;
-    for (size_t i = 0; i < switchObj.numaSizes.size(); ++i) {
-        const auto size = switchObj.numaSizes[i];
-        if (size > std::numeric_limits<uint64_t>::max() - totalSize || size > std::numeric_limits<size_t>::max()) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "MemShmSwitchBeginExport size overflow, index=" << i << ", size=" << size
-                           << ", totalSize=" << totalSize;
-            return UBSE_ERROR_INVAL;
+    const auto& block = blocks[switchObj.blockIndex];
+    for (size_t i = 0; i < OBMM_MAX_LOCAL_NUMA_NODES; ++i) {
+        param.target.size[i] = block[i];
+        if (block[i] != 0) {
+            param.target.node_count = static_cast<int>(i + 1);
         }
-        totalSize += size;
-        param.target.size[i] = static_cast<size_t>(size);
     }
-    if (totalSize == 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemShmSwitchBeginExport total size is zero.";
-        return UBSE_ERROR_INVAL;
-    }
+    const auto totalSize = switchObj.blockLength;
     param.seid = switchObj.seid;
     param.deid = switchObj.deid;
     param.priv = switchObj.priv;
@@ -481,10 +482,9 @@ uint32_t MemInstanceInnerShm::MemShmSwitchBeginExportExecutor(const UbseMemShmSw
                            << ", blockIndex=" << switchObj.blockIndex;
             return UBSE_ERROR_INVAL;
         }
-        auto blockExportObj = switchObj.exportObj;
-        // 当前设备priv只保存本块分配，完整调度模板保持不变。
-        blockExportObj.algoResult.exportNumaInfos.front().size = totalSize;
-        if (GetCustomMetaFromShmExportObj(blockExportObj, customMeta) != UBSE_OK) {
+        // 与正常导出一致，块设备 priv 携带完整调度模板；本块实际分配由设备 size 和 NUMA 分配参数承载，
+        // 不能改写模板容量，否则恢复侧会重建出幻影多 NUMA 布局和错误总量。
+        if (GetCustomMetaFromShmExportObj(switchObj.exportObj, customMeta) != UBSE_OK) {
             UBSE_LOG_ERROR << MMI_LOG_INFO
                            << "MemShmSwitchBeginExport get custom meta failed, importMemId=" << switchObj.importMemId
                            << ", blockIndex=" << switchObj.blockIndex;
@@ -529,9 +529,6 @@ uint32_t MemInstanceInnerShm::MemShmSwitchBeginExportExecutor(const UbseMemShmSw
     }
     // scna/dcna/marId 属于具体导入链路，由 GetCnaInfoWhenImport 在准备导入请求时填入。
     obmm_mem_desc rawDesc{};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "MemShmSwitchBeginExport call, name=" << switchObj.exportObj.req.name
-                  << ", memId=" << switchObj.importMemId << ", blockIndex=" << switchObj.blockIndex
-                  << ", expectedLength=" << totalSize << ", privLen=" << param.priv.size();
     const auto ret = RmObmmExecutor::GetInstance().ObmmSwitchBeginExport(param, rawDesc);
     if (ret == UBSE_OK) {
         exportDesc.tokenid = rawDesc.tokenid;
@@ -543,15 +540,11 @@ uint32_t MemInstanceInnerShm::MemShmSwitchBeginExportExecutor(const UbseMemShmSw
 
 uint32_t MemInstanceInnerShm::MemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "MemShmSwitchEndExecutor, name=" << switchObj.name
-                  << ", memid=" << switchObj.oldImportMemId << ", success=" << success;
     return RmObmmExecutor::GetInstance().ObmmSwitchEnd(switchObj.oldImportMemId, success);
 }
 
 uint32_t MemInstanceInnerShm::MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "MemShmMigrateCopyExecutor, memId=" << memId << ", size=" << size
-                  << ", cacheable=" << cacheable;
     constexpr uint64_t SWITCH_OLD = 1ULL << 61;
     constexpr uint64_t SWITCH_NEW = 1ULL << 60;
     if (memId == 0 || size == 0 || size > std::numeric_limits<size_t>::max()) {
@@ -690,18 +683,20 @@ uint32_t MemInstanceInnerCommon::MemGetObjData(NodeMemDebtInfo& memBorrowObj,
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemGetObjDataFdNuma failed, ret=" << ret;
         return ret;
     }
-    ret = ConstructShareImportObj(localObmmMetaData.ShmImportMetaData, memBorrowObj.shareImportObjMap);
+    // 卸载残缺共享对象前，按整个 name 核对切换状态和迁移版本，两侧使用同一份保护集合。
+    const auto protectedNames = GetProtectedShareNames(localObmmMetaData);
+    ret = ConstructShareImportObj(localObmmMetaData.ShmImportMetaData, memBorrowObj.shareImportObjMap, protectedNames);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ConstructShareImportObj failed, ret=" << ret;
         return ret;
     }
-    ret = ConstructShareExportObj(localObmmMetaData.ShmExportMetaData, memBorrowObj.shareExportObjMap);
+    ret = ConstructShareExportObj(localObmmMetaData.ShmExportMetaData, memBorrowObj.shareExportObjMap, protectedNames);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ConstructShareExportObj failed, ret=" << ret;
         return ret;
     }
-    ret =
-        ConstructShareImportObjFromExportMetaData(localObmmMetaData.ShmExportMetaData, memBorrowObj.shareImportObjMap);
+    ret = ConstructShareImportObjFromExportMetaData(localObmmMetaData.ShmExportMetaData, memBorrowObj.shareImportObjMap,
+                                                    protectedNames);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ConstructShareImportObjFromExportMetaData failed, ret=" << ret;
         return ret;

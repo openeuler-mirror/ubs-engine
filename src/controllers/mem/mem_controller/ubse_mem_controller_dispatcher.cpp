@@ -1478,8 +1478,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateDispatcher(const UbseIpcMessa
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        // master未上任(选举/主备倒换窗口)：返回对外可辨识错误码, SDK/调用方据此重试直至新master上任
+        UBSE_LOG_ERROR << "master not ready when migrating, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UbseMemShmMigrateReq migrateReq{};
     ret = UbseMemShmMigrateReqUnpack(buffer, migrateReq);
@@ -1509,8 +1511,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateDispatcher(const UbseIpcMessa
     }
     ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        // master panic/不可达：受理未落地, 同样返回可重试错误码(受理幂等, 重复下发安全)
+        UBSE_LOG_ERROR << "master unreachable when migrating, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateRespMessage>(respMessagePtr);
@@ -1549,8 +1553,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateGetDispatcher(const UbseIpcMe
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        // master未上任(选举/主备倒换窗口)：返回对外可辨识错误码, 调用方轮询时据此重试直至新master上任
+        UBSE_LOG_ERROR << "master not ready when migrating get, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UbseMemShmMigrateGetReq getReq{};
     ret = UbseMemShmMigrateGetReqUnpack(buffer, getReq);
@@ -1580,8 +1586,10 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateGetDispatcher(const UbseIpcMe
     }
     ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        // master panic/不可达：查询无法到达master, 同样返回可重试错误码
+        UBSE_LOG_ERROR << "master unreachable when migrating get, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemShmMigrateGetRespMessage>(respMessagePtr);
@@ -1620,8 +1628,9 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIp
     UbseRoleInfo masterInfo{};
     auto ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        UBSE_LOG_ERROR << "master not ready when migrating cancel, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UbseMemMigrateCancelReq cancelReq{};
     ret = UbseMemMigrateCancelReqUnpack(buffer, cancelReq);
@@ -1651,8 +1660,9 @@ uint32_t UbseMemControllerDispatcher::MemShmMigrateCancelDispatcher(const UbseIp
     }
     ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
-        return ret;
+        UBSE_LOG_ERROR << "master unreachable when migrating cancel, " << FormatRetCode(ret)
+                       << ", requestId=" << context.requestId;
+        return UBSE_ERR_MASTER_NOT_READY;
     }
     UBSE_LOG_INFO << "Success to Send to master";
     auto response = UbseBaseMessage::DeConvert<UbseMemMigrateCancelRespMessage>(respMessagePtr);

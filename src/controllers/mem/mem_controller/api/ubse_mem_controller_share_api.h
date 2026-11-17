@@ -100,6 +100,18 @@ void FindShareBorrowObjByName(const std::string& name, std::vector<UbseMemShareB
 uint32_t ShareBorrowSchedule(const UbseMemShareBorrowReq& req, UbseMemShareBorrowExportObj& exportObj, bool isMigrate);
 
 /* *
+ * 未指定共享域时按当前全节点补齐 req.shmRegion(默认行为)；已指定时不做修改。
+ * 普通借用入口与迁移准备共用。
+ */
+void NormalizeShareRegion(UbseMemShareBorrowReq& req);
+
+/* *
+ * 按 nodeId 填写 shmRegion.nodelist 中各节点的 index。
+ * 普通借用与迁移准备均通过 ShareBorrowSchedule 调用；迁移链在决策成功回填共享域后需显式补调。
+ */
+uint32_t SetNodeIndex(UbseMemShareBorrowReq& req);
+
+/* *
  * agent侧执行核心：账本登记(EXPORT_RUNNING) + ShmExportExecutor(obmm_export) + 高安签名。
  * 不含任何回发master的逻辑，普通借用异步链与迁移同步链共用；
  * 失败时账本清理由调用方负责(异步链 EraseShareExport，迁移链 master 侧 Rollback)。

@@ -14,6 +14,7 @@
 #define UBSE_MEM_OBJ_RESTORE_H
 
 #include <iosfwd>
+#include <unordered_set>
 #include "ubse_common_def.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_types.h"
@@ -86,21 +87,30 @@ UbseResult ConstructNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& e
 void ConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
                                   UbseMemNumaBorrowExportObj& ubseMemNumaBorrowExportObj, bool& isNormal);
 
-UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
-                                   UbseMemShareImportObjMap& normalImportObjMap);
+// 所有共享 name 统一核对：gap/STRANDED 保护；同名双侧 V2 IDLE 且 export 为下一代时共同保护。
+std::unordered_set<std::string> GetProtectedShareNames(const LocalObmmMetaData& localObmmMetaData);
 
+// protectedNames 由上述核对产生，两侧组装共同使用以避免迁移现场被误卸载。
+UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                   UbseMemShareImportObjMap& normalImportObjMap,
+                                   const std::unordered_set<std::string>& protectedNames);
+
+// 构造阶段仅恢复对象及切换状态，异常卸载保护统一由 protectedNames 决定。
+// 构造异常及块数不足沿用 isNormal 报告，不中断其它 name 的恢复。
 void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
                                    UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal);
 
 UbseResult ConstructShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap);
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap,
+    const std::unordered_set<std::string>& protectedNames);
 
 void ConstructSingleShareImportObjFromExportMetaData(
     const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
     UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal);
 
 UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
-                                   UbseMemShareExportObjMap& normalExportObjMap);
+                                   UbseMemShareExportObjMap& normalExportObjMap,
+                                   const std::unordered_set<std::string>& protectedNames);
 
 void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq& req, int& numaCount);
 

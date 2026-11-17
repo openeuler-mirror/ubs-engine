@@ -106,6 +106,13 @@ public:
     static UbseResult GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap& handleMap);
     static uint8_t GetDecoderIdByPrivData(const ubse::adapter_plugins::mmi::UbseMemPrivData& privData);
     static UbseResult GetAlignedByBlockSize(uint32_t blockSizeMb, uint8_t& aligned);
+
+    /**
+     * @brief 是否存在新 decoder 引用尚未核实的迁移 gap 块（恢复账本中标记为 UB_MEM_SWITCHING 的块，
+     *        或 switchContext 中尚未核实提交的临时 decoder 引用）。存在时调用方应暂停 decoder 差集删除。
+     * @return true 存在未核实 gap；false 不存在
+     */
+    static bool HasUnverifiedMigrateGap();
 };
 } // namespace ubse::mem::decoder::utils
 
