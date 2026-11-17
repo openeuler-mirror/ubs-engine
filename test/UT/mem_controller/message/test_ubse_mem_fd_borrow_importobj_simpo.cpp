@@ -12,17 +12,10 @@
 
 #include "test_ubse_mem_fd_borrow_importobj_simpo.h"
 
-#include "mockcpp/mockcpp.hpp"
-
 #include "ubse_error.h"
 #include "message/ubse_mem_fd_borrow_importobj_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::utils;
-using namespace ubse::mem::serial;
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::message;
-
 void TestUbseMemFdBorrowImportObjSimpo::SetUp()
 {
     Test::SetUp();
@@ -32,45 +25,25 @@ void TestUbseMemFdBorrowImportObjSimpo::SetUp()
 void TestUbseMemFdBorrowImportObjSimpo::TearDown()
 {
     Test::TearDown();
-    GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
-TEST_F(TestUbseMemFdBorrowImportObjSimpo, Serialize)
+TEST_F(TestUbseMemFdBorrowImportObjSimpo, SerializeDeserialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    MOCKER_CPP(&UbseSerialization::Check).reset();
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
-}
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.errorCode = 7;
+    importObj.req.name = "fd-import";
+    importObj.req.requestId = 11;
+    obj->SetUbseMemFdBorrowImportobj(importObj);
+    obj->SetErrCode(19);
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值，模拟并判断UbseMemFdBorrowImportObjDeserialization在失败和成功两种情况下Deserialize的返回值
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2.UbseMemFdBorrowImportObjDeserialization失败时函数返回UBSE_ERROR
- * 3.UbseMemFdBorrowImportObjDeserialization成功时函数返回UBSE_OK
- */
-TEST_F(TestUbseMemFdBorrowImportObjSimpo, Deserialize)
-{
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-
-    uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemFdBorrowImportObjDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+    ASSERT_EQ(UBSE_OK, obj->Serialize());
+    UbseMemFdBorrowImportobjSimpo decoded;
+    ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj->SerializedData(), obj->SerializedDataSize()));
+    ASSERT_EQ(UBSE_OK, decoded.Deserialize());
+    auto result = decoded.GetUbseMemFdBorrowImportObj();
+    EXPECT_EQ(importObj.errorCode, result.errorCode);
+    EXPECT_EQ(importObj.req.name, result.req.name);
+    EXPECT_EQ(importObj.req.requestId, result.req.requestId);
+    EXPECT_EQ(19U, decoded.GetErrCode());
 }
 } // namespace ubse::mem::controller::message::ut

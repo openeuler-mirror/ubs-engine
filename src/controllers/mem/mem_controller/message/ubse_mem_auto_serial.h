@@ -224,6 +224,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq, ::ubse::adapt
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::srcNuma,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::highWatermark,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::lowWatermark,
+               &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::requestId,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::linkInfo,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::usrInfo)
 
@@ -248,6 +249,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq, void,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::srcNuma,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::dstSocket,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::dstNuma,
+               &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::exportAccessMode,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::exportAddrList,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::name,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::requestId,
@@ -298,7 +300,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::exportObmmInfo,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::status)
 
-// FD
+// FD auto-SIMPO encoding differs from the legacy hand-written RPC format; mixed-version peers are unsupported.
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj,
                ::ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj,
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj::req,
