@@ -1,6 +1,6 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_mem_async_processor.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"

@@ -8,13 +8,8 @@
 
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_Ledger_resp_serial.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "message/ubse_mem_remote_numa_status.h"
@@ -296,7 +291,7 @@ UbseResult QueryFdImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& re
         UBSE_LOG_ERROR << "current node not ready.";
         return UBSE_ERROR;
     }
-    UbseMemFdBorrowImportobjSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj> simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
     if (ret != UBSE_OK) {
@@ -306,12 +301,12 @@ UbseResult QueryFdImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& re
                 }};
         return ret;
     }
-    std::string fdImportName = simpo.GetImportObj().req.name;
+    std::string fdImportName = simpo.GetUbseMesgInfo().req.name;
     UBSE_LOG_INFO << "query fd import, import nodeId=" << nodeId << " import name=" << fdImportName;
     UbseMemFdBorrowImportObj obj{};
     FindFdImportObj(nodeId, fdImportName, obj);
-    UbseMemFdBorrowImportobjSimpo resultSimpo{};
-    resultSimpo.SetUbseMemFdBorrowImportobj(obj);
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj> resultSimpo{};
+    resultSimpo.SetUbseMesgInfo(obj);
     ret = resultSimpo.Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem fd import deserialize failed, " << FormatRetCode(ret);
@@ -365,7 +360,7 @@ UbseResult QueryNumaImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& 
         UBSE_LOG_ERROR << "current node not ready.";
         return UBSE_ERROR;
     }
-    UbseMemNumaBorrowImportobjSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj> simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
     if (ret != UBSE_OK) {
@@ -375,16 +370,16 @@ UbseResult QueryNumaImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& 
                 }};
         return ret;
     }
-    std::string numaImportName = simpo.GetImportObj().req.name;
+    std::string numaImportName = simpo.GetUbseMesgInfo().req.name;
     UbseMemNumaBorrowImportObj obj{};
     UBSE_LOG_INFO << "query numa import, import nodeId=" << nodeId << " import name=" << numaImportName;
     FindNumaImportObj(nodeId, numaImportName, obj);
-    UbseMemNumaBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemNumaBorrowImportobjSimpo();
+    UbseMemNumaBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>();
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemNumaBorrowImportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem numa import deserialize failed, " << FormatRetCode(ret);
@@ -440,7 +435,7 @@ UbseResult QueryAddrImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& 
         UBSE_LOG_ERROR << "current node not ready.";
         return UBSE_ERROR;
     }
-    UbseMemAddrBorrowImportobjSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj> simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
     if (ret != UBSE_OK) {
@@ -450,15 +445,15 @@ UbseResult QueryAddrImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& 
                 }};
         return ret;
     }
-    std::string addrImportName = simpo.GetImportObj().req.name;
+    std::string addrImportName = simpo.GetUbseMesgInfo().req.name;
     UbseMemAddrBorrowImportObj obj{};
     FindAddrImportObj(nodeId, addrImportName, obj);
-    UbseMemAddrBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo;
+    UbseMemAddrBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemAddrBorrowImportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem addr import deserialize failed, " << FormatRetCode(ret);
@@ -679,7 +674,7 @@ UbseResult QueryFdExport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowEx
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemFdBorrowExportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -692,8 +687,8 @@ UbseResult QueryFdExport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowEx
         UBSE_LOG_ERROR << "rpc sync send query fd export obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto exportPtr = UbseBaseMessage::DeConvert<UbseMemFdBorrowExportobjSimpo>(ubseResponsePtr);
-    obj = exportPtr->GetUbseMemFdBorrowExportObj();
+    auto exportPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>>(ubseResponsePtr);
+    obj = exportPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -711,12 +706,12 @@ UbseResult QueryFdExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemFdBorrowExportObj obj = UbseFdExportObjGet(memReq.exportNodeId, memReq.name, memReq.importNodeId, true);
-    UbseMemFdBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemFdBorrowExportobjSimpo;
+    UbseMemFdBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemFdBorrowExportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem fd export deserialize failed, " << FormatRetCode(ret);
@@ -735,7 +730,7 @@ UbseResult QueryNumaExport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -748,12 +743,12 @@ UbseResult QueryNumaExport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
         UBSE_LOG_ERROR << "rpc sync send query numa export obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto exportPtr = UbseBaseMessage::DeConvert<UbseMemNumaBorrowExportobjSimpo>(ubseResponsePtr);
+    auto exportPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>>(ubseResponsePtr);
     if (exportPtr == nullptr) {
         UBSE_LOG_ERROR << "exportPtr is null, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
-    obj = exportPtr->GetUbseMemNumaBorrowExportObj();
+    obj = exportPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -772,12 +767,12 @@ UbseResult QueryNumaExportHandler(const UbseByteBuffer& req, UbseByteBuffer& res
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemNumaBorrowExportObj obj = UbseNumaExportObjGet(memReq.exportNodeId, memReq.name, memReq.importNodeId, true);
-    UbseMemNumaBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo;
+    UbseMemNumaBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemNumaBorrowExportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem numa export serialize failed, " << FormatRetCode(ret);
@@ -796,7 +791,7 @@ UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemAddrBorrowExportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -809,8 +804,8 @@ UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
         UBSE_LOG_ERROR << "rpc sync send query addr export obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto exportPtr = UbseBaseMessage::DeConvert<UbseMemAddrBorrowExportobjSimpo>(ubseResponsePtr);
-    obj = exportPtr->GetUbseMemAddrBorrowExportObj();
+    auto exportPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>>(ubseResponsePtr);
+    obj = exportPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -829,12 +824,12 @@ UbseResult QueryAddrExportHandler(const UbseByteBuffer& req, UbseByteBuffer& res
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemAddrBorrowExportObj obj = UbseAddrExportObjGet(memReq.exportNodeId, memReq.name, memReq.importNodeId, true);
-    UbseMemAddrBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemAddrBorrowExportobjSimpo;
+    UbseMemAddrBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>();
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemAddrBorrowExportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem addr export serialize failed, " << FormatRetCode(ret);
@@ -949,7 +944,7 @@ UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowIm
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -962,8 +957,8 @@ UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowIm
         UBSE_LOG_ERROR << "rpc sync send query fd import obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto importPtr = UbseBaseMessage::DeConvert<UbseMemFdBorrowImportobjSimpo>(ubseResponsePtr);
-    obj = importPtr->GetUbseMemFdBorrowImportObj();
+    auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>>(ubseResponsePtr);
+    obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -982,12 +977,12 @@ UbseResult QueryFdImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemFdBorrowImportObj obj = UbseFdImportObjGet(memReq.importNodeId, memReq.name, true);
-    UbseMemFdBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemFdBorrowImportobjSimpo;
+    UbseMemFdBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemFdBorrowImportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem fd import deserialize failed, " << FormatRetCode(ret);
@@ -1006,7 +1001,7 @@ UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemNumaBorrowImportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -1019,8 +1014,8 @@ UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
         UBSE_LOG_ERROR << "rpc sync send query numa import obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto importPtr = UbseBaseMessage::DeConvert<UbseMemNumaBorrowImportobjSimpo>(ubseResponsePtr);
-    obj = importPtr->GetUbseMemNumaBorrowImportObj();
+    auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>>(ubseResponsePtr);
+    obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -1039,12 +1034,12 @@ UbseResult QueryNumaImportHandler(const UbseByteBuffer& req, UbseByteBuffer& res
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemNumaBorrowImportObj obj = UbseNumaImportObjGet(memReq.importNodeId, memReq.name, true);
-    UbseMemNumaBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemNumaBorrowImportobjSimpo;
+    UbseMemNumaBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemNumaBorrowImportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem numa import deserialize failed, " << FormatRetCode(ret);
@@ -1063,7 +1058,7 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
         return UBSE_ERROR_NULLPTR;
     }
     ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
-    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo();
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>();
     if (ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -1076,8 +1071,8 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
         UBSE_LOG_ERROR << "rpc sync send query addr import obj failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    auto importPtr = UbseBaseMessage::DeConvert<UbseMemAddrBorrowImportobjSimpo>(ubseResponsePtr);
-    obj = importPtr->GetUbseMemAddrBorrowImportobj();
+    auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>>(ubseResponsePtr);
+    obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -1096,12 +1091,12 @@ UbseResult QueryAddrImportHandler(const UbseByteBuffer& req, UbseByteBuffer& res
     }
     def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
     UbseMemAddrBorrowImportObj obj = UbseAddrImportObjGet(memReq.importNodeId, memReq.name, true);
-    UbseMemAddrBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo;
+    UbseMemAddrBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>;
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    resultSimpo->SetUbseMemAddrBorrowImportobj(obj);
+    resultSimpo->SetUbseMesgInfo(obj);
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem addr import deserialize failed, " << FormatRetCode(ret);

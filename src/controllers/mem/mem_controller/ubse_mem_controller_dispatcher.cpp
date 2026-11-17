@@ -35,7 +35,7 @@
 #include "ubse_str_util.h"
 #include "api/ubse_mem_controller_api_common.h"
 #include "message/ubse_mem_controller_def_serial.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "ubs_engine_mem.h"
 #include "ubse_smbios.h"
 #include "ubse_mem_controller_helper.h"
@@ -1237,12 +1237,12 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req
         return UBSE_ERROR_NULLPTR;
     }
 
-    UbseMemFdBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemFdBorrowReqSimpo();
+    UbseMemFdBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>();
     if (ubseRequestPtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemFdBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr";
@@ -1602,12 +1602,12 @@ uint32_t MemNumaBorrowRpc(const std::string& masterNodeId, const std::string& lo
 {
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
-        UbseMemNumaBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemNumaBorrowReqSimpo();
+        UbseMemNumaBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>();
         if (ubseRequestPtr == nullptr) {
             UBSE_LOG_ERROR << "Failed to new ptr";
             return UBSE_ERROR_NULLPTR;
         }
-        ubseRequestPtr->SetUbseMemNumaBorrowReq(req);
+        ubseRequestPtr->SetUbseMesgInfo(req);
         UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
         if (ubseResponsePtr == nullptr) {
             UBSE_LOG_ERROR << "Failed to new ptr";

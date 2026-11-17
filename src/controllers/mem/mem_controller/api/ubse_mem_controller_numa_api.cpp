@@ -33,8 +33,7 @@
 #include "ubse_smbios.h"
 #include "ubse_topo_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_numa_borrow_importobj_simpo.h"
+#include "../message/ubse_mem_borrow_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
@@ -211,12 +210,12 @@ UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj& exportObj, const 
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_EXPORT_OBJ_CALLBACK));
-    UbseMemNumaBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo();
+    UbseMemNumaBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemNumaBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
@@ -600,12 +599,12 @@ UbseResult SendNumaImportObj(const UbseMemNumaBorrowImportObj& importObj, const 
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_IMPORT_OBJ_CALLBACK));
-    UbseMemNumaBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemNumaBorrowImportobjSimpo();
+    UbseMemNumaBorrowImportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemNumaBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;

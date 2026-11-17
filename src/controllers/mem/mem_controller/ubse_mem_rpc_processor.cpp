@@ -6,15 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_return_req_simpo.h"
 #include "message/ubse_mem_share_attach_req_simpo.h"
@@ -58,7 +50,7 @@ const std::string SYNC_FAILED = "sync_failed";
 UbseResult UbseMemFdBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowReqSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
@@ -75,7 +67,7 @@ UbseResult UbseMemFdBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, 
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemFdBorrow(request->GetUbseMemFdBorrowReq(), resp);
+        UbseMemFdBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -95,7 +87,7 @@ uint16_t UbseMemFdBorrowMessageHandler::GetModuleCode()
 UbseResult UbseMemNumaBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                    UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowReqSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
@@ -111,7 +103,7 @@ UbseResult UbseMemNumaBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemNumaBorrow(request->GetUbseMemNumaBorrowReq(), resp);
+        UbseMemNumaBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -131,7 +123,7 @@ uint16_t UbseMemNumaBorrowMessageHandler::GetModuleCode()
 UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                    UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowReqSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
@@ -147,7 +139,7 @@ UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemAddrBorrow(request->GetUbseMemAddrBorrowReq(), resp, realRequestNodeId);
+        UbseMemAddrBorrow(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -470,13 +462,13 @@ UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBase
                                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UBSE_LOG_INFO << "receive fd export";
-    auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowExportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto exportObj = request->GetUbseMemFdBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fd borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -528,13 +520,13 @@ UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBase
                                                                   const UbseBaseMessagePtr& rsp,
                                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowImportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto importObj = request->GetUbseMemFdBorrowImportObj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fd borrow importObj is invalid, please check the importObj";
         return ret;
@@ -583,13 +575,13 @@ UbseResult UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::Handle(c
                                                                                const UbseBaseMessagePtr& rsp,
                                                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowImportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto memFdBorrowImportObj = request->GetUbseMemFdBorrowImportObj();
+    auto memFdBorrowImportObj = request->GetUbseMesgInfo();
     UBSE_LOG_INFO << "Received FdImportObjForPermission, name=" << memFdBorrowImportObj.req.name;
     UbseMemOperationResp resp{};
     resp.errorCode = UbseMemFdBorrowImportObjForPermissionCallback(memFdBorrowImportObj);
@@ -612,13 +604,13 @@ UbseResult UbseMemNumaBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
                                                                     const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowExportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto exportObj = request->GetUbseMemNumaBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Numa borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -666,14 +658,14 @@ UbseResult UbseMemNumaBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
                                                                     const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowImportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto importObj = request->GetUbseMemNumaBorrowImportObj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Numa borrow importObj is invalid, please check the importObj";
         return ret;
@@ -837,13 +829,13 @@ UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
                                                                     const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowExportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto exportObj = request->GetUbseMemAddrBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -890,13 +882,13 @@ UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
                                                                     const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowImportobjSimpo>(req);
+    auto request = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>>(req);
     auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto importObj = request->GetUbseMemAddrBorrowImportobj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow importObj is invalid, please check the importObj";
         return ret;
@@ -993,21 +985,21 @@ UbseResult MemScheduleHandler::RegHandler()
 UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr hdl = new (std::nothrow) UbseMemFdBorrowMessageHandler();
-    auto ret = comModule->RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>(hdl);
+    auto ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>, UbseMemCallbackMessage>(hdl);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemFdBorrowMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr exportHandler = new (std::nothrow) UbseMemFdBorrowExportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemFdBorrowExportobjSimpo, UbseMemCallbackMessage>(exportHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>, UbseMemCallbackMessage>(exportHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemFdBorrowExportObjCallbackMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr importHandler = new (std::nothrow) UbseMemFdBorrowImportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemFdBorrowImportobjSimpo, UbseMemCallbackMessage>(importHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>, UbseMemCallbackMessage>(importHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemFdBorrowImportObjCallbackMessageHandler";
         return ret;
@@ -1016,7 +1008,7 @@ UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<Ub
     UbseComBaseMessageHandlerPtr importForPermissionHandler = new (std::nothrow)
         UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler();
     ret =
-        comModule->RegRpcService<UbseMemFdBorrowImportobjSimpo, UbseMemOperationRespSimpo>(importForPermissionHandler);
+        comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>, UbseMemOperationRespSimpo>(importForPermissionHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler";
         return ret;
@@ -1047,21 +1039,21 @@ UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<Ub
 UbseResult MemScheduleHandler::RegisterNumaBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemNumaBorrowMessageHandler();
-    auto ret = comModule->RegRpcService<UbseMemNumaBorrowReqSimpo, UbseMemCallbackMessage>(handler);
+    auto ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>, UbseMemCallbackMessage>(handler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemNumaBorrowMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr exportHandler = new (std::nothrow) UbseMemNumaBorrowExportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemNumaBorrowExportobjSimpo, UbseMemCallbackMessage>(exportHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>, UbseMemCallbackMessage>(exportHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemNumaBorrowExportObjCallbackMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr importHandler = new (std::nothrow) UbseMemNumaBorrowImportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemNumaBorrowImportobjSimpo, UbseMemCallbackMessage>(importHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>, UbseMemCallbackMessage>(importHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemNumaBorrowImportObjCallbackMessageHandler";
         return ret;
@@ -1084,21 +1076,21 @@ UbseResult MemScheduleHandler::RegisterNumaBorrowHandlers(const std::shared_ptr<
 UbseResult MemScheduleHandler::RegisterAddrBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemAddrBorrowMessageHandler();
-    auto ret = comModule->RegRpcService<UbseMemAddrBorrowReqSimpo, UbseMemCallbackMessage>(handler);
+    auto ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq>, UbseMemCallbackMessage>(handler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemAddrBorrowMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr exportHandler = new (std::nothrow) UbseMemAddrBorrowExportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemAddrBorrowExportobjSimpo, UbseMemCallbackMessage>(exportHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>, UbseMemCallbackMessage>(exportHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemAddrBorrowExportObjCallbackMessageHandler";
         return ret;
     }
 
     UbseComBaseMessageHandlerPtr importHandler = new (std::nothrow) UbseMemAddrBorrowImportObjCallbackMessageHandler();
-    ret = comModule->RegRpcService<UbseMemAddrBorrowImportobjSimpo, UbseMemCallbackMessage>(importHandler);
+    ret = comModule->RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>, UbseMemCallbackMessage>(importHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemAddrBorrowImportObjCallbackMessageHandler";
         return ret;

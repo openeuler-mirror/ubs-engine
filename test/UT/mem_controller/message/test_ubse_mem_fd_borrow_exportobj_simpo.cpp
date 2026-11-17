@@ -13,13 +13,13 @@
 #include "test_ubse_mem_fd_borrow_exportobj_simpo.h"
 
 #include "ubse_error.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 void TestUbseMemFdBorrowExportobjSimpo::SetUp()
 {
     Test::SetUp();
-    obj = new UbseMemFdBorrowExportobjSimpo();
+    obj = new ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>();
 }
 
 void TestUbseMemFdBorrowExportobjSimpo::TearDown()
@@ -33,14 +33,14 @@ TEST_F(TestUbseMemFdBorrowExportobjSimpo, SerializeDeserialize)
     exportObj.errorCode = 9;
     exportObj.req.name = "fd-export";
     exportObj.req.requestId = 13;
-    obj->SetUbseMemFdBorrowExportobj(exportObj);
+    obj->SetUbseMesgInfo(exportObj);
     obj->SetErrCode(23);
 
     ASSERT_EQ(UBSE_OK, obj->Serialize());
-    UbseMemFdBorrowExportobjSimpo decoded;
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj> decoded;
     ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj->SerializedData(), obj->SerializedDataSize()));
     ASSERT_EQ(UBSE_OK, decoded.Deserialize());
-    auto result = decoded.GetUbseMemFdBorrowExportObj();
+    auto result = decoded.GetUbseMesgInfo();
     EXPECT_EQ(exportObj.errorCode, result.errorCode);
     EXPECT_EQ(exportObj.req.name, result.req.name);
     EXPECT_EQ(exportObj.req.requestId, result.req.requestId);

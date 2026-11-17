@@ -16,7 +16,7 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 class TestUbseMemNumaBorrowExportObjSimpo : public testing::Test {

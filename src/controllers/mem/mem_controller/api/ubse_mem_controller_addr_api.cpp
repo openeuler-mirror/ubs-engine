@@ -30,8 +30,7 @@
 #include "ubse_mmi_def.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_addr_borrow_importobj_simpo.h"
+#include "../message/ubse_mem_borrow_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
@@ -138,12 +137,12 @@ UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj& exportObj, const 
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK));
-    UbseMemAddrBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemAddrBorrowExportobjSimpo();
+    UbseMemAddrBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new UbseMemAddrBorrowExportobjSimpoPtr.";
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemAddrBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr.";
@@ -344,12 +343,12 @@ UbseResult SendAddrImportObj(const UbseMemAddrBorrowImportObj& importObj, const 
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK));
-    UbseMemAddrBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo();
+    UbseMemAddrBorrowImportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr.";
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemAddrBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr.";

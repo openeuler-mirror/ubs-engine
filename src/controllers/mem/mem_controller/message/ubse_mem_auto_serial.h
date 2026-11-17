@@ -300,7 +300,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::exportObmmInfo,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::status)
 
-// FD auto-SIMPO encoding differs from the legacy hand-written RPC format; mixed-version peers are unsupported.
+// FD, NUMA, and ADDR auto-SIMPO wire formats differ from legacy hand-written RPC formats; mixed-version peers are unsupported.
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj,
                ::ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj,
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj::req,

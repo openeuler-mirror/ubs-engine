@@ -13,13 +13,13 @@
 #include "test_ubse_mem_fd_borrow_req_simpo.h"
 
 #include "ubse_error.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 void TestUbseMemFdBorrowReqSimpo::SetUp()
 {
     Test::SetUp();
-    obj = new UbseMemFdBorrowReqSimpo();
+    obj = new ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>();
 }
 
 void TestUbseMemFdBorrowReqSimpo::TearDown()
@@ -35,14 +35,14 @@ TEST_F(TestUbseMemFdBorrowReqSimpo, SerializeDeserialize)
     request.importNodeId = "node-b";
     request.lenderSizes = {1024};
     request.candidateNodeList = {"node-a"};
-    obj->SetUbseMemFdBorrowReq(request);
+    obj->SetUbseMesgInfo(request);
     obj->SetErrCode(17);
 
     ASSERT_EQ(UBSE_OK, obj->Serialize());
-    UbseMemFdBorrowReqSimpo decoded;
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq> decoded;
     ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj->SerializedData(), obj->SerializedDataSize()));
     ASSERT_EQ(UBSE_OK, decoded.Deserialize());
-    auto result = decoded.GetUbseMemFdBorrowReq();
+    auto result = decoded.GetUbseMesgInfo();
     EXPECT_EQ(request.name, result.name);
     EXPECT_EQ(request.requestId, result.requestId);
     EXPECT_EQ(request.importNodeId, result.importNodeId);
