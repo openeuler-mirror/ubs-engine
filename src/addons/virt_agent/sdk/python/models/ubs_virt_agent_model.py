@@ -361,7 +361,7 @@ class BorrowParamT:
         node_id: Source node ID
         numa_meta_infos: NUMA meta information list
         borrow_size: Borrow size (MB)
-        page_size: Huge page size in kB, only 2048 or 1048576, required
+        page_size: Huge page size in kB, only 2048 or 1048576, optional, defaults to 2048 (2M)
     """
     node_id: str
     numa_meta_infos: List[NumaMetaInfoT]

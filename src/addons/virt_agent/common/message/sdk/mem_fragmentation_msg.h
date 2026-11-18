@@ -260,8 +260,8 @@ typedef struct {
 typedef struct {
     borrow_strategy_c borrow_strategy;
     bool isAsync;
-    // Page size in kB. Required: only 2048 (2M) or 1048576 (1G) is valid;
-    // 0 or any other value is rejected with VA_ERROR_INVALID_PARAM.
+    // Page size in kB. Only 2048 (2M) or 1048576 (1G) is valid;
+    // 0 defaults to 2048 (2M); any other value is rejected with VA_ERROR_INVALID_PARAM.
     uint64_t page_size;
 } borrow_setting_c;
 
@@ -592,8 +592,8 @@ typedef struct {
     numa_meta_info_s* numa_meta_infos;
     uint32_t numa_len;
     uint64_t borrow_size;
-    // Page size in kB. Required: only 2048 (2M) or 1048576 (1G) is valid;
-    // 0 or any other value is rejected with VA_ERROR_INVALID_PARAM.
+    // Page size in kB. Only 2048 (2M) or 1048576 (1G) is valid;
+    // 0 defaults to 2048 (2M); any other value is rejected with VA_ERROR_INVALID_PARAM.
     uint64_t page_size;
 } mem_borrow_param_s;
 

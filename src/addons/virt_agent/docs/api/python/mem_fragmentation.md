@@ -208,7 +208,7 @@ param = {
         "srcNumaId": int     # 源NUMA ID
     },
     "borrowSize": int,       # 借用大小，单位kB
-    "pageSize": int,         # 大页大小，单位kB，仅支持2048或1048576，必填
+    "pageSize": int,         # 大页大小，单位kB，仅支持2048或1048576，未设置时默认2048（2M大页）
     "destParam": [           # 目的NUMA信息列表
         {
             "destNid": str,      # 目的节点ID
@@ -251,7 +251,7 @@ class BorrowExecuteResT:
 
 ## 约束 CONSTRAINTS
 
-- `pageSize` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页），缺失或取值非法时抛出 `ValueError`。
+- `pageSize` 单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置时默认使用 2048（2M大页）；其他取值非法时抛出 `ValueError`。
 - `memSize` 单位kB，建议为所选大页规格（2048kB或1048576kB）的整数倍，未对齐时服务端按页大小向上取整。
 
 ## 附注 NOTES
@@ -807,7 +807,7 @@ class BorrowParamT:
     node_id: str                    # 源节点ID
     numa_meta_infos: List[NumaMetaInfoT]  # NUMA元信息列表
     borrow_size: int                # 借用大小，单位MB
-    page_size: int                  # 大页大小，单位kB，仅支持2048或1048576，必填
+    page_size: int                  # 大页大小，单位kB，仅支持2048或1048576，未设置时默认2048（2M大页）
 ```
 
 ## 返回值 RETURN VALUE
@@ -841,7 +841,7 @@ class MemBorrowResultT:
 ## 约束 CONSTRAINTS
 
 - `borrow_size` 单位MB（大规格虚机路径，服务端内部换算为kB后使用）。
-- `page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或取值非法时抛出 `ValueError`。
+- `page_size` 单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）时默认使用 2048（2M大页）；其他取值非法时抛出 `ValueError`。
 
 ## 附注 NOTES
 

@@ -174,13 +174,17 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borro
             return VA_ERROR_INVALID_PARAM;
         }
     }
-    if (borrow_setting->page_size != HUGE_PAGE_SIZE_2M_KB && borrow_setting->page_size != HUGE_PAGE_SIZE_1G_KB) {
+    borrow_setting_c setting = *borrow_setting;
+    if (setting.page_size == 0) {
+        setting.page_size = HUGE_PAGE_SIZE_2M_KB;
+    }
+    if (setting.page_size != HUGE_PAGE_SIZE_2M_KB && setting.page_size != HUGE_PAGE_SIZE_1G_KB) {
         IPC_LOG_ERROR << "Invalid page_size: " << borrow_setting->page_size
-                      << ", supported values are 2048 and 1048576 (kB).";
+                      << ", supported values are 2048 and 1048576 (kB), 0 defaults to 2048 (kB).";
         return VA_ERROR_INVALID_PARAM;
     }
 
-    MemBorrowSettingMsg msg(*borrow_setting);
+    MemBorrowSettingMsg msg(setting);
     auto res = msg.Serialize();
     if (res != VA_SUCCESS) {
         IPC_LOG_ERROR << "MemBorrowSettingMsg Serialize failed.";
@@ -565,8 +569,12 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, cons
         IPC_LOG_ERROR << "BorrowParamFromCStyle failed, err=" << ret;
         return VA_ERROR_INVALID_PARAM;
     }
+    if (borrowParam.pageSize == 0) {
+        borrowParam.pageSize = HUGE_PAGE_SIZE_2M_KB;
+    }
     if (borrowParam.pageSize != HUGE_PAGE_SIZE_2M_KB && borrowParam.pageSize != HUGE_PAGE_SIZE_1G_KB) {
-        IPC_LOG_ERROR << "Invalid page_size: " << param->page_size << ", supported values are 2048 and 1048576 (kB).";
+        IPC_LOG_ERROR << "Invalid page_size: " << param->page_size
+                      << ", supported values are 2048 and 1048576 (kB), 0 defaults to 2048 (kB).";
         return VA_ERROR_INVALID_PARAM;
     }
     MemFragmentationMemBorrowParamMsg reqMsg(borrowParam, is_async);

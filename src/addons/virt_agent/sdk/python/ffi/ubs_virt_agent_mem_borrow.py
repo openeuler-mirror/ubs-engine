@@ -107,6 +107,8 @@ class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
         borrow_param_c.src_nid = param.node_id.encode('utf-8')
         borrow_param_c.borrow_size = param.borrow_size
         page_size = getattr(param, 'page_size', None)
+        if page_size is None or page_size == 0:
+            page_size = HUGE_PAGE_SIZE_2M_KB
         if page_size not in (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB):
             raise ValueError(
                 "page_size must be %d or %d (kB)" % (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB))
