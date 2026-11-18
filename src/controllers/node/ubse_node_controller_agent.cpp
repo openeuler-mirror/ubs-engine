@@ -551,6 +551,10 @@ UbseResult UbseNodeInfoSyncMsgHandler::Handle(const ubse::message::UbseBaseMessa
     UbseByteBuffer reqData{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
     UbseByteBuffer respData{};
     auto ret = UbseNodeControllerAgent::GetInstance().HandleNodeInfoSync(reqData, respData);
+    // 本RPC语义为仅回结果码：内部处理不构造响应体，此处统一填充，避免空缓冲回包触发ERROR日志
+    if (respData.data == nullptr || respData.len == 0) {
+        (void)CreateErrorResponse(ret, respData);
+    }
     auto writeRet = WriteSyncResp(rsp, respData);
     return writeRet != UBSE_OK ? writeRet : ret;
 }
@@ -575,6 +579,10 @@ UbseResult UbseNodeInfoSyncFullMsgHandler::Handle(const ubse::message::UbseBaseM
     UbseByteBuffer reqData{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
     UbseByteBuffer respData{};
     auto ret = UbseNodeControllerAgent::GetInstance().HandleNodeInfoSyncFull(reqData, respData);
+    // 本RPC语义为仅回结果码：内部处理不构造响应体，此处统一填充，避免空缓冲回包触发ERROR日志
+    if (respData.data == nullptr || respData.len == 0) {
+        (void)CreateErrorResponse(ret, respData);
+    }
     auto writeRet = WriteSyncResp(rsp, respData);
     return writeRet != UBSE_OK ? writeRet : ret;
 }
