@@ -232,10 +232,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateShareOverLen01)
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOverLen01(Cluster());
 }
 
-// P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47, 4M
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateShareNameLen47Ok01)
+// P0-CliCreateShare-NameLen64-Ok-01: CLI create share name=64, 4M
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateShareNameLen64Ok01)
 {
-    ubse::it::tests::mem_borrow::RunP0CliCreateShareNameLen47Ok01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0CliCreateShareNameLen64Ok01(Cluster());
 }
 
 // P0-CliDelMem-NotExist-01: CLI delete 不存在的内存

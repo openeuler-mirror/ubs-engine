@@ -106,7 +106,7 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBoundMin01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateBoundMin01(Cluster());
 }
 
-// P0-ShmCreate-BoundMax-01: name=47字节
+// P0-ShmCreate-BoundMax-01: name=64字节
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBoundMax01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmCreateBoundMax01(Cluster());
@@ -238,7 +238,7 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachDup01)
     ubse::it::tests::mem_borrow::RunP0ShmAttachDup01(Cluster());
 }
 
-// P0-ShmAttach-BoundMax-01: name=47字节，节点1/2均attach校验出参，shm_get校验整体账本
+// P0-ShmAttach-BoundMax-01: name=64字节，节点1/2均attach校验出参，shm_get校验整体账本
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachBoundMax01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmAttachBoundMax01(Cluster());
@@ -402,7 +402,7 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateBoundMin01)
     ubse::it::tests::mem_borrow::RunP0FdCreateBoundMin01(Cluster());
 }
 
-// P0-FdCreate-BoundMaxName-01: name=47字节
+// P0-FdCreate-BoundMaxName-01: name=64字节
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateBoundMax01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateBoundMax01(Cluster());
@@ -652,7 +652,7 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBoundMin01)
     ubse::it::tests::mem_borrow::RunP0NumaCreateBoundMin01(Cluster());
 }
 
-// P0-NumaCreate-BoundMax-01: name=47字节
+// P0-NumaCreate-BoundMax-01: name=64字节
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBoundMax01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateBoundMax01(Cluster());

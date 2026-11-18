@@ -731,7 +731,7 @@ void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_fd_desc_t fdDesc{};
     IT_LOG_INFO << "Creating FD with over-length name: length=" << overLenName.length();
     int32_t ret = sdk.MemFdCreate(overLenName.c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
@@ -841,11 +841,11 @@ void RunP0FdCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-FdCreate-BoundMin-01 done";
 }
 
-// P0-FdCreate-BoundMax-01: name=47字节 (双节点)
+// P0-FdCreate-BoundMax-01: name=64字节，UBS_MEM_MAX_NAME_LENGTH 上边界（不含\0）(双节点)
 void RunP0FdCreateBoundMax01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string boundName(47, 'x');
+    std::string boundName(64, 'x');
     ubs_mem_fd_desc_t fdDesc{};
 
     IT_LOG_INFO << "Creating FD with boundary max name length: " << boundName.length();
@@ -940,7 +940,7 @@ void RunP0FdCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster)
     std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
     uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_lender_t lender{};
     lender.lender_size = fdSize;
     lender.slot_id = lenderSlotId;
@@ -1176,7 +1176,7 @@ void RunP0FdCreateCandidateOverLen01(ubse::it::infra::ItCluster& cluster)
     std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
     uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
 
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_fd_desc_t fdDesc{};
 
     int32_t ret = ubs_mem_fd_create_with_candidate(overLenName.c_str(), fdSize, nullptr, 0, slotIds, 1, &fdDesc);
@@ -1386,7 +1386,7 @@ void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdGetOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_fd_desc_t fdDesc{};
 
     IT_LOG_INFO << "Getting FD with over-length name: length=" << overLenName.length();
@@ -1554,7 +1554,7 @@ void RunP0FdDelDup01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdDelOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
 
     IT_LOG_INFO << "Deleting FD with over-length name";
     int32_t ret = sdk.MemFdDelete(overLenName.c_str());
@@ -1579,7 +1579,7 @@ void RunP0FdMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster)
 // P0-FdMemidByImport-OverLen-01: name超长 (双节点)
 void RunP0FdMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_export_memid_t memInfo{};
 
     IT_LOG_INFO << "Querying export memid with over-length name: length=" << overLenName.length();
@@ -1768,7 +1768,8 @@ void RunP0NumaCreateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
 
-    const char* longName = "it_p0_numa_overlen_name_aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    // UBS_MEM_MAX_NAME_LENGTH=64（不含\0），构造65字符的name
+    const char* longName = "it_p0_numa_overlen_name_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     ubs_mem_numa_desc_t numaDesc{};
     int32_t ret = sdk.MemNumaCreate(longName, UBS_MEM_MIN_SIZE, MEM_DISTANCE_L0, &numaDesc);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG) << "name超长应返回UBS_ERR_INVALID_ARG";
@@ -1856,12 +1857,12 @@ void RunP0NumaCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-NumaCreate-BoundMin-01 passed";
 }
 
-// P0-NumaCreate-BoundMax-01: name=47字节 (双节点)
+// P0-NumaCreate-BoundMax-01: name=64字节，UBS_MEM_MAX_NAME_LENGTH 上边界（不含\0）(双节点)
 void RunP0NumaCreateBoundMax01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
     uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
-    std::string boundName(47, 'x');
+    std::string boundName(64, 'x');
 
     ubs_mem_numa_desc_t numaDesc{};
     int32_t ret = sdk.MemNumaCreate(boundName.c_str(), UBS_MEM_MIN_SIZE, MEM_DISTANCE_L0, &numaDesc);
@@ -1944,7 +1945,7 @@ void RunP0NumaCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster)
         << "No topo link from " << localSlotId << " to " << lenderSlotId;
     lender.lender_size = fdSize;
 
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_numa_desc_t numaDesc{};
 
     int32_t ret = ubs_mem_numa_create_with_lender(overLenName.c_str(), &lender, 1, &numaDesc);
@@ -2158,7 +2159,7 @@ void RunP0NumaCreateCandidateOverLen01(ubse::it::infra::ItCluster& cluster)
     std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
     uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
 
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_numa_desc_t numaDesc{};
 
     int32_t ret = ubs_mem_numa_create_with_candidate(overLenName.c_str(), fdSize, slotIds, 1, &numaDesc);
@@ -2292,7 +2293,7 @@ void RunP0NumaGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 void RunP0NumaGetOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_numa_desc_t numaDesc{};
 
     IT_LOG_INFO << "Getting NUMA with over-length name: length=" << overLenName.length();
@@ -2477,8 +2478,8 @@ void RunP0NumaDelOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
 
-    // UBS_MEM_MAX_NAME_LENGTH=48, 构造48字符的name
-    const char* longName = "it_p0_numa_del_overlen_aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    // UBS_MEM_MAX_NAME_LENGTH=64（不含\0），构造65字符的name
+    const char* longName = "it_p0_numa_del_overlen_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     int32_t ret = sdk.MemNumaDelete(longName);
     EXPECT_EQ(ret, UBS_ERR_INVALID_ARG) << "name超长应返回UBS_ERR_INVALID_ARG";
 
@@ -2501,7 +2502,7 @@ void RunP0NumaMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster)
 // P0-NumaMemidByImport-OverLen-01: name超长 (双节点)
 void RunP0NumaMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_export_memid_t memInfo{};
 
     IT_LOG_INFO << "Querying NUMA export memid with over-length name: length=" << overLenName.length();
@@ -2693,8 +2694,8 @@ void RunP0ShmCreateWithProviderOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0ShmCreateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    // 48字符的name，超出UBS_MEM_MAX_NAME_LENGTH限制
-    const char* name = "it_p0_shm_name_way_too_long_for_the_max_limit_x_";
+    // 65字符的name，超出UBS_MEM_MAX_NAME_LENGTH(64)限制
+    const char* name = "it_p0_shm_name_way_too_long_for_the_max_limit_x_aaaaaaaaaaaaaaaaa";
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     IT_LOG_INFO << "Creating SHM with overlen name: " << name;
@@ -2830,11 +2831,11 @@ void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "RunP0ShmCreateBoundMin01 done";
 }
 
-// name=47字节 (双节点)
+// P0-ShmCreate-BoundMax-01: name=64字节，UBS_MEM_MAX_NAME_LENGTH 上边界（不含\0）(双节点)
 void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string boundName(47, 'x');
+    std::string boundName(64, 'x');
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     ubs_mem_nodes_t region{};
@@ -2981,7 +2982,7 @@ void RunP0ShmCreateAffinityOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0ShmCreateAffinityOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     ubs_mem_nodes_t region{};
@@ -3248,7 +3249,7 @@ void RunP0ShmCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster)
     lender.lender_size = shmSize;
 
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
 
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
@@ -3759,25 +3760,25 @@ void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "RunP0ShmAttachDup01 done";
 }
 
-// P0-ShmAttach-BoundMax-01: name=47字节边界值（双节点）：
-// 节点1创建(name=47字节, region={1,2}) → 节点1/2分别attach并校验出参 → shm_get校验整体账本 → detach+delete清理
+// P0-ShmAttach-BoundMax-01: name=64字节边界值（双节点）：
+// 节点1创建(name=64字节, region={1,2}) → 节点1/2分别attach并校验出参 → shm_get校验整体账本 → detach+delete清理
 void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string boundName(47, 'y'); // name=47字节边界值，'y'与既有BoundMax用例的'x'区分
+    std::string boundName(64, 'y'); // name=64字节边界值，'y'与既有BoundMax用例的'x'区分
     constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
     const uint32_t slot1 = cluster.GetNode("1").GetSpec().slotId;
     const uint32_t slot2 = cluster.GetNode("2").GetSpec().slotId;
 
     auto& node1Client = cluster.GetSdkClient("1");
 
-    // S1. 节点1创建共享内存，name=47字节，region覆盖节点1、2
+    // S1. 节点1创建共享内存，name=64字节，region覆盖节点1、2
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
     region.slot_ids[0] = slot1;
     region.slot_ids[1] = slot2;
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
-    IT_LOG_INFO << "S1: Creating SHM with name length=47: " << boundName;
+    IT_LOG_INFO << "S1: Creating SHM with name length=64: " << boundName;
     int32_t ret = node1Client.MemShmCreate(boundName.c_str(), shmSize128M, usrInfo, 0, &region, nullptr);
     ASSERT_IT_OK(ret);
 
@@ -3794,7 +3795,7 @@ void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster)
         ret = client.MemShmAttach(boundName.c_str(), nullptr, 0, &desc);
         ASSERT_IT_OK(ret);
         ASSERT_NE(desc, nullptr);
-        EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (47 bytes)";
+        EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (64 bytes)";
         EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should be 128MB";
         EXPECT_GT(desc->unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
         EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
@@ -3815,7 +3816,7 @@ void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster)
         ret = client.MemShmAttach(boundName.c_str(), nullptr, 0, &desc);
         ASSERT_IT_OK(ret);
         ASSERT_NE(desc, nullptr);
-        EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (47 bytes)";
+        EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (64 bytes)";
         EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should be 128MB";
         EXPECT_GT(desc->unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
         EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
@@ -3835,7 +3836,7 @@ void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster)
         EXPECT_IT_OK(ret);
         if (desc != nullptr) {
             IT_LOG_INFO << "S5: Node1 Get: import_desc_cnt=" << desc->import_desc_cnt;
-            EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (47 bytes)";
+            EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved (64 bytes)";
             EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should be 128MB";
             EXPECT_EQ(desc->import_desc_cnt, 2u) << "ledger consumer should contain node1 and node2";
             bool hasNode1 = false;
@@ -3899,7 +3900,7 @@ void RunP0ShmGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 void RunP0ShmGetOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_shm_desc_t* desc = nullptr;
 
     IT_LOG_INFO << "Getting SHM with over-length name: length=" << overLenName.length();
@@ -4025,7 +4026,7 @@ void RunP0ShmListNullPtr01(ubse::it::infra::ItCluster& cluster)
 // P0-ShmList-OverLen-01: prefix超长 (双节点)
 void RunP0ShmListOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string overLenPrefix(48, 'a');
+    std::string overLenPrefix(65, 'a');
     ubs_mem_shm_desc_t* descs = nullptr;
     uint32_t cnt = 0;
 
@@ -4185,7 +4186,7 @@ void RunP0ShmDelDup01(ubse::it::infra::ItCluster& cluster)
 // P0-ShmDel-OverLen-01: name超长 (双节点)
 void RunP0ShmDelOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
 
     IT_LOG_INFO << "Deleting SHM with over-length name";
     int32_t ret = ubs_mem_shm_delete(overLenName.c_str());
@@ -4273,7 +4274,7 @@ void RunP0ShmMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster)
 // P0-ShmMemidByImport-OverLen-01: name超长 (双节点)
 void RunP0ShmMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    std::string overLenName(48, 'a');
+    std::string overLenName(65, 'a');
     ubs_mem_export_memid_t memInfo{};
 
     IT_LOG_INFO << "Querying SHM export memid with over-length name: length=" << overLenName.length();
@@ -4457,28 +4458,28 @@ void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    // name 超过 47 字符（ubs_mem 限制 48 字节）
-    std::string longName(48, 'x');
+    // name 超过 64 字符（ubs_mem 限制 64 字节，不含结尾 \0）
+    std::string longName(65, 'x');
     std::string output = cliInvoker.ExecCli("create memory -t share -n " + longName + " -s 128M -r 1");
     bool isError = output.empty() || output.find("ERROR") != std::string::npos;
     EXPECT_TRUE(isError) << "CLI create share with name too long should fail, got: '" << output << "'";
     IT_LOG_INFO << "P0-CliCreateShare-OverLen-01 passed";
 }
 
-// P0-CliCreateShare-NameLen47-Ok-01: name 长度=47，share 类型，4M，单节点
-void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster)
+// P0-CliCreateShare-NameLen64-Ok-01: name 长度=64（UBS_MEM_MAX_NAME_LENGTH 上边界，不含\0），share 类型，4M，单节点
+void RunP0CliCreateShareNameLen64Ok01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    std::string name47(47, 's');
+    std::string name64(64, 's');
     ubse::it::infra::ItMemCreateInfo createInfo;
-    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, name47, "4M", "1"));
-    EXPECT_EQ(createInfo.name, name47);
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, name64, "4M", "1"));
+    EXPECT_EQ(createInfo.name, name64);
     EXPECT_EQ(createInfo.size, "4MB");
     EXPECT_FALSE(createInfo.exportNode.empty());
     EXPECT_FALSE(createInfo.region.empty());
     // 清理
-    EXPECT_IT_OK(cliInvoker.DeleteMemory(name47, "share"));
-    IT_LOG_INFO << "P0-CliCreateShare-NameLen47-Ok-01 passed";
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(name64, "share"));
+    IT_LOG_INFO << "P0-CliCreateShare-NameLen64-Ok-01 passed";
 }
 
 // P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
@@ -4605,7 +4606,7 @@ void RunP0CliDelMemDup01(ubse::it::infra::ItCluster& cluster)
 void RunP0CliDelMemOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    std::string overLenName(48, 'x');
+    std::string overLenName(65, 'x');
     EXPECT_NE(cliInvoker.DeleteMemory(overLenName, "numa"), UBS_SUCCESS);
     IT_LOG_INFO << "P0-CliDelMem-OverLen-01 passed";
 }
@@ -4701,7 +4702,8 @@ void RunP0CliAttachMemDup01(ubse::it::infra::ItCluster& cluster)
 void RunP0CliAttachMemOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    std::string overLenName(48, 'x');
+    // name 超过 64 字符（ubs_mem 限制 64 字节，不含结尾 \0）
+    std::string overLenName(65, 'x');
     ubse::it::infra::ItMemCreateInfo attachInfo;
     EXPECT_NE(cliInvoker.AttachMemory(attachInfo, overLenName), UBS_SUCCESS);
     IT_LOG_INFO << "P0-CliAttachMem-OverLen-01 passed";
@@ -4739,7 +4741,8 @@ void RunP0CliDetachMemOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0CliDetachMemOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    std::string overLenName(48, 'x');
+    // name 超过 64 字符（ubs_mem 限制 64 字节，不含结尾 \0）
+    std::string overLenName(65, 'x');
     EXPECT_NE(cliInvoker.DetachMemory(overLenName), UBS_SUCCESS);
     IT_LOG_INFO << "P0-CliDetachMem-OverLen-01 passed";
 }

@@ -225,7 +225,7 @@ void RunP0ShmAttachOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster);
 
-// P0-ShmAttach-BoundMax-01: name=47字节边界，节点1/2均attach校验出参，shm_get校验整体账本
+// P0-ShmAttach-BoundMax-01: name=64字节边界，节点1/2均attach校验出参，shm_get校验整体账本
 void RunP0ShmAttachBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // P0-ShmCreateAttach-Ok-01: 双节点创建1024M共享内存，节点1映射成功
@@ -287,8 +287,8 @@ void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster);
 // P0-CliShare-LongOption-01: CLI create/attach/detach/delete share with long option
 void RunP0CliShareLongOption01(ubse::it::infra::ItCluster& cluster);
 
-// P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47 chars, 4M
-void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster);
+// P0-CliCreateShare-NameLen64-Ok-01: CLI create share name=64 chars, 4M
+void RunP0CliCreateShareNameLen64Ok01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliDelMem-Ok-01: CLI delete numa/fd/share 成功
 void RunP0CliDelMemOk01(ubse::it::infra::ItCluster& cluster);
