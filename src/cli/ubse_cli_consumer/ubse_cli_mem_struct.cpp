@@ -143,8 +143,8 @@ std::string GetErrorMessage(uint32_t errorCode)
         case UBS_ENGINE_ERR_ALLOCATE:
             return "ERROR: Failed to allocate memory.";
         case UBSE_SCHEDULER_ERROR_SIZE_EXCEED_LEND:
-            return "ERROR: The requested size exceeds the total lendable memory capacity, please reduce the size and "
-                   "try again.";
+            return "ERROR: Invalid size. The size must not exceed the total lendable memory capacity, please reduce "
+                   "the size and try again.";
         case UBS_ENGINE_ERR_SHM_NO_ATTACH:
             return "ERROR: No shared memory attached.";
         case UBSE_ERR_NOT_SUPPORTED:
