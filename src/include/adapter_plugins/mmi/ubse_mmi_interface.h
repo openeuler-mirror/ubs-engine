@@ -227,6 +227,14 @@ public:
     * @return UbseResult    0：操作成功；非0：操作失败
     */
     virtual UbseResult UnPreOnline() = 0;
+
+    // 新增虚函数统一追加在接口末尾，避免改变既有虚函数的 vtable 槽位（插件 so 混合版本加载安全）
+    /**
+    * @brief   查询本节点 libobmm 是否具备 shm 故障迁移块级切换能力（obmm_switch_* 符号是否已加载）
+    *
+    * @return bool    true：支持迁移切换；false：不支持（旧版本 libobmm 未导出切换符号）
+    */
+    virtual bool IsShmSwitchSupported() = 0;
 };
 } // namespace ubse::adapter_plugins::mmi
 #endif // UBSE_MMI_INTERFACE_H

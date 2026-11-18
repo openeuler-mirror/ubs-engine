@@ -343,13 +343,42 @@ TEST_F(TestUbseObmmSwitch, SwitchBeginImportTargetLayout)
     EXPECT_EQ(offsetof(struct obmm_switch_export_target, node_count), 16u * sizeof(size_t));
 }
 
-// 空指针防护：switch 符号为必选符号（缺失时 DlOpenLib 整体失败），此处仅验证封装方法的空指针路径
+TEST_F(TestUbseObmmSwitch, SwitchSupportRequiresAllThreeSymbols)
+{
+    auto& executor = RmObmmExecutor::GetInstance();
+    const ObmmSwitchBeginImportPtr beginImport = [](mem_id, unsigned long, const obmm_switch_import_target*,
+                                                    const void*, uint16_t) {
+        return 0;
+    };
+    const ObmmSwitchBeginExportPtr beginExport = [](mem_id, unsigned long, const obmm_switch_export_target*,
+                                                    obmm_mem_desc*, const void*, uint16_t) {
+        return 0;
+    };
+    executor.obmmSwitchBeginImportFunc = beginImport;
+    executor.obmmSwitchBeginExportFunc = beginExport;
+    executor.obmmSwitchEndFunc = [](mem_id, int) {
+        return 0;
+    };
+    EXPECT_TRUE(executor.IsSwitchSupported());
+
+    executor.obmmSwitchBeginImportFunc = nullptr;
+    EXPECT_FALSE(executor.IsSwitchSupported());
+    executor.obmmSwitchBeginImportFunc = beginImport;
+    executor.obmmSwitchBeginExportFunc = nullptr;
+    EXPECT_FALSE(executor.IsSwitchSupported());
+    executor.obmmSwitchBeginExportFunc = beginExport;
+    executor.obmmSwitchEndFunc = nullptr;
+    EXPECT_FALSE(executor.IsSwitchSupported());
+}
+
+// 旧库缺少可选的 switch 符号时，执行器报告能力缺失并保护各调用入口。
 TEST_F(TestUbseObmmSwitch, SwitchFuncsNullptr_WrappersReturnNullptrError)
 {
     auto& executor = RmObmmExecutor::GetInstance();
     executor.obmmSwitchBeginImportFunc = nullptr;
     executor.obmmSwitchBeginExportFunc = nullptr;
     executor.obmmSwitchEndFunc = nullptr;
+    EXPECT_FALSE(executor.IsSwitchSupported());
 
     auto param = BuildSwitchParam(0);
     EXPECT_EQ(executor.ObmmSwitchBeginImport(param), UBSE_ERROR_NULLPTR);

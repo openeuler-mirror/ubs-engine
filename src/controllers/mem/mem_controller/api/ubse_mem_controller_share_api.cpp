@@ -1334,6 +1334,10 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp& resp, UbseMemShar
 // 回退结束切换，供上层重试unimport；状态读取失败、非gap状态均不触发end。
 bool CloseStuckSwitchGapBlocks(const UbseMemShareBorrowImportObj& importObj)
 {
+    if (!UbseMmiInterface::GetInstance().IsShmSwitchSupported()) {
+        UBSE_LOG_WARN << "shm switch not supported, name=" << importObj.req.name;
+        return false;
+    }
     const auto& importResults = importObj.status.importResults;
     bool triggered = false;
     for (size_t b = 0; b < importResults.size(); ++b) {

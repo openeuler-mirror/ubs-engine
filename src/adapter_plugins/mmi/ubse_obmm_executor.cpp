@@ -157,18 +157,10 @@ UbseResult RmObmmExecutor::DlOpenLib(const std::string& obmmPath)
     if (UBSE_RESULT_FAIL(ret)) {
         return ret;
     }
-    ret = DlOpenFunName(obmmSwitchBeginImportFunc, "obmm_switch_begin_import");
-    if (UBSE_RESULT_FAIL(ret)) {
-        return ret;
-    }
-    ret = DlOpenFunName(obmmSwitchBeginExportFunc, "obmm_switch_begin_export");
-    if (UBSE_RESULT_FAIL(ret)) {
-        return ret;
-    }
-    ret = DlOpenFunName(obmmSwitchEndFunc, "obmm_switch_end");
-    if (UBSE_RESULT_FAIL(ret)) {
-        return ret;
-    }
+    // 迁移切换符号为可选能力：旧版本 libobmm 可能未导出，缺失时仅告警，不阻断 obmm 基础功能加载。
+    DlOpenOptionalFunName(obmmSwitchBeginImportFunc, "obmm_switch_begin_import");
+    DlOpenOptionalFunName(obmmSwitchBeginExportFunc, "obmm_switch_begin_export");
+    DlOpenOptionalFunName(obmmSwitchEndFunc, "obmm_switch_end");
     // memcpy_mt 本次暂不启用，避免 libobmm-accel 加载失败影响其他 OBMM 功能启动。
     return UBSE_OK;
 }

@@ -18,6 +18,7 @@
 #include "ubse_election.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
+#include "ubse_obmm_executor.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
 #include "obmm_v1_fixture.h"
@@ -655,6 +656,43 @@ struct SwitchIdentityRecoveryCase {
     bool isExport;
 };
 
+// 打开/恢复单例上的 obmm_switch_* 符号桩：模拟 libobmm 已导出切换能力，使恢复流程走切换态分支
+class SwitchSupportGuard {
+public:
+    SwitchSupportGuard()
+    {
+        auto& executor = RmObmmExecutor::GetInstance();
+        oldBeginImport_ = executor.obmmSwitchBeginImportFunc;
+        oldBeginExport_ = executor.obmmSwitchBeginExportFunc;
+        oldEnd_ = executor.obmmSwitchEndFunc;
+        executor.obmmSwitchBeginImportFunc = [](mem_id, unsigned long, const obmm_switch_import_target*, const void*,
+                                                uint16_t) {
+            return 0;
+        };
+        executor.obmmSwitchBeginExportFunc = [](mem_id, unsigned long, const obmm_switch_export_target*, obmm_mem_desc*,
+                                                const void*, uint16_t) {
+            return 0;
+        };
+        executor.obmmSwitchEndFunc = [](mem_id, int) {
+            return 0;
+        };
+    }
+    ~SwitchSupportGuard()
+    {
+        auto& executor = RmObmmExecutor::GetInstance();
+        executor.obmmSwitchBeginImportFunc = oldBeginImport_;
+        executor.obmmSwitchBeginExportFunc = oldBeginExport_;
+        executor.obmmSwitchEndFunc = oldEnd_;
+    }
+    SwitchSupportGuard(const SwitchSupportGuard&) = delete;
+    SwitchSupportGuard& operator=(const SwitchSupportGuard&) = delete;
+
+private:
+    ObmmSwitchBeginImportPtr oldBeginImport_{};
+    ObmmSwitchBeginExportPtr oldBeginExport_{};
+    ObmmSwitchEndPtr oldEnd_{};
+};
+
 class TestSwitchIdentityRecovery
     : public TestUbseObmmMetaRestore
     , public testing::WithParamInterface<SwitchIdentityRecoveryCase> {
@@ -663,6 +701,7 @@ class TestSwitchIdentityRecovery
 TEST_P(TestSwitchIdentityRecovery, RestoresIdentityFromPrivWithoutReadingDeviceIdentity)
 {
     const auto& param = GetParam();
+    SwitchSupportGuard switchGuard; // 切换态恢复要求 obmm_switch_* 已加载
     const std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData meta{};
     g_switchState.store(param.switchState);
@@ -708,6 +747,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldSki
 
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenV2SwitchStateUnreadable)
 {
+    SwitchSupportGuard switchGuard; // 切换态分支要求 obmm_switch_* 已加载
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     // V2 的 switch_state 读取失败必须报错，不能当成 IDLE，也不能掩盖 V2 的真实异常
@@ -730,6 +770,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFai
 
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenGapSizeUnreadable)
 {
+    SwitchSupportGuard switchGuard; // 切换态分支要求 obmm_switch_* 已加载
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     g_switchState.store(2); // AWAIT_READY
@@ -744,6 +785,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFai
 
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldRetryTransientThenNormal)
 {
+    SwitchSupportGuard switchGuard; // 切换态探测要求 obmm_switch_* 已加载
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     g_transientLeft.store(2); // 前两次 SWAPPING，随后收敛到 IDLE
@@ -763,6 +805,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldRet
 
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenTransientExhausted)
 {
+    SwitchSupportGuard switchGuard; // 切换态探测要求 obmm_switch_* 已加载
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     MOCKER(&RmObmmDevRead::GetCustomMeta).stubs().will(invoke(GetCustomMetaMockerV2Export));
@@ -773,5 +816,23 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFai
     auto ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(path, localObmmMetaData);
     g_alwaysTransient.store(false);
     EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldSkipSwitchBranchWhenSymbolsNotLoaded)
+{
+    std::string path = "/sys/devices/obmm/obmm_shmdev12/";
+    UbseMemLocalObmmMetaData localObmmMetaData{};
+    // V2 但 obmm_switch_* 未加载（旧版本 libobmm）：不读 switch_state，与 V1 一致走正常恢复
+    RmObmmExecutor::GetInstance().obmmSwitchBeginImportFunc = nullptr;
+    RmObmmExecutor::GetInstance().obmmSwitchBeginExportFunc = nullptr;
+    RmObmmExecutor::GetInstance().obmmSwitchEndFunc = nullptr;
+    MOCKER(&RmObmmDevRead::GetCustomMeta).stubs().will(invoke(GetCustomMetaMockerV2Export));
+    MOCKER(&RmObmmDevRead::GetSwitchState, UbseResult(*)(mem_id, uint8_t&)).expects(never());
+    MOCKER(&RmObmmDevRead::GetMemIdType).stubs().will(returnValue(0u));
+    MOCKER(&RmObmmDevRead::GetRemoteNuma).stubs().will(returnValue(0u));
+    MOCKER(&RmObmmDevRead::GetTotalSize).stubs().will(returnValue(0u));
+    MOCKER(&RmObmmDevRead::GetMemUbMemInfo).stubs().will(returnValue(0u));
+    auto ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(path, localObmmMetaData);
+    EXPECT_EQ(ret, UBSE_OK);
 }
 } // namespace ubse::ut::mmi

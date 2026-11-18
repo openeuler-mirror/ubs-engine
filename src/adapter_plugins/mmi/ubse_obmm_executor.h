@@ -129,10 +129,16 @@ public:
     UbseResult ObmmPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
     UbseResult ObmmUnPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
 
-    // 故障迁移：两阶段切换封装（必选符号，加载失败阻断初始化；调用前空指针检查）
     UbseResult ObmmSwitchBeginImport(const ObmmSwitchParam& param);
     UbseResult ObmmSwitchBeginExport(const ObmmSwitchExportParam& param, struct obmm_mem_desc& desc);
     UbseResult ObmmSwitchEnd(mem_id oldImportMemId, bool success);
+
+    // 迁移切换符号为可选能力（旧版本 libobmm 可能未导出），供 mem controller 在 accept 入口校验拦截。
+    bool IsSwitchSupported() const
+    {
+        return obmmSwitchBeginImportFunc != nullptr && obmmSwitchBeginExportFunc != nullptr &&
+               obmmSwitchEndFunc != nullptr;
+    }
 
     UbseResult DlOpenLib(const std::string& obmmPath);
     mem_id ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam& opParam);
@@ -154,6 +160,17 @@ public:
             return UBSE_ERROR;
         }
         return UBSE_OK;
+    }
+
+    // 可选符号加载：缺失时仅告警不失败，不 dlclose（用于版本兼容的 obmm_switch_* 符号）。
+    template <typename T>
+    void DlOpenOptionalFunName(T& funPtr, const std::string& funName)
+    {
+        funPtr =
+            reinterpret_cast<T>(dlsym(handle, funName.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        if (funPtr == nullptr) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Optional obmmFunc not found in libobmm.so, fun name is " << funName;
+        }
     }
 
     virtual ~RmObmmExecutor() = default;
