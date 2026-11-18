@@ -115,6 +115,8 @@ void TestUbseMemControllerMigrateApi::SetUp()
         .stubs()
         .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    auto& mmi = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmi, &UbseMmiInterface::IsShmSwitchSupported).stubs().will(returnValue(true));
     g_fastMigrateSleep = true; // 本fixture内sleep立即返回，重试路径不真实休眠
     MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(&MigrateTimerRegisterStub));
     MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs().will(invoke(&MigrateTimerUnregisterStub));
@@ -1575,6 +1577,17 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateInvalidParam)
     req = BuildMigrateReq(DST_SLOT_ID);
     req.targetNodeId.clear();
     EXPECT_EQ(UBSE_ERR_OUT_OF_RANGE, UbseMemShmMigrateService::GetInstance().Accept(req));
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateUnsupportedRejectedBeforeAuth)
+{
+    auto& mmi = UbseMmiInterface::GetInstance();
+    MOCKER_CPP_VIRTUAL(mmi, &UbseMmiInterface::IsShmSwitchSupported).reset();
+    MOCKER_CPP_VIRTUAL(mmi, &UbseMmiInterface::IsShmSwitchSupported).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseMemShmMigrateService::CheckUserPermission).expects(never());
+    MOCKER(&AsyncMemShmMigrateProcessor).expects(never());
+    EXPECT_EQ(UBSE_ERR_NOT_SUPPORTED, UbseMemShmMigrateService::GetInstance().Accept(BuildMigrateReq(DST_SLOT_ID)));
+    EXPECT_FALSE(UbseMemShmMigrateSessionManager::GetInstance().HasActiveSession(SHM_NAME));
 }
 
 TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateMissingCallerRejected)

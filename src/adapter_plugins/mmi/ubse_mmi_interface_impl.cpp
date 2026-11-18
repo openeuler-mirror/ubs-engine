@@ -17,6 +17,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mmi_module.h"
+#include "ubse_obmm_executor.h"
 #include "ubse_obmm_meta_restore.h"
 
 namespace ubse::adapter_plugins::mmi {
@@ -160,6 +161,12 @@ UbseResult UbseMmiInterfaceDefaultImpl::ShmUnExportExecutor(const UbseMemShareBo
         return UBSE_ERROR_NULLPTR;
     }
     return mmiModule->UbseMemShmUnExportExecutor(exportObj);
+}
+
+bool UbseMmiInterfaceDefaultImpl::IsShmSwitchSupported()
+{
+    using namespace ubse::mmi;
+    return RmObmmExecutor::GetInstance().IsSwitchSupported();
 }
 
 UbseResult UbseMmiInterfaceDefaultImpl::ShmSwitchBeginImportExecutor(const UbseMemShmSwitchObj& switchObj)

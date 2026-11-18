@@ -27,6 +27,7 @@
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_mmi_def.h"
+#include "ubse_obmm_executor.h"
 #include "ubse_obmm_utils.h"
 #include "ubse_security_module.h"
 #include "fcntl.h"
@@ -305,7 +306,10 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& p
         return ret;
     }
 
-    if (localObmmMetaData.customMeta.version == OBMM_CUSTOM_META_V2) {
+    // 切换态恢复依赖 obmm_switch_* 符号：仅符号已加载时才读取切换状态并走内部恢复路径；
+    // 旧版本 libobmm 未加载时跳过该分支，与 V1 一致走正常恢复逻辑
+    if (localObmmMetaData.customMeta.version == OBMM_CUSTOM_META_V2 &&
+        RmObmmExecutor::GetInstance().IsSwitchSupported()) {
         // V2 必须读取切换状态（memId 已确定读到，路径拼接收在读取函数内部）：过渡态（SWAPPING/FINISHING）
         // 短间隔、有限次数重试，稳定后重新分支；读取失败或重试耗尽按采集失败上报，不能当成 IDLE
         uint8_t switchState{};

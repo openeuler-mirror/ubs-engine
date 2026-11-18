@@ -282,6 +282,10 @@ uint32_t UbseMemShmMigrateService::CheckOperationAllowed(const std::string& name
 
 uint32_t UbseMemShmMigrateService::Accept(const UbseMemShmMigrateReq& req)
 {
+    if (!UbseMmiInterface::GetInstance().IsShmSwitchSupported()) {
+        UBSE_LOG_WARN << "shm migrate accept rejected, obmm switch not supported, name=" << req.name;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
     if (module == nullptr || !module->IsLeader()) {
         // 主备倒换期间路由可能短暂指向备节点，统一按未就绪应答引导调用方重试（重试后命中新主）。
