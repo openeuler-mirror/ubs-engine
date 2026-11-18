@@ -118,7 +118,7 @@ def ubs_mem_borrow(param: 'BorrowParamT', is_async: bool = False) -> List['MemBo
             - node_id: Source node ID
             - numa_meta_infos: NUMA meta information list (socket_id, numa_id)
             - borrow_size: Borrow size (MB)
-            - page_size: Huge page size in kB, only 2048 or 1048576, required
+            - page_size: Huge page size in kB, only 2048 or 1048576, optional, defaults to 2048 (2M)
         is_async (bool): Whether to execute asynchronously, default is False (synchronous)
 
     Returns:

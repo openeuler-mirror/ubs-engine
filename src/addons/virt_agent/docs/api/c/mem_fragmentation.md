@@ -139,7 +139,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
 typedef struct {
     borrow_strategy_c borrow_strategy;
     bool isAsync;
-    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页）
+    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页），未设置（值为0）时默认使用2048（2M大页）
 }borrow_setting_c;
 typedef struct {
     char borrow_ids_ptr[MAX_BORROW_ID_COUNT][MAX_BORROW_ID_LENGTH];
@@ -169,7 +169,7 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-- `borrow_setting.page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或其他取值返回 `VA_ERROR_INVALID_PARAM`。
+- `borrow_setting.page_size` 单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）时默认使用 2048（2M大页）；其他取值返回 `VA_ERROR_INVALID_PARAM`。
 - `borrow_strategy.dest_numa_infos[i].mem_sizes[j]` 单位kB，建议为所选大页规格（2048kB或1048576kB）的整数倍，未对齐时服务端按页大小向上取整。
 
 ## 附注 NOTES
@@ -763,7 +763,7 @@ typedef struct {
     numa_meta_info_s *numa_meta_infos; // numa信息列表
     uint32_t numa_len; // numa数量
     uint64_t borrow_size; // 借用大小, 单位MB
-    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页）
+    uint64_t page_size; // 大页大小，单位kB，仅支持2048（2M大页）或1048576（1G大页），未设置（值为0）时默认使用2048（2M大页）
 } mem_borrow_param_s;
 
 typedef struct {
@@ -812,7 +812,7 @@ typedef struct {
 ## 约束 CONSTRAINTS
 
 - `borrow_size` 单位MB（大规格虚机路径，服务端内部换算为kB后使用）。
-- `page_size` 为必填项，单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）或其他取值返回 `VA_ERROR_INVALID_PARAM`。
+- `page_size` 单位kB，仅支持 2048（2M大页）或 1048576（1G大页）；未设置（值为 0）时默认使用 2048（2M大页）；其他取值返回 `VA_ERROR_INVALID_PARAM`。
 
 ## 附注 NOTES
 

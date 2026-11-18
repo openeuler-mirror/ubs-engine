@@ -36,6 +36,8 @@ class UbsVirtAgentMemBorrowExecute(UbsVirtAgentBase):
         mem_borrow_setting.borrow_strategy = borrow_strategy
         mem_borrow_setting.is_async = is_async
         page_size = param.get("pageSize")
+        if page_size is None or page_size == 0:
+            page_size = HUGE_PAGE_SIZE_2M_KB
         if page_size not in (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB):
             raise ValueError(
                 "pageSize must be %d or %d (kB)" % (HUGE_PAGE_SIZE_2M_KB, HUGE_PAGE_SIZE_1G_KB))
