@@ -33,8 +33,8 @@ TEST_F(TestUbseMemAddrBorrowReqSimpo, SerializeDeserialize)
     value.requestId = 0x5678;
     value.exportAccessMode = 1;
     value.exportAddrList.push_back({0x1000, 0x2000});
-obj.SetUbseMesgInfo(value);
-obj.SetErrCode(19);
+    obj.SetUbseMesgInfo(value);
+    obj.SetErrCode(19);
 
     ASSERT_EQ(UBSE_OK, obj.Serialize());
     ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq> decoded;

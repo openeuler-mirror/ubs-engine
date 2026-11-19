@@ -29,6 +29,7 @@ using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
 using ubse::utils::Ref;
 
+// These RPC payloads prepend mErrCode. Legacy hand-written SIMPOs did not, so peers must use the same wire version.
 // FD borrow
 using UbseMemFdBorrowReqSimpoPtr = Ref<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>>;
 using UbseMemFdBorrowExportobjSimpoPtr = Ref<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>>;

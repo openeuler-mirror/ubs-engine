@@ -224,6 +224,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq, ::ubse::adapt
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::srcNuma,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::highWatermark,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::lowWatermark,
+               // Legacy debt serialization writes requestId again here; keep both encoders byte-aligned.
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::requestId,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::linkInfo,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::usrInfo)
