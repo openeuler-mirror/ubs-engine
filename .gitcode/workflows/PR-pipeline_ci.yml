@@ -1,0 +1,336 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      PR_ID:
+        description: Pull request number
+        required: true
+        type: string
+      process_mem:
+        description: process_mem changed
+        required: true
+        type: boolean
+      rmrs:
+        description: rmrs changed
+        required: true
+        type: boolean
+      ubs_engine:
+        description: ubs_engine changed
+        required: true
+        type: boolean
+      ubs_engine_src:
+        description: ubs_engine_src changed
+        required: true
+        type: boolean
+      ubs_engine_test:
+        description: ubs_engine_test changed
+        required: true
+        type: boolean
+      ucache:
+        description: ucache changed
+        required: true
+        type: boolean
+      virtagent:
+        description: virtagent changed
+        required: true
+        type: boolean
+
+defaults:
+  run:
+    shell: bash
+
+stages:
+  BUILD_UT:
+    name: BUILD_UT
+    fail_fast: false
+    jobs:
+      Build_process_mem_compile:
+        name: Build_process_mem_compile
+        if: ${{ inputs.process_mem == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build process_mem
+            run: | 
+                set -eux
+                ls -al
+                echo "inputs: ${{ inputs }}"
+                bash build.sh process_mem
+      UT_process_mem_ut:
+        name: UT_process_mem_ut
+        if: ${{ inputs.process_mem == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT process_mem
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubs-engine_process_mem_ut_independent_ut -C -j 8
+      Build_rmrs_compile:
+        name: Build_rmrs_compile
+        if: ${{ inputs.rmrs == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build rmrs
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh mempooling
+      UT_rmrs_ut:
+        name: UT_rmrs_ut
+        if: ${{ inputs.rmrs == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT rmrs
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubs-engine_rmrs_plugin_ut_independent_ut -C -j 8
+      Build_ubs_engine_compile:
+        name: Build_ubs_engine_compile
+        if: ${{ inputs.ubs_engine == true || inputs.ubs_engine_src == true || inputs.ubs_engine_test == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build ubs-engine
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubse
+                bash build.sh ubsectl
+                bash build.sh ubse_sdk
+      UT_ubs_engine_ut:
+        name: UT_ubs_engine_ut
+        if: ${{ inputs.ubs_engine == true || inputs.ubs_engine_src == true || inputs.ubs_engine_test == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT ubs-engine
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubs-engine_ut_independent_ut -C -j 8
+      ubs_engine_it:
+        name: ubs_engine_it
+        if: ${{ inputs.ubs_engine == true || inputs.ubs_engine_src == true || inputs.ubs_engine_test == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: IT ubs-engine
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh it -C -j 8
+      Build_ucache_compile:
+        name: Build_ucache_compile
+        if: ${{ inputs.ucache == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build ucache
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ucache_plugin
+      UT_ucache_ut:
+        name: UT_ucache_ut
+        if: ${{ inputs.ucache == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT ucache
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubs-engine_ucache_plugin_ut_independent_ut -C -j 8
+      Build_virtagent_compile:
+        name: Build_virtagent_compile
+        if: ${{ inputs.virtagent == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: Build virtagent
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh virtagent
+      UT_virtagent_ut:
+        name: UT_virtagent_ut
+        if: ${{ inputs.virtagent == true }}
+        runs-on: [self-hosted, openeuler, arm, cpu=32]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: Checkout Source Code
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ inputs.PR_ID }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: install ubs-comm
+            run: | 
+                echo '[updates1]' >> /etc/yum.repos.d/openEuler.repo
+                echo 'name=local_base1' >> /etc/yum.repos.d/openEuler.repo
+                echo 'baseurl=https://eulermaker.openeuler.openatom.cn/api/ems2/repositories/BeiMing_openEuler2403_Next/openEuler%3A24.03-LTS-SP3/aarch64/' >> /etc/yum.repos.d/openEuler.repo
+                echo 'gpgcheck=0' >> /etc/yum.repos.d/openEuler.repo
+                echo 'enable=1' >> /etc/yum.repos.d/openEuler.repo
+                yum install -y ubs-comm-devel
+          - name: UT virtagent
+            run: | 
+                set -eux
+                ls -al
+                bash build.sh ubs-engine_virtagent_ut_independent_ut -C -j 8

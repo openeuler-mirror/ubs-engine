@@ -1,0 +1,289 @@
+name: PR-pipeline_ubs-engine_pr_ci
+
+on:
+  pull_request_target:
+    types: 
+      - open
+      - reopen
+      - update
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+  pull_request_comment:
+    types: [created]
+    comments: [ '^/retest$' ]
+    branches:
+      - master
+      - openEuler*
+      - br_UnifiedBus
+env:
+  pr_id: ${{ atomgit.event.pull_request.number }}
+  repo: ${{  atomgit.event.pull_request.base.repo.full_name  }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  enable: true
+  max: 5
+  exceed-action: QUEUE
+
+stages:
+  pr-check:
+    name: pr-check
+    jobs:
+      mark_running:
+        name: Mark running
+        runs-on: [self-hosted, openeuler, x86, cpu=2]
+        permissions:
+          repository: read
+          id-token: write
+          pr: write
+        steps:
+          - name: Mark PR as running
+            if: ${{ env.pr_id != '' }}
+            uses: openlibing/pr-label-action@v1.0.0
+            with:
+              token: ${{ secrets.OPENEULER_BOT_TOKEN }}
+              add_labels: ci_processing
+              remove_labels: ci_failed,ci_successful
+      SCA_ubsengine:
+        name: SCA_ubsengine
+        needs: mark_running
+        runs-on: [self-hosted, openeuler, x86, cpu=2]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
+        permissions:
+          repository: read
+          id-token: write
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: sca-action
+            uses: openlibing/sca-action/sca-pr-action@680d3e1d0424788ae6e807f7a4fcc660b378b66e
+            with: 
+              project-name: openEuler
+      Antipoison_ubsengine:
+        name: Antipoison_ubsengine
+        needs: mark_running
+        runs-on: [self-hosted, openeuler, x86, cpu=2]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+        permissions:
+          repository: read
+          id-token: write
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: malicious-code-scan-action
+            uses: openlibing/malicious-code-scan-action/malicious-code-pr-scan-action@c91c261f5d87f691d781e07d8c13b6ce82b6007b
+            with: 
+              project-name: openEuler
+      issue_associate_check:
+        name: issue_associate_check
+        needs: mark_running
+        runs-on: [self-hosted, openeuler, arm, cpu=2]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ubscore/build-openeuler-24.03-lts-sp3-arm:latest
+        steps:
+          - name: check issue
+            run: |
+              set -eux
+              ret=$(curl -L "https://api.atomgit.com/api/v5/repos/${{ env.repo }}/pulls/${{ env.pr_id }}/issues?access_token=${{ atomgit.token }}")
+              echo "[INFO]: RET is ${ret}"
+              err_code=$(echo "${ret}" | jq -r '.error_code // empty' 2>/dev/null || true)
+              if [ -n "${err_code}" ]; then
+                  if [ "${err_code}" == "403" ]; then
+                      echo "[ERROR]: token 无权限访问 API(403), 请检查 atomgit_token 的权限范围"
+                  else
+                      echo "[ERROR]: API 返回错误, error_code=${err_code}"
+                  fi
+                  exit 1
+              fi
+              if [ "$(echo "${ret}" | jq -r 'type')" != "array" ]; then
+                  echo "[ERROR]: API 响应格式异常, 预期数组"
+                  exit 1
+              fi
+              if [ "$(echo "${ret}" | jq 'length')" == "0" ];then
+                  echo "[ERROR]: This PR do not has issues!"
+                  exit 1
+              else
+                  echo "[INFO] This PR has issues!"
+                  exit 0
+              fi
+      pre_commit:
+        name: pre_commit
+        needs: mark_running
+        runs-on: [self-hosted, openeuler, x86, cpu=16]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/docker-xian/beiming-openeuler-22.03-lts-sp4-x86_64:v1
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              allow-unsafe-pr-checkout: true
+          - name: Install System pre-commit
+            run: | 
+                set -eux
+                clang-format --version
+                PYTHON3_BIN=$(dirname "$(which python3)")
+                ln -sf "$(which python3)" "$PYTHON3_BIN/python"
+                echo "$PYTHON3_BIN" >> "$ATOMGIT_PATH"
+                python --version
+                python -m pip install --upgrade pip --timeout 120 --ignore-installed
+                pip3 config set global.index-url https://mirrors.huaweicloud.com/repository/pypi/simple
+                cd ${ATOMGIT_WORKSPACE}
+                pip3 install pre-commit==4.3.0 pre-commit-hooks && pre-commit install --install-hooks
+          - name: install gitleaks 
+            run: | 
+                cd ${ATOMGIT_WORKSPACE} 
+                cp -rf /opt/buildtools/gitleaks ./ 
+                cd -
+          - name: pre-commit
+            uses: openlibing-pre-commit-action
+      detect_changes:
+        name: detect_changes
+        needs: mark_running
+        runs-on: [self-hosted, openeuler, x86, cpu=2]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/jh-partner-collab/beiming-openeuler-24.03-lts-sp3-x86_64:v2
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.pr_id }}/merge
+              fetch-depth: 0
+              allow-unsafe-pr-checkout: true
+          - name: detect-changes-ubse
+            uses: paths-changes-filter
+            id: changes
+            with:
+              event-name: 'pull_request'
+              base: ${{ atomgit.event.pull_request.base.ref }}
+              repo: ${{ atomgit.repository }}
+              number: ${{ env.pr_id }}
+              token: ${{ atomgit.token }}
+              filters: |
+                process_mem:
+                  - "src/addons/process_mem/**"
+                  - "test/UT/exclusive_executable/process_mem/**"
+                  - "src/addons/rmrs/common/smap/mp_smap_module.h"
+                  - "src/addons/rmrs/include/mp_error.h"
+                  - "scripts/**"
+                  - "build.sh"
+                  - "CMakeLists.txt"
+                  - "src/include/**"
+                  - "test/CMakeLists.txt"
+                  - "test/UT/main.cpp"
+                  - "test/UT/CMakeLists.txt"
+                rmrs:
+                  - "src/addons/rmrs/**"
+                  - "test/UT/exclusive_executable/rmrs/**"
+                  - "scripts/**"
+                  - "build.sh"
+                  - "CMakeLists.txt"
+                  - "src/include/**"
+                  - "test/CMakeLists.txt"
+                  - "test/UT/main.cpp"
+                  - "test/UT/CMakeLists.txt"
+                ubs_engine:
+                  - "scripts/**"
+                  - "build.sh"
+                  - "CMakeLists.txt"
+                  - "src/include/**"
+                ucache:
+                  - "src/addons/ucache/**"
+                  - "test/UT/exclusive_executable/ucache/**"
+                  - "scripts/**"
+                  - "build.sh"
+                  - "CMakeLists.txt"
+                  - "src/include/**"
+                  - "test/CMakeLists.txt"
+                  - "test/UT/main.cpp"
+                  - "test/UT/CMakeLists.txt"
+                virtagent:
+                  - "src/addons/virt_agent/**"
+                  - "test/UT/exclusive_executable/virt_agent/**"
+                  - "src/addons/rmrs/interface/mempooling_interface.h"
+                  - "scripts/**"
+                  - "build.sh"
+                  - "CMakeLists.txt"
+                  - "src/include/**"
+                  - "test/CMakeLists.txt"
+                  - "test/UT/main.cpp"
+                  - "test/UT/CMakeLists.txt"
+          - name: detect-changes-ubse-other
+            uses: paths-changes-filter
+            id: changes-ubse-other
+            with:
+              event-name: 'pull_request'
+              base: ${{ atomgit.event.pull_request.base.ref }}
+              repo: ${{ atomgit.repository }}
+              number: ${{ env.pr_id }}
+              token: ${{ atomgit.token }}
+              predicate-quantifier: every
+              filters: |
+                ubs_engine_src:
+                  - "src/**"
+                  - "!src/addons/virt_agent/**"
+                  - "!src/addons/rmrs/**"
+                  - "!src/addons/ucache/**"
+                  - "!src/addons/process_mem/**"
+                ubs_engine_test:
+                  - "test/**"
+                  - "!test/UT/exclusive_executable/virt_agent/**"
+                  - "!test/UT/exclusive_executable/rmrs/**"
+                  - "!test/UT/exclusive_executable/ucache/**"
+                  - "!test/UT/exclusive_executable/process_mem/**"
+      CI:
+        name: Build and UT
+        needs: detect_changes
+        uses: ./.gitcode/workflows/PR-pipeline_ci.yml
+        with:
+          PR_ID: ${{ atomgit.event.pull_request.number }}
+          process_mem: ${{ needs.detect_changes.outputs.process_mem }}
+          rmrs: ${{ needs.detect_changes.outputs.rmrs }}
+          ubs_engine: ${{ needs.detect_changes.outputs.ubs_engine }}
+          ubs_engine_test: ${{ needs.detect_changes.outputs.ubs_engine_test }}
+          ubs_engine_src: ${{ needs.detect_changes.outputs.ubs_engine_src }}
+          ucache: ${{ needs.detect_changes.outputs.ucache }}
+          virtagent: ${{ needs.detect_changes.outputs.virtagent }}
+      post-process:
+        name: Mark post
+        needs:
+          - SCA_ubsengine
+          - Antipoison_ubsengine
+          - pre_commit
+          - detect_changes
+          - CI
+          - issue_associate_check
+        if: ${{ always() }}
+        runs-on: [self-hosted, openeuler, x86, cpu=2]
+        permissions:
+          repository: read
+          id-token: write
+          pr: write
+        steps:
+          - name: Mark PR success or failed
+            if: ${{ needs.CI.result == 'success' || needs.CI.result == 'skipped' }}
+            uses: openlibing/pr-label-action@v1.0.0
+            with:
+              token: ${{ secrets.OPENEULER_BOT_TOKEN }}
+              add_labels: ${{ needs.SCA_ubsengine.result == 'success' && needs.Antipoison_ubsengine.result == 'success' && needs.pre_commit.result == 'success' && needs.detect_changes.result == 'success' && needs.issue_associate_check.result == 'success' && 'ci_successful' || 'ci_failed' }}
+              remove_labels: ci_processing
+          - name: Mark PR failed
+            if: ${{ needs.CI.result != 'success' && needs.CI.result != 'skipped' }}
+            uses: openlibing/pr-label-action@v1.0.0
+            with:
+              token: ${{ secrets.OPENEULER_BOT_TOKEN }}
+              add_labels: ci_failed
+              remove_labels: ci_processing
