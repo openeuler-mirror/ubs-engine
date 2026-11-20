@@ -3,7 +3,7 @@
 #define UBSE_MANAGER_UBSE_MEM_ASYNC_PROCESSOR_H
 #include "ubse_com_def.h"
 #include "ubse_mmi_interface.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_return_req_simpo.h"
 #include "message/ubse_mem_share_attach_req_simpo.h"

@@ -16,7 +16,7 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 class TestUbseMemAddrBorrowImportobjSimpo : public testing::Test {

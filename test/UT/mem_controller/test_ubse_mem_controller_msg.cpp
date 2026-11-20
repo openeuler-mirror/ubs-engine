@@ -150,12 +150,15 @@ TEST_F(TestUbseMemControllerMsg, QueryFdImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryFdImportObjHandler(req, resp), UBSE_ERROR);
 
-    req.len = 100;
-    req.data = new uint8_t[100];
-    MOCKER(&mem::serial::UbseMemFdBorrowImportObjDeserialization).stubs().will(returnValue(true));
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "test";
+    importObj.req.importNodeId = "1";
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj> simpo;
+    simpo.SetUbseMesgInfo(importObj);
+    ASSERT_EQ(UBSE_OK, simpo.Serialize());
+    req.data = simpo.SerializedData();
+    req.len = simpo.SerializedDataSize();
     EXPECT_EQ(QueryFdImportObjHandler(req, resp), UBSE_OK);
-    SafeDeleteArray(req.data);
-    SafeDeleteArray(resp.data);
 }
 
 TEST_F(TestUbseMemControllerMsg, QueryNumaImportObj)
@@ -184,15 +187,16 @@ TEST_F(TestUbseMemControllerMsg, QueryNumaImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryNumaImportObjHandler(req, resp), UBSE_ERROR);
 
-    mem::serial::UbseSerialization out;
     UbseMemNumaBorrowImportObj importObj;
     importObj.req.name = "test";
     importObj.req.importNodeId = "1";
-    mem::serial::UbseMemNumaBorrowImportObjSerialization(out, importObj);
+    ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj> simpo;
+    simpo.SetUbseMesgInfo(importObj);
+    ASSERT_EQ(UBSE_OK, simpo.Serialize());
     UbseByteBuffer req1{};
     UbseByteBuffer resp1{};
-    req1.data = out.GetBuffer();
-    req1.len = out.GetLength();
+    req1.data = simpo.SerializedData();
+    req1.len = simpo.SerializedDataSize();
     AddNumaImport(importObj);
     EXPECT_EQ(QueryNumaImportObjHandler(req1, resp1), UBSE_OK);
 }
@@ -215,13 +219,14 @@ TEST_F(TestUbseMemControllerMsg, QueryAddrImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryAddrImportObjHandler(req, resp), UBSE_ERROR);
 
-    mem::serial::UbseSerialization out;
     UbseMemAddrBorrowImportObj importObj;
     importObj.req.name = "test";
     importObj.req.importNodeId = "1";
-    mem::serial::UbseMemAddrBorrowImportObjSerialization(out, importObj);
-    req.data = out.GetBuffer();
-    req.len = out.GetLength();
+    ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj> simpo;
+    simpo.SetUbseMesgInfo(importObj);
+    ASSERT_EQ(UBSE_OK, simpo.Serialize());
+    req.data = simpo.SerializedData();
+    req.len = simpo.SerializedDataSize();
     AddAddrImport(importObj);
     EXPECT_EQ(QueryAddrImportObjHandler(req, resp), UBSE_OK);
 }

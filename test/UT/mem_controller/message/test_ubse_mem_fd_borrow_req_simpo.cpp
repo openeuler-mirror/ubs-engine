@@ -12,73 +12,82 @@
 
 #include "test_ubse_mem_fd_borrow_req_simpo.h"
 
-#include "mockcpp/mockcpp.hpp"
-
 #include "ubse_error.h"
-#include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::message;
-using namespace ubse::utils;
-using namespace ubse::mem::serial;
+namespace {
+template <class Request, class Owner, class Item>
+void CheckVectorDecodeLimit(std::vector<Item> Owner::*member, size_t limit)
+{
+    for (size_t size : {limit, limit + 1}) {
+        Request request{};
+        (request.*member).resize(size);
+        ubse::simpo::util::UbseAutoSimpo<Request> encoded;
+        encoded.SetUbseMesgInfo(request);
+        ASSERT_EQ(UBSE_OK, encoded.Serialize());
+
+        ubse::simpo::util::UbseAutoSimpo<Request> decoded;
+        ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(encoded.SerializedData(), encoded.SerializedDataSize()));
+        ASSERT_EQ(size == limit ? UBSE_OK : UBSE_ERROR, decoded.Deserialize()) << "size=" << size;
+        EXPECT_EQ(size == limit ? limit : 0, (decoded.GetUbseMesgInfo().*member).size());
+    }
+}
+} // namespace
 
 void TestUbseMemFdBorrowReqSimpo::SetUp()
 {
     Test::SetUp();
-    obj = new UbseMemFdBorrowReqSimpo();
+    obj = new ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>();
 }
 
 void TestUbseMemFdBorrowReqSimpo::TearDown()
 {
     Test::TearDown();
-    GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
-TEST_F(TestUbseMemFdBorrowReqSimpo, Serialize)
+TEST_F(TestUbseMemFdBorrowReqSimpo, SerializeDeserialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    MOCKER_CPP(&UbseSerialization::Check).reset();
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
+    UbseMemFdBorrowReq request{};
+    request.name = "fd-request";
+    request.requestId = 42;
+    request.importNodeId = "node-b";
+    request.lenderSizes = {1024};
+    request.candidateNodeList = {"node-a"};
+    obj->SetUbseMesgInfo(request);
+    obj->SetErrCode(17);
+
+    ASSERT_EQ(UBSE_OK, obj->Serialize());
+    ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq> decoded;
+    ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj->SerializedData(), obj->SerializedDataSize()));
+    ASSERT_EQ(UBSE_OK, decoded.Deserialize());
+    auto result = decoded.GetUbseMesgInfo();
+    EXPECT_EQ(request.name, result.name);
+    EXPECT_EQ(request.requestId, result.requestId);
+    EXPECT_EQ(request.importNodeId, result.importNodeId);
+    EXPECT_EQ(request.lenderSizes, result.lenderSizes);
+    EXPECT_EQ(request.candidateNodeList, result.candidateNodeList);
+    EXPECT_EQ(17U, decoded.GetErrCode());
 }
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值，模拟并判断UbseMemFdBorrowReqDeserialize在失败情况下Deserialize的返回值
- * 3.判断Check函数返回false和true时Deserialize的行为
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2.UbseMemFdBorrowReqDeserialize失败时函数返回UBSE_ERROR
- * 3.Check函数返回false时，Deserialize返回UBSE_ERROR
- * 4.一切功能正常时，返回UBSE_OK
- */
-TEST_F(TestUbseMemFdBorrowReqSimpo, Deserialize)
+TEST_F(TestUbseMemFdBorrowReqSimpo, LenderLocsDecodeLimit)
 {
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::lenderLocs, 1024);
+}
 
-    uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemFdBorrowReqSerialization).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+TEST_F(TestUbseMemFdBorrowReqSimpo, LenderSizesDecodeLimit)
+{
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::lenderSizes, 1024);
+}
 
-    MOCKER_CPP(&UbseMemFdBorrowReqSerialization).reset();
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    MOCKER_CPP(&UbseDeSerialization::Check).reset();
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+TEST_F(TestUbseMemFdBorrowReqSimpo, CandidateNodeListDecodeLimit)
+{
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::candidateNodeList, 128);
+}
+
+TEST_F(TestUbseMemFdBorrowReqSimpo, TrustRingSignedDatasDecodeLimit)
+{
+    using ubse::adapter_plugins::mmi::UbseTrustRingData;
+    CheckVectorDecodeLimit<UbseTrustRingData>(&UbseTrustRingData::lendSignedDatas, 1024);
 }
 } // namespace ubse::mem::controller::message::ut

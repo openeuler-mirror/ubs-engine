@@ -13,12 +13,9 @@
 #include "test_ubse_mem_addr_borrow_req_simpo.h"
 
 #include "ubse_error.h"
-#include "message/ubse_mem_controller_serial.h"
+#include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::message;
-using namespace ubse::mem::serial;
-
 void TestUbseMemAddrBorrowReqSimpo::SetUp()
 {
     Test::SetUp();
@@ -27,81 +24,42 @@ void TestUbseMemAddrBorrowReqSimpo::SetUp()
 void TestUbseMemAddrBorrowReqSimpo::TearDown()
 {
     Test::TearDown();
-    GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemAddrBorrowReqSimpo, Serialize)
+TEST_F(TestUbseMemAddrBorrowReqSimpo, SerializeDeserialize)
 {
-    UbseMemAddrBorrowReq req;
-    req.name = "test";
-    obj.SetUbseMemAddrBorrowReq(std::move(req));
-    EXPECT_EQ(obj.Serialize(), UBSE_OK);
+    UbseMemAddrBorrowReq value{};
+    value.name = "addr-request";
+    value.requestId = 0x5678;
+    value.exportAccessMode = 1;
+    value.exportAddrList.push_back({0x1000, 0x2000});
+    obj.SetUbseMesgInfo(value);
+    obj.SetErrCode(19);
+
+    ASSERT_EQ(UBSE_OK, obj.Serialize());
+    ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq> decoded;
+    ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj.SerializedData(), obj.SerializedDataSize()));
+    ASSERT_EQ(UBSE_OK, decoded.Deserialize());
+    auto result = decoded.GetUbseMesgInfo();
+    EXPECT_EQ(value.requestId, result.requestId);
+    EXPECT_EQ(value.exportAccessMode, result.exportAccessMode);
+    ASSERT_EQ(value.exportAddrList.size(), result.exportAddrList.size());
+    EXPECT_EQ(value.exportAddrList[0].addr, result.exportAddrList[0].addr);
+    EXPECT_EQ(value.exportAddrList[0].size, result.exportAddrList[0].size);
+    EXPECT_EQ(19U, decoded.GetErrCode());
 }
 
-TEST_F(TestUbseMemAddrBorrowReqSimpo, Serialize_CheckFail)
+TEST_F(TestUbseMemAddrBorrowReqSimpo, ExportAddrListDecodeLimit)
 {
-    UbseMemAddrBorrowReq req;
-    req.name = "test";
-    obj.SetUbseMemAddrBorrowReq(std::move(req));
+    for (size_t size : {1024U, 1025U}) {
+        UbseMemAddrBorrowReq request{};
+        request.exportAddrList.resize(size);
+        obj.SetUbseMesgInfo(request);
+        ASSERT_EQ(UBSE_OK, obj.Serialize());
 
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_EQ(obj.Serialize(), UBSE_ERROR);
-}
-
-TEST_F(TestUbseMemAddrBorrowReqSimpo, Deserialize_NullInput)
-{
-    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
-}
-
-TEST_F(TestUbseMemAddrBorrowReqSimpo, Deserialize_BadData)
-{
-    uint32_t size = 4;
-    auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
-    obj.SetInputRawDataFromShared(buffer, size);
-    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
-}
-
-TEST_F(TestUbseMemAddrBorrowReqSimpo, SerializeDeserialize_RoundTrip)
-{
-    UbseMemAddrBorrowReq req;
-    req.name = "roundtrip_test";
-    req.importNodeId = "importNode";
-    req.importPid = 100;
-    req.exportNodeId = "42";
-    req.exportPid = 200;
-    req.srcSocket = 1;
-    req.srcNuma = 2;
-    req.dstSocket = 3;
-    req.dstNuma = 4;
-    req.ubseMemPrivData.wrDelayComp = 1;
-    UbseMemAddrInfo addrInfo;
-    addrInfo.addr = 0x1000;
-    addrInfo.size = 0x2000;
-    req.exportAddrList.push_back(addrInfo);
-
-    obj.SetUbseMemAddrBorrowReq(std::move(req));
-    EXPECT_EQ(obj.Serialize(), UBSE_OK);
-
-    auto sharedData = obj.GetSharedOutputData();
-    auto size = obj.SerializedDataSize();
-
-    UbseMemAddrBorrowReqSimpo obj2;
-    obj2.SetInputRawDataFromShared(sharedData, size);
-    EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
-
-    auto result = obj2.GetUbseMemAddrBorrowReq();
-    EXPECT_EQ(result.name, "roundtrip_test");
-    EXPECT_EQ(result.importNodeId, "importNode");
-    EXPECT_EQ(result.importPid, 100);
-    EXPECT_EQ(result.exportNodeId, "42");
-    EXPECT_EQ(result.exportPid, 200);
-    EXPECT_EQ(result.srcSocket, 1);
-    EXPECT_EQ(result.srcNuma, 2);
-    EXPECT_EQ(result.dstSocket, 3);
-    EXPECT_EQ(result.dstNuma, 4);
-    EXPECT_EQ(result.ubseMemPrivData.wrDelayComp, 1);
-    ASSERT_EQ(result.exportAddrList.size(), 1);
-    EXPECT_EQ(result.exportAddrList[0].addr, 0x1000);
-    EXPECT_EQ(result.exportAddrList[0].size, 0x2000);
+        ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq> decoded;
+        ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj.SerializedData(), obj.SerializedDataSize()));
+        EXPECT_EQ(size == 1024 ? UBSE_OK : UBSE_ERROR, decoded.Deserialize()) << "size=" << size;
+    }
 }
 } // namespace ubse::mem::controller::message::ut

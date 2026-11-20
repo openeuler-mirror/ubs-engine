@@ -29,8 +29,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_fd_borrow_importobj_simpo.h"
+#include "../message/ubse_mem_borrow_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
@@ -96,12 +95,12 @@ UbseResult SendFdExportObj(const UbseMemFdBorrowExportObj& exportObj, const bool
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK));
-    UbseMemFdBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowExportobjSimpo();
+    UbseMemFdBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
@@ -262,12 +261,12 @@ UbseResult SendFdImportObjForPermission(const std::string& nodeId, const UbseMem
     SendParam sendParam(
         nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK));
-    UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
+    UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseMemOperationRespSimpoPtr ubseResponsePtr = new (std::nothrow) UbseMemOperationRespSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
@@ -612,12 +611,12 @@ UbseResult SendFdImportObj(const UbseMemFdBorrowImportObj& importObj, const bool
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK));
-    UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
+    UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>();
     if (ptr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;

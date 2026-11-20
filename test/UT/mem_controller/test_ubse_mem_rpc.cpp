@@ -26,15 +26,7 @@
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_thread_pool.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_return_req_simpo.h"
 #include "message/ubse_mem_share_attach_req_simpo.h"
@@ -74,7 +66,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowMessageHandler)
     bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemFdBorrowReqSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>();
     EXPECT_NE(req, nullptr);
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(rsp, nullptr);
@@ -106,7 +98,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowMessageHandler)
     bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemNumaBorrowReqSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -139,7 +131,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler)
     bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemAddrBorrowReqSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -390,11 +382,11 @@ TEST_F(TestUbseMemRpc, Deserialize)
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
 {
-    UbseMemFdBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowExportobjSimpo();
+    UbseMemFdBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>();
     EXPECT_NE(ptr, nullptr);
     UbseMemFdBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemFdBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(rsp, nullptr);
@@ -440,7 +432,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler)
     bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -469,7 +461,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandlerGetModuleCo
 // UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler)
 {
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemOperationRespSimpo();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -498,13 +490,13 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler_GetModuleC
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandler)
 {
-    UbseMemNumaBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo();
+    UbseMemNumaBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>();
     EXPECT_NE(ptr, nullptr);
     UbseMemNumaBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemNumaBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -540,7 +532,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandlerGetModule
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowImportObjCallbackMessageHandler)
 {
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemNumaBorrowImportobjSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -654,11 +646,11 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowImportObjCallbackMessageHandler_GetModu
 // UbseMemAddrBorrowExportObjCallbackMessageHandler
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler)
 {
-    UbseMemAddrBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemAddrBorrowExportobjSimpo();
+    UbseMemAddrBorrowExportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>();
     EXPECT_NE(ptr, nullptr);
     UbseMemAddrBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemAddrBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareBorrowExportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
@@ -696,13 +688,13 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler_GetModul
 // UbseMemAddrBorrowImportObjCallbackMessageHandler
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowImportObjCallbackMessageHandler)
 {
-    UbseMemAddrBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo();
+    UbseMemAddrBorrowImportobjSimpoPtr ptr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>();
     EXPECT_NE(ptr, nullptr);
     UbseMemAddrBorrowImportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemAddrBorrowImportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
-    const UbseBaseMessagePtr req = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo();
+    const UbseBaseMessagePtr req = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
@@ -862,7 +854,7 @@ TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
     MOCKER(operationRespSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
-    const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>;
+    const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowReqSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -870,7 +862,7 @@ TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto fdBorrowExportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemFdBorrowExportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowExportobjSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -878,7 +870,7 @@ TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto fdBorrowImportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemFdBorrowImportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowImportobjSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -918,20 +910,20 @@ TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
         &UbseComModule::RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>;
     MOCKER(operationRespSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
-    const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>;
+    const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowReqSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
     const auto fdBorrowExportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemFdBorrowExportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowExportObj>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowExportobjSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
     const auto fdBorrowImportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemFdBorrowImportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>, UbseMemCallbackMessage>;
     MOCKER(fdBorrowImportobjSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto numaBorrowReqSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemNumaBorrowReqSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>, UbseMemCallbackMessage>;
     MOCKER(numaBorrowReqSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -939,7 +931,7 @@ TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto numaBorrowExportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemNumaBorrowExportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>, UbseMemCallbackMessage>;
     MOCKER(numaBorrowExportobjSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -947,7 +939,7 @@ TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto numaBorrowImportobjSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemNumaBorrowImportobjSimpo, UbseMemCallbackMessage>;
+        &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>, UbseMemCallbackMessage>;
     MOCKER(numaBorrowImportobjSimpoRegFunc)
         .stubs()
         .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
@@ -1151,15 +1143,15 @@ TEST_F(TestUbseMemRpc, RegisterNumaBorrowHandlers)
 {
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
     MemScheduleHandler::RegisterNumaBorrowHandlers(comModule);
-    const auto func = &UbseComModule::RegRpcService<UbseMemNumaBorrowReqSimpo, UbseMemCallbackMessage>;
+    const auto func = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>, UbseMemCallbackMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterNumaBorrowHandlers(comModule), UBSE_ERROR);
 
-    const auto func1 = &UbseComModule::RegRpcService<UbseMemNumaBorrowExportobjSimpo, UbseMemCallbackMessage>;
+    const auto func1 = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowExportObj>, UbseMemCallbackMessage>;
     MOCKER(func1).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterNumaBorrowHandlers(comModule), UBSE_ERROR);
 
-    const auto func3 = &UbseComModule::RegRpcService<UbseMemNumaBorrowImportobjSimpo, UbseMemCallbackMessage>;
+    const auto func3 = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>, UbseMemCallbackMessage>;
     MOCKER(func3).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterNumaBorrowHandlers(comModule), UBSE_ERROR);
 
@@ -1174,15 +1166,15 @@ TEST_F(TestUbseMemRpc, RegisterAddrBorrowHandlers)
 {
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
     MemScheduleHandler::RegisterNumaBorrowHandlers(comModule);
-    const auto func1 = &UbseComModule::RegRpcService<UbseMemAddrBorrowReqSimpo, UbseMemCallbackMessage>;
+    const auto func1 = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq>, UbseMemCallbackMessage>;
     MOCKER(func1).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterAddrBorrowHandlers(comModule), UBSE_ERROR);
 
-    const auto func = &UbseComModule::RegRpcService<UbseMemAddrBorrowExportobjSimpo, UbseMemCallbackMessage>;
+    const auto func = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowExportObj>, UbseMemCallbackMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterAddrBorrowHandlers(comModule), UBSE_ERROR);
 
-    const auto func2 = &UbseComModule::RegRpcService<UbseMemAddrBorrowImportobjSimpo, UbseMemCallbackMessage>;
+    const auto func2 = &UbseComModule::RegRpcService<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>, UbseMemCallbackMessage>;
     MOCKER(func2).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(MemScheduleHandler::RegisterAddrBorrowHandlers(comModule), UBSE_ERROR);
 

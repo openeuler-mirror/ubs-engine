@@ -87,6 +87,11 @@ struct bitfield_traits<UbseMemPrivData> {
 // UBSE_SERIALIZE type registrations.
 namespace ubse::serial::util {
 
+// Match the limits in the legacy borrow request decoder.
+constexpr size_t MAX_BORROW_NODE_LIST_SIZE = 128;
+constexpr size_t MAX_BORROW_LIST_SIZE = 1024;
+constexpr size_t MAX_BORROW_EXPORT_ADDR_LIST_SIZE = 1024;
+
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseUdsInfo, void, &::ubse::adapter_plugins::mmi::UbseUdsInfo::uid,
                &::ubse::adapter_plugins::mmi::UbseUdsInfo::gid, &::ubse::adapter_plugins::mmi::UbseUdsInfo::pid,
                &::ubse::adapter_plugins::mmi::UbseUdsInfo::username)
@@ -102,7 +107,8 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseNumaLocation, void,
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseTrustRingData, void,
                &::ubse::adapter_plugins::mmi::UbseTrustRingData::trustRingId,
                &::ubse::adapter_plugins::mmi::UbseTrustRingData::reqSignedData,
-               &::ubse::adapter_plugins::mmi::UbseTrustRingData::lendSignedDatas)
+               LimitedVectorMember<&::ubse::adapter_plugins::mmi::UbseTrustRingData::lendSignedDatas,
+                                   MAX_BORROW_LIST_SIZE>{})
 
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo, void,
                &::ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo::nodeId,
@@ -214,9 +220,12 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq, ::ubse::adapter
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::importNodeId,
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::size,
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::distance,
-               &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::lenderLocs,
-               &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::lenderSizes,
-               &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::candidateNodeList,
+               LimitedVectorMember<&::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::lenderLocs,
+                                   MAX_BORROW_LIST_SIZE>{},
+               LimitedVectorMember<&::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::lenderSizes,
+                                   MAX_BORROW_LIST_SIZE>{},
+               LimitedVectorMember<&::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::candidateNodeList,
+                                   MAX_BORROW_NODE_LIST_SIZE>{},
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq::owner)
 
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq, ::ubse::adapter_plugins::mmi::UbseMemFdBorrowReq,
@@ -224,6 +233,8 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq, ::ubse::adapt
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::srcNuma,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::highWatermark,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::lowWatermark,
+               // Legacy debt serialization writes requestId again here; keep both encoders byte-aligned.
+               &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::requestId,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::linkInfo,
                &::ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq::usrInfo)
 
@@ -248,7 +259,9 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq, void,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::srcNuma,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::dstSocket,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::dstNuma,
-               &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::exportAddrList,
+               &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::exportAccessMode,
+               LimitedVectorMember<&::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::exportAddrList,
+                                   MAX_BORROW_EXPORT_ADDR_LIST_SIZE>{},
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::name,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::requestId,
                &::ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq::requestNodeId,
@@ -298,7 +311,7 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj, void,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::exportObmmInfo,
                &::ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj::status)
 
-// FD
+// FD, NUMA, and ADDR auto-SIMPO wire formats differ from legacy hand-written RPC formats; mixed-version peers are unsupported.
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj,
                ::ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj,
                &::ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj::req,

@@ -33,9 +33,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_borrow_simpo.h"
 #include "message/ubse_mem_return_req_simpo.h"
 #include "message/ubse_mem_share_attach_req_simpo.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
@@ -414,12 +412,12 @@ static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ComModule failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseMemFdBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemFdBorrowReqSimpo();
+    UbseMemFdBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowReq>();
     if (ubseRequestPtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemFdBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -522,12 +520,12 @@ static UbseResult SendRpcRequestForNumaBorrow(const UbseMemNumaBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ComModule failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseMemNumaBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemNumaBorrowReqSimpo();
+    UbseMemNumaBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq>();
     if (ubseRequestPtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemNumaBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -602,12 +600,12 @@ static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ComModule failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseMemAddrBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemAddrBorrowReqSimpo();
+    UbseMemAddrBorrowReqSimpoPtr ubseRequestPtr = new (std::nothrow) ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq>();
     if (ubseRequestPtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemAddrBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }

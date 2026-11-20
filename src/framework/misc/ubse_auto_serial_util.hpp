@@ -13,6 +13,7 @@
 #define UBSE_AUTO_SERIAL_UTIL_H
 #include <cstddef>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <type_traits>
 #include <vector>
@@ -181,11 +182,11 @@ bool SerializeField(UbseSerialization &out, const std::vector<T> &v)
 }
 
 template <class T>
-bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
+bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v, size_t maxSize)
 {
     uint64_t n;
     in >> array_len_capture(n);
-    if (!in.Check() || n > ONCE_LIMIT_LEN) {
+    if (!in.Check() || n > maxSize) {
         return false;
     }
     v.resize(n);
@@ -195,6 +196,12 @@ bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
         }
     }
     return true;
+}
+
+template <class T>
+bool DeSerializeField(UbseDeSerialization &in, std::vector<T> &v)
+{
+    return DeSerializeField(in, v, ONCE_LIMIT_LEN);
 }
 
 // === 6. 容器支持（示例：unordered_map）===
@@ -298,6 +305,35 @@ bool DeSerializeField(UbseDeSerialization &in, std::unordered_set<T> &v)
     return true;
 }
 
+template <auto Member, size_t MaxSize>
+struct LimitedVectorMember {
+    static_assert(MaxSize <= ONCE_LIMIT_LEN);
+};
+
+template <class T, class Member>
+bool SerializeMember(UbseSerialization &out, const T &obj, Member member)
+{
+    return SerializeField(out, obj.*member);
+}
+
+template <class T, auto Member, size_t MaxSize>
+bool SerializeMember(UbseSerialization &out, const T &obj, LimitedVectorMember<Member, MaxSize>)
+{
+    return SerializeField(out, obj.*Member);
+}
+
+template <class T, class Member>
+bool DeSerializeMember(UbseDeSerialization &in, T &obj, Member member)
+{
+    return DeSerializeField(in, obj.*member);
+}
+
+template <class T, auto Member, size_t MaxSize>
+bool DeSerializeMember(UbseDeSerialization &in, T &obj, LimitedVectorMember<Member, MaxSize>)
+{
+    return DeSerializeField(in, obj.*Member, MaxSize);
+}
+
 // === 反射类型（定义在末尾，确保所有重载对泛型 lambda 可见）===
 template <class T>
 std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization &out, const T &obj)
@@ -308,7 +344,7 @@ std::enable_if_t<is_reflectable_v<T>, bool> SerializeField(UbseSerialization &ou
         }
     }
     return std::apply(
-        [&](auto... ptrs) { return (SerializeField(out, obj.*ptrs) && ...); },
+        [&](auto... members) { return (SerializeMember(out, obj, members) && ...); },
         SerializableMembers<T>::value());
 }
 
@@ -321,7 +357,7 @@ std::enable_if_t<is_reflectable_v<T>, bool> DeSerializeField(UbseDeSerialization
         }
     }
     return std::apply(
-        [&](auto... ptrs) { return (DeSerializeField(in, obj.*ptrs) && ...); },
+        [&](auto... members) { return (DeSerializeMember(in, obj, members) && ...); },
         SerializableMembers<T>::value());
 }
 } // namespace ubse::serial::util
