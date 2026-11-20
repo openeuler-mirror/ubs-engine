@@ -47,4 +47,18 @@ obj->SetErrCode(17);
     EXPECT_EQ(value.srcNuma, result.srcNuma);
     EXPECT_EQ(17U, decoded.GetErrCode());
 }
+
+TEST_F(TestUbseMemNumaBorrowReqSimpo, InheritedCandidateNodeListDecodeLimit)
+{
+    for (size_t size : {128U, 129U}) {
+        UbseMemNumaBorrowReq request{};
+        request.candidateNodeList.resize(size);
+        obj->SetUbseMesgInfo(request);
+        ASSERT_EQ(UBSE_OK, obj->Serialize());
+
+        ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowReq> decoded;
+        ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj->SerializedData(), obj->SerializedDataSize()));
+        EXPECT_EQ(size == 128 ? UBSE_OK : UBSE_ERROR, decoded.Deserialize()) << "size=" << size;
+    }
+}
 } // namespace ubse::mem::controller::message::ut

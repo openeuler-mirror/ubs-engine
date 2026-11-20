@@ -16,6 +16,25 @@
 #include "message/ubse_mem_borrow_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
+namespace {
+template <class Request, class Owner, class Item>
+void CheckVectorDecodeLimit(std::vector<Item> Owner::*member, size_t limit)
+{
+    for (size_t size : {limit, limit + 1}) {
+        Request request{};
+        (request.*member).resize(size);
+        ubse::simpo::util::UbseAutoSimpo<Request> encoded;
+        encoded.SetUbseMesgInfo(request);
+        ASSERT_EQ(UBSE_OK, encoded.Serialize());
+
+        ubse::simpo::util::UbseAutoSimpo<Request> decoded;
+        ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(encoded.SerializedData(), encoded.SerializedDataSize()));
+        ASSERT_EQ(size == limit ? UBSE_OK : UBSE_ERROR, decoded.Deserialize()) << "size=" << size;
+        EXPECT_EQ(size == limit ? limit : 0, (decoded.GetUbseMesgInfo().*member).size());
+    }
+}
+} // namespace
+
 void TestUbseMemFdBorrowReqSimpo::SetUp()
 {
     Test::SetUp();
@@ -49,5 +68,26 @@ TEST_F(TestUbseMemFdBorrowReqSimpo, SerializeDeserialize)
     EXPECT_EQ(request.lenderSizes, result.lenderSizes);
     EXPECT_EQ(request.candidateNodeList, result.candidateNodeList);
     EXPECT_EQ(17U, decoded.GetErrCode());
+}
+
+TEST_F(TestUbseMemFdBorrowReqSimpo, LenderLocsDecodeLimit)
+{
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::lenderLocs, 1024);
+}
+
+TEST_F(TestUbseMemFdBorrowReqSimpo, LenderSizesDecodeLimit)
+{
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::lenderSizes, 1024);
+}
+
+TEST_F(TestUbseMemFdBorrowReqSimpo, CandidateNodeListDecodeLimit)
+{
+    CheckVectorDecodeLimit<UbseMemFdBorrowReq>(&UbseMemFdBorrowReq::candidateNodeList, 128);
+}
+
+TEST_F(TestUbseMemFdBorrowReqSimpo, TrustRingSignedDatasDecodeLimit)
+{
+    using ubse::adapter_plugins::mmi::UbseTrustRingData;
+    CheckVectorDecodeLimit<UbseTrustRingData>(&UbseTrustRingData::lendSignedDatas, 1024);
 }
 } // namespace ubse::mem::controller::message::ut

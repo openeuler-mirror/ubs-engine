@@ -966,6 +966,10 @@ UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowIm
         return retCode;
     }
     auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemFdBorrowImportObj>>(ubseResponsePtr);
+    if (importPtr == nullptr) {
+        UBSE_LOG_ERROR << "importPtr is null, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
     obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
@@ -1023,6 +1027,10 @@ UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
         return retCode;
     }
     auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemNumaBorrowImportObj>>(ubseResponsePtr);
+    if (importPtr == nullptr) {
+        UBSE_LOG_ERROR << "importPtr is null, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
     obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
@@ -1080,6 +1088,10 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
         return retCode;
     }
     auto importPtr = UbseBaseMessage::DeConvert<ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowImportObj>>(ubseResponsePtr);
+    if (importPtr == nullptr) {
+        UBSE_LOG_ERROR << "importPtr is null, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
     obj = importPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }

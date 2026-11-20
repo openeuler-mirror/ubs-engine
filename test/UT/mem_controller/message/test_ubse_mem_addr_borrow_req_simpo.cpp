@@ -48,4 +48,18 @@ TEST_F(TestUbseMemAddrBorrowReqSimpo, SerializeDeserialize)
     EXPECT_EQ(value.exportAddrList[0].size, result.exportAddrList[0].size);
     EXPECT_EQ(19U, decoded.GetErrCode());
 }
+
+TEST_F(TestUbseMemAddrBorrowReqSimpo, ExportAddrListDecodeLimit)
+{
+    for (size_t size : {1024U, 1025U}) {
+        UbseMemAddrBorrowReq request{};
+        request.exportAddrList.resize(size);
+        obj.SetUbseMesgInfo(request);
+        ASSERT_EQ(UBSE_OK, obj.Serialize());
+
+        ubse::simpo::util::UbseAutoSimpo<UbseMemAddrBorrowReq> decoded;
+        ASSERT_EQ(UBSE_OK, decoded.SetInputRawData(obj.SerializedData(), obj.SerializedDataSize()));
+        EXPECT_EQ(size == 1024 ? UBSE_OK : UBSE_ERROR, decoded.Deserialize()) << "size=" << size;
+    }
+}
 } // namespace ubse::mem::controller::message::ut
