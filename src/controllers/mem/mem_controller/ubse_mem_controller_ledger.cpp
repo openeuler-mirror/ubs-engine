@@ -14,6 +14,7 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_init_ledger_state.h"
 #include "ubse_logger.h"
@@ -21,6 +22,7 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_debt_info.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 
 #include "ubse_context.h"
 #include "ubse_election_module.h"
@@ -626,24 +628,19 @@ static void TryStartMigrationRecovery()
     if (!CheckNodeIsMaster()) {
         return;
     }
-    // 静态名单包含尚未建链的节点，不能用升主后逐步重建的角色活跃集合判断账本已收齐。
-    std::vector<std::string> nodeIds;
-    const auto staticNodes = UbseNodeController::GetInstance().GetStaticNodeInfo();
-    if (staticNodes.empty()) {
-        UBSE_LOG_ERROR << "Static node info empty, skip migration recovery";
+    std::vector<std::string> ips;
+    const auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterIpList(ips);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to read cluster IP list for migration recovery, " << FormatRetCode(ret);
         return;
     }
-    for (const auto& node : staticNodes) {
-        nodeIds.push_back(node.nodeId);
-    }
-    const auto localNodeId = GetCurNodeId();
-    if (localNodeId.empty()) {
+    if (ips.empty() && config::UbseIsMemShareSupported()) {
+        UBSE_LOG_WARN << "Cluster IP list must not be empty when shared memory borrowing is supported";
         return;
     }
-    nodeIds.push_back(localNodeId);
-    std::sort(nodeIds.begin(), nodeIds.end());
-    nodeIds.erase(std::unique(nodeIds.begin(), nodeIds.end()), nodeIds.end());
-    const auto action = UbseInitLedgerState::GetInstance().TryStartMigrationRecovery(nodeIds);
+    // 不支持共享内存功能且ip为空时，按零个期望节点进入同一恢复扫描流程。
+    const auto expectedNodeCount = std::set<std::string>(ips.begin(), ips.end()).size();
+    const auto action = UbseInitLedgerState::GetInstance().TryStartMigrationRecovery(expectedNodeCount);
     auto joinNodeIds = [](const std::vector<std::string>& ids) {
         std::string result;
         for (const auto& id : ids) {
@@ -656,22 +653,25 @@ static void TryStartMigrationRecovery()
     };
     if (action == MigrationRecoveryAction::WAIT_FOR_RECONCILIATION) {
         const auto doneNodeIds = UbseInitLedgerState::GetInstance().GetInitLedgerDoneNodes();
-        UBSE_LOG_WARN << "Migration recovery wait for reconciliation, staticNodeIds=" << joinNodeIds(nodeIds)
+        UBSE_LOG_WARN << "Migration recovery wait for reconciliation, expectedNodeCount=" << expectedNodeCount
                       << ", initLedgerDoneNodeIds=" << joinNodeIds(doneNodeIds);
         return;
     }
     if (action != MigrationRecoveryAction::REBUILD_MIGRATION_TASKS) {
         return;
     }
+    UBSE_LOG_WARN << "Migration recovery start, expectedNodeCount=" << expectedNodeCount
+                  << ", share borrowing enabled=" << config::UbseIsMemShareSupported();
     auto task = []() {
         if (CheckNodeIsMaster()) {
             // 参与节点暂不可用时暂缓本轮恢复，重置恢复触发标记，等节点上线通知后再次扫描。
-            if (!UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation()) {
-                UbseInitLedgerState::GetInstance().RetryMigrationRecovery();
-                UBSE_LOG_INFO << "Migration recovery deferred, retry when all participants working";
-            } else {
+            auto allRecovered = UbseMemShmMigrateService::GetInstance().RecoverAfterReconciliation();
+            if (allRecovered) {
                 // 扫描执行完毕才标记完成，消除"名单收齐但扫描未执行完"窗口内 get 返回 NOT_EXIST 的竞态。
                 UbseInitLedgerState::GetInstance().MarkMigrationRecoveryCompleted();
+            } else {
+                UbseInitLedgerState::GetInstance().RetryMigrationRecovery();
+                UBSE_LOG_INFO << "Migration recovery deferred, retry when all participants working";
             }
         }
     };

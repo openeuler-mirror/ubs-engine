@@ -917,11 +917,6 @@ static void StartExportCleanup(const MigrationRunContext& ctx, uint32_t reason)
         UBSE_LOG_WARN << "Unused export delete send failed; continue migrate cleanup, name=" << exportObj.req.name
                       << ", targetNodeId=" << ctx.dstNodeId << ", ret=" << FormatRetCode(ret);
     }
-    exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
-    if (const auto cleanupRet = AddShareExport(exportObj); cleanupRet != UBSE_OK) {
-        UBSE_LOG_WARN << "Unused export account cleanup failed; continue migrate cleanup, name=" << ctx.name
-                      << ", targetNodeId=" << ctx.dstNodeId << ", ret=" << FormatRetCode(cleanupRet);
-    }
     auto& exports = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
     const auto source = exports.GetResource(ctx.srcNodeId, ctx.name);
     if (source != nullptr) {
@@ -941,35 +936,28 @@ static void StartOldChainCleanup(const MigrationRunContext& ctx)
 {
     auto& mgr = UbseMemShmMigrateSessionManager::GetInstance();
     auto& exportMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
-    const auto current = exportMap.GetResource(ctx.srcNodeId, ctx.name);
-    if (current != nullptr) {
-        auto exportObj = *current;
-        exportObj.returnReq = {};
-        const auto deleteRet = DeleteShareExport(exportObj);
-        if (deleteRet != UBSE_OK) {
-            UBSE_LOG_WARN << "Old export delete send failed; continue migrate cleanup, name=" << exportObj.req.name
-                          << ", srcNodeId=" << ctx.srcNodeId << ", ret=" << FormatRetCode(deleteRet);
-        }
-    }
-    // 删除请求会更新旧账本；重新读取后同步收尾，不等待旧源删除回包。
-    const auto oldExport = exportMap.GetResource(ctx.srcNodeId, ctx.name);
-    if (oldExport != nullptr) {
-        // 只清理Master的旧关系；发送失败时仍可能残留物理导出，不作为迁移失败条件。
-        auto removed = *oldExport;
-        removed.status.state = UBSE_MEM_EXPORT_DESTROYED;
-        if (const auto ret = AddShareExport(removed); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Old export account cleanup failed; continue migrate cleanup, name=" << ctx.name
-                          << ", srcNodeId=" << ctx.srcNodeId << ", ret=" << FormatRetCode(ret);
-        }
-    }
     auto& importMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>();
     const auto oldImport = importMap.GetResource(ctx.srcNodeId, ctx.name);
     if (oldImport != nullptr && oldImport->req.baseNodeId == ctx.srcNodeId) {
+        // 只下发删除请求，不同步删除账本；import账本由真实detach回包后的原流程统一清理。
         auto removed = *oldImport;
-        removed.status.state = UBSE_MEM_IMPORT_DESTROYED;
-        if (const auto ret = AddShareImport(removed); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Old source import account cleanup failed; continue migrate cleanup, name=" << ctx.name
-                          << ", srcNodeId=" << ctx.srcNodeId << ", ret=" << FormatRetCode(ret);
+        // 无请求方删除：清空requestNodeId，销毁回包不构建响应（与导出侧returnReq置空对齐）。
+        removed.req.requestNodeId = "";
+        const auto ret = DeleteShareImport(removed);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Unused import delete send failed; continue migrate cleanup, name=" << removed.req.name
+                          << ", targetNodeId=" << ctx.srcNodeId << ", ret=" << FormatRetCode(ret);
+        }
+    }
+    const auto current = exportMap.GetResource(ctx.srcNodeId, ctx.name);
+    if (current != nullptr) {
+        // 只下发删除请求，不同步删除旧账本；旧导出账本和账户由真实unexport回包后的原流程统一清理。
+        auto exportObj = *current;
+        exportObj.returnReq = {};
+        const auto ret = DeleteShareExport(exportObj);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Unused export delete send failed; continue migrate cleanup, name=" << exportObj.req.name
+                          << ", targetNodeId=" << ctx.srcNodeId << ", ret=" << FormatRetCode(ret);
         }
     }
     const auto target = exportMap.GetResource(ctx.dstNodeId, ctx.name);

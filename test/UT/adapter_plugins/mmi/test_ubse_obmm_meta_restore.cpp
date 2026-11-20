@@ -16,6 +16,7 @@
 #include <src/controllers/include/ubse_mem_def.h>
 
 #include "ubse_election.h"
+#include "ubse_file_util.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_obmm_executor.h"
@@ -702,6 +703,8 @@ TEST_P(TestSwitchIdentityRecovery, RestoresIdentityFromPrivWithoutReadingDeviceI
 {
     const auto& param = GetParam();
     SwitchSupportGuard switchGuard; // 切换态恢复要求 obmm_switch_* 已加载
+    // UT 环境无 /sys/devices/obmm，桩掉 switch_state 文件存在性检查以进入切换态分支
+    MOCKER(&ubse::utils::UbseFileUtil::CheckFileExists).stubs().will(returnValue(true));
     const std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData meta{};
     g_switchState.store(param.switchState);
@@ -748,6 +751,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldSki
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenV2SwitchStateUnreadable)
 {
     SwitchSupportGuard switchGuard; // 切换态分支要求 obmm_switch_* 已加载
+    MOCKER(&ubse::utils::UbseFileUtil::CheckFileExists).stubs().will(returnValue(true));
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     // V2 的 switch_state 读取失败必须报错，不能当成 IDLE，也不能掩盖 V2 的真实异常
@@ -771,6 +775,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFai
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenGapSizeUnreadable)
 {
     SwitchSupportGuard switchGuard; // 切换态分支要求 obmm_switch_* 已加载
+    MOCKER(&ubse::utils::UbseFileUtil::CheckFileExists).stubs().will(returnValue(true));
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     g_switchState.store(2); // AWAIT_READY
@@ -786,6 +791,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFai
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldRetryTransientThenNormal)
 {
     SwitchSupportGuard switchGuard; // 切换态探测要求 obmm_switch_* 已加载
+    MOCKER(&ubse::utils::UbseFileUtil::CheckFileExists).stubs().will(returnValue(true));
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     g_transientLeft.store(2); // 前两次 SWAPPING，随后收敛到 IDLE
@@ -806,6 +812,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldRet
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaData_ShouldFailWhenTransientExhausted)
 {
     SwitchSupportGuard switchGuard; // 切换态探测要求 obmm_switch_* 已加载
+    MOCKER(&ubse::utils::UbseFileUtil::CheckFileExists).stubs().will(returnValue(true));
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     UbseMemLocalObmmMetaData localObmmMetaData{};
     MOCKER(&RmObmmDevRead::GetCustomMeta).stubs().will(invoke(GetCustomMetaMockerV2Export));

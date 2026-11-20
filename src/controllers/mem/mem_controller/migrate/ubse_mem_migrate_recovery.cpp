@@ -616,9 +616,15 @@ bool RecoverName(const std::string& name)
 } // namespace
 
 // 该 name 在已采集账本中是否存在迁移痕迹(迁移标记/切换中或搁浅块/导入switchContext)；
-// 主备倒换后初始对账未收齐时，存在痕迹说明该 name 可能有待恢复的迁移，查询/受理按对账采集中处理。
+// 主备倒换后初始对账未收齐时，存在痕迹说明该 name 可能有待恢复的迁移，查询/受理按对账采集中处理；
+// 若会话表已存在该 name 的会话，说明恢复扫描已处理过该 name(终态留存或活跃会话)，
+// 直接放行，活跃会话的互斥/拒绝由受理等后续逻辑判定。
 bool NameHasMigrationTrace(const std::string& name)
 {
+    auto hasTrace = false;
+    const auto isSwitchingOrStranded = [](const auto& block) {
+        return block.memIdStatus == UB_MEM_SWITCHING || block.memIdStatus == UB_MEM_STRANDED;
+    };
     auto& ledger = UbseMemDebtLedger::GetInstance();
     auto& exports = ledger.GetDebtMap<UbseMemShareBorrowExportObj>();
     for (const auto& [nodeId, map] : exports.GetAllNodeMaps()) {
@@ -626,27 +632,35 @@ bool NameHasMigrationTrace(const std::string& name)
         if (!obj || obj->status.state == UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
-        if (!obj->migrateInfos.empty() ||
-            std::any_of(obj->status.exportObmmInfo.begin(), obj->status.exportObmmInfo.end(), [](const auto& block) {
-                return block.memIdStatus == UB_MEM_SWITCHING || block.memIdStatus == UB_MEM_STRANDED;
-            })) {
-            return true;
+        if (std::any_of(obj->migrateInfos.begin(), obj->migrateInfos.end(),
+                        [](uint32_t marker) { return ShmMigrateOrigin(marker) != 0; }) ||
+            std::any_of(obj->status.exportObmmInfo.begin(), obj->status.exportObmmInfo.end(), isSwitchingOrStranded)) {
+            hasTrace = true;
+            break;
         }
     }
-    auto& imports = ledger.GetDebtMap<UbseMemShareBorrowImportObj>();
-    for (const auto& [nodeId, map] : imports.GetAllNodeMaps()) {
-        const auto obj = map ? map->Get(name) : nullptr;
-        if (!obj || obj->status.state == UBSE_MEM_IMPORT_DESTROYED) {
-            continue;
-        }
-        if (!obj->migrateInfos.empty() || obj->switchContext.has_value() ||
-            std::any_of(obj->exportObmmInfo.begin(), obj->exportObmmInfo.end(), [](const auto& block) {
-                return block.memIdStatus == UB_MEM_SWITCHING || block.memIdStatus == UB_MEM_STRANDED;
-            })) {
-            return true;
+    if (!hasTrace) {
+        auto& imports = ledger.GetDebtMap<UbseMemShareBorrowImportObj>();
+        for (const auto& [nodeId, map] : imports.GetAllNodeMaps()) {
+            const auto obj = map ? map->Get(name) : nullptr;
+            if (!obj || obj->status.state == UBSE_MEM_IMPORT_DESTROYED) {
+                continue;
+            }
+            if (obj->switchContext.has_value() ||
+                std::any_of(obj->exportObmmInfo.begin(), obj->exportObmmInfo.end(), isSwitchingOrStranded)) {
+                hasTrace = true;
+                break;
+            }
         }
     }
-    return false;
+    if (!hasTrace) {
+        return false;
+    }
+    UbseMemShmMigrateSession snapshot{};
+    if (UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(name, snapshot)) {
+        return false;
+    }
+    return true;
 }
 
 bool UbseMemShmMigrateService::RecoverAfterReconciliation()

@@ -268,6 +268,7 @@ docker rmi swr.cn-north-4.myhuaweicloud.com/opentile/ubs-engine:24.03-sp3-1.0.1
 
     > [!NOTE] 说明
     > 支持配置IP地址范围，例如：192.168.100.100-192.168.100.102。
+    > 使用迁移功能时，展开后的IP名单必须与实际部署节点一一对应（每节点一个IP），否则将影响迁移恢复的触发时机与可靠性。
     > 默认使用urma通信时，需已安装urma。
     > 未配置 `cluster.ipList` 且未开启 URMA 特性时，UBSE 无可用建链方式，服务启动失败。
     > `cert.use=true`（默认）开启 TLS 证书认证，需导入证书；测试环境可置 `false` 关闭。

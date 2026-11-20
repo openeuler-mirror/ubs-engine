@@ -78,6 +78,8 @@ uint32_t AddShareExport(const UbseMemShareBorrowExportObj& exportObj);
 
 uint32_t DeleteShareExport(const UbseMemShareBorrowExportObj& exportObj);
 
+uint32_t DeleteShareImport(const UbseMemShareBorrowImportObj& importObj);
+
 /* *
  * 按name查找当前有效(非DESTROYED)的借用关系: 借用域查询/迁移逐块迁移前置共用。
  * exportObjs 仅收 EXPORT_SUCCESS 的导出对象; importObjs 收非 DESTROYED 的导入对象。

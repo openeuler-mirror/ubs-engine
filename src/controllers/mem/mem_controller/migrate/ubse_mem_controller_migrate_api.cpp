@@ -163,24 +163,7 @@ bool UbseMemShmMigrateService::IsReconciliationPending(const std::string& name)
     if (module == nullptr || !module->IsLeader()) {
         return false;
     }
-    // 与迁移恢复触发使用同一名单：静态名单节点 + 本节点；名单收齐前账本仍在采集中。
-    std::vector<std::string> nodeIds;
-    for (const auto& node : UbseNodeController::GetInstance().GetStaticNodeInfo()) {
-        nodeIds.push_back(node.nodeId);
-    }
-    const auto localNodeId = UbseNodeController::GetInstance().GetCurNode().nodeId;
-    if (!localNodeId.empty()) {
-        nodeIds.push_back(localNodeId);
-    }
-    if (nodeIds.empty()) {
-        return false;
-    }
-    // 名单收齐后、恢复扫描执行完之前仍处于对账窗口，避免会话未登记时 get 短暂返回 NOT_EXIST。
-    if (UbseInitLedgerState::GetInstance().IsInitLedgerDoneForAll(nodeIds) &&
-        UbseInitLedgerState::GetInstance().IsMigrationRecoveryCompleted()) {
-        return false;
-    }
-    return NameHasMigrationTrace(name);
+    return !UbseInitLedgerState::GetInstance().IsMigrationRecoveryCompleted() && NameHasMigrationTrace(name);
 }
 
 uint32_t UbseMemShmMigrateService::CheckUserPermission(const std::string& name, const UbseUdsInfo& caller,
@@ -256,6 +239,7 @@ uint32_t UbseMemShmMigrateService::CheckOperationAllowed(const std::string& name
         return UBSE_OK;
     }
     if (!IsMigrateTerminalState(session.state)) {
+        UBSE_LOG_INFO << "Migration in progress, name=" << name << ", state=" << static_cast<uint32_t>(session.state);
         return UBSE_ERR_MIGRATE_IN_PROGRESS;
     }
     // 归还仅与非终态迁移互斥；终态的重建标记只限制新增使用/重新迁移。
@@ -292,7 +276,7 @@ uint32_t UbseMemShmMigrateService::Accept(const UbseMemShmMigrateReq& req)
         UBSE_LOG_WARN << "shm migrate accept rejected on non-leader, name=" << req.name;
         return UBSE_ERR_MASTER_NOT_READY;
     }
-    // 主备倒换后初始对账未收齐且该 name 存在迁移痕迹时，禁止新建迁移，等待恢复扫描给出结论。
+    // 主备倒换后的恢复扫描完成前，有迁移痕迹的 name 暂缓新建迁移。
     if (IsReconciliationPending(req.name)) {
         UBSE_LOG_WARN << "shm migrate accept deferred during reconciliation, name=" << req.name;
         return UBSE_ERR_MASTER_NOT_READY;

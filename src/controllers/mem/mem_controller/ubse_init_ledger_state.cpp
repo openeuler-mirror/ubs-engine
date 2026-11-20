@@ -12,7 +12,6 @@
 
 #include "ubse_init_ledger_state.h"
 
-#include <algorithm>
 #include <chrono>
 
 namespace ubse::mem::controller {
@@ -44,13 +43,6 @@ std::vector<std::string> UbseInitLedgerState::GetInitLedgerDoneNodes()
     return {initLedgerDoneSet_.begin(), initLedgerDoneSet_.end()};
 }
 
-bool UbseInitLedgerState::IsInitLedgerDoneForAll(const std::vector<std::string>& nodeIds)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    return std::all_of(nodeIds.begin(), nodeIds.end(),
-                       [this](const auto& nodeId) { return initLedgerDoneSet_.count(nodeId) != 0; });
-}
-
 bool UbseInitLedgerState::WaitInitLedgerDone(const std::string& nodeId, uint32_t timeoutMs)
 {
     std::unique_lock<std::mutex> lock(mutex_);
@@ -67,14 +59,14 @@ void UbseInitLedgerState::ResetMigrationRecovery(bool leader)
     migrationRecoveryCompleted_ = false;
 }
 
-MigrationRecoveryAction UbseInitLedgerState::TryStartMigrationRecovery(const std::vector<std::string>& nodeIds)
+MigrationRecoveryAction UbseInitLedgerState::TryStartMigrationRecovery(std::size_t expectedNodeCount)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!migrationRecoveryAllowed_) {
         return MigrationRecoveryAction::RECOVERY_ALREADY_TRIGGERED;
     }
-    if (nodeIds.empty() || !std::all_of(nodeIds.begin(), nodeIds.end(),
-                                        [this](const auto& nodeId) { return initLedgerDoneSet_.count(nodeId) != 0; })) {
+    // 调用方确认无需等待节点对账时，可以传入零个期望节点。
+    if (initLedgerDoneSet_.size() < expectedNodeCount) {
         return MigrationRecoveryAction::WAIT_FOR_RECONCILIATION;
     }
     migrationRecoveryAllowed_ = false;
