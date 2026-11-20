@@ -23,6 +23,7 @@
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_file_util.h"
 #include "ubse_logger.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
@@ -235,6 +236,11 @@ bool IsSwitchTransientState(uint8_t switchState)
     return switchState == static_cast<uint8_t>(ObmmSwitchState::SWAPPING) ||
            switchState == static_cast<uint8_t>(ObmmSwitchState::FINISHING);
 }
+
+std::string SwitchStatePath(const std::string& shmDevDirName)
+{
+    return OBMM_META_PATH + shmDevDirName + "/switch_state";
+}
 } // namespace
 
 UbseResult RmObmmDevRead::GetStableSwitchState(mem_id memId, uint8_t& switchState)
@@ -306,10 +312,11 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& p
         return ret;
     }
 
-    // 切换态恢复依赖 obmm_switch_* 符号：仅符号已加载时才读取切换状态并走内部恢复路径；
-    // 旧版本 libobmm 未加载时跳过该分支，与 V1 一致走正常恢复逻辑
+    // 切换态恢复依赖 obmm_switch_* 符号：仅符号已加载且 switch_state 文件存在时才读取切换状态并走
+    // 内部恢复路径；旧版本 libobmm 未加载或 V1 设备无 switch_state 文件时跳过该分支，走正常恢复逻辑
     if (localObmmMetaData.customMeta.version == OBMM_CUSTOM_META_V2 &&
-        RmObmmExecutor::GetInstance().IsSwitchSupported()) {
+        RmObmmExecutor::GetInstance().IsSwitchSupported() &&
+        ubse::utils::UbseFileUtil::CheckFileExists(SwitchStatePath(path))) {
         // V2 必须读取切换状态（memId 已确定读到，路径拼接收在读取函数内部）：过渡态（SWAPPING/FINISHING）
         // 短间隔、有限次数重试，稳定后重新分支；读取失败或重试耗尽按采集失败上报，不能当成 IDLE
         uint8_t switchState{};
@@ -363,8 +370,7 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& p
 UbseResult RmObmmDevRead::GetSwitchState(mem_id memId, uint8_t& switchState)
 {
     // 路径由 memId 在内部拼接，调用方只关心设备编号
-    std::string path2switchState =
-        std::string(OBMM_META_PATH) + "obmm_shmdev" + std::to_string(memId) + "/switch_state";
+    std::string path2switchState = SwitchStatePath("obmm_shmdev" + std::to_string(memId));
     std::string stateStr;
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2switchState, stateStr);
     if (ret != UBSE_OK) {

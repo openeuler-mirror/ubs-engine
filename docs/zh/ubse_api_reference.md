@@ -3696,6 +3696,23 @@ int32_t ubs_mem_shm_migrate(const char *name, uint32_t target_slot_id);
 
 返回 0 仅表示受理成功，完成结果需轮询 `ubs_mem_shm_migrate_get`。同 name 非终态任务期间，再次迁移／新增使用返回迁移进行中（1042），不创建第二个任务。任务终态后，同名资源仍有重建限制时，再次迁移／新增使用统一返回需要归还重建（1044），不再按失败原因区分；全部同名资源释放后解除该限制。参数非法、资源不存在、目标或资源状态不允许、权限不满足均返回非零错误。
 
+**部署前提（影响迁移恢复可靠性）**
+
+master 重启后的迁移恢复依赖集群配置 `ubse.conf` 中 `[ubse.rpc] cluster.ipList` 统计期望节点数，该配置展开去重后的 IP 名单必须与实际部署节点一一对应（每节点一个 IP），否则影响迁移恢复的触发时机与迁移功能的可靠性：
+配置示例（以 4 节点集群为例，各节点单 IP）：
+
+```ini
+# 正确：段展开恰好 4 个 IP，与实际部署节点一一对应
+cluster.ipList=192.168.100.100-192.168.100.103
+# 等价写法：192.168.100.100,192.168.100.101,192.168.100.102,192.168.100.103
+```
+
+```ini
+# 错误：段展开 8 个 IP，其中 4 个为未部署的预留地址，
+# 期望节点数(8)大于实际节点数(4)，迁移恢复永不触发
+cluster.ipList=192.168.100.100-192.168.100.107
+```
+
 **权限 PERMISSION**
 
 接口配置与角色配置的详细说明见 [《UBSE角色访问控制设计》](../design/UBSE角色访问控制设计.md#34-共享内存迁移用户配置)。
@@ -3806,6 +3823,8 @@ int32_t ubs_mem_shm_migrate_get(const char *name, ubs_mem_shm_migrate_desc_t **d
 
 终态（SUCCESS/FAILED/CANCELED）保留最近一条记录，可继续查询；新受理后覆盖旧记录，资源销毁清理时可移除会话，之后查询返回不存在。`migrated_memids` 表示整块完成提交的块数，不表示 copy 已完成但尚未提交的块。
 
+部署前提（迁移恢复对 `cluster.ipList` 的要求及配置示例）同 `ubs_mem_shm_migrate`；名单与实际部署节点不一致时，master 可能长期停留于对账采集，本接口持续返回 `UBS_ENGINE_ERR_MASTER_NOT_READY`。
+
 | error_code | 含义 |
 | --- | --- |
 | 1 | 调度分配失败 |
@@ -3914,6 +3933,8 @@ int32_t ubs_mem_shm_migrate_cancel(const char *name);
 **附注 NOTES**
 
 仅 INIT/EXPORTING 可受理取消；DATA_COPYING 及后续状态拒绝取消。返回 0 表示取消申请已受理，需轮询 get 确认终态；清理失败可能进入 FAILED。重复取消按会话规则幂等处理。参数非法、会话不存在或权限不满足均返回非零错误。
+
+部署前提（迁移恢复对 `cluster.ipList` 的要求及配置示例）同 `ubs_mem_shm_migrate`。
 
 **权限 PERMISSION**
 同 `ubs_mem_shm_migrate`。

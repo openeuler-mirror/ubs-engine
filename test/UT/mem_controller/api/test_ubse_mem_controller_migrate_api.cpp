@@ -29,6 +29,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_election.h"
 #include "ubse_election_module.h"
 #include "ubse_init_ledger_state.h"
+#include "ubse_mem_advice.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_ledger.h"
@@ -47,7 +48,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 namespace ubse::mem::controller {
 uint32_t ShareExportMasterCallback(const std::string& exportNodeId,
                                    ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj& exportObj);
-}
+} // namespace ubse::mem::controller
 
 // 符号插入覆盖libc的sleep，仅本fixture内生效（SetUp开、TearDown关）：
 // 开启时生产重试路径(SendMigrateMessage等)立即返回，不真实休眠；关闭时转发真实休眠，
@@ -111,6 +112,10 @@ void TestUbseMemControllerMigrateApi::SetUp()
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::SetUp();
+    // 默认处于恢复扫描完成后的稳态；对账窗口由相关用例自行 ResetMigrationRecovery 构造。
+    auto& initLedgerState = UbseInitLedgerState::GetInstance();
+    initLedgerState.ResetMigrationRecovery(false);
+    initLedgerState.MarkMigrationRecoveryCompleted();
     MOCKER_CPP(&context::UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseElectionModule>()));
@@ -2016,8 +2021,10 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateOldExportDeleteDoesNotGateSucc
     UbseMemShmMigrateSession snapshot{};
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+    // 删除后不同步清理账本，旧导出保留DESTROYING，等待真实unexport回包走原流程回收。
     const auto residual = GetShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
-    EXPECT_EQ(nullptr, residual);
+    ASSERT_NE(nullptr, residual);
+    EXPECT_EQ(UBSE_MEM_EXPORT_DESTROYING, residual->status.state);
     ASSERT_EQ(UBSE_OK, ReportDeleteResult(g_cleanupHeldResponse));
     ASSERT_EQ(UBSE_OK, ReportDeleteResult(g_cleanupHeldResponse));
     g_migrateExecutor->Wait();
@@ -2069,7 +2076,8 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateOldAccountCleanupFailureKeepsT
     EXPECT_EQ(UBSE_MEM_EXPORT_DESTROYING, oldExport->status.state);
     const auto oldImport = GetShareImportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
     ASSERT_NE(nullptr, oldImport);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, oldImport->status.state);
+    // 旧源import只下发删除，不同步清理账本，保留DESTROYING等待真实detach回包走原流程回收。
+    EXPECT_EQ(UBSE_MEM_IMPORT_DESTROYING, oldImport->status.state);
     const auto [selected, imports] = GetMaxRefCountExportObj(SHM_NAME);
     ASSERT_NE(nullptr, selected);
     EXPECT_EQ(MIGRATE_DST_NODE_ID, selected->algoResult.exportNumaInfos.front().nodeId);
@@ -2077,6 +2085,98 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateOldAccountCleanupFailureKeepsT
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(SHM_NAME);
     ASSERT_NE(nullptr, indexed);
     EXPECT_EQ(MIGRATE_DST_NODE_ID, indexed->req.baseNodeId);
+}
+
+namespace {
+// 旧链import无请求方删除打桩: 仅捕获删除载荷并返回发送失败, 不同步改写账本。
+UbseMemShareBorrowImportObj g_capturedOldImportDelete{};
+std::atomic<uint32_t> g_oldImportDeleteSends{0};
+
+uint32_t CaptureOldImportDeleteFailStub(const UbseMemShareBorrowImportObj& obj)
+{
+    g_capturedOldImportDelete = obj;
+    ++g_oldImportDeleteSends;
+    return UBSE_ERROR;
+}
+
+// 旧源自导入: 源节点自持有导入引用, 收尾时对其下发无请求方删除。
+void PutOldSourceSelfImport()
+{
+    PutMigrateImportObj(MIGRATE_SRC_NODE_ID);
+    auto selfImport = *GetShareImportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
+    selfImport.req.baseNodeId = MIGRATE_SRC_NODE_ID;
+    selfImport.realExe = false;
+    PutShareImportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, selfImport);
+}
+} // namespace
+
+// 旧链无请求方删除发送失败: 收尾仅告警继续, 会话照常进入SUCCESS终态,
+// 旧import账本未被同步改写, 旧export停留在删除流程预置的销毁中态;
+// 主备倒换会话丢失后按残留账本重建上下文重新派发收尾, 旧导出经真实
+// unexport回包回收, 旧import仍待真实detach回包清理。
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateOldChainDeleteSendFailureStillFinishesSuccess)
+{
+    BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
+    PutOldSourceSelfImport();
+    MigrateNodeMockSetForExecute();
+    AcceptMigrateOnly();
+    MigrateScheduleMockSet();
+    g_oldImportDeleteSends.store(0);
+    MOCKER(&DeleteShareImport).stubs().will(invoke(&CaptureOldImportDeleteFailStub));
+    MigrateRpcSuccessMockSet();
+    MigratePhase2RpcMockSet(&MigrateSwitchBeginImportRpcOkStub, &MigrateDataCopyRpcOkStub,
+                            &MigrateSwitchEndImportRpcOkStub);
+    g_failDeleteSend = true; // MigrateComMockSet会重置该标记, 必须在其后置位使旧导出删除发送失败
+    ASSERT_EQ(UBSE_OK, UbseMemShmMigrateService::GetInstance().Execute(SHM_NAME));
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    g_migrateExecutor->Wait();
+    UbseMemShmMigrateSession snapshot{};
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+    EXPECT_FALSE(snapshot.rebuildRequired);
+    // 无请求方标记: import删除载荷requestNodeId已置空。
+    EXPECT_EQ(1U, g_oldImportDeleteSends.load());
+    EXPECT_TRUE(g_capturedOldImportDelete.req.requestNodeId.empty());
+    // 删除发送失败不同步推进: 旧import保持原state, 旧export停留销毁中态等待对账兜底。
+    const auto oldImport = GetShareImportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
+    ASSERT_NE(nullptr, oldImport);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, oldImport->status.state);
+    const auto oldExport = GetShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME);
+    ASSERT_NE(nullptr, oldExport);
+    EXPECT_EQ(UBSE_MEM_EXPORT_DESTROYING, oldExport->status.state);
+    // 模拟主备倒换: 会话丢失后按残留账本重建上下文并重新派发收尾
+    // (RecoverName自账本重建ctx后同样到达ResumeMigration派发点)。
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
+    g_oldCleanupCount.store(0);
+    migrate_detail::MigrationRunContext ctx{};
+    ctx.name = SHM_NAME;
+    ctx.srcNodeId = MIGRATE_SRC_NODE_ID;
+    ctx.dstNodeId = MIGRATE_DST_NODE_ID;
+    ctx.oldObj = oldExport;
+    ctx.newExportObj = *GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    ctx.importNodes = {"13"};
+    ctx.exportConfirmed = true;
+    UbseMemShmMigrateSession restored{};
+    restored.name = SHM_NAME;
+    restored.srcNodeId = MIGRATE_SRC_NODE_ID;
+    restored.dstNodeId = MIGRATE_DST_NODE_ID;
+    restored.state = UBS_MEM_MIGRATE_STATE_DATA_COPYING;
+    restored.totalMemids = MIGRATE_EXPECT_BLOCK_COUNT;
+    restored.completedBlocks = MIGRATE_EXPECT_BLOCK_COUNT;
+    ctx.sessionToken = UbseMemShmMigrateSessionManager::GetInstance().RestoreSession(restored).first;
+    ctx.endCommitStarted = true;
+    g_failDeleteSend = false; // 恢复重发的删除走真实回包流程回收旧导出
+    migrate_detail::ResumeMigration(std::move(ctx), MIGRATE_EXPECT_BLOCK_COUNT);
+    ASSERT_TRUE(WaitMigrateTerminal(SHM_NAME));
+    g_migrateExecutor->Wait();
+    snapshot = UbseMemShmMigrateSession{};
+    ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
+    EXPECT_EQ(UBS_MEM_MIGRATE_STATE_SUCCESS, snapshot.state);
+    EXPECT_EQ(2U, g_oldImportDeleteSends.load());
+    EXPECT_EQ(1U, g_oldCleanupCount.load());
+    EXPECT_EQ(nullptr, GetShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME));
+    // 旧import账本仍待真实detach回包清理, 不在收尾链路同步删除。
+    EXPECT_NE(nullptr, GetShareImportObj(MIGRATE_SRC_NODE_ID, SHM_NAME));
 }
 
 TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateRollbackDeleteSendFailureAllowsReleaseButRequiresRebuild)
@@ -2098,8 +2198,10 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateRollbackDeleteSendFailureAllow
     EXPECT_EQ(MIGRATE_FAIL_BEGIN_IMPORT, snapshot.failReason);
     EXPECT_EQ(UBSE_ERR_MIGRATE_REBUILD_REQUIRED, service.CheckOperationAllowed(SHM_NAME));
     EXPECT_EQ(UBSE_OK, service.CheckOperationAllowed(SHM_NAME, true));
+    // 删除发送失败时不清理账本，目标残留DESTROYING，等待重新受理或对账收尾。
     const auto residual = GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
-    EXPECT_EQ(nullptr, residual);
+    ASSERT_NE(nullptr, residual);
+    EXPECT_EQ(UBSE_MEM_EXPORT_DESTROYING, residual->status.state);
     const auto [selected, imports] = GetMaxRefCountExportObj(SHM_NAME);
     ASSERT_NE(nullptr, selected);
     EXPECT_EQ(MIGRATE_SRC_NODE_ID, selected->algoResult.exportNumaInfos.front().nodeId);
@@ -3058,9 +3160,6 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateGetDeferredDuringReconciliatio
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
     BuildMigrationRecoveryScene();
-    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
-    std::vector<ubse::nodeController::UbseNodeInfo> staticNodes{node};
-    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
 
     // 对账采集中：会话未恢复登记，按采集中应答
     UbseMemShmMigrateGetResp resp{};
@@ -3068,12 +3167,9 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateGetDeferredDuringReconciliatio
     EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, resp.errCode);
     EXPECT_NE(std::string::npos, resp.errMsg.find("reconciliation"));
 
-    // 对账收齐（静态名单+本节点）：恢复扫描未执行完，仍按采集中应答
+    // 对账收齐（TCP 配置节点数）：恢复扫描未执行完，仍按采集中应答
     UbseInitLedgerState::GetInstance().SetInitLedgerDone("13", true);
-    const auto localNodeId = UbseNodeController::GetInstance().GetCurNode().nodeId;
-    if (!localNodeId.empty()) {
-        UbseInitLedgerState::GetInstance().SetInitLedgerDone(localNodeId, true);
-    }
+    UbseInitLedgerState::GetInstance().SetInitLedgerDone("14", true);
     UbseMemShmMigrateGetResp scanPendingResp{};
     UbseMemShmMigrateService::GetInstance().Get(SHM_NAME, scanPendingResp);
     EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, scanPendingResp.errCode);
@@ -3096,9 +3192,6 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateAcceptAndCancelDeferredDuringR
     UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
     UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
     BuildMigrationRecoveryScene();
-    const auto node = MakeClusterNode("13", 13, UbseNodeClusterState::UBSE_NODE_WORKING, MIGRATE_SIZE_BYTES);
-    std::vector<ubse::nodeController::UbseNodeInfo> staticNodes{node};
-    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
 
     EXPECT_EQ(UBSE_ERR_MASTER_NOT_READY, UbseMemShmMigrateService::GetInstance().Accept(BuildMigrateReq(DST_SLOT_ID)));
     UbseMemMigrateCancelResp cancelResp{};
@@ -3107,6 +3200,18 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateAcceptAndCancelDeferredDuringR
     UbseMemShmMigrateSession session;
     EXPECT_FALSE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, session));
     UbseInitLedgerState::GetInstance().ResetMigrationRecovery(true);
+}
+
+TEST_F(TestUbseMemControllerMigrateApi, ReconciliationWaitsForMigrationScanCompletion)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    state.ResetMigrationRecovery(true);
+    BuildMigrationRecoveryScene();
+    auto& service = UbseMemShmMigrateService::GetInstance();
+    EXPECT_TRUE(service.IsReconciliationPending(SHM_NAME));
+    state.MarkMigrationRecoveryCompleted();
+    EXPECT_FALSE(service.IsReconciliationPending(SHM_NAME));
+    state.ResetMigrationRecovery(false);
 }
 
 struct MigrationTraceCase {
@@ -3127,10 +3232,11 @@ TEST_P(TestMigrationTrace, DetectsIsolatedTraceAndIgnoresDestroyedObject)
     const auto& param = GetParam();
     EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
     // 每次只放入一个对象、一种痕迹，避免其他判定条件掩盖被测分支。
-    const bool expected = param.hasMarker || param.hasContext || param.blockStatus != UB_MEM_HEALTHY;
+    const bool expected = (param.isExport && param.hasMarker) || param.hasContext ||
+                          param.blockStatus != UB_MEM_HEALTHY;
     if (param.isExport) {
         auto obj = BuildMigrateExportObj(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES);
-        obj.migrateInfos = param.hasMarker ? std::vector<uint32_t>{MakeShmMigrateInfo(1, 0, 0, true)} :
+        obj.migrateInfos = param.hasMarker ? std::vector<uint32_t>{MakeShmMigrateInfo(1, 0, SRC_SLOT_ID, true)} :
                                              std::vector<uint32_t>{};
         obj.status.exportObmmInfo.resize(1);
         obj.status.exportObmmInfo[0].memIdStatus = param.blockStatus;
@@ -3163,16 +3269,44 @@ INSTANTIATE_TEST_SUITE_P(MigrationRecovery, TestMigrationTrace,
                                          MigrationTraceCase{"ExportSwitching", true, false, false, UB_MEM_SWITCHING},
                                          MigrationTraceCase{"ExportStranded", true, false, false, UB_MEM_STRANDED},
                                          MigrationTraceCase{"ImportWithoutTrace", false, false, false, UB_MEM_HEALTHY},
-                                         MigrationTraceCase{"ImportMarker", false, true, false, UB_MEM_HEALTHY},
+                                         MigrationTraceCase{"ImportMarkerNotTrace", false, true, false, UB_MEM_HEALTHY},
                                          MigrationTraceCase{"ImportContext", false, false, true, UB_MEM_HEALTHY},
                                          MigrationTraceCase{"ImportSwitching", false, false, false, UB_MEM_SWITCHING},
                                          MigrationTraceCase{"ImportStranded", false, false, false, UB_MEM_STRANDED}),
                          [](const testing::TestParamInfo<MigrationTraceCase>& info) { return info.param.name; });
 
 /*
- * 用例描述：终态后重新受理覆盖旧终态记录：新会话可见、旧终态记录被覆盖
- * 预期结果：重新受理后查询指向 INIT 新会话
+ * 用例描述：迁移痕迹与会话共存放行：账本存在迁移痕迹时，只要会话表已登记该 name 的会话
+ * (活跃或终态留存)，痕迹判定直接放行，活跃/终态的细分拦截由受理等后续逻辑负责
+ * 预期结果：活跃会话与终态会话存在期间 NameHasMigrationTrace 均返回 false；
+ * 会话移除后恢复 true；痕迹对象销毁后恢复 false
  */
+TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateTracePassThroughWithExistingSession)
+{
+    UbseMemShmMigrateSessionManager::GetInstance().ClearSessions();
+    // 账本侧仅登记一处迁移痕迹(导出迁移标记)
+    auto obj = BuildMigrateExportObj(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES);
+    obj.migrateInfos = {MakeShmMigrateInfo(1, 0, SRC_SLOT_ID, true)};
+    PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, obj);
+    EXPECT_TRUE(NameHasMigrationTrace(SHM_NAME));
+
+    auto& sessions = UbseMemShmMigrateSessionManager::GetInstance();
+    // 活跃会话存在：放行
+    EXPECT_TRUE(sessions.GetOrCreateSession(SHM_NAME, MIGRATE_SRC_NODE_ID, MIGRATE_DST_NODE_ID, 1).second);
+    EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
+
+    // 终态留存会话存在：仍放行
+    sessions.FinishSession(SHM_NAME, UBS_MEM_MIGRATE_STATE_SUCCESS);
+    EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
+
+    // 会话移除后痕迹拦截恢复；痕迹对象销毁后不再拦截
+    sessions.ClearSessions();
+    EXPECT_TRUE(NameHasMigrationTrace(SHM_NAME));
+    obj.status.state = UBSE_MEM_EXPORT_DESTROYED;
+    PutShareExportObj(MIGRATE_SRC_NODE_ID, SHM_NAME, obj);
+    EXPECT_FALSE(NameHasMigrationTrace(SHM_NAME));
+}
+
 TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateGetTerminalOverwrittenByNewAccept)
 {
     BuildMigrateExportObjWithBlocks(MIGRATE_SRC_NODE_ID, MIGRATE_SIZE_BYTES, MIGRATE_EXPECT_BLOCK_COUNT);
@@ -3361,7 +3495,9 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateCancelCleanupDelegatesToDelete
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_CANCELED, snapshot.state);
     EXPECT_FALSE(snapshot.rebuildRequired);
-    EXPECT_EQ(nullptr, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME));
+    // 取消只下发删除，不同步清理账本，目标导出保留等待真实unexport回包回收。
+    const auto residual = GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    ASSERT_NE(nullptr, residual);
 }
 
 /*
@@ -3442,7 +3578,10 @@ TEST_F(TestUbseMemControllerMigrateApi, ShmMigrateCancelDoesNotWaitForDestroyRes
     ASSERT_TRUE(UbseMemShmMigrateSessionManager::GetInstance().ReadSessionSnapshot(SHM_NAME, snapshot));
     EXPECT_EQ(UBS_MEM_MIGRATE_STATE_CANCELED, snapshot.state);
     EXPECT_TRUE(snapshot.cancelRequested);
-    EXPECT_EQ(nullptr, GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME));
+    // 取消不等待销毁回包，目标导出保留DESTROYING，由删除回包走原流程回收。
+    const auto residual = GetShareExportObj(MIGRATE_DST_NODE_ID, SHM_NAME);
+    ASSERT_NE(nullptr, residual);
+    EXPECT_EQ(UBSE_MEM_EXPORT_DESTROYING, residual->status.state);
     ASSERT_EQ(UBSE_OK, ReportDeleteResult(g_cleanupHeldResponse));
     g_cleanupResultInfo = {};
     g_migrateExecutor->Wait(); // 会话在普通销毁回调前已终态，单独等待账本归还完成。

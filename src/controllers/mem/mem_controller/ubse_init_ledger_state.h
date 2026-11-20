@@ -14,6 +14,7 @@
 #define UBS_ENGINE_UBSE_INIT_LEDGER_STATE_H
 
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -24,7 +25,7 @@ namespace ubse::mem::controller {
 
 enum class MigrationRecoveryAction
 {
-    WAIT_FOR_RECONCILIATION,    // 等待静态节点名单内所有节点完成本轮对账
+    WAIT_FOR_RECONCILIATION,    // 等待本轮完成对账的节点达到配置数量
     REBUILD_MIGRATION_TASKS,    // 首次统一重建迁移任务
     RECOVERY_ALREADY_TRIGGERED, // 本轮恢复已触发，不再进行重建扫描
 };
@@ -59,9 +60,6 @@ public:
     // 返回当前已完成初始对账的节点列表快照（锁内拷贝）。
     std::vector<std::string> GetInitLedgerDoneNodes();
 
-    // 名单内节点是否全部完成初始对账；只读查询，不消费恢复触发标记。
-    bool IsInitLedgerDoneForAll(const std::vector<std::string>& nodeIds);
-
     /**
      * 等待节点完成初始对账
      * 若 predicate(initLedgerDoneSet_.count(nodeId) > 0) 入口为 true，立即返回 true
@@ -75,8 +73,8 @@ public:
 
     // 主上线时同时清空旧对账记录、重置恢复入口，必须在本轮对账任务启动前调用。
     void ResetMigrationRecovery(bool leader);
-    // 调用方确认主身份；等待完整静态名单完成本轮对账后，占用唯一重建入口。nodeIds 需去重。
-    MigrationRecoveryAction TryStartMigrationRecovery(const std::vector<std::string>& nodeIds);
+    // 调用方确认主身份；完成对账的节点达到配置数量后，占用唯一重建入口。
+    MigrationRecoveryAction TryStartMigrationRecovery(std::size_t expectedNodeCount);
     // 投递失败时释放入口，已经执行的重建不重置。
     void RetryMigrationRecovery();
     // 恢复扫描（RecoverAfterReconciliation）执行完毕后调用，消除"名单收齐但扫描未执行完"期间对账状态判定的竞态窗口。

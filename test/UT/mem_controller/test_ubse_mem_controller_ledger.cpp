@@ -17,10 +17,12 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
+#include "ubse_lcne_module.h"
 #include "ubse_mem_agent_task_manager.h"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_msg.h"
@@ -941,19 +943,17 @@ TEST_F(TestUbseMemControllerLedger, LedgerHandler)
     EXPECT_EQ(LedgerHandler(node), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerLedger, MigrationRecoveryWaitsForAllStaticNodeLedgers)
+TEST_F(TestUbseMemControllerLedger, MigrationRecoveryWaitsForConfiguredNodeCount)
 {
     auto& state = UbseInitLedgerState::GetInstance();
     state.ResetMigrationRecovery(true);
-    std::vector<nodeController::UbseNodeInfo> staticNodes;
-    for (const auto& nodeId : {"1", "2", "3", "4"}) {
-        nodeController::UbseNodeInfo node;
-        node.nodeId = nodeId;
-        staticNodes.push_back(node);
-    }
     MOCKER(&CheckNodeIsMaster).stubs().will(returnValue(true));
-    MOCKER(&GetCurNodeId).stubs().will(returnValue(std::string{"2"}));
-    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+    using ubse::mti::UbseLcneModule;
+    auto lcne = std::make_shared<UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(lcne));
+    const std::vector<std::string> ips{"192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4", "192.0.2.4"};
+    MOCKER_CPP(&UbseLcneModule::GetClusterIpList).stubs().will(returnValue(ips));
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).expects(never());
     MOCKER(&UbseNodeGetLinkUpNodes).expects(never());
     MOCKER(&GetExecutor).expects(never());
 
@@ -984,30 +984,55 @@ TEST_F(TestUbseMemControllerLedger, MigrationRecoveryKeepsCompletedLedgerUntilIn
         EXPECT_EQ(UBSE_OK, LedgerHandler(node));
         EXPECT_TRUE(state.IsInitLedgerDone(node.nodeId));
     }
-    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery({node.nodeId}));
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(1));
     node.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
     EXPECT_EQ(UBSE_OK, LedgerHandler(node));
     EXPECT_FALSE(state.IsInitLedgerDone(node.nodeId));
     state.ResetMigrationRecovery(false);
 }
 
-TEST_F(TestUbseMemControllerLedger, MigrationRecoveryDoesNotConsumeGateWithoutStaticNodes)
+TEST_F(TestUbseMemControllerLedger, MigrationRecoverySubmitsScanWithoutShmAndConfiguredIps)
 {
     auto& state = UbseInitLedgerState::GetInstance();
     MOCKER(&CheckNodeIsMaster).stubs().will(returnValue(true));
-    MOCKER(&UbseNodeController::GetStaticNodeInfo)
-        .stubs()
-        .will(returnValue(std::vector<nodeController::UbseNodeInfo>{}));
-    MOCKER(&GetExecutor).expects(never());
+    MOCKER(&config::UbseIsMemShareSupported).stubs().will(returnValue(false));
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).expects(never());
+    using ubse::mti::UbseLcneModule;
+    auto lcne = std::make_shared<UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(lcne));
+    MOCKER_CPP(&UbseLcneModule::GetClusterIpList).stubs().will(returnValue(std::vector<std::string>{}));
+    MOCKER(&GetExecutor).expects(once()).will(returnValue(UbseTaskExecutorPtr{}));
     nodeController::UbseNodeInfo node;
     node.nodeId = "2";
     node.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
-    // 名单为空不能降级成只等本地节点，也不能消耗恢复入口。
-    {
-        state.ResetMigrationRecovery(true);
-        EXPECT_EQ(UBSE_OK, LedgerHandler(node));
-        EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery({node.nodeId}));
-    }
+    state.ResetMigrationRecovery(true);
+    EXPECT_EQ(UBSE_OK, LedgerHandler(node));
+    EXPECT_FALSE(state.IsMigrationRecoveryCompleted());
+    state.ResetMigrationRecovery(false);
+}
+
+TEST_F(TestUbseMemControllerLedger, MigrationRecoveryWaitsForValidClusterIpList)
+{
+    auto& state = UbseInitLedgerState::GetInstance();
+    state.ResetMigrationRecovery(true);
+    MOCKER(&CheckNodeIsMaster).stubs().will(returnValue(true));
+    using ubse::mti::UbseLcneModule;
+    auto lcne = std::make_shared<UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseLcneModule>{}))
+        .then(returnValue(lcne));
+    MOCKER_CPP(&UbseLcneModule::GetClusterIpList).stubs().will(returnValue(std::vector<std::string>{}));
+    MOCKER(&config::UbseIsMemShareSupported).expects(once()).will(returnValue(true));
+    MOCKER(&GetExecutor).expects(never());
+
+    nodeController::UbseNodeInfo node;
+    node.nodeId = "2";
+    node.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
+    EXPECT_EQ(UBSE_OK, LedgerHandler(node)); // IP 列表读取失败。
+    EXPECT_EQ(UBSE_OK, LedgerHandler(node)); // 支持共享内存，空列表无效。
+    EXPECT_FALSE(state.IsMigrationRecoveryCompleted());
+    EXPECT_EQ(MigrationRecoveryAction::REBUILD_MIGRATION_TASKS, state.TryStartMigrationRecovery(1));
     state.ResetMigrationRecovery(false);
 }
 

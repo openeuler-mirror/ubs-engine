@@ -1495,6 +1495,11 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj& im
         UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
                       << ", requestId=" << importObj.req.requestId;
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
+        if (resp.requestNodeId.empty()) {
+            // 迁移场景为无请求方删除，不再构建响应
+            UBSE_LOG_WARN << "resp.requestNodeId is empty, skip to report";
+            return UBSE_OK;
+        }
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
         if (ret != UBSE_OK) {
             BorrowFailedAdvice(
@@ -1505,6 +1510,10 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj& im
         return ret;
     }
     ShareImportUpdateState(importObj, importObj.status.state);
+    if (resp.requestNodeId.empty()) {
+        UBSE_LOG_WARN << "resp.requestNodeId is empty, skip to report";
+        return importObj.errorCode;
+    }
     auto ret = BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId, "Failed to unimport.",
                                           importObj.errorCode, MemOperationType::SHARED_DETACH);
     if (ret != UBSE_OK) {
@@ -1710,6 +1719,8 @@ uint32_t DeleteShareExport(const UbseMemShareBorrowExportObj& exportObj)
     auto copy = exportObj;
     copy.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     copy.status.state = UBSE_MEM_EXPORT_DESTROYING;
+    // 新一轮删除请求需复位防重标记，否则上一轮失败回包遗留的true会使本次成功回包被忽略。
+    copy.isDestroyedReportReceived = false;
     if (exportObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_WARN << "The exportObj with no export numa info will be ignored.";
         return UBSE_ERROR;
@@ -1717,5 +1728,21 @@ uint32_t DeleteShareExport(const UbseMemShareBorrowExportObj& exportObj)
     UBSE_LOG_INFO << "Force delete. name=" << copy.req.name;
     ShareExportUpdateState(copy, UBSE_MEM_EXPORT_DESTROYING);
     return SendShareExportObj(copy, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+}
+
+uint32_t DeleteShareImport(const UbseMemShareBorrowImportObj& importObj)
+{
+    auto copy = importObj;
+    copy.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
+    copy.status.state = UBSE_MEM_IMPORT_DESTROYING;
+    copy.isDestroyedReportReceived = false;
+    if (importObj.importNodeId.empty()) {
+        UBSE_LOG_WARN << "The importObj with no import node will be ignored, name=" << copy.req.name;
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "Force delete import. name=" << copy.req.name << ", importNodeId=" << copy.importNodeId
+                  << ", requestId=" << copy.req.requestId;
+    ShareImportUpdateState(copy, UBSE_MEM_IMPORT_DESTROYING);
+    return SendShareImportObj(copy, true, importObj.importNodeId);
 }
 } // namespace ubse::mem::controller
