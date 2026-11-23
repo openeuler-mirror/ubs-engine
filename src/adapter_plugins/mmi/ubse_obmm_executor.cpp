@@ -16,9 +16,13 @@
 #include <unistd.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <csignal>
 #include <cstring>
+#include <string>
 #include "ubse_conf_module.h"
+#include "ubse_cpu_burst_util.h"
+#include "ubse_logger.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_obmm_meta_restore.h"
@@ -26,6 +30,7 @@
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 namespace ubse::mmi {
+using ubse::utils::UbseCpuBurstUtil;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::security;
 using namespace ubse::context;
@@ -46,15 +51,20 @@ static constexpr int OBMM_IMPORT_BASE_DIST = 40;
 uint64_t RmObmmExecutor::offlineTimeoutMs_ = DEFAULT_UNIMPORT_TIMEOUT_MS;
 bool RmObmmExecutor::offlineTimeoutConfigured_ = false;
 
-UbseResult RmObmmExecutor::MemcpyMt(void* dst, const void* src, size_t size)
+UbseResult RmObmmExecutor::MemcpyNcMt(void* dst, const void* src, size_t size, bool srcCacheable)
 {
-    constexpr unsigned int COPY_THREADS = 8;
-    if (memcpyMtFunc == nullptr || dst == nullptr || src == nullptr || size == 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_mt unavailable or invalid arguments, size=" << size;
+    constexpr unsigned int NC_SRC = 1U << 0;
+    constexpr unsigned int NC_DST = 1U << 1;
+    if (memcpyNcMtFunc == nullptr || dst == nullptr || src == nullptr || size == 0) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_nc_mt unavailable or invalid arguments, size=" << size;
         return UBSE_ERROR_INVAL;
     }
-    if (memcpyMtFunc(dst, src, size, COPY_THREADS) != dst) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_mt returned unexpected destination, size=" << size;
+    // 拷贝线程数：burst 生效（配额与亲和性已临时放宽）时使用 burst 线程数，否则用日常默认值
+    const unsigned int copyThreads = UbseCpuBurstUtil::GetInstance().IsActive() ? BURST_MEMCPY_COPY_THREADS :
+                                                                                  DEFAULT_MEMCPY_COPY_THREADS;
+    const unsigned int flags = NC_DST | (srcCacheable ? 0U : NC_SRC);
+    if (memcpyNcMtFunc(dst, src, size, copyThreads, flags) != dst) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "memcpy_nc_mt returned unexpected destination, size=" << size;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -107,7 +117,7 @@ void RmObmmExecutor::RegisterSigusr1Handler()
 UbseResult RmObmmExecutor::Exit()
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "Close obmm executor.";
-    memcpyMtFunc = nullptr;
+    memcpyNcMtFunc = nullptr;
     if (accelHandle != nullptr) {
         if (dlclose(accelHandle) != 0) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Close libobmm-accel.so.1 failed, error is " << dlerror();
@@ -161,13 +171,19 @@ UbseResult RmObmmExecutor::DlOpenLib(const std::string& obmmPath)
     DlOpenOptionalFunName(obmmSwitchBeginImportFunc, "obmm_switch_begin_import");
     DlOpenOptionalFunName(obmmSwitchBeginExportFunc, "obmm_switch_begin_export");
     DlOpenOptionalFunName(obmmSwitchEndFunc, "obmm_switch_end");
-    // memcpy_mt 本次暂不启用，避免 libobmm-accel 加载失败影响其他 OBMM 功能启动。
+    // 迁移拷贝符号与切换符号同为可选能力：旧版 libobmm-accel 可能缺失或未导出 memcpy_nc_mt，
+    // 缺失时仅告警，不阻断 obmm 基础功能加载；迁移拷贝路径由 MemcpyNcMt 的空指针兜底报错。
+    const auto accelRet = LoadMemcpyNcMt();
+    if (accelRet != UBSE_OK) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "memcpy_nc_mt unavailable in libobmm-accel, "
+                      << "migrate copy will fail until libobmm-accel is upgraded";
+    }
     return UBSE_OK;
 }
 
-UbseResult RmObmmExecutor::LoadMemcpyMt()
+UbseResult RmObmmExecutor::LoadMemcpyNcMt()
 {
-    if (memcpyMtFunc != nullptr) {
+    if (memcpyNcMtFunc != nullptr) {
         return UBSE_OK;
     }
     constexpr auto ACCEL_PATH = "libobmm-accel.so.1";
@@ -177,12 +193,12 @@ UbseResult RmObmmExecutor::LoadMemcpyMt()
         return UBSE_ERROR;
     }
     dlerror();
-    memcpyMtFunc = reinterpret_cast<MemcpyMtPtr>(dlsym(accelHandle, "memcpy_mt"));
+    memcpyNcMtFunc = reinterpret_cast<MemcpyNcMtPtr>(dlsym(accelHandle, "memcpy_nc_mt"));
     const auto error = dlerror();
-    if (error != nullptr || memcpyMtFunc == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memcpy_mt from " << ACCEL_PATH << " failed, error is "
+    if (error != nullptr || memcpyNcMtFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memcpy_nc_mt from " << ACCEL_PATH << " failed, error is "
                        << (error != nullptr ? error : "null symbol");
-        memcpyMtFunc = nullptr;
+        memcpyNcMtFunc = nullptr;
         dlclose(accelHandle);
         accelHandle = nullptr;
         return UBSE_ERROR;

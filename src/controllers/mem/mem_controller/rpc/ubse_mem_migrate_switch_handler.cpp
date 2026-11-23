@@ -93,6 +93,14 @@ UbseResult UbseMemMigrateDataCopyHandler::Handle(const UbseBaseMessagePtr& req, 
     });
 }
 
+UbseResult UbseMemMigrateCpuPreOpenHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                                                   UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    return QueueMigrateRequest<UbseMemMigrateCpuPreOpenReqSimpo>(req, rsp, ctx, [](auto& data, const auto& peerNodeId) {
+        UbseMemShmMigrateService::GetInstance().ProcessCpuPreOpenRequest(data, peerNodeId);
+    });
+}
+
 UbseResult UbseMemMigrateSwitchEndImportHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                         UbseComBaseMessageHandlerCtxPtr ctx)
 {
@@ -168,6 +176,12 @@ UbseResult RegisterMigrateSwitchHandlers(const std::shared_ptr<UbseComModule>& c
     retCode = comModule->RegRpcService<UbseMemMigrateDataCopyReqSimpo, UbseMemCallbackMessage>(copyHandler);
     if (retCode != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemMigrateDataCopyHandler register fail, " << FormatRetCode(retCode);
+        return retCode;
+    }
+    UbseComBaseMessageHandlerPtr preOpenHandler = new (std::nothrow) UbseMemMigrateCpuPreOpenHandler();
+    retCode = comModule->RegRpcService<UbseMemMigrateCpuPreOpenReqSimpo, UbseMemCallbackMessage>(preOpenHandler);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseMemMigrateCpuPreOpenHandler register fail, " << FormatRetCode(retCode);
         return retCode;
     }
     UbseComBaseMessageHandlerPtr endHandler = new (std::nothrow) UbseMemMigrateSwitchEndImportHandler();

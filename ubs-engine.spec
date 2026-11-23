@@ -300,10 +300,10 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildr
 #install python-sdk
 %py3_install
 
-#install SEI sudoers
+#install sudoers (SEI degrade + migrate CPU burst)
 mkdir -p %{buildroot}/etc/sudoers.d/
-cp %{_builddir}/%{project_dir}/scripts/rpm/ubse-sei-sudo %{buildroot}/etc/sudoers.d/ubse-sei
-chmod 440 %{buildroot}/etc/sudoers.d/ubse-sei
+cp %{_builddir}/%{project_dir}/scripts/rpm/ubse-sudoers %{buildroot}/etc/sudoers.d/ubse
+chmod 440 %{buildroot}/etc/sudoers.d/ubse
 
 
 %pre
@@ -478,7 +478,7 @@ fi
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
 %defattr(440,root,root,-)
-%config(noreplace) /etc/sudoers.d/ubse-sei
+%config(noreplace) /etc/sudoers.d/ubse
 %ifarch aarch64
 %defattr(644,root,root,755)
 %dir /lib/modules/ubse

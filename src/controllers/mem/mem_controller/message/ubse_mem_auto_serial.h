@@ -325,6 +325,9 @@ UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateSwitchEndImportReq, v
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateDataCopyReq, void,
                &::ubse::adapter_plugins::mmi::UbseMemMigrateDataCopyReq::rpcInfo)
 
+UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateCpuPreOpenReq, void,
+               &::ubse::adapter_plugins::mmi::UbseMemMigrateCpuPreOpenReq::rpcInfo)
+
 UBSE_SERIALIZE(::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp, void,
                &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::errCode,
                &::ubse::adapter_plugins::mmi::UbseMemMigrateOpResp::block,

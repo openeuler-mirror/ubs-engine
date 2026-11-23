@@ -61,6 +61,8 @@ using UbseMemMigrateSwitchEndImportReqSimpoPtr =
     ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateSwitchEndImportReq>;
 using UbseMemMigrateDataCopyReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateDataCopyReq>;
 using UbseMemMigrateDataCopyReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateDataCopyReq>;
+using UbseMemMigrateCpuPreOpenReqSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateCpuPreOpenReq>;
+using UbseMemMigrateCpuPreOpenReqSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateCpuPreOpenReq>;
 using UbseMemMigrateOpRespSimpo = ubse::simpo::util::UbseAutoSimpo<ap_mmi::UbseMemMigrateOpResp>;
 using UbseMemMigrateOpRespSimpoPtr = ubse::simpo::util::UbseAutoSimpoPtr<ap_mmi::UbseMemMigrateOpResp>;
 

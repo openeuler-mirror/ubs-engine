@@ -1108,14 +1108,12 @@ UbseResult MemScheduleHandler::RegisterShareBorrowHandlers(const std::shared_ptr
         return ret;
     }
 
-    // 普通新导出及独立清理请求分别注册
     ret = rpc::UbseMemMigrateExportHandler::RegUbseMemMigrateExportHandler(comModule);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register UbseMemMigrateExportHandler";
         return ret;
     }
 
-    // SHM故障迁移 逐块迁移块级切换/拷贝 handler: begin/copy/end 三条 RPC 统一注册
     ret = rpc::RegisterMigrateSwitchHandlers(comModule);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to register MigrateSwitchHandlers";

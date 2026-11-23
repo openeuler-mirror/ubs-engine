@@ -120,6 +120,30 @@ public:
     }
 };
 
+// 逐块迁移 CPU 预开 handler（master->copy节点 0x001B）：仅性能预热，提前完成配额/亲和性切换与频率预热
+class UbseMemMigrateCpuPreOpenHandler : public UbseComBaseMessageHandler {
+public:
+    UbseMemMigrateCpuPreOpenHandler() = default;
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_CPU_PRE_OPEN);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+    }
+
+    bool NeedReply() override
+    {
+        return true;
+    }
+};
+
 // 逐块迁移块级切换 end handler（master->导入节点 0x0013）：success=1 切新链路 + 账本收敛；0 回退
 class UbseMemMigrateSwitchEndImportHandler : public UbseComBaseMessageHandler {
 public:

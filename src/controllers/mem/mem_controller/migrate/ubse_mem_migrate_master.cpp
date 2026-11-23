@@ -111,6 +111,41 @@ enum class ExportCleanup
     ALLOW_DELETE
 };
 
+static void SendCpuPreOpenNotify(const std::string& nodeId, const std::string& name)
+{
+    const auto executor = GetExecutor("ubseMemController");
+    if (executor == nullptr) {
+        UBSE_LOG_WARN << "Cpu pre-open notify skipped, executor unavailable, copyNodeId=" << nodeId;
+        return;
+    }
+    const auto submitted = executor->Execute([nodeId, name] {
+        auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+        if (comModule == nullptr) {
+            UBSE_LOG_WARN << "Cpu pre-open notify skipped, communication module unavailable, copyNodeId=" << nodeId;
+            return;
+        }
+        ubse::simpo::util::UbseAutoSimpoPtr<UbseMemMigrateCpuPreOpenReq> request = new (std::nothrow)
+            ubse::simpo::util::UbseAutoSimpo<UbseMemMigrateCpuPreOpenReq>();
+        UbseBaseMessagePtr response = new (std::nothrow) UbseMemCallbackMessage();
+        if (request == nullptr || response == nullptr) {
+            UBSE_LOG_WARN << "Cpu pre-open notify allocation failed, copyNodeId=" << nodeId;
+            return;
+        }
+        UbseMemMigrateCpuPreOpenReq data{};
+        data.rpcInfo.name = name;
+        request->SetUbseMesgInfo(data);
+        const SendParam param(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_CPU_PRE_OPEN));
+        const auto ret = comModule->RpcSend(param, request, response);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Cpu pre-open notify failed, copyNodeId=" << nodeId << ", ret=" << FormatRetCode(ret);
+        }
+    });
+    if (!submitted) {
+        UBSE_LOG_WARN << "Cpu pre-open notify submit failed, copyNodeId=" << nodeId;
+    }
+}
+
 static void FailMigration(const MigrationRunContext& ctx, uint32_t failReason, ExportCleanup cleanup,
                           const std::string& failureDetail = {})
 {
@@ -171,6 +206,15 @@ uint32_t ExecuteMappedTargetMigration(MigrationRunContext& ctx)
             continue;
         }
         ctx.importNodes.push_back(nodeId);
+    }
+    std::string copyNodeId;
+    if (ctx.targetKind == UbseMemMigrateTargetKind::IMPORT_NODE) {
+        copyNodeId = ctx.dstNodeId;
+    } else if (!ctx.importNodes.empty()) {
+        copyNodeId = ctx.importNodes.front();
+    }
+    if (!copyNodeId.empty()) {
+        SendCpuPreOpenNotify(copyNodeId, ctx.name);
     }
     return StartMappedMigration(std::move(ctx));
 }
@@ -893,6 +937,12 @@ static bool IsCurrentMigration(const MigrationRunContext& ctx)
 
 uint32_t StartNewExport(MigrationRunContext ctx)
 {
+    // export 下发前即通知 copy 节点（首个有效导入节点）预开 CPU 资源，
+    // 覆盖新导出创建与后续逐块拷贝的完整窗口；失败仅记日志，拷贝路径守卫兜底。
+    const auto importNodes = CollectImportNodes(ctx.name, ctx.srcNodeId);
+    if (!importNodes.empty()) {
+        SendCpuPreOpenNotify(importNodes.front(), ctx.name);
+    }
     const auto ret = SendMigrateMessage(ctx.dstNodeId, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_EXPORT,
                                         ctx.newExportObj, ctx);
     if (ret != UBSE_OK) {

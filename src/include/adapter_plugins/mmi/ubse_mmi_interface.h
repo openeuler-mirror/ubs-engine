@@ -171,10 +171,10 @@ public:
     *
     * @param memId          [IN] 切换间隙内的设备ID
     * @param size           [IN] 块大小(字节)，对SWITCH_OLD/SWITCH_NEW双映射执行整块拷贝
-    * @param cacheable      [IN] 缓存属性；false时以O_SYNC打开设备
+    * @param srcCacheable   [IN] 源访问属性；self-import 本地源为true(CC)，远端源为false(NC)，目标固定NC
     * @return UbseResult    0：操作成功；非0：失败
     */
-    virtual UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) = 0;
+    virtual UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable) = 0;
 
     // end后读取已生效的单块信息；gap返回UBSE_ERR_MIGRATE_IN_PROGRESS，不扫描或卸载其他设备。
     virtual UbseResult ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,

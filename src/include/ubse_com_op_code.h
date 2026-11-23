@@ -219,6 +219,7 @@ enum class UbseMemBorrowCallbackOpCode
     UBSE_MEM_SHM_MIGRATE_NEW_EXPORT_RESULT = 0x0018,          // 普通新导出完成，master回调启动块迁移
     UBSE_MEM_SHM_MIGRATE_COPY_RESULT = 0x0019,                // copy业务完成上报
     UBSE_MEM_SHM_MIGRATE_END_RESULT = 0x001A,                 // end业务完成上报
+    UBSE_MEM_SHM_MIGRATE_CPU_PRE_OPEN = 0x001B, // 迁移拷贝前 CPU burst 预开通知（仅性能预热）
 };
 
 // UBSE内存故障处理操作码

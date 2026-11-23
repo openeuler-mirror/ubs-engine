@@ -56,7 +56,7 @@ public:
 
     UbseResult ReadShmSwitchState(uint64_t memId, ObmmSwitchState& switchState) override;
 
-    UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable) override;
+    UbseResult ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable) override;
     UbseResult ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,
                                      UbseMemMigrateBlockData& block) override;
 

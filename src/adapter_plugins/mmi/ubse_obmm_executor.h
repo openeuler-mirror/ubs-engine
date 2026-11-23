@@ -42,6 +42,9 @@ using ubse::security::UbseSecurityModule;
 
 constexpr int INVALID_MEM_ID = 0;
 constexpr auto OBMM_OFFLINE_TIMEOUT_CONFIG_KEY = "obmm.memory.offline.timeout";
+constexpr unsigned int DEFAULT_MEMCPY_COPY_THREADS = 2; // 默认CPU核数,过多线程也无意义
+// 已临时提高 CPUQuota 并放宽亲和性时的拷贝线程数
+constexpr unsigned int BURST_MEMCPY_COPY_THREADS = 24;
 constexpr uint64_t MS_PER_SECOND = 1000;
 constexpr uint64_t DEFAULT_UNIMPORT_TIMEOUT_MS = 100 * MS_PER_SECOND;
 using ObmmExportPtr = mem_id (*)(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags,
@@ -102,7 +105,7 @@ struct ObmmPidExportParam {
 
 class RmObmmExecutor {
 public:
-    UbseResult MemcpyMt(void* dst, const void* src, size_t size);
+    UbseResult MemcpyNcMt(void* dst, const void* src, size_t size, bool srcCacheable);
     UbseResult Init();
     UbseResult Exit();
 
@@ -232,7 +235,7 @@ private:
     bool preOnlineSwitch{false};
     void* handle{nullptr};
     void* accelHandle{nullptr};
-    UbseResult LoadMemcpyMt();
+    UbseResult LoadMemcpyNcMt();
     static uint64_t offlineTimeoutMs_;     // 从配置文件obmm.memory.offline.timeout获取
     static bool offlineTimeoutConfigured_; // 是否显式配置了obmm.memory.offline.timeout
 
@@ -249,9 +252,8 @@ private:
     ObmmSwitchBeginImportPtr obmmSwitchBeginImportFunc{};
     ObmmSwitchBeginExportPtr obmmSwitchBeginExportFunc{};
     ObmmSwitchEndPtr obmmSwitchEndFunc{};
-    // ABI 对齐 obmm-accel/libobmm-accel.h，从 libobmm-accel.so.1 动态加载。
-    using MemcpyMtPtr = void* (*)(void*, const void*, size_t, unsigned int);
-    MemcpyMtPtr memcpyMtFunc{};
+    using MemcpyNcMtPtr = void* (*)(void*, const void*, size_t, unsigned int, unsigned int);
+    MemcpyNcMtPtr memcpyNcMtFunc{};
 };
 #undef MODULE_LOG_NAME
 } // namespace ubse::mmi

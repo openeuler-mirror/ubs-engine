@@ -416,13 +416,13 @@ uint32_t UbseMmiModule::UbseMemShmSwitchEndExecutor(const UbseMemShmSwitchObj& s
     return ret;
 }
 
-uint32_t UbseMmiModule::UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
+uint32_t UbseMmiModule::UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmMigrateCopyExecutor, memId=" << memId << ", size=" << size
-                  << ", cacheable=" << cacheable;
-    auto ret = MemInstanceInnerShm::GetInstance().MemShmMigrateCopyExecutor(memId, size, cacheable);
+                  << ", srcCacheable=" << srcCacheable;
+    auto ret = MemInstanceInnerShm::GetInstance().MemShmMigrateCopyExecutor(memId, size, srcCacheable);
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmMigrateCopyExecutor end, ret=" << ret << ", memId=" << memId
-                  << ", size=" << size << ", cacheable=" << cacheable;
+                  << ", size=" << size << ", srcCacheable=" << srcCacheable;
     return ret;
 }
 

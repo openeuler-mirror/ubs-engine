@@ -22,6 +22,7 @@ namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportReq;
 using ubse::adapter_plugins::mmi::UbseMemMigrateBeginExportResp;
 using ubse::adapter_plugins::mmi::UbseMemMigrateCancelResp;
+using ubse::adapter_plugins::mmi::UbseMemMigrateCpuPreOpenReq;
 using ubse::adapter_plugins::mmi::UbseMemMigrateDataCopyReq;
 using ubse::adapter_plugins::mmi::UbseMemMigrateEndExportReq;
 using ubse::adapter_plugins::mmi::UbseMemMigrateSwitchBeginImportReq;
@@ -76,6 +77,7 @@ public:
     void ProcessSwitchBeginExportRequest(const UbseMemMigrateBeginExportReq& req,
                                          const std::string& requestMasterNodeId);
     void ProcessCopyRequest(const UbseMemMigrateDataCopyReq& req, const std::string& requestMasterNodeId);
+    void ProcessCpuPreOpenRequest(const UbseMemMigrateCpuPreOpenReq& req, const std::string& requestMasterNodeId);
     void ProcessSwitchEndImportRequest(const UbseMemMigrateSwitchEndImportReq& req,
                                        const std::string& requestMasterNodeId);
     void ProcessSwitchEndExportRequest(const UbseMemMigrateEndExportReq& req, const std::string& requestMasterNodeId);

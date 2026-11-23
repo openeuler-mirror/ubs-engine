@@ -180,7 +180,7 @@ public:
     * @param size   [IN] 块大小(字节)
     * @return int    0：操作成功；非0：失败
     */
-    uint32_t UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable);
+    uint32_t UbseMemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable);
 
     /**
     * @brief   addr借用import对象的执行器

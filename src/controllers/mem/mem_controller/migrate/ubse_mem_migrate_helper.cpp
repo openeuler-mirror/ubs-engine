@@ -169,6 +169,8 @@ std::vector<std::string> CollectImportNodes(const std::string& name, const std::
         }
         nodes.push_back(importObj->importNodeId);
     }
+    // 保证CPU预热与真实 copy 下发落在同一节点。
+    std::sort(nodes.begin(), nodes.end());
     return nodes;
 }
 

@@ -389,6 +389,27 @@ UbseResult RmObmmDevRead::GetSwitchState(mem_id memId, uint8_t& switchState)
     return UBSE_OK;
 }
 
+UbseResult RmObmmDevRead::GetMmapGranu(mem_id memId, uint8_t& mmapGranu)
+{
+    // 路径由 memId 在内部拼接，调用方只关心设备编号
+    const std::string path2mmapGranu =
+        std::string(OBMM_META_PATH) + "obmm_shmdev" + std::to_string(memId) + "/mmap_granu";
+    std::string granuStr;
+    auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2mmapGranu, granuStr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get mmap_granu from obmm meta. Path=" << path2mmapGranu
+                       << ", memId=" << memId;
+        return ret;
+    }
+    uint64_t granu = 0;
+    if (!RmCommonUtils::GetInstance().StrToULL(granuStr, granu) || granu > static_cast<uint64_t>(ObmmMmapGranu::PMD)) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Invalid mmap_granu value, path=" << path2mmapGranu << ", value=" << granuStr;
+        return UBSE_ERROR_INVAL;
+    }
+    mmapGranu = static_cast<uint8_t>(granu);
+    return UBSE_OK;
+}
+
 UbseResult RmObmmDevRead::GetMemIdType(const std::string& path, uint8_t& memIdType)
 {
     std::string path2type = path + "/type";

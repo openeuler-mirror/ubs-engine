@@ -247,7 +247,7 @@ public:
 
     uint32_t MemShmSwitchEndExecutor(const UbseMemShmSwitchObj& switchObj, bool success);
 
-    uint32_t MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable);
+    uint32_t MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable);
 
     MemInstanceInnerShm(const MemInstanceInnerShm& other) = delete;
     MemInstanceInnerShm(MemInstanceInnerShm&& other) = delete;
