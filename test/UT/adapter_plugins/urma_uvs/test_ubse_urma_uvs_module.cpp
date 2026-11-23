@@ -23,7 +23,7 @@
 #include <thread>
 #include "ubse_context.h"
 #include "ubse_error.h"
-#include "ubse_security.h"
+#include "ubse_security_module.h"
 #include "ubse_urma_uvs_module.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 
@@ -171,7 +171,9 @@ TEST_F(TestUrmaUvsModule, FailedStartupConfigurationRetriesOnRequest)
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(exactly(4)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(4))
+        .will(returnValue(UBSE_OK));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open))
         .expects(exactly(2))
         .will(invoke(OpenEidSharingFileFailsFirst));
@@ -190,7 +192,7 @@ TEST_F(TestUrmaUvsModule, ClosStartSkipsEidSharingConfiguration)
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).expects(never());
-    MOCKER_CPP(ChangeOverrideCapability).expects(never());
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).expects(never());
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(never());
     MOCKER(write).expects(never());
     MOCKER(close).expects(never());
@@ -202,7 +204,7 @@ TEST_F(TestUrmaUvsModule, UnsupportedCpuSkipsEidSharingConfiguration)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(false));
-    MOCKER_CPP(ChangeOverrideCapability).expects(never());
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).expects(never());
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(never());
     MOCKER(write).expects(never());
     MOCKER(close).expects(never());
@@ -216,13 +218,16 @@ TEST_F(TestUrmaUvsModule, OverrideCapabilityFailurePreventsSysfsWrite)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(once()).with(eq(true)).will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(once())
+        .with(_, eq(true))
+        .will(returnValue(UBSE_ERROR));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(never());
     MOCKER(write).expects(never());
     MOCKER(close).expects(never());
 
     bool enabled = true;
-    EXPECT_EQ(module.EnsureEidSharingConfigured(enabled), UBSE_ERROR);
+    EXPECT_EQ(module.EnsureEidSharingConfigured(enabled), UBSE_ERR_PERMISSION_DENIED);
     EXPECT_FALSE(enabled);
 }
 
@@ -230,7 +235,9 @@ TEST_F(TestUrmaUvsModule, SysfsWriteFailureReturnsErrorAndClosesFile)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(exactly(2)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(once()).will(invoke(OpenEidSharingFile));
     MOCKER(write).expects(once()).will(invoke(WriteEidSharingValueFails));
     MOCKER(close).expects(once()).will(invoke(CloseEidSharingFile));
@@ -245,7 +252,9 @@ TEST_F(TestUrmaUvsModule, SysfsShortWriteReturnsErrorAndClosesFile)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(exactly(2)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(once()).will(invoke(OpenEidSharingFile));
     MOCKER(write).expects(once()).will(invoke(WriteEidSharingValueShort));
     MOCKER(close).expects(once()).will(invoke(CloseEidSharingFile));
@@ -259,7 +268,9 @@ TEST_F(TestUrmaUvsModule, SysfsCloseFailureDoesNotRetry)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(exactly(2)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(once()).will(invoke(OpenEidSharingFile));
     MOCKER(write).expects(once()).will(invoke(WriteEidSharingValue));
     MOCKER(close).expects(once()).will(returnValue(-1));
@@ -276,7 +287,9 @@ TEST_F(TestUrmaUvsModule, ConcurrentEnsureConfiguresEidSharingOnce)
 {
     UbseUrmaUvsModule module;
     MOCKER_CPP(&UbseSmbios::Is1650V100Cpu).stubs().will(returnValue(true));
-    MOCKER_CPP(ChangeOverrideCapability).expects(exactly(2)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(2))
+        .will(returnValue(UBSE_OK));
     MOCKER(reinterpret_cast<int (*)(const char*, int)>(open)).expects(once()).will(invoke(OpenEidSharingFile));
     MOCKER(write).expects(once()).will(invoke(WriteEidSharingValueBlocks));
     MOCKER(close).expects(once()).will(invoke(CloseEidSharingFile));

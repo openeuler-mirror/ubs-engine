@@ -33,13 +33,12 @@ UbseLoggerFilesink::UbseLoggerFilesink(std::string basePath, uint32_t maxFileSiz
     auto canonicalPath = realpath(this->basePath_.c_str(), nullptr);
     if (canonicalPath == nullptr) {
         std::cerr << "FilePath does not exist: " << this->basePath_ << std::endl;
-        std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-        auto result = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        if (result != UBSE_OK) {
+        CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+        if (!capsGuard.IsEnabled()) {
             std::cerr << "Add capabilities failed." << std::endl;
         }
-        result = mkdir(this->basePath_.c_str(), 0750); // 权限0750
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        auto result = mkdir(this->basePath_.c_str(), 0750); // 权限0750
+        capsGuard.Disable();
         if (result == -1) {
             perror("mkdir"); // Print error message
             std::cerr << "Failed to create directory: " << std::endl;

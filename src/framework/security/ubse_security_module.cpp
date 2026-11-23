@@ -76,10 +76,12 @@ void CapabilityGuard::Disable()
     if (!enabled_) {
         return;
     }
-    enabled_ = false;
     if (auto ret = UbseSecurityModule::ModifyEffectiveCapabilities(caps_, false); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to disable capabilities, " << FormatRetCode(ret);
+        // 移除失败时保持 enabled_ 为 true，析构阶段会再重试一次，避免能力位残留在当前线程
+        UBSE_LOG_ERROR << "Failed to disable capabilities, " << FormatRetCode(ret);
+        return;
     }
+    enabled_ = false;
 }
 
 bool CapabilityGuard::IsEnabled() const

@@ -33,7 +33,6 @@ add_executable(ubse
         api_server/ubse_api_server_module.cpp
         adapter_plugins/urma_uvs/ubse_urma_uvs_module.cpp
         #       外部模块入口
-        framework/security/ubse_security.cpp
         framework/log/ubse_logger.cpp
         framework/com/ubse_com.cpp
         framework/storage/ubse_storage.cpp

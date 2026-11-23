@@ -480,18 +480,19 @@ UbseResult CollectNumaInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId
         return ret;
     }
 
-    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+    if (!capsGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed when collect numa info, nodeId=" << nodeId;
+        return UBSE_ERROR;
+    }
     for (auto numa : numas) {
         UbseNumaInfo info{};
         ret = CollectSingleNumaInfo(info, nodeId, numa);
         if (ret != UBSE_OK) {
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             return ret;
         }
         ubseNodeInfo.numaInfos[info.location] = info;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 

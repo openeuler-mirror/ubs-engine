@@ -40,6 +40,8 @@ class TestUbseObmmUnimport : public testing::Test {
     void SetUp() override
     {
         Test::SetUp();
+        // 提权入口打桩，避免用例依赖运行环境的 capability 授予情况
+        MOCKER(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
         oldUnimportFunc_ = RmObmmExecutor::GetInstance().obmmUnimportFunc;
         RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
             return 0;

@@ -264,6 +264,11 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
         return INVALID_MEM_ID;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport enable CAP_DAC_OVERRIDE failed.";
+        RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
+        return INVALID_MEM_ID;
+    }
     mem_id memId = obmmExportFunc(size, obmmFlags, obmmMemDesc);
     overrideCapGuard.Disable();
     UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport returned! memid=" << memId
@@ -297,6 +302,10 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
         return UBSE_ERROR_NULLPTR;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnExport enable CAP_DAC_OVERRIDE failed.";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     auto ret = obmmUnexportFunc(id, flags);
     overrideCapGuard.Disable();
     if (ret && errno != ENOENT) {
@@ -352,6 +361,11 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc& desc, const Obmm
         return INVALID_MEM_ID;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport enable CAP_DAC_OVERRIDE failed.";
+        RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
+        return INVALID_MEM_ID;
+    }
     memid = obmmImportFunc(obmmMemDesc, obmmFlags, OBMM_IMPORT_BASE_DIST, numa);
     overrideCapGuard.Disable();
     if (memid == INVALID_MEM_ID) {
@@ -388,6 +402,10 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id)
         return UBSE_ERROR_NULLPTR;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnImport enable CAP_DAC_OVERRIDE failed.";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     ret = obmmUnimportFunc(id, obmmFlags);
     overrideCapGuard.Disable();
     if (ret && errno != ENOENT) {
@@ -420,6 +438,11 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id, uint64_t timeoutMs)
     });
 
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO
+                       << "ObmmUnImport with timeout enable CAP_DAC_OVERRIDE failed, memid=" << id;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     ret = obmmUnimportFunc(id, obmmFlags);
     overrideCapGuard.Disable();
 
@@ -785,6 +808,11 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obm
                   << reinterpret_cast<uint64_t>(param.va) // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                   << ", size=" << param.size;
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExportPid enable CAP_DAC_OVERRIDE failed.";
+        RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     param.memid = obmmExportByPidFunc(param.pid, param.va, param.size, flag, obmmMemDesc);
     overrideCapGuard.Disable();
     if (param.memid == INVALID_MEM_ID) {
@@ -817,6 +845,10 @@ UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long o
         return UBSE_ERROR_NULLPTR;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmQueryUBPaByMemId enable CAP_DAC_OVERRIDE failed.";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     auto ret = obmmQueryPaByMemIdFunc(handle, offset, pa);
     overrideCapGuard.Disable();
     if (ret != 0) {
@@ -841,6 +873,10 @@ UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info* preimport_i
     }
 
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmPreImport enable CAP_DAC_OVERRIDE failed.";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     auto ret = obmmPreImportFunc(preimport_info, flags);
     overrideCapGuard.Disable();
 
@@ -872,6 +908,10 @@ UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info* preimport
         return UBSE_ERROR_NULLPTR;
     }
     CapabilityGuard overrideCapGuard(overrideCap);
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnPreImport enable CAP_DAC_OVERRIDE failed.";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
     auto ret = obmmUnPreImportFunc(preimport_info, flags);
     overrideCapGuard.Disable();
     if (ret != 0) {

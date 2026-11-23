@@ -21,7 +21,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_security.h"
+#include "ubse_security_module.h"
 #include "ubse_smbios.h"
 #include "lock/ubse_lock.h"
 
@@ -152,17 +152,13 @@ UbseResult UbseUrmaUvsModule::EnsureEidSharingConfigured(bool& enabled)
 
 UbseResult UbseUrmaUvsModule::ConfigureEidSharing()
 {
-    auto ret = ubse::security::ChangeOverrideCapability(true);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to add override capability before configuring URMA EID sharing, ret=" << ret;
-        return ret;
+    ubse::security::CapabilityGuard overrideCapGuard({CAP_DAC_OVERRIDE});
+    if (!overrideCapGuard.IsEnabled()) {
+        UBSE_LOG_WARN << "Failed to add override capability before configuring URMA EID sharing";
+        return UBSE_ERR_PERMISSION_DENIED;
     }
-    ret = WriteEidSharingFile();
-    const auto capabilityRet = ubse::security::ChangeOverrideCapability(false);
-    if (capabilityRet != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to remove override capability after configuring URMA EID sharing, ret="
-                      << capabilityRet;
-    }
+    auto ret = WriteEidSharingFile();
+    overrideCapGuard.Disable();
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to configure URMA EID sharing through sysfs, ret=" << ret;
     }

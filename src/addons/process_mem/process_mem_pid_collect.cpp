@@ -30,7 +30,6 @@
 #include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_security.h"
 #include "ubse_security_module.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_config_manager.h"
@@ -814,16 +813,14 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistribution(
     std::string pidPath = "/proc/" + std::to_string(pid) + "/numa_maps";
 
     // 跨属主读取 other 进程的 numa_maps 需要 CAP_SYS_PTRACE 通过内核 ptrace 校验, 仅读取期间开启
-    auto capRet = ubse::security::ChangePtraceCapability(true);
-    if (capRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "[process_mem] enable CAP_SYS_PTRACE failed, " << ubse::log::FormatRetCode(capRet)
-                       << " pid=" << pid;
+    ubse::security::CapabilityGuard ptraceGuard({CAP_SYS_PTRACE});
+    if (!ptraceGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "[process_mem] enable CAP_SYS_PTRACE failed, pid=" << pid;
         return UBSE_ERROR;
     }
 
     std::ifstream file(pidPath);
     if (!file.is_open()) {
-        (void)ubse::security::ChangePtraceCapability(false);
         UBSE_LOG_ERROR << "pidPath is " << pidPath << "pid=" << std::to_string(pid) << " numa_maps not exists";
         return UBSE_ERROR;
     }
@@ -833,7 +830,6 @@ uint32_t ProcessMemPidCollect::CollectProcessNumaMemDistribution(
         ParseLine(line, numaMemDistribution);
     }
     file.close();
-    (void)ubse::security::ChangePtraceCapability(false);
 
     return UBSE_OK;
 }

@@ -51,10 +51,13 @@ CtrlQMsgProxy& CtrlQMsgProxy::GetInstance()
 
 static UbseResult SendCtrlQMsg(BandBridgeMbuf& msgBuf)
 {
-    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    ubse::security::CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+    if (!capsGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed, open bandbridge dev";
+        return UBSE_ERROR;
+    }
     int fd = open(BANDBRIDGE_DEV_NAME.c_str(), O_RDWR);
-    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    capsGuard.Disable();
     if (fd < 0) {
         UBSE_LOG_ERROR << "Open bandbridge dev failed";
         return UBSE_ERROR;

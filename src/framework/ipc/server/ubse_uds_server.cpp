@@ -208,10 +208,12 @@ uint32_t UbseUDSServer::BindSocket() const
         mode_t permission = 0750;
         auto canonicalPath = realpath(dirPath.c_str(), nullptr);
         if (canonicalPath == nullptr) {
-            std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+            CapabilityGuard dirCapGuard({CAP_DAC_OVERRIDE});
+            if (!dirCapGuard.IsEnabled()) {
+                UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed, dirPath=" << dirPath;
+                return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
+            }
             auto result = mkdir(dirPath.c_str(), permission);
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             if (result != 0) {
                 UBSE_LOG_ERROR << "Failed to create directory=" << dirPath;
                 return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
@@ -271,11 +273,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
         return ret;
     }
 
-    std::vector<__u32> caps = {
-        CAP_FOWNER,
-    };
-    auto ret = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (ret != UBSE_OK) {
+    CapabilityGuard socketCapGuard({CAP_FOWNER});
+    if (!socketCapGuard.IsEnabled()) {
         UBSE_LOG_ERROR << "Add capabilities failed.";
         close(serverFd_);
         serverFd_ = -1;
@@ -284,11 +283,10 @@ uint32_t UbseUDSServer::CreateServerSocket()
     if (chmod(config_.socketPath.c_str(), config_.socketPermissions) == -1) {
         int err = errno;
         UBSE_LOG_ERROR << "chmod failed=" << SafeStrError(err);
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         close(serverFd_);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    socketCapGuard.Disable();
 
     if (listen(serverFd_, config_.maxPersistentConnections + config_.maxTransientConnections) == -1) {
         int err = errno;

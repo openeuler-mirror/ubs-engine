@@ -18,7 +18,6 @@
 #include <ubse_error.h>
 #include <ubse_logger.h>
 #include <ubse_node.h>
-#include <ubse_security.h>
 #include <condition_variable>
 #include <map>
 #include <memory>
@@ -34,6 +33,7 @@
 #include "mempooling_def.h"
 #include "mempooling_module.h"
 #include "msg_utils.h"
+#include "src/framework/security/ubse_security_module.h"
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_def.h"
@@ -633,10 +633,9 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult& borrow
         UBSE_LOG_ERROR << "Failed to get memInfo from mem, pageSize=" << pageSize << "kB, " << FormatRetCode(ret);
         return ret;
     }
-    ret = ChangeOverrideCapability(true);
-    if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to call ChangeOverrideCapability, pageSize=" << pageSize << "kB.";
-        (void)ChangeOverrideCapability(false);
+    ubse::security::CapabilityGuard overrideGuard({CAP_DAC_OVERRIDE});
+    if (!overrideGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Failed to enable CAP_DAC_OVERRIDE, pageSize=" << pageSize << "kB.";
         return VM_ERROR;
     }
     // Set source node remote hugepage memory
@@ -650,11 +649,9 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult& borrow
             UBSE_LOG_ERROR << "Failed to set hugepages"
                            << ", remoteNumaId=" << key << ", pageSize=" << pageSize << "kB, borrowedSize=" << value
                            << FormatRetCode(ret);
-            (void)ChangeOverrideCapability(false);
             return ret;
         }
     }
-    (void)ChangeOverrideCapability(false);
     return ret;
 }
 
@@ -676,10 +673,9 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePageGlobal(const uint64_t& pageSize)
         UBSE_LOG_INFO << "No active borrow debt, skip hugepage setting.";
         return VM_OK;
     }
-    ret = ChangeOverrideCapability(true);
-    if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to call ChangeOverrideCapability.";
-        (void)ChangeOverrideCapability(false);
+    ubse::security::CapabilityGuard overrideGuard({CAP_DAC_OVERRIDE});
+    if (!overrideGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Failed to enable CAP_DAC_OVERRIDE.";
         return VM_ERROR;
     }
     for (const auto& [key, value] : numaBorrowedSizeMap) {
@@ -690,11 +686,9 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePageGlobal(const uint64_t& pageSize)
         if (ret != VM_OK) {
             UBSE_LOG_ERROR << "Failed to set hugepages, remoteNumaId=" << key << ", pageSize=" << pageSize
                            << "kB, borrowedSize=" << value << FormatRetCode(ret);
-            (void)ChangeOverrideCapability(false);
             return ret;
         }
     }
-    (void)ChangeOverrideCapability(false);
     UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal end.";
     return ret;
 }

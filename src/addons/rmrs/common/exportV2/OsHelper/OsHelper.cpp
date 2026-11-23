@@ -21,11 +21,11 @@
 #include <vector>
 
 #include "ubse_logger.h"
-#include "ubse_security.h"
 #include "OsHelper.h"
 #include "mp_configuration.h"
 #include "mp_file_util.h"
 #include "mp_string_util.h"
+#include "src/framework/security/ubse_security_module.h"
 
 namespace mempooling::exportV2 {
 using namespace ubse::log;
@@ -311,24 +311,15 @@ MpResult OsHelper::GetVmNumaInfoByPid(const pid_t& pid, VmDomainInfo& info)
     std::string filePath = procPathPrefix + std::to_string(pid) + "/numa_maps";
     std::vector<std::string> lines;
     // capability 仅作用于当前线程，在实际采集线程内按需开启，文件读取结束后立即关闭。
-    auto ret = ubse::security::ChangePtraceCapability(true);
-    if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "开启 PTRACE 权限失败，pid=" << pid << ", ret=" << ret;
+    ubse::security::CapabilityGuard guard({CAP_SYS_PTRACE});
+    if (!guard.IsEnabled()) {
+        LOG_ERROR << "开启 PTRACE 权限失败，pid=" << pid;
         return MEM_POOLING_ERROR;
     }
-    try {
-        ret = MpFileUtil::GetFileInfo(filePath, lines);
-    } catch (...) {
-        // 覆盖文件读取的异常出口，避免线程池复用携带已开启的权限。
-        auto dropRet = ubse::security::ChangePtraceCapability(false);
-        if (dropRet != MEM_POOLING_OK) {
-            LOG_ERROR << "异常路径关闭 PTRACE 权限失败，pid=" << pid << ", ret=" << dropRet;
-        }
-        throw;
-    }
-    auto dropRet = ubse::security::ChangePtraceCapability(false);
-    if (dropRet != MEM_POOLING_OK) {
-        LOG_ERROR << "关闭 PTRACE 权限失败，pid=" << pid << ", ret=" << dropRet;
+    auto ret = MpFileUtil::GetFileInfo(filePath, lines);
+    guard.Disable();
+    if (guard.IsEnabled()) {
+        LOG_ERROR << "关闭 PTRACE 权限失败，pid=" << pid;
         return MEM_POOLING_ERROR;
     }
     if (ret != MEM_POOLING_OK) {

@@ -17,12 +17,12 @@
 #include <sstream>
 #include "ubse_def.h"
 #include "ubse_logger.h"
-#include "ubse_security.h"
 #include "ubse_storage.h"
 #include "mem_manager.h"
 #include "mp_error.h"
 #include "over_commit_ucache_strategy.h"
 #include "rmrs_resource_query.h"
+#include "src/framework/security/ubse_security_module.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
@@ -304,13 +304,13 @@ MpResult MpSmapHelper::GetHugePageCanonicalPath(const std::string& remoteNumaId,
 
 MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string& filePath, uint64_t targetHugePages)
 {
-    auto res = ubse::security::ChangeOverrideCapability(true);
-    if (res != MEM_POOLING_OK) {
+    ubse::security::CapabilityGuard guard({CAP_DAC_OVERRIDE});
+    if (!guard.IsEnabled()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Change override capability failed.";
         return MEM_POOLING_ERROR;
     }
     MpResult ret = RewriteHugePages(filePath, targetHugePages);
-    (void)ubse::security::ChangeOverrideCapability(false);
+    guard.Disable();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpSmapHelper] RewriteHugePages failed, target=" << targetHugePages << ", ret=" << ret << ".";
@@ -1225,8 +1225,8 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t& ret)
     std::string fileEnd = std::to_string(taskId);
     std::string result = fileHead + fileEnd;
 
-    auto res = ubse::security::ChangeOverrideCapability(true);
-    if (res != MEM_POOLING_OK) {
+    ubse::security::CapabilityGuard guard({CAP_DAC_OVERRIDE});
+    if (!guard.IsEnabled()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Change override capability failed.";
         return MEM_POOLING_ERROR;
     }
@@ -1235,7 +1235,6 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t& ret)
 
     if (!file.is_open()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Can not open file, file name: " << result;
-        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 
@@ -1248,25 +1247,21 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t& ret)
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MpSmapHelper] Get smap back result is invalid, file name: " << result;
             file.close();
-            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         }
         if (backRet >= MB_TASK_BUTT) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get smap back result is invaild.";
             file.close();
-            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         } else {
             ret = static_cast<uint16_t>(backRet);
             file.close();
-            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_OK;
         }
     } else {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpSmapHelper] Get file result fail, file name: " << result;
         file.close();
-        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 }
