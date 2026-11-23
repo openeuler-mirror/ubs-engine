@@ -35,7 +35,9 @@ void SetupMountNamespace(const std::string& workDir)
     }
     BindMount(workDir + "/run", "/var/run/ubse");
     BindMount(workDir + "/log", "/var/log/ubse");
-    BindMount(workDir + "/run/ubm/socket/ubm_nuds", "/run/ubm/socket/ubm_nuds");
+    // 源目录已缩短（UDS 路径长度约束），挂载目标保持生产路径约定不变：
+    // daemon 侧仍按 /run/ubm/socket/ubm_nuds/restconf.sock 访问，映射到 workdir/run/ubm/restconf.sock
+    BindMount(workDir + "/run/ubm", "/run/ubm/socket/ubm_nuds");
 }
 
 } // namespace

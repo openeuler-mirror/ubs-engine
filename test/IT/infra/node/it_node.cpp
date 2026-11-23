@@ -148,7 +148,9 @@ std::string BuildMeminfo(uint32_t numa)
 ItNode::ItNode(NodeSpec spec, ClusterContext ctx)
     : spec_(std::move(spec)),
       ctx_(std::move(ctx)),
-      lcneUdsPath_(spec_.workDir + "/run/ubm/socket/ubm_nuds/restconf.sock"),
+      // 测试侧 lcne UDS 路径刻意缩短：unix domain socket sun_path 上限 107 字节，
+      // workdir 位于构建目录时前缀较长，深目录会导致 bind 失败
+      lcneUdsPath_(spec_.workDir + "/run/ubm/restconf.sock"),
       udsSocketPath_(spec_.UdsSocketPath()),
       cliInvoker_(ctx_.cliBinaryPath, udsSocketPath_,
                   spec_.hostname.empty() ? "it-node-" + std::to_string(spec_.slotId) : spec_.hostname)
@@ -165,7 +167,7 @@ void ItNode::CreateWorkDirectories()
     std::filesystem::create_directories(spec_.workDir);
     std::filesystem::create_directories(spec_.RunDir());
     std::filesystem::create_directories(spec_.LogDir());
-    std::filesystem::create_directories(spec_.workDir + "/run/ubm/socket/ubm_nuds");
+    std::filesystem::create_directories(spec_.workDir + "/run/ubm");
     CreateSysfsTree();
 }
 

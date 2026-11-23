@@ -13,6 +13,8 @@
 #ifndef IT_SCENARIO_FIXTURE_H
 #define IT_SCENARIO_FIXTURE_H
 
+#include <sys/un.h>
+
 #include <filesystem>
 #include <string>
 
@@ -60,7 +62,24 @@ protected:
      */
     static ItClusterBuilder MakeBuilder()
     {
-        auto workDir = "/tmp/ubs_engine_it_" + std::to_string(::getpid());
+        // workdir 放构建目录而非 /tmp：不受运行环境 /tmp 写限制（只读 /tmp 的容器/CI 沙箱），
+        // 失败现场随构建目录归档；cmake-build-* 已被 .gitignore 忽略，不污染工作区。
+        // 前置校验：IT 侧所有 UDS 路径均由 workDir 拼接，最长后缀为 lcne restconf.sock
+        // 构建目录过深时超出 AF_UNIX sun_path 上限，bind/connect 会以 ENAMETOOLONG 失败且难以定位；
+        // 此处按最长 UDS 总长预判，超限即回退 /tmp 短前缀。
+        const auto pid = std::to_string(::getpid());
+        auto workDirPath = std::filesystem::path(BUILD_DIRECTORY) / ("it_" + pid);
+        // 节点号最多 4 位数字，按 "/9999" 的宽度预留
+        constexpr size_t kMaxNodeSegmentLen = sizeof("/9999") - 1;
+        constexpr size_t kLongestUdsSuffixLen = sizeof("/run/ubm/restconf.sock") - 1;
+        const size_t longestUdsLen = workDirPath.string().size() + kMaxNodeSegmentLen + kLongestUdsSuffixLen;
+        constexpr size_t kSunPathLimit = sizeof(sockaddr_un::sun_path) - 1; // 107，预留结尾 '\0'
+        if (longestUdsLen > kSunPathLimit) {
+            workDirPath = std::filesystem::path("/tmp") / ("ubs_engine_it_" + pid);
+            IT_LOG_WARN << "BUILD_DIRECTORY is too deep for IT UDS sockets (longest " << longestUdsLen
+                        << " > sun_path limit " << kSunPathLimit << "), fall back to " << workDirPath;
+        }
+        auto workDir = workDirPath.string();
         auto binaryPath = std::filesystem::path(BUILD_DIRECTORY) / "bin" / "ubse_it_daemon";
         auto stubLibDir = std::filesystem::path(BUILD_DIRECTORY) / "lib";
         return ItClusterBuilder::FromRuntimePaths(binaryPath, workDir, stubLibDir);
