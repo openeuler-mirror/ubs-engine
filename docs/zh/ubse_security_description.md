@@ -81,7 +81,7 @@ UBSE 服务以 ubse 用户作为运行用户，特权的使用遵从最小化使
 
 - CAP_SYS_ADMIN保留在permitted集中，不作为常驻effective能力；MMI通过`CapabilityGuard`在调用`obmm_switch_begin_import`、`obmm_switch_begin_export`、`obmm_switch_end`前为当前线程临时开启，调用返回后立即关闭，作用域退出时兜底释放。该能力用于共享内存故障迁移的在线后端切换（包括提交和回退）；开启失败时记录错误并返回权限不足，不执行对应的switch调用
 
-此外，systemd单元还配置了`MemoryMax`、`CPUQuota`、`CPUAffinity`、`Restart=on-failure`等资源约束；对sysSentry、xalarm等周边组件socket的访问通过`setfacl`按需授权（ExecStartPre），不引入额外特权。
+此外，systemd单元还配置了`MemoryMax`、`CPUQuota`、`CPUAffinity`、`Restart=on-failure`等资源约束；对sysSentry、xalarm等周边组件socket的访问通过`setfacl`按需授权（ExecStartPre），不引入额外特权。迁移拷贝CPU核数会通过`systemctl set-property --runtime`临时提高运行时CPUQuota（见特权清单第11项），其运行时调整在服务停止/崩溃重启后可能残留，因此单元中配置了`ExecStartPre`与`ExecStopPost`各一条幂等的`CPUQuota=200%`恢复命令（`+`前缀以root执行，不经sudo）：启动前恢复保证进程永远以默认配额起步，停止后恢复压缩崩溃与下次启动之间的无保护窗口；两条命令正常情况下均为空操作，任一失败由另一条兜底。
 
 #### 程序特权清单
 
@@ -94,9 +94,10 @@ UBSE 服务以 ubse 用户作为运行用户，特权的使用遵从最小化使
 | 5    | 设置bonding eid            | CAP_NET_ADMIN         | 常驻             | ioctl：/dev/uburma/*<br />ioctl执行后，会额外检查特权CAP_NET_ADMIN |
 | 6    | 读取其他进程信息           | CAP_DAC_READ_SEARCH  CAP_SYS_PTRACE | CAP_DAC_READ_SEARCH常驻；CAP_SYS_PTRACE按需开启/关闭 | 允许读取其他进程的 /proc/* 文件；读取 /proc/pid/numa_maps 前需临时开启CAP_SYS_PTRACE（内核对该文件执行ptrace读取权限检查），读完后立即关闭 |
 | 7    | urma通信                   | CAP_DAC_OVERRIDE      | 按需开启/关闭    | 依赖关系urma->udma->ummu<br/>ummu依赖下述两个文件：<br/>1./dev/ummu/tid root:root 600 存储urma通信需要的tokenid，属于敏感信息<br/>2./usr/lib64/libummu.so root:root 600 -> 755 |
-| 8    | SEI降级执行sysctl提权       | CAP_SETUID  CAP_SETGID | 仅保留在CapabilityBoundingSet | 通过sudo执行sysctl修改内核参数kernel.arm64_sync_sei（命令固定为`sudo /usr/sbin/sysctl -w kernel.arm64_sync_sei=0/1`），sudo为setuid-root二进制，内核执行时需这两个capability允许uid/gid切换；免密范围由/etc/sudoers.d/ubse-sei严格限定为上述两条命令 |
+| 8    | SEI降级执行sysctl提权       | CAP_SETUID  CAP_SETGID | 仅保留在CapabilityBoundingSet | 通过sudo执行sysctl修改内核参数kernel.arm64_sync_sei（命令固定为`sudo /usr/sbin/sysctl -w kernel.arm64_sync_sei=0/1`），sudo为setuid-root二进制，内核执行时需这两个capability允许uid/gid切换；免密范围由/etc/sudoers.d/ubse严格限定为上述两条命令 |
 | 9    | UDS的sock目录重建           | CAP_DAC_OVERRIDE      | 按需开启/关闭    | /var/run/ubse安装时由RPM脚本创建并chown为ubse:ubse（755）；/run为内存文件系统，重启后目录被清除，UBSE启动时临时开启该特权重建目录，完成后立即关闭 |
 | 10   | 共享内存故障迁移的在线后端切换 | CAP_SYS_ADMIN      | 按需开启/关闭    | obmm switch接口要求该能力；仅在`obmm_switch_begin_import`、`obmm_switch_begin_export`、`obmm_switch_end`调用期间临时开启，调用返回后立即关闭 |
+| 11   | 迁移拷贝CPU burst配额调整  | CAP_SETUID  CAP_SETGID | 仅保留在CapabilityBoundingSet | 通过sudo执行`systemctl set-property --runtime ubse.service`临时提高/恢复运行时CPUQuota（命令固定为`CPUQuota=2400%`与`CPUQuota=200%`两条），sudo为setuid-root二进制，内核执行时需这两个capability允许uid/gid切换；免密范围由/etc/sudoers.d/ubse严格限定为上述两条命令；服务单元的ExecStartPre/ExecStopPost以root幂等恢复日常配额，不经sudo |
 
 #### 文件及目录权限设计
 
@@ -121,7 +122,7 @@ ubs-engine-\<version>-\<release>.aarch64.rpm 安装后的权限如下。
 | /usr/lib/systemd/system/ubse.service | 配置文件   | root:root | 644 |       无                       |
 | /etc/ubse/                          | 目录       | root:root | 755 | 内部conf/json文件权限：644；含plugins、topo子目录 |
 | /etc/bash_completion.d/cli_commands.sh | 配置文件 | root:root | 644 | CLI补全脚本                   |
-| /etc/sudoers.d/ubse-sei             | 配置文件   | root:root | 440 | SEI降级sysctl提权，仅授予ubse用户执行sysctl的免密权限 |
+| /etc/sudoers.d/ubse                 | 配置文件   | root:root | 440 | SEI降级sysctl提权与迁移拷贝CPU burst配额调整，仅授予ubse用户执行sysctl和systemctl set-property的免密权限 |
 | /var/log/ubse                       | 目录       | ubse:ubse | 750 | 正在写的日志文件：640 已经记录完毕的日志文件：440 |
 | /var/lib/ubse                       | 目录       | ubse:ubse | 750 | 内部文件权限：640                   |
 | /var/lib/ubse/cert                  | 目录       | ubse:ubse | 700 | TLS证书目录，内部文件权限：600 |

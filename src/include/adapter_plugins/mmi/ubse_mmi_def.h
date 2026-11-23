@@ -83,6 +83,14 @@ enum class ObmmSwitchState : uint8_t
     STRANDED = 4     // 终态：后端已丢失
 };
 
+// 内核 obmm 设备映射粒度，取值与 sysfs mmap_granu 一一对应
+enum class ObmmMmapGranu : uint8_t
+{
+    UNMAPPED = 0, // 未映射过
+    PAGE = 1,     // PAGE（4K）
+    PMD = 2       // PMD（2M）
+};
+
 // 使用方进程信息
 struct UbseUdsInfo {
     uid_t uid; // 使用方进程的运行用户的uid
@@ -689,6 +697,12 @@ struct UbseMemMigrateSwitchEndImportReq {
 struct UbseMemMigrateDataCopyReq {
     UbseMemMigrateRpcInfo rpcInfo{};
     friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateDataCopyReq& req);
+};
+
+// 预开通知：启动逐块迁移前 master 通知 copy 节点提前进入 CPU burst；仅性能预热，失败不影响迁移。
+struct UbseMemMigrateCpuPreOpenReq {
+    UbseMemMigrateRpcInfo rpcInfo{};
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCpuPreOpenReq& req);
 };
 
 struct UbseMemMigrateOpResp {

@@ -26,7 +26,9 @@ ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/xalarm/report &
 ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/control.sock &>/dev/null || echo 'Unable to set control.sock acl'"
 ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /usr/bin/sentryctl  &>/dev/null || echo 'Unable to set sentryctl acl'"
 ExecStartPre=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe bandbridge 2>/dev/null || echo 'Unable to load bandbridge module'; fi"
+ExecStartPre=+/bin/sh -c "/usr/bin/systemctl set-property --runtime ubse.service CPUQuota=200% 2>/dev/null || true"
 ExecStart=/usr/bin/ubse
+ExecStopPost=+/bin/sh -c "/usr/bin/systemctl set-property --runtime ubse.service CPUQuota=200% 2>/dev/null || true"
 ExecStopPost=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe -r bandbridge 2>/dev/null || true; fi"
 Restart=on-failure
 # CAP_SYS_ADMIN is required by obmm switch; ubse clears it from effective capabilities during initialization.

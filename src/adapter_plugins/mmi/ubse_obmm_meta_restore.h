@@ -25,6 +25,7 @@ using ubse::common::def::UbseResult;
 
 // 内核 obmm 设备切换状态枚举真值源在公共头 ubse_mmi_def.h（ubse::adapter_plugins::mmi 命名空间）
 using ObmmSwitchState = ubse::adapter_plugins::mmi::ObmmSwitchState;
+using ObmmMmapGranu = ubse::adapter_plugins::mmi::ObmmMmapGranu;
 
 class RmObmmMetaRestore {
 public:
@@ -138,6 +139,15 @@ public:
 
     // 过渡态短间隔重试，返回稳定状态；读取失败或重试耗尽时返回错误。
     static UbseResult GetStableSwitchState(mem_id memId, uint8_t& switchState);
+
+    /**
+     * @brief 按本地 memId 读取 obmm 设备的映射粒度（sysfs mmap_granu）；
+     *        memId 对应的路径在本函数内部拼接（memId=12 -> /sys/devices/obmm/obmm_shmdev12/mmap_granu）
+     * @param memId 本地设备编号
+     * @param mmapGranu ObmmMmapGranu 取值
+     * @return code 0 返回成功 非0错误
+     */
+    static UbseResult GetMmapGranu(mem_id memId, uint8_t& mmapGranu);
 };
 } // namespace ubse::mmi
 

@@ -287,6 +287,11 @@ std::ostream& operator<<(std::ostream& os, const UbseMemMigrateDataCopyReq& req)
     return os << "(name: " << req.rpcInfo.name << " blockIndex: " << req.rpcInfo.blockIndex << ")";
 }
 
+std::ostream& operator<<(std::ostream& os, const UbseMemMigrateCpuPreOpenReq& req)
+{
+    return os << "(name: " << req.rpcInfo.name << ")";
+}
+
 std::ostream& operator<<(std::ostream& os, const UbseMemMigrateOpResp& resp)
 {
     return os << "(errCode: " << resp.errCode << ")";

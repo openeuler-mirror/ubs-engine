@@ -1,0 +1,4 @@
+ubse ALL=(root) NOPASSWD: /usr/sbin/sysctl -w kernel.arm64_sync_sei=0
+ubse ALL=(root) NOPASSWD: /usr/sbin/sysctl -w kernel.arm64_sync_sei=1
+ubse ALL=(root) NOPASSWD: /usr/bin/systemctl set-property --runtime ubse.service CPUQuota=2400%
+ubse ALL=(root) NOPASSWD: /usr/bin/systemctl set-property --runtime ubse.service CPUQuota=200%

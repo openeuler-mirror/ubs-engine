@@ -16,10 +16,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <algorithm>
-#include <chrono>
 #include <cstring>
-#include <limits>
 
+#include "ubse_cpu_burst_util.h"
 #include "ubse_error.h"
 #include "ubse_file_util.h"
 #include "ubse_logger.h"
@@ -543,56 +542,81 @@ uint32_t MemInstanceInnerShm::MemShmSwitchEndExecutor(const UbseMemShmSwitchObj&
     return RmObmmExecutor::GetInstance().ObmmSwitchEnd(switchObj.oldImportMemId, success);
 }
 
-uint32_t MemInstanceInnerShm::MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
+uint32_t MemInstanceInnerShm::MemShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable)
 {
     constexpr uint64_t SWITCH_OLD = 1ULL << 61;
     constexpr uint64_t SWITCH_NEW = 1ULL << 60;
-    if (memId == 0 || size == 0 || size > std::numeric_limits<size_t>::max()) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy invalid arguments failed, memId=" << memId << ", size=" << size
-                       << ", errno=" << errno;
+    constexpr uint64_t HUGETLB_PMD = 1ULL << 63; //见 obmm_shmdev(4)
+    if (memId == 0 || size == 0) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy invalid arguments failed, memId=" << memId << ", size=" << size;
         return UBSE_ERROR_INVAL;
     }
+    UbseCpuBurstGuard burstScope;
     const auto path = "/dev/obmm_shmdev" + std::to_string(memId);
-    // 与其他 obmm 调用一致，临时启用设备访问能力，所有退出路径由守卫恢复权限。
+    // 粒度不允许混用，读取失败回退 4K；须在 CapabilityGuard 前读取（其析构会移除 CAP_DAC_OVERRIDE）。
+    uint8_t mmapGranu = static_cast<uint8_t>(ObmmMmapGranu::PAGE);
+    const auto granuRet = RmObmmDevRead::GetMmapGranu(memId, mmapGranu);
+    if (granuRet != UBSE_OK || mmapGranu > static_cast<uint8_t>(ObmmMmapGranu::PMD)) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "Migrate copy read mmap_granu failed, use PAGE granularity, memId=" << memId
+                      << ", size=" << size << ", ret=" << granuRet;
+        mmapGranu = static_cast<uint8_t>(ObmmMmapGranu::PAGE);
+    }
+    const bool usePmd = mmapGranu == static_cast<uint8_t>(ObmmMmapGranu::PMD);
     ubse::security::CapabilityGuard overrideCapGuard({CAP_DAC_OVERRIDE});
     if (!overrideCapGuard.IsEnabled()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy enable capability failed, memId=" << memId << ", size=" << size;
         return UBSE_ERROR;
     }
-    const int openFlags = O_RDWR | (cacheable ? 0 : O_SYNC);
+    const int openFlags = O_RDWR | O_SYNC;
     const int fd = open(path.c_str(), openFlags);
     if (fd < 0) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy open failed, memId=" << memId << ", size=" << size
-                       << ", errno=" << errno;
+                       << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         return UBSE_ERROR;
     }
     const auto length = static_cast<size_t>(size);
-    void* oldMap = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, static_cast<off_t>(SWITCH_OLD));
+    // 映射长度按粒度向上对齐，实际拷贝仍按 size。
+    const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    const size_t alignSize = usePmd ? pageSize * 512U : pageSize;
+    const size_t mapLength = (length + alignSize - 1) / alignSize * alignSize;
+    const auto hugeFlag = usePmd ? HUGETLB_PMD : 0U;
+    const auto oldOffset = static_cast<off_t>(hugeFlag | SWITCH_OLD);
+    const auto newOffset = static_cast<off_t>(hugeFlag | SWITCH_NEW);
+    void* oldMap = mmap(nullptr, mapLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, oldOffset);
     if (oldMap == MAP_FAILED) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy mmap old backend failed, memId=" << memId << ", size=" << size
-                       << ", errno=" << errno;
+                       << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         close(fd);
         return UBSE_ERROR;
     }
-    void* newMap = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, static_cast<off_t>(SWITCH_NEW));
+    void* newMap = mmap(nullptr, mapLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, newOffset);
     if (newMap == MAP_FAILED) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy mmap new backend failed, memId=" << memId << ", size=" << size
-                       << ", errno=" << errno;
-        munmap(oldMap, length);
+                       << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+        munmap(oldMap, mapLength);
         close(fd);
         return UBSE_ERROR;
     }
-    // 临时按 obmm_switch 示例使用 memcpy，排查 libobmm-accel 多线程拷贝崩溃。
-    std::memcpy(newMap, oldMap, length);
-    const int dstUnmapRet = munmap(newMap, length);
-    const int srcUnmapRet = munmap(oldMap, length);
+    const auto copyRet = RmObmmExecutor::GetInstance().MemcpyNcMt(newMap, oldMap, length, srcCacheable);
+    if (copyRet != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy failed, memId=" << memId << ", size=" << size
+                       << ", ret=" << copyRet;
+    }
+    const int dstUnmapRet = munmap(newMap, mapLength);
+    const int srcUnmapRet = munmap(oldMap, mapLength);
     const int closeRet = close(fd);
     if (dstUnmapRet != 0 || srcUnmapRet != 0 || closeRet != 0) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Migrate copy cleanup failed, memId=" << memId << ", dstUnmap=" << dstUnmapRet
                        << ", srcUnmap=" << srcUnmapRet << ", close=" << closeRet;
         return UBSE_ERROR;
     }
-    return UBSE_OK;
+    return copyRet;
 }
 
 bool IsValidUbMemPrivData(UbMemPrivData& ubPrivData)

@@ -9,6 +9,7 @@ add_library(ubse_utils STATIC
         ubse_topo_util.cpp
         ubse_json_util.cpp
         ubse_fs.cpp
+        ubse_cpu_burst_util.cpp
 )
 target_link_libraries(ubse_utils PUBLIC boundscheck)
 

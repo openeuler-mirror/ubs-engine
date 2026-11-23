@@ -211,13 +211,13 @@ UbseResult UbseMmiInterfaceDefaultImpl::ReadShmSwitchState(uint64_t memId, ObmmS
     return ret;
 }
 
-UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool cacheable)
+UbseResult UbseMmiInterfaceDefaultImpl::ShmMigrateCopyExecutor(uint64_t memId, uint64_t size, bool srcCacheable)
 {
     const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
     if (mmiModule == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    return mmiModule->UbseMemShmMigrateCopyExecutor(memId, size, cacheable);
+    return mmiModule->UbseMemShmMigrateCopyExecutor(memId, size, srcCacheable);
 }
 
 UbseResult UbseMmiInterfaceDefaultImpl::ReadShmMigrationBlock(uint64_t localMemId, const UbseMemMigrateRpcInfo& info,

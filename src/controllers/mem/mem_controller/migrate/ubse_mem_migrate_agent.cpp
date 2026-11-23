@@ -27,6 +27,7 @@
 
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_cpu_burst_util.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -940,9 +941,10 @@ uint32_t UbseMemShmMigrateService::DataCopy(const UbseMemMigrateDataCopyReq& req
         return check;
     }
     // 不缓存 copy 结果；每次有效请求都重新映射并实际拷贝。
+    // self-import 引用本地物理 export，源按 CC 访问；普通 import 的远端源按 NC 访问。
     const auto ret = UbseMmiInterface::GetInstance().ShmMigrateCopyExecutor(
         local->status.importResults[info.blockIndex].memId, local->exportObmmInfo[info.blockIndex].desc.length,
-        local->req.ubseMemPrivData.cacheableFlag != 0);
+        !local->realExe);
     if (ret != UBSE_OK) {
         auto context = block.context ? *block.context : MakeSwitchContext(info);
         return CloseFailedOperation(info, context, ret);
@@ -1105,6 +1107,23 @@ void UbseMemShmMigrateService::ProcessCopyRequest(const UbseMemMigrateDataCopyRe
     result.errCode = DataCopy(req, requestMasterNodeId);
     ReportBlockResult(req.rpcInfo, requestMasterNodeId, UbseMemBorrowCallbackOpCode::UBSE_MEM_SHM_MIGRATE_COPY_RESULT,
                       result);
+}
+
+void UbseMemShmMigrateService::ProcessCpuPreOpenRequest(const UbseMemMigrateCpuPreOpenReq& req,
+                                                        const std::string& requestMasterNodeId)
+{
+    std::string masterNodeId;
+    if (ubse::election::UbseGetMasterNodeId(masterNodeId) != UBSE_OK || requestMasterNodeId.empty() ||
+        masterNodeId != requestMasterNodeId) {
+        UBSE_LOG_WARN << "name=" << req.rpcInfo.name << ", operation=cpu_pre_open"
+                      << ", Reject pre-open request from inactive Master, requestMasterNodeId=" << requestMasterNodeId
+                      << ", masterNodeId=" << masterNodeId;
+        return;
+    }
+    // 仅性能预热：幂等预开启，失败只记日志，不影响迁移（copy 执行路径自带兜底开启）。
+    const bool ok = ubse::utils::UbseCpuBurstUtil::GetInstance().PreOpen();
+    UBSE_LOG_INFO << "name=" << req.rpcInfo.name << ", operation=cpu_pre_open"
+                  << ", masterNodeId=" << requestMasterNodeId << ", result=" << (ok ? "success" : "failed");
 }
 
 void UbseMemShmMigrateService::ProcessSwitchEndImportRequest(const UbseMemMigrateSwitchEndImportReq& req,
