@@ -27,7 +27,9 @@ void BindMount(const std::string& source, const std::string& target)
 void SetupMountNamespace(const std::string& workDir)
 {
     if (unshare(CLONE_NEWNS) != 0) {
-        std::cerr << "[WARN] unshare(CLONE_NEWNS) failed, errno=" << errno << std::endl;
+        std::cerr << "[WARN] unshare(CLONE_NEWNS) failed, errno=" << errno
+                  << " (restricted container without CAP_SYS_ADMIN; skip bind mounts, daemon relies on"
+                  << " LD_PRELOAD path redirection for /var/run/ubse, /etc/ubse and /var/log/ubse)" << std::endl;
         return;
     }
     if (mount("none", "/", nullptr, MS_PRIVATE | MS_REC, nullptr) != 0) {
