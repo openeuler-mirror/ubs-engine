@@ -57,4 +57,28 @@ UbseResult UbseSecurityManager::ModifyEffectiveCapabilities(const std::vector<__
 {
     return 0;
 }
+
+CapabilityGuard::CapabilityGuard(const std::vector<__u32>& caps) : caps_(caps)
+{
+    enabled_ = (UbseSecurityModule::ModifyEffectiveCapabilities(caps_, true) == 0);
+}
+
+CapabilityGuard::~CapabilityGuard()
+{
+    Disable();
+}
+
+void CapabilityGuard::Disable()
+{
+    if (!enabled_) {
+        return;
+    }
+    enabled_ = false;
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps_, false);
+}
+
+bool CapabilityGuard::IsEnabled() const
+{
+    return enabled_;
+}
 } // namespace ubse::security
