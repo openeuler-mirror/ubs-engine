@@ -7,6 +7,8 @@
 #include <unordered_map>
 
 #include <ubse_node.h>
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <set>
 #include <string>
@@ -29,6 +31,8 @@
 #include "logging_lock_guard.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
+#include "ubse_mem_cabinet_ledger.h"
+#include "ubse_mem_cabinet_ledger_util.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_ledger_filter.h"
 #include "ubse_mem_controller_msg.h"
@@ -36,6 +40,7 @@
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_global_ledger_report.h"
+#include "ubse_mem_repair_guard.h"
 #include "ubse_mem_update_obj_state.simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
@@ -209,49 +214,26 @@ UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtIn
 
 std::set<std::string> CollectRelatedNodeIds(const NodeMemDebtInfo& ledger)
 {
-    std::set<std::string> nodeIds;
-    auto collect = [&nodeIds](const auto& obj) {
-        if (!obj.algoResult.importNumaInfos.empty()) {
-            nodeIds.insert(obj.algoResult.importNumaInfos[0].nodeId);
-        }
-        if (!obj.algoResult.exportNumaInfos.empty()) {
-            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
-        }
-    };
-    for (const auto& [_, obj] : ledger.fdImportObjMap)
-        collect(obj);
-    for (const auto& [_, obj] : ledger.fdExportObjMap)
-        collect(obj);
-    for (const auto& [_, obj] : ledger.numaImportObjMap)
-        collect(obj);
-    for (const auto& [_, obj] : ledger.numaExportObjMap)
-        collect(obj);
-    for (const auto& [_, obj] : ledger.shareImportObjMap) {
-        nodeIds.insert(obj.importNodeId);
-        if (!obj.algoResult.exportNumaInfos.empty()) {
-            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
-        }
-    }
-    for (const auto& [_, obj] : ledger.shareExportObjMap) {
-        if (!obj.algoResult.exportNumaInfos.empty()) {
-            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
-        }
-    }
-    for (const auto& [_, obj] : ledger.addrImportObjMap)
-        collect(obj);
-    for (const auto& [_, obj] : ledger.addrExportObjMap)
-        collect(obj);
-    return nodeIds;
+    // 口径唯一下沉到 ubse_mem_cabinet_ledger_util，跨柜对账的 A/B 两侧共用同一实现
+    return GetDebtPeerNodeIds(ledger);
+}
+
+bool IsCrossCabinetLedgerEnabled()
+{
+    return UbseSmbios::GetInstance().IsClosType() && UbseNodeController::GetInstance().IsHierarchical();
 }
 
 UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
-                            const NodeMemDebtInfo& masterDebtInfo, const std::string& targetNodeId)
+                            NodeMemDebtInfo& masterDebtInfo, const std::string& targetNodeId,
+                            CrossCabinetRoundCtx& crossRound)
 {
     auto ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
         return ret;
     }
+    const bool crossCabinetEnabled = IsCrossCabinetLedgerEnabled();
+    const uint32_t selfGroupId = UbseNodeController::GetInstance().GetCurNode().groupId;
     auto relatedNodeIds = CollectRelatedNodeIds(allDebtInfoMap[targetNodeId]);
     std::vector<UbseRoleInfo> roleInfos;
     ret = UbseNodeGetLinkUpNodes(roleInfos);
@@ -264,6 +246,10 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& al
             UbseNodeController::GetInstance().GetNodeById(nodeInfo.nodeId);
         if (ubseNodeInfo.nodeId.empty()) {
             UBSE_LOG_WARN << "ubseNodeInfo nodeId is empty, nodeId =" << nodeInfo.nodeId;
+            continue;
+        }
+        // 外柜节点统一由柜级聚合一次填充，禁止逐节点跨柜直连采集（0x000D 跨柜不可直达）
+        if (crossCabinetEnabled && ubseNodeInfo.groupId != selfGroupId) {
             continue;
         }
         // 检查条件为已初始化完成，relatedNodeIds非空且nodeId在relatedNodeIds中时,防止节点重启后账本数据为空不进行单导入账本处理操作
@@ -286,6 +272,14 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& al
             return UBSE_OK;
         }
     }
+    if (!crossCabinetEnabled) {
+        return ret;
+    }
+    // 跨柜分支：逐外柜聚合采集 -> SUCCESS 装配 allDebtInfoMap -> SKIPPED 对端关系遮蔽（本轮不修复）
+    std::set<std::string> deferredPeers;
+    CollectCrossCabinetLedgers(allDebtInfoMap, masterDebtInfo, allDebtInfoMap[targetNodeId], selfGroupId,
+                               GetCurNodeId(), crossRound, deferredPeers);
+    ShadowFilterDeferredRelations(masterDebtInfo, allDebtInfoMap[targetNodeId], deferredPeers);
     return ret;
 }
 
@@ -615,9 +609,12 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
     }
     auto nodeId = node.nodeId;
     auto masterDebtInfo = GetMasterCtxLedger(nodeId);
+    // 跨柜轮上下文：deadline 与闸门许可覆盖整轮（采集+装配+修复），本轮结束由析构归还
+    CrossCabinetRoundCtx crossRound{std::chrono::steady_clock::now() +
+                                    std::chrono::milliseconds(kCrossCabinetRoundBudgetMs)};
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
-    ret |= CollectAllLedger(allDebtInfoMap, masterDebtInfo, nodeId);
+    ret |= CollectAllLedger(allDebtInfoMap, masterDebtInfo, nodeId, crossRound);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " collect ledge failed, " << FormatRetCode(ret);
         return ret;
@@ -826,19 +823,122 @@ UbseResult ShmBorrowLedger(const std::string& nodeId, const NodeMemDebtInfo& mas
     return ret;
 }
 
+// 判定对端节点是否位于外柜：非跨柜模式（非CLOS分层组网）不存在外柜，一律按柜内处理；
+// 跨柜模式下视图缺失按跨柜处理（由 CLOS 点查兜底）
+bool IsPeerInForeignCabinet(const std::string& peerNodeId)
+{
+    if (!IsCrossCabinetLedgerEnabled()) {
+        return false;
+    }
+    if (peerNodeId.empty()) {
+        return false;
+    }
+    const auto peer = UbseNodeController::GetInstance().GetNodeById(peerNodeId);
+    if (peer.nodeId.empty()) {
+        return true;
+    }
+    return peer.groupId != UbseNodeController::GetInstance().GetCurNode().groupId;
+}
+
+// 跨柜破坏性动作守卫（设计文档 §5.3）：对端在外柜时必须经 CLOS 点查二次确认，
+// 仅对端记录确认缺失（MISSING）或对端节点确认故障（FAULT）才放行；
+// 对端仍存活（ALIVE）或点查失败（FAILED）一律保守放弃，交下轮再判，不设重试循环
+bool AllowDestructiveRepair(UbseMemBorrowType borrowType, UbseRepairQuerySide side,
+                            const def::UbseMemDebtQueryRequest& baseQuery,
+                            const std::vector<std::string>& peerNodeIds, const std::string& debtName)
+{
+    if (!IsCrossCabinetLedgerEnabled()) {
+        return true;
+    }
+    if (peerNodeIds.empty()) {
+        // 账本条目缺失对端信息（如节点重启后重建阶段）时无法点查二次确认，按"确认失败"保守放弃，交下轮再判
+        UBSE_LOG_WARN << "[CLOS_CAB] action=master_diff_destroy defer name=" << debtName
+                      << " result=no_peer_conservative_skip";
+        return false;
+    }
+    for (const auto& peerNodeId : peerNodeIds) {
+        if (peerNodeId.empty()) {
+            UBSE_LOG_WARN << "[CLOS_CAB] action=master_diff_destroy defer name=" << debtName
+                          << " result=empty_peer_conservative_skip";
+            return false;
+        }
+        if (!IsPeerInForeignCabinet(peerNodeId)) {
+            UBSE_LOG_INFO << "[CLOS_CAB] action=master_diff_destroy name=" << debtName << " peer=" << peerNodeId
+                          << " result=same_cabinet_destroy_directly";
+            continue;
+        }
+        auto query = baseQuery;
+        query.name = debtName;
+        if (side == UbseRepairQuerySide::QUERY_PEER_IMPORT) {
+            query.importNodeId = peerNodeId;
+        } else {
+            query.exportNodeId = peerNodeId;
+        }
+        const auto confirm = ConfirmBeforeDestructiveRepair(borrowType, side, query);
+        if (confirm == UbseRepairConfirmResult::CONFIRM_MISSING ||
+            confirm == UbseRepairConfirmResult::CONFIRM_FAULT) {
+            UBSE_LOG_INFO << "[CLOS_CAB] action=master_diff_destroy name=" << debtName << " peer=" << peerNodeId
+                          << " result=confirm_pass, confirm=" << static_cast<uint32_t>(confirm);
+            continue;
+        }
+        UBSE_LOG_WARN << "[CLOS_CAB] action=master_diff_destroy defer name=" << debtName
+                      << " peer=" << peerNodeId << " confirm=" << static_cast<uint32_t>(confirm);
+        return false;
+    }
+    return true;
+}
+
+// 从导入对象的算法结果提取对端导出节点集合（fd/numa 导入请求无 exportNodeId 字段）
+std::vector<std::string> CollectPeerExportNodeIds(const UbseMemAlgoResult& algoResult, const std::string& selfNodeId)
+{
+    std::vector<std::string> peers;
+    for (const auto& info : algoResult.exportNumaInfos) {
+        if (!info.nodeId.empty() && info.nodeId != selfNodeId &&
+            std::find(peers.begin(), peers.end(), info.nodeId) == peers.end()) {
+            peers.push_back(info.nodeId);
+        }
+    }
+    return peers;
+}
+
+// 销毁导出记录后向对端导入节点 R 批量转发失效通知（0x0019，设计文档 §5.4），失败交对端周期对账兜底
+void ForwardInvalidateAfterDestroy(const std::vector<UbseCabinetInvalidateItem>& items)
+{
+    if (items.empty()) {
+        return;
+    }
+    uint32_t failCount = 0;
+    if (ForwardCrossCabinetInvalidate(items, failCount) != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLOS_CAB] action=invalidate_forward total=" << items.size() << " failCount=" << failCount;
+    }
+}
+
 UbseResult MasterDiffFdExportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowExportObj> objs)
 {
     UbseResult ret = UBSE_OK;
+    std::vector<UbseCabinetInvalidateItem> invalidates;
     for (auto obj : objs) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff fd export name=" << obj.req.name
                       << " state=" << TransState(obj.status.state);
         if (obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
+        def::UbseMemDebtQueryRequest query{};
+        query.exportNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），确认失败保守放弃交下轮
+        if (!AllowDestructiveRepair(UbseMemBorrowType::FD_BORROW, UbseRepairQuerySide::QUERY_PEER_IMPORT, query,
+                                    {obj.req.importNodeId}, obj.req.name)) {
+            continue;
+        }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff fd export name=" << obj.req.name << ", start to destroy";
         obj.status.state = UbseMemState::UBSE_MEM_EXPORT_DESTROYED;
         AddFdExport(obj);
+        if (IsPeerInForeignCabinet(obj.req.importNodeId)) {
+            // 销毁导出后经 B 柜主向 R 转发失效通知，消除对端 import 仍活窗口（设计文档 §5.4）
+            invalidates.push_back({obj.req.importNodeId, UbseMemBorrowType::FD_BORROW, obj.req.name});
+        }
     }
+    ForwardInvalidateAfterDestroy(invalidates);
     return UBSE_OK;
 }
 
@@ -852,6 +952,13 @@ UbseResult MasterDiffFdImportHandler(const std::string& nodeId, std::vector<Ubse
             obj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
+        def::UbseMemDebtQueryRequest query{};
+        query.importNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），对端导出方从算法结果提取
+        if (!AllowDestructiveRepair(UbseMemBorrowType::FD_BORROW, UbseRepairQuerySide::QUERY_PEER_EXPORT, query,
+                                    CollectPeerExportNodeIds(obj.algoResult, nodeId), obj.req.name)) {
+            continue;
+        }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff fd import name=" << obj.req.name << ", start to destroy";
         obj.status.state = UbseMemState::UBSE_MEM_IMPORT_DESTROYED;
         AddFdImport(obj);
@@ -862,17 +969,30 @@ UbseResult MasterDiffFdImportHandler(const std::string& nodeId, std::vector<Ubse
 UbseResult MasterDiffNumaExportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowExportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
+    std::vector<UbseCabinetInvalidateItem> invalidates;
     for (auto obj : objs) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff numa export name=" << obj.req.name
                       << " state=" << TransState(obj.status.state);
         if (obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
+        def::UbseMemDebtQueryRequest query{};
+        query.exportNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），确认失败保守放弃交下轮
+        if (!AllowDestructiveRepair(UbseMemBorrowType::NUMA_BORROW, UbseRepairQuerySide::QUERY_PEER_IMPORT, query,
+                                    {obj.req.importNodeId}, obj.req.name)) {
+            continue;
+        }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff numa export name=" << obj.req.name
                       << ", start to destroy";
         obj.status.state = UbseMemState::UBSE_MEM_EXPORT_DESTROYED;
         AddNumaExport(obj);
+        if (IsPeerInForeignCabinet(obj.req.importNodeId)) {
+            // 销毁导出后经 B 柜主向 R 转发失效通知，消除对端 import 仍活窗口（设计文档 §5.4）
+            invalidates.push_back({obj.req.importNodeId, UbseMemBorrowType::NUMA_BORROW, obj.req.name});
+        }
     }
+    ForwardInvalidateAfterDestroy(invalidates);
     return UBSE_OK;
 }
 
@@ -886,6 +1006,13 @@ UbseResult MasterDiffNumaImportHandler(const std::string& nodeId, std::vector<Ub
             obj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
+        def::UbseMemDebtQueryRequest query{};
+        query.importNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），对端导出方从算法结果提取
+        if (!AllowDestructiveRepair(UbseMemBorrowType::NUMA_BORROW, UbseRepairQuerySide::QUERY_PEER_EXPORT, query,
+                                    CollectPeerExportNodeIds(obj.algoResult, nodeId), obj.req.name)) {
+            continue;
+        }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff numa import name=" << obj.req.name
                       << ", start to destroy";
         obj.status.state = UbseMemState::UBSE_MEM_IMPORT_DESTROYED;
@@ -897,17 +1024,30 @@ UbseResult MasterDiffNumaImportHandler(const std::string& nodeId, std::vector<Ub
 UbseResult MasterDiffAddrExportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowExportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
+    std::vector<UbseCabinetInvalidateItem> invalidates;
     for (auto obj : objs) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff addr export name=" << obj.req.name
                       << " state=" << TransState(obj.status.state);
         if (obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYED) {
             continue;
         }
+        def::UbseMemDebtQueryRequest query{};
+        query.exportNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），确认失败保守放弃交下轮
+        if (!AllowDestructiveRepair(UbseMemBorrowType::ADDR_BORROW, UbseRepairQuerySide::QUERY_PEER_IMPORT, query,
+                                    {obj.req.importNodeId}, obj.req.name)) {
+            continue;
+        }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff addr numa export name=" << obj.req.name
                       << ", start to destroy";
         obj.status.state = UbseMemState::UBSE_MEM_EXPORT_DESTROYED;
         AddAddrExport(obj);
+        if (IsPeerInForeignCabinet(obj.req.importNodeId)) {
+            // 销毁导出后经 B 柜主向 R 转发失效通知，消除对端 import 仍活窗口（设计文档 §5.4）
+            invalidates.push_back({obj.req.importNodeId, UbseMemBorrowType::ADDR_BORROW, obj.req.name});
+        }
     }
+    ForwardInvalidateAfterDestroy(invalidates);
     return UBSE_OK;
 }
 
@@ -919,6 +1059,13 @@ UbseResult MasterDiffAddrImportHandler(const std::string& nodeId, std::vector<Ub
                       << " state=" << TransState(obj.status.state);
         if (obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYED ||
             obj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
+            continue;
+        }
+        def::UbseMemDebtQueryRequest query{};
+        query.importNodeId = nodeId;
+        // 跨柜破坏性动作前二次确认（设计文档 §5.3），addr 导入请求直接携带对端导出方
+        if (!AllowDestructiveRepair(UbseMemBorrowType::ADDR_BORROW, UbseRepairQuerySide::QUERY_PEER_EXPORT, query,
+                                    {obj.req.exportNodeId}, obj.req.name)) {
             continue;
         }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " master diff addr import name=" << obj.req.name
