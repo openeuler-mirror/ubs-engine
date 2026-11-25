@@ -26,7 +26,7 @@
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
-#include <ubse_security.h>
+#include "src/framework/security/ubse_security_module.h"
 
 #include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
@@ -34,6 +34,7 @@
 #include "migrate_strategy.h"
 #include "resource_query.h"
 #include "response_info_message.h"
+#include "src/framework/security/ubse_security_module.h"
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_http_util.h"
@@ -425,15 +426,15 @@ VmResult HamMigrate::PidIsVm(const uint64_t pid)
     std::regex hugePageRegex("^(?=.*file=/dev/hugepages)(?!.*kernelpagesize_kB=2048).+$");
     // Reading other processes' numa_maps requires CAP_SYS_PTRACE (kernel ptrace access check),
     // enable it temporarily before reading and disable it immediately after.
-    if (const auto ret = ubse::security::ChangePtraceCapability(true); ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to call ChangePtraceCapability.";
+    ubse::security::CapabilityGuard ptraceGuard({CAP_SYS_PTRACE});
+    if (!ptraceGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Failed to enable CAP_SYS_PTRACE.";
         return VM_ERROR;
     }
     std::ifstream file(path);
     if (!file.is_open()) {
         std::error_code ec(errno, std::system_category());
         UBSE_LOG_ERROR << "open " << path << " failed, " << ec.message();
-        (void)ubse::security::ChangePtraceCapability(false);
         return VM_ERROR;
     }
     while (std::getline(file, line)) {
@@ -441,13 +442,11 @@ VmResult HamMigrate::PidIsVm(const uint64_t pid)
         if (std::regex_search(line, hugePageRegex)) {
             UBSE_LOG_INFO << "Found a line containing 'file=/dev/hugepages' and without 'kernelpagesize_kB=2048'";
             file.close();
-            (void)ubse::security::ChangePtraceCapability(false);
             return VM_OK;
         }
     }
     UBSE_LOG_ERROR << "pid is not VM or not starting.";
     file.close();
-    (void)ubse::security::ChangePtraceCapability(false);
     return VM_ERROR;
 }
 

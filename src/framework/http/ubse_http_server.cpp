@@ -404,14 +404,16 @@ void UbseHttpServer::UdsRun()
         std::string udsAddress = UBSE_UBM_UDS_ADDRESS;
 
         const auto udsParentPath = GetParentDirectory(udsAddress);
-        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        if (UbseFileUtil::CreateAndChmodDirectory(udsParentPath, FOLDER_PEUBSEISSION) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Uds file directory= " << udsParentPath << " is unavailable.";
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        CapabilityGuard udsDirCapGuard({CAP_DAC_OVERRIDE});
+        if (!udsDirCapGuard.IsEnabled()) {
+            UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed, uds file directory= " << udsParentPath;
             return;
         }
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        if (UbseFileUtil::CreateAndChmodDirectory(udsParentPath, FOLDER_PEUBSEISSION) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Uds file directory= " << udsParentPath << " is unavailable.";
+            return;
+        }
+        udsDirCapGuard.Disable();
 
         // 如果 socket 文件已存在，先删掉
         auto res = unlink(udsAddress.c_str());

@@ -37,7 +37,7 @@ public:
 /*
  * 能力位的 RAII 守卫：构造时把能力加入有效集，析构时移出。
  * 即使中间调用的外部库抛异常，权限也会在栈展开时被收起，不会一直留在有效集里。
- * 需要提前收起时（比如只想包住一次调用）显式调用 Disable。
+ * 需要提前收起时（比如只想包住一次调用）显式调用 Disable，并可通过 IsEnabled 判断是否收起成功。
  */
 class CapabilityGuard final {
 public:
@@ -49,6 +49,7 @@ public:
     CapabilityGuard(CapabilityGuard&&) = delete;
     CapabilityGuard& operator=(CapabilityGuard&&) = delete;
 
+    // 收起能力位。移除失败时守卫保持开启状态（IsEnabled() 仍为 true），析构时还会再重试一次。
     void Disable();
     [[nodiscard]] bool IsEnabled() const;
 

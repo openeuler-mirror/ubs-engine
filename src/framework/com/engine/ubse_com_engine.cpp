@@ -535,10 +535,12 @@ void UbseComEngine::DoEngineStart()
         if (hcomNetService_ == 0) {
             break;
         }
-        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+        CapabilityGuard capGuard({CAP_DAC_OVERRIDE});
+        if (!capGuard.IsEnabled()) {
+            UBSE_LOG_ERROR << "Create engine " << engineInfo_.GetName() << " failed, enable CAP_DAC_OVERRIDE failed";
+            break;
+        }
         res = ubs_hcom_service_start(hcomNetService_);
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     }
     UBSE_LOG_INFO << "Create engine " << engineInfo_.GetName() << "successfully";
 }
@@ -548,12 +550,14 @@ UbseResult UbseComEngine::Start()
     auto engineName = engineInfo_.GetName();
     RegisterEngineHandlers();
     InitEngineOptions();
-    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     if (UbseSmbios::GetInstance().IsClosType()) {
         UBSE_LOG_INFO << "Clos type, skip start hcomservice";
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_OK;
+    }
+    CapabilityGuard capGuard({CAP_DAC_OVERRIDE});
+    if (!capGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Create engine " << engineName << " failed, enable CAP_DAC_OVERRIDE failed";
+        return UBSE_ERROR;
     }
     auto ret = ubs_hcom_service_start(hcomNetService_);
     if (UBSE_RESULT_FAIL(ret)) {
@@ -563,12 +567,11 @@ UbseResult UbseComEngine::Start()
         try {
             startRetryThread_ = std::thread([this]() { DoEngineStart(); });
         } catch (const std::exception& e) {
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
             return UBSE_ERROR;
         }
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    capGuard.Disable();
     linkManager_.nodeIpIdMap_.insert({engineInfo_.GetIpInfo().first, engineInfo_.GetNodeId()});
     return UBSE_OK;
 }

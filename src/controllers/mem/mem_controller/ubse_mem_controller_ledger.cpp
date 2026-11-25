@@ -2876,8 +2876,11 @@ UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>
     }
 
     resourceExecutor->Execute([numaStatus]() {
-        std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+        CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+        if (!capsGuard.IsEnabled()) {
+            UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed when write critical_err file";
+            return;
+        }
         for (const auto& [numaId, status] : numaStatus) {
             if (numaId < 0 || numaId > TOPOLOGY_MAX_TOTAL_NUMA) {
                 UBSE_LOG_ERROR << "Invalid numa id=" << numaId << ", status=" << status;
@@ -2907,7 +2910,6 @@ UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>
                 UBSE_LOG_ERROR << "Failed to write critical_err file, numaId=" << numaId;
             }
         }
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     });
     return UBSE_OK;
 }

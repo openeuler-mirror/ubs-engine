@@ -61,22 +61,22 @@ bool IsDirectoryExists(const std::string& path)
 UbseResult CreateDirectory(const std::string& path)
 {
     size_t pos = 0;
-    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+    if (!capsGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Add CAP_DAC_OVERRIDE failed when create directory: " << path;
+        return UBSE_ERROR;
+    }
     while ((pos = path.find('/', pos + 1)) != std::string::npos) {
         std::string subPath = path.substr(0, pos);
         if (!subPath.empty() && mkdir(subPath.c_str(), DIR_MODE) != 0 && errno != EEXIST) {
             UBSE_LOG_ERROR << ("Failed to create directory: " + subPath).c_str();
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             return UBSE_ERROR;
         }
     }
     if (mkdir(path.c_str(), DIR_MODE) != 0 && errno != EEXIST) {
         UBSE_LOG_ERROR << ("Failed to create directory: " + path).c_str();
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_ERROR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 

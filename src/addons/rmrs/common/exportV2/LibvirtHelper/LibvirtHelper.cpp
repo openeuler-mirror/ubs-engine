@@ -17,8 +17,8 @@
 #include <regex>
 #include <sstream>
 #include "ubse_logger.h"
-#include "ubse_security.h"
 #include "mp_configuration.h"
+#include "src/framework/security/ubse_security_module.h"
 
 namespace mempooling::exportV2 {
 using namespace libvirt;
@@ -90,18 +90,18 @@ MpResult LibvirtHelper::Connect()
 {
     try {
         LOG_INFO << "Start to get libvirt connection.";
-        auto ret = ubse::security::ChangeOverrideCapability(true);
-        if (ret != MEM_POOLING_OK) {
+        ubse::security::CapabilityGuard guard({CAP_DAC_OVERRIDE});
+        if (!guard.IsEnabled()) {
             LOG_ERROR << "Change override capability failed.";
             return MEM_POOLING_ERROR;
         }
         virConnect = LibvirtModule::VirConnectOpen()("qemu:///system");
-        (void)ubse::security::ChangeOverrideCapability(false);
+        guard.Disable();
         if (virConnect == nullptr) {
             LOG_ERROR << "Libvirt conn failed, please check the virsh environment. error is " << strerror(errno) << ".";
             return MEM_POOLING_ERROR;
         }
-        ret = ConnectSetKeepAlive();
+        auto ret = ConnectSetKeepAlive();
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "ConnectSetKeepAlive failed.";
             return MEM_POOLING_ERROR;
@@ -110,7 +110,6 @@ MpResult LibvirtHelper::Connect()
         return MEM_POOLING_OK;
     } catch (std::exception& e) {
         LOG_ERROR << "Connect libvirt failed. err: " << e.what() << ".";
-        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 }

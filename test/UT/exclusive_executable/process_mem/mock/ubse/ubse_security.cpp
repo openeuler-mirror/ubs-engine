@@ -10,18 +10,28 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_security.h"
 #include "ubse_security_module.h"
 
 namespace ubse::security {
-uint32_t ChangeOverrideCapability(bool isAdd)
+// CapabilityGuard 桩实现：UT 环境不真正操作 capability，构造即视为提权成功
+CapabilityGuard::CapabilityGuard(const std::vector<__u32>& caps) : caps_(caps)
 {
-    return 0;
+    enabled_ = true;
 }
 
-uint32_t ChangePtraceCapability(bool isAdd)
+CapabilityGuard::~CapabilityGuard()
 {
-    return 0;
+    Disable();
+}
+
+void CapabilityGuard::Disable()
+{
+    enabled_ = false;
+}
+
+bool CapabilityGuard::IsEnabled() const
+{
+    return enabled_;
 }
 
 UbseResult UbseSecurityModule::Initialize()

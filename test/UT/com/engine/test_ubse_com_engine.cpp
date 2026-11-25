@@ -15,6 +15,7 @@
 #include <fstream>
 #include "ubse_com_def.h"
 #include "ubse_election.h"
+#include "ubse_security_module.h"
 #include "../test_ubse_com_mock.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
@@ -38,6 +39,8 @@ const uint16_t MOCK_PORT = 1590;
 void TestUbseComEngine::SetUp()
 {
     Test::SetUp();
+    // 提权入口打桩，避免用例依赖运行环境的 capability 授予情况
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     std::string engineName = "MockTcpServer";
     ubs_hcom_service_options options{};
     (void)ubs_hcom_service_create(UbseProtocolToHcomProtocol(UbseProtocol::TCP), engineName.c_str(), options,
@@ -465,6 +468,8 @@ TEST_F(TestUbseComLinkManager, GetNodeIdByChannelId)
 void TestUbseComEngineManager::SetUp()
 {
     Test::SetUp();
+    // 提权入口打桩，避免用例依赖运行环境的 capability 授予情况
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
 }
 
 void TestUbseComEngineManager::TearDown()

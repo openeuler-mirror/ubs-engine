@@ -250,8 +250,8 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
     }
     idFilter.len = static_cast<unsigned int>(ALARM_EVENT_LIST.size());
     std::vector<__u32> caps{CAP_CHOWN, CAP_FOWNER, CAP_DAC_OVERRIDE};
-    auto result = ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (result != UBSE_OK) {
+    CapabilityGuard capsGuard(caps);
+    if (!capsGuard.IsEnabled()) {
         UBSE_LOG_ERROR << "Modify Effective Capabilities failed. ";
         return;
     }
@@ -267,7 +267,7 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
         }
         ret = xalarmRegisterFunc(registerInfo, idFilter);
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    capsGuard.Disable();
     if (ret < 0) {
         *registerInfo = nullptr;
         UBSE_LOG_WARN << "Xalarm register failed, ret=" << ret;

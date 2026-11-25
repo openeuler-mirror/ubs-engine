@@ -49,6 +49,7 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/addons/rmrs/mem_fragment/intranode_strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/framework/misc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/framework/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/framework/security
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/include/adapter_plugins/mti
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/addons/rmrs

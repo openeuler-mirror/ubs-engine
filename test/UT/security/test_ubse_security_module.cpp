@@ -18,7 +18,6 @@
 #include <stdexcept>
 
 #include "ubse_error.h"
-#include "ubse_security.h"
 #include "ubse_security_manager.h"
 #include "ubse_security_module.h"
 
@@ -189,48 +188,6 @@ TEST_F(TestUbseSecurityModule, ModifyEffectiveCapabilitiesFail)
 }
 
 /*
- * 用例描述：测试ChangeOverrideCapability添加
- * 测试步骤：
- * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities成功
- * 2. 调用ChangeOverrideCapability(true)
- * 预期结果：
- * 1. 返回值为 UBSE_OK
- */
-TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityAdd)
-{
-    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(UBSE_OK, ubse::security::ChangeOverrideCapability(true));
-}
-
-/*
- * 用例描述：测试ChangeOverrideCapability移除
- * 测试步骤：
- * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities成功
- * 2. 调用ChangeOverrideCapability(false)
- * 预期结果：
- * 1. 返回值为 UBSE_OK
- */
-TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityRemove)
-{
-    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(UBSE_OK, ubse::security::ChangeOverrideCapability(false));
-}
-
-/*
- * 用例描述：测试ChangeOverrideCapability失败
- * 测试步骤：
- * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities返回UBSE_ERROR
- * 2. 调用ChangeOverrideCapability(true)
- * 预期结果：
- * 1. 返回值为 UBSE_ERROR
- */
-TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityFail)
-{
-    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(UBSE_ERROR, ubse::security::ChangeOverrideCapability(true));
-}
-
-/*
  * 用例描述：能力守卫-能力加入成功，析构时自动移出
  * 测试步骤：
  * 1. MOCK ModifyEffectiveCapabilities 加入、移出均返回 UBSE_OK
@@ -335,6 +292,33 @@ TEST_F(TestUbseSecurityModule, CapabilityGuardDisableOnce)
         EXPECT_TRUE(guard.IsEnabled());
         guard.Disable();
         EXPECT_FALSE(guard.IsEnabled());
+    }
+}
+
+/*
+ * 用例描述：能力守卫-显式收起失败时保持开启，析构阶段重试一次
+ * 测试步骤：
+ * 1. MOCK 加入返回 UBSE_OK，移出返回 UBSE_ERROR
+ * 2. 构造 CapabilityGuard 后显式调用 Disable，随后离开作用域触发析构
+ * 预期结果：
+ * 1. Disable 后 IsEnabled() 仍为 true
+ * 2. 移出共被调用两次（显式一次 + 析构重试一次），TearDown 中 verify 校验
+ */
+TEST_F(TestUbseSecurityModule, CapabilityGuardDisableFailureRetriesInDestructor)
+{
+    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(once())
+        .with(any(), eq(true))
+        .will(returnValue(UBSE_OK));
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities)
+        .expects(exactly(2))
+        .with(any(), eq(false))
+        .will(returnValue(UBSE_ERROR));
+    {
+        ubse::security::CapabilityGuard guard(caps);
+        guard.Disable();
+        EXPECT_TRUE(guard.IsEnabled());
     }
 }
 

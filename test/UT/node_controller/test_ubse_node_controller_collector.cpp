@@ -528,6 +528,8 @@ UbseResult MockCollectCpuList(uint32_t numa, std::vector<uint16_t>& cpuList)
 TEST_F(TestNodeControllerCollector, CollectNumaInfo)
 {
     UbseNodeInfo ubseNodeInfo{};
+    // CapabilityGuard 提权入口打桩，避免依赖用例运行环境的 capability 授予情况
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     MOCKER(GetLocalNumas).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockGetLocalNumas));
     EXPECT_EQ(CollectNumaInfo(ubseNodeInfo, "1"), UBSE_ERROR);
 

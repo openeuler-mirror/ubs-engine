@@ -19,8 +19,7 @@
 #include <dirent.h>
 
 #include <ubse_logger.h>
-#include <ubse_security.h>
-
+#include "src/framework/security/ubse_security_module.h"
 #include "vm_file_util.h"
 #include "vm_string_util.h"
 
@@ -77,13 +76,13 @@ VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfo
     auto path = MigrateInfoUtil::procPathPrefix + "/" + std::to_string(pid) + "/numa_maps";
     // Reading other processes' numa_maps requires CAP_SYS_PTRACE (kernel ptrace access check),
     // enable it temporarily before reading and disable it immediately after.
-    if (const auto ret = ubse::security::ChangePtraceCapability(true); ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to call ChangePtraceCapability.";
+    ubse::security::CapabilityGuard ptraceGuard({CAP_SYS_PTRACE});
+    if (!ptraceGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Failed to enable CAP_SYS_PTRACE.";
         return VM_ERROR;
     }
     std::ifstream file(path);
     if (!file.is_open()) {
-        (void)ubse::security::ChangePtraceCapability(false);
         return VM_ERROR;
     }
     string line;
@@ -106,16 +105,13 @@ VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfo
                 numaIdAndPageSize.pageSize = VmStringUtil::SafeStoul(n2Match[1]);
             } catch (const std::exception& e) {
                 file.close();
-                (void)ubse::security::ChangePtraceCapability(false);
                 return VM_ERROR;
             }
             file.close();
-            (void)ubse::security::ChangePtraceCapability(false);
             return VM_OK;
         }
     }
     file.close();
-    (void)ubse::security::ChangePtraceCapability(false);
     return VM_ERROR;
 }
 

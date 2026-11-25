@@ -15,10 +15,14 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
-#include "ubse_security.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 #include "mp_file_util.h"
+
+// mock 桩函数声明（定义见 mock/rack_manager/ubse_security.cpp），供 MOCKER 观察守卫收权序列
+namespace ubse::security {
+uint32_t ChangePtraceCapability(bool isAdd);
+} // namespace ubse::security
 
 #define private public
 #include "OsHelper.h"
@@ -200,10 +204,19 @@ protected:
 
     void TearDown() override
     {
-        const std::vector<bool> expected = enableResult == MEM_POOLING_OK ? std::vector<bool>{true, false} :
-                                                                            std::vector<bool>{true};
+        // 开启失败：只尝试过开启；
+        // 读取抛异常：析构阶段收起一次；
+        // 正常路径且收起失败：显式收起 + 析构重试，共两次收起；
+        // 正常路径收起成功：开启 + 收起各一次。
+        std::vector<bool> expected{true};
+        if (enableResult == MEM_POOLING_OK) {
+            expected.push_back(false);
+            if (!throwOnRead && dropResult != MEM_POOLING_OK) {
+                expected.push_back(false);
+            }
+        }
         EXPECT_EQ(changes, expected);
-        if (dropResult == MEM_POOLING_OK) {
+        if (!throwOnRead && dropResult == MEM_POOLING_OK) {
             EXPECT_FALSE(enabled);
         }
         TestOsHelper::TearDown();

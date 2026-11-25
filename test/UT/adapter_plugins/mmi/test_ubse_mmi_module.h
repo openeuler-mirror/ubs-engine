@@ -16,7 +16,9 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <mockcpp/mockcpp.hpp>
+#include "ubse_error.h"
 #include "ubse_mmi_module.h"
+#include "ubse_security_module.h"
 
 namespace ubse::ut::mmi {
 using namespace ubse::mmi;
@@ -25,6 +27,8 @@ class TestUbseMmiModule : public testing::Test {
     void SetUp() override
     {
         Test::SetUp();
+        // 提权入口打桩，避免用例依赖运行环境的 capability 授予情况
+        MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     }
 
     void TearDown() override

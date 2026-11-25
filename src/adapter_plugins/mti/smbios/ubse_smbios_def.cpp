@@ -69,27 +69,22 @@ inline void CloseFd(int fd, const char* filePath)
 
 UbseResult OpenSmbiosFile(const char* filePath, int& fd)
 {
-    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-    auto result = ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (result != UBSE_OK) {
-        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-        UBSE_LOG_ERROR << "Modify Effective Capabilities failed. ret=" << result;
+    ubse::security::CapabilityGuard capsGuard({CAP_DAC_OVERRIDE});
+    if (!capsGuard.IsEnabled()) {
+        UBSE_LOG_ERROR << "Modify Effective Capabilities failed.";
         return UBSE_ERROR;
     }
     auto realPath = realpath(filePath, nullptr);
     if (realPath == nullptr) {
-        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         UBSE_LOG_ERROR << "Failed to get real path of " << filePath << ", errno=" << errno;
         return UBSE_ERROR_IO;
     }
     if ((fd = open(realPath, O_RDONLY)) < 0) {
-        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         UBSE_LOG_ERROR << "Failed to open " << realPath << ", errno=" << errno;
         free(realPath);
         return UBSE_ERROR_IO;
     }
     free(realPath);
-    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
 

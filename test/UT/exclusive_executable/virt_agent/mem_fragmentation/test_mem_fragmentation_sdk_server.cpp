@@ -16,13 +16,13 @@
 #include <ubse_com.h>
 #include <ubse_election.h>
 #include <ubse_error.h>
-#include <ubse_security.h>
 #include <chrono>
 #include <iostream>
 #include <mockcpp/mockcpp.hpp>
 #include <string>
 #include <thread>
 #include <vector>
+#include "src/framework/security/ubse_security_module.h"
 
 #include "adapter_plugins/mti/ubse_smbios.h"
 #include "gmock/gmock-actions.h"
@@ -1341,7 +1341,7 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenS
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
-    MOCKER(ChangeOverrideCapability).stubs().will(returnValue(VM_OK));
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(VM_OK));
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
     MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_ERROR_NOMEM));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_2M_KB), VM_ERROR_NOMEM);
@@ -1358,7 +1358,7 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnOK_WhenEver
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
-    MOCKER(ChangeOverrideCapability).stubs().will(returnValue(VM_OK));
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(VM_OK));
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
     MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_1G_KB), VM_OK);
