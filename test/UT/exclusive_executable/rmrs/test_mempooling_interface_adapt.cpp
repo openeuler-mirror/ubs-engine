@@ -411,7 +411,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingFailed1)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapQueryFreqSucceed)
 {
-    MOCKER_CPP(mempooling::smap::MpSmapHelper::QueryVMFreqArray, int (*)(int, uint16_t*, uint32_t, uint32_t&, int))
+    MOCKER_CPP(mempooling::smap::MpSmapHelper::QueryVMFreqArray, int (*)(int, uint16_t*, uint16_t, uint16_t&, int))
         .stubs()
         .will(returnValue(0));
     std::vector<pid_t> pidVec;
@@ -420,8 +420,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapQueryFreqSucceed)
     std::vector<uint32_t> durationVec(0, 10);
     pid_t pid;
     std::vector<uint16_t> dataVec = {1, 2, 3};
-    uint32_t lengthIn = 4;
-    uint32_t lengthOut = 3;
+    uint16_t lengthIn = 4;
+    uint16_t lengthOut = 3;
     int dataSource;
     auto ret = UBSRMRSSmapQueryFreq(pid, dataVec, lengthIn, lengthOut, dataSource);
     EXPECT_EQ(ret, MEM_POOLING_OK);

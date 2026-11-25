@@ -604,7 +604,7 @@ uint32_t UBSRMRSSetRunMode(const int& runMode);
 /**
  * @brief 通知SMAP添加进程扫描，并设置扫描周期参数
  * @param pidVec 需要添加进程扫描的进程数组
- * @param scanTimeVec 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为200毫秒
+ * @param scanTimeVec 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为2000毫秒
  * @param scanType 标志位，0：HAM_SCAN，供HAM使用。1：NORMAL_SCAN。2：STATISTIC_SCAN, 此模式可以统计特定时长的访存频次信息
  * @param durationVec 统计周期数组，有效值{1~300}，单位s，在scanType=2时使用，默认值为1s
  * @return 0为成功, SMAP未初始化返回-1, 参数错误返回-22, 内核态内存申请失败返回-9, 用户态内存申请失败返回-12, OSTurbo通信失败返回17
@@ -616,13 +616,13 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t>& pidVec, const std::v
  * @brief 查询虚机冷热信息
  * @param pid 进程PID号
  * @param dataVec 存放冷热信息的数组
- * @param lengthIn 指示data数组的大小
+ * @param lengthIn 指示data数组的大小，最大值65535
  * @param lengthOut 返回实际写入data数组的大小
  * @param dataSource 标识数据来源，0表示迁移进程的冷热信息，1表示统计扫描进程的冷热信息
  * @return 0为成功, SMAP未初始化返回-1, 参数错误返回-22, 没有达到统计周期返回-11, OSTurbo通信失败返回17
  */
-int UBSRMRSSmapQueryFreq(const pid_t& pid, std::vector<uint16_t>& dataVec, const uint32_t& lengthIn,
-                         uint32_t& lengthOut, const int& dataSource);
+int UBSRMRSSmapQueryFreq(const pid_t& pid, std::vector<uint16_t>& dataVec, const uint16_t& lengthIn,
+                         uint16_t& lengthOut, const int& dataSource);
 
 /**
  * @brief 通知SMAP移除进程扫描

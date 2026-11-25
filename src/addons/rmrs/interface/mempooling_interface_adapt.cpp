@@ -963,10 +963,14 @@ int mempooling::outinterface::UBSRMRSSmapAddProcessTracking(const std::vector<pi
 }
 
 int mempooling::outinterface::UBSRMRSSmapQueryFreq(const pid_t& pid, std::vector<uint16_t>& dataVec,
-                                                   const uint32_t& lengthIn, uint32_t& lengthOut, const int& dataSource)
+                                                   const uint16_t& lengthIn, uint16_t& lengthOut, const int& dataSource)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapCtrl] InputParam pid=" << pid << ".";
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapCtrl] InputParam lengthIn=" << lengthIn << ".";
+    if (lengthIn == 0) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapCtrl] InputParam lengthIn is invalid.";
+        return SMAP_ERROR;
+    }
 
     auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {

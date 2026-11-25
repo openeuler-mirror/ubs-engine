@@ -196,12 +196,12 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Success)
 {
     int pidIn = 123456;
     uint16_t dataIn = 0;
-    uint32_t lengthIn;
-    uint32_t lengthOut;
+    uint16_t lengthIn;
+    uint16_t lengthOut;
     uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint16_t param3, uint16_t& param4,
                                                  int param5) -> int {
         return 0;
     };
@@ -223,8 +223,8 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_Nullptr)
 {
     int pidIn = 123456;
     uint16_t dataIn = 0;
-    uint32_t lengthIn;
-    uint32_t lengthOut;
+    uint16_t lengthIn;
+    uint16_t lengthOut;
     uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
@@ -247,12 +247,12 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M1)
 {
     int pidIn = 123456;
     uint16_t dataIn = 0;
-    uint32_t lengthIn;
-    uint32_t lengthOut;
+    uint16_t lengthIn;
+    uint16_t lengthOut;
     uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint16_t param3, uint16_t& param4,
                                                  int param5) -> int {
         return -1;
     };
@@ -273,12 +273,12 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M22)
 {
     int pidIn = 123456;
     uint16_t dataIn = 0;
-    uint32_t lengthIn;
-    uint32_t lengthOut;
+    uint16_t lengthIn;
+    uint16_t lengthOut;
     uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint16_t param3, uint16_t& param4,
                                                  int param5) -> int {
         return -22;
     };

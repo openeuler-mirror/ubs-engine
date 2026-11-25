@@ -45,7 +45,7 @@ const int MpSmapHelper::paStartEndRangeSize = 2;
 static MpSmapHelper g_instance;
 const size_t MpSmapHelper::setSmapRemoteNumaInfoMaxRetryCount = 3;
 const uint32_t MpSmapHelper::setSmapRemoteNumaInfoMaxRetryInterval = 1; // 单位s
-const int MpSmapHelper::SMAP_QUERY_PID_NUM = 40;
+const int MpSmapHelper::SMAP_QUERY_PID_NUM = 300;
 const int MpSmapHelper::SMAP_PARTIAL_SUCCESS = -3;
 
 MpSmapHelper& MpSmapHelper::GetInstance()
@@ -186,7 +186,7 @@ void MpSmapHelper::VmSmapClose()
     SmapModule::CloseSmapHandle();
 }
 
-int MpSmapHelper::QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource)
+int MpSmapHelper::QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint16_t lengthIn, uint16_t& lengthOut, int dataSource)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Start QueryVMFreqArray.";
     SmapQueryVmFreqFunc smapQueryVmFreqFunc = SmapModule::GetSmapQueryVmFreq();

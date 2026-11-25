@@ -727,7 +727,7 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
 | name        | IN/OUT | description                                                  |
 | ----------- | ------ | ------------------------------------------------------------ |
 | pidVec      | IN     | 需要添加进程扫描的进程数组                                   |
-| scanTimeVec | IN     | 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为200毫秒    |
+| scanTimeVec | IN     | 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为2000毫秒    |
 | scanType    | IN     | 标志位，0：HAM_SCAN，供HAM使用。1：NORMAL_SCAN。2：STATISTIC_SCAN, 此模式可以统计特定时长的访存频次信息 |
 | durationVec | IN     | 统计周期数组，有效值{1~300}，单位s，在scanType=2时使用，默认值为1s |
 
@@ -762,8 +762,8 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
 ```cpp
 #include "mempooling_interface.h"
 
-int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const uint32_t &lengthIn,
-                         uint32_t &lengthOut, const int &dataSource);
+int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const uint16_t &lengthIn,
+                         uint16_t &lengthOut, const int &dataSource);
 ```
 
 ### 描述 DESCRIPTION
@@ -776,7 +776,7 @@ int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const
 | ---------- | ------ | ------------------------------------------------------------ |
 | pid        | IN     | 需要查询冷热信息的虚拟机对应PID。                            |
 | dataVec    | IN     | 存放冷热信息的数组。                                         |
-| lengthIn   | IN     | 指示data数组的大小，虚拟机内存大小除以2M的数量。             |
+| lengthIn   | IN     | 指示data数组的大小，虚拟机内存大小除以2M的数量，最大值65535。 |
 | lengthOut  | IN     | 返回实际写入data数组的大小。                                 |
 | dataSource | OUT    | 标识数据来源。0表示迁移进程的冷热信息。1表示统计扫描进程的冷热信息。 |
 
