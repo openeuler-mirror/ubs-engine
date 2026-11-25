@@ -162,6 +162,7 @@ enum class UbseMemRespCtrlOpCode
     UBSE_MEM_GET_OPT_RES = 0x0016,                                  // 获取操作结果
     UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT = 0x0017,                // 无效单个导入账本
     UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT = 0x0018,                 // 全局账本摘要上报
+    UBSE_MEM_CABINET_INVALIDATE_FORWARD = 0x0019,                   // 跨柜失效通知转发（柜主→柜主）
 };
 
 // UBSE内存查询操作码
@@ -192,6 +193,13 @@ enum class UbseMemQueryOpCode
     UBSE_MEM_REMOTE_NUMA_STATUS = 0x0017,                  // 远端numa状态
     UBSE_MEM_QUERY_CLOS_SHARE_EXPORT = 0x0018,             // clos组网查询共享内存导出对象
     UBSE_MEM_QUERY_CLOS_SHARE_IMPORT = 0x0019,             // clos组网查询共享内存导入对象
+    UBSE_MEM_QUERY_CLOS_CABINET_LEDGER = 0x001A,           // clos组网柜级聚合账本查询（柜主→柜主）
+    UBSE_MEM_QUERY_CLOS_FD_EXPORT = 0x001B,                // clos组网查询FD导出对象
+    UBSE_MEM_QUERY_CLOS_FD_IMPORT = 0x001C,                // clos组网查询FD导入对象
+    UBSE_MEM_QUERY_CLOS_NUMA_EXPORT = 0x001D,              // clos组网查询NUMA导出对象
+    UBSE_MEM_QUERY_CLOS_NUMA_IMPORT = 0x001E,              // clos组网查询NUMA导入对象
+    UBSE_MEM_QUERY_CLOS_ADDR_EXPORT = 0x001F,              // clos组网查询地址导出对象
+    UBSE_MEM_QUERY_CLOS_ADDR_IMPORT = 0x0020,              // clos组网查询地址导入对象
 };
 
 // UBSE内存借用回调操作码

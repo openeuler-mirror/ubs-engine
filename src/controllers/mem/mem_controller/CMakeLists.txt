@@ -20,6 +20,10 @@ add_library(mem_plugin SHARED
         ubse_mem_rpc_processor.cpp
         ubse_mem_controller_pre_online.cpp
         ubse_mem_controller_msg.cpp
+        ubse_mem_cabinet_ledger_util.cpp
+        ubse_mem_cabinet_ledger.cpp
+        ubse_mem_cabinet_ledger_agg.cpp
+        ubse_mem_repair_guard.cpp
         ubse_mem_controller_master_online_handler.cpp
         ubse_mem_controller_ledger_filter.cpp
         ubse_mem_global_ledger_report.cpp

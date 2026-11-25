@@ -17,6 +17,7 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_mem_agent_task_manager.h"
+#include "ubse_mem_cabinet_ledger_agg.h"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_ledger_filter.h"
@@ -25,6 +26,7 @@
 #include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_opt_req_simpo.h"
 #include "ubse_mem_opt_result_simpo.h"
+#include "ubse_mem_repair_guard.h"
 #include "ubse_mem_util.h"
 #include "ubse_os_util.h"
 #include "ubse_mem_controller_helper.h"
@@ -65,6 +67,9 @@ void RegRespCtrlHandlers()
  	         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_EXPORT)};
     const ubse::com::UbseComEndpoint getClosShareImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
  	         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_IMPORT)};
+    const ubse::com::UbseComEndpoint cabinetInvalidateForwardEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
+        static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_CABINET_INVALIDATE_FORWARD)};
 
     UbseRegRpcService(collectEndpoint, CollectLedgeHandler);
     UbseRegRpcService(queryFdImportEndpoint, QueryFdImportObjHandler);
@@ -75,6 +80,7 @@ void RegRespCtrlHandlers()
     UbseRegRpcService(invalidateImportDebtEndpoint, SendInvalidateSingleImportDebtRpcHandler);
     UbseRegRpcService(getClosShareExportEndpoint, QueryShareExportClosHandler);
     UbseRegRpcService(getClosShareImportEndpoint, QueryShareImportClosHandler);
+    UbseRegRpcService(cabinetInvalidateForwardEndpoint, CabinetInvalidateForwardHandler);
 }
 
 void RegQueryHandlers()
@@ -120,6 +126,25 @@ void RegQueryHandlers()
     UbseRegRpcService(getShareExportEndpoint, QueryShareExportHandler);
     UbseRegRpcService(getShareImportEndpoint, QueryShareImportHandler);
     UbseRegRpcService(getNumaStatusEndpoint, NotifyRemoteNumaStatusHandler);
+
+    const ubse::com::UbseComEndpoint closCabinetLedgerEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+        static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_CABINET_LEDGER)};
+    UbseRegRpcService(closCabinetLedgerEndpoint, CabinetLedgerQueryHandler);
+
+    // 6 个 CLOS 点查变体共用同一实现：com 层 handler 不携带 opcode，注册处用 lambda 注入
+    const std::vector<UbseMemQueryOpCode> closQueryOpcodes = {
+        UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_FD_EXPORT, UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_FD_IMPORT,
+        UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_NUMA_EXPORT, UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_NUMA_IMPORT,
+        UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_ADDR_EXPORT, UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_ADDR_IMPORT};
+    for (const auto opCode : closQueryOpcodes) {
+        const ubse::com::UbseComEndpoint endpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                                                     static_cast<uint32_t>(opCode)};
+        UbseRegRpcService(endpoint, [opCode](const UbseByteBuffer& req, UbseByteBuffer& resp) {
+            return CrossCabinetQueryForwardHandler(static_cast<uint16_t>(opCode), req, resp);
+        });
+    }
+
     if (const auto ret = RegGlobalLedgerReportRpcHandlers(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "register global ledger report rpc handlers failed, " << FormatRetCode(ret);
     }
