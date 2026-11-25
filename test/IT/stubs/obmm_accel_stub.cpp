@@ -17,3 +17,8 @@ extern "C" void* memcpy_mt(void* dst, const void* src, size_t size, unsigned int
 {
     return memcpy(dst, src, size);
 }
+
+extern "C" void* memcpy_nc_mt(void* dst, const void* src, size_t size, unsigned int, unsigned int)
+{
+    return memcpy(dst, src, size);
+}

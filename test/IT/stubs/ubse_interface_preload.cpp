@@ -26,6 +26,7 @@
  *   connect(2) to LCNE fixed UDS -> redirect to this IT node's mock LCNE UDS
  *   /var/run/ubse access -> redirect to this IT node runtime directory
  *   /etc/ubse access -> redirect to this IT node config directory
+ *   /var/log/ubse access -> redirect to this IT node log directory (UBSE_IT_LOG_PATH)
  *     (opendir, lstat, stat, fopen, realpath, access)
  *   /sys/devices/system/node/* -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
  *   /sys/devices/system/cpu/*  -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
@@ -59,6 +60,7 @@ constexpr uint16_t ELECTION_TCP_PORT = 1901;
 constexpr const char* UBSE_DEFAULT_CONF_DIR = "/etc/ubse";
 constexpr const char* UBSE_DEFAULT_LCNE_UDS_PATH = "/run/ubm/socket/ubm_nuds/restconf.sock";
 constexpr const char* UBSE_DEFAULT_RUNTIME_DIR = "/var/run/ubse";
+constexpr const char* UBSE_DEFAULT_LOG_DIR = "/var/log/ubse";
 constexpr const char* UBSE_IT_UDS_SOCKET_PATH_ENV = "UBSE_IT_UDS_SOCKET_PATH";
 constexpr const char* UBSE_IT_AUTH_USER = "ubse";
 constexpr const char* UBSE_OBMM_DEV_PREFIX = "/dev/obmm_shmdev";
@@ -304,6 +306,33 @@ std::string RedirectUbseConfPath(const char* path)
     }
     if (original.rfind(std::string(UBSE_DEFAULT_CONF_DIR) + "/", 0) == 0) {
         return confDir + original.substr(strlen(UBSE_DEFAULT_CONF_DIR));
+    }
+    return original;
+}
+
+// 日志路径重定向：daemon 日志模块按生产路径 /var/log/ubse 初始化。
+// 特权环境下 node_launcher 通过 bind mount 把 workdir/log 映射到 /var/log/ubse；
+// 受限容器（无 CAP_SYS_ADMIN，unshare/mount 均失败）下挂载不可用，这里通过
+// UBSE_IT_LOG_PATH（由 node_process_manager 注入，= <workDir>/log）在
+// realpath 等路径入口处直接重定向，使 daemon 日志落到测试可读的 workDir/log。
+// 与 conf 目录重定向同款模式；realpath 命中后 UbseLoggerFilesink 后续 I/O
+// 均使用重定向后的真实路径，无需再拦截。
+std::string RedirectUbseLogPath(const char* path)
+{
+    if (path == nullptr) {
+        return "";
+    }
+    const char* itLogDir = getenv("UBSE_IT_LOG_PATH");
+    if (itLogDir == nullptr || itLogDir[0] == '\0') {
+        return path;
+    }
+    std::string original(path);
+    std::string logDir(itLogDir);
+    if (original == UBSE_DEFAULT_LOG_DIR) {
+        return logDir;
+    }
+    if (original.rfind(std::string(UBSE_DEFAULT_LOG_DIR) + "/", 0) == 0) {
+        return logDir + original.substr(strlen(UBSE_DEFAULT_LOG_DIR));
     }
     return original;
 }
@@ -557,6 +586,7 @@ extern "C" DIR* opendir(const char* name)
     }
     std::string redirected = RedirectSysfsPath(name);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseLogPath(redirected.c_str());
     return real_opendir(redirected.c_str());
 }
 
@@ -594,6 +624,7 @@ extern "C" int lstat(const char* path, struct stat* buf)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseLogPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_lstat(redirected.c_str(), buf);
 }
@@ -610,6 +641,7 @@ extern "C" FILE* fopen64(const char* path, const char* mode)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseLogPath(redirected.c_str());
     return real_fopen64(redirected.c_str(), mode);
 }
 
@@ -650,6 +682,7 @@ extern "C" int stat(const char* path, struct stat* buf)
     }
     std::string redirected = RedirectSysfsPath(path);
     redirected = RedirectUbseConfPath(redirected.c_str());
+    redirected = RedirectUbseLogPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_stat(redirected.c_str(), buf);
 }
@@ -724,7 +757,8 @@ extern "C" char* realpath(const char* path, char* resolvedPath)
 
     std::string sysfsRedirected = RedirectSysfsPath(path);
     std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
-    std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
+    std::string logRedirected = RedirectUbseLogPath(confRedirected.c_str());
+    std::string finalRedirected = RedirectUbseRuntimePath(logRedirected.c_str());
     return real_realpath(finalRedirected.c_str(), resolvedPath);
 }
 
@@ -817,7 +851,8 @@ extern "C" int access(const char* pathname, int mode)
 
     std::string sysfsRedirected = RedirectSysfsPath(pathname);
     std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
-    std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
+    std::string logRedirected = RedirectUbseLogPath(confRedirected.c_str());
+    std::string finalRedirected = RedirectUbseRuntimePath(logRedirected.c_str());
     return real_access(finalRedirected.c_str(), mode);
 }
 
