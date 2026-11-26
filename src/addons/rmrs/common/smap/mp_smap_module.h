@@ -257,7 +257,7 @@ struct GroupedMigrateOutMsg {
 using SmapInitFunc = int (*)(const uint32_t, void(int, const char*, const char*));
 using SmapMigrateOutFunc = int (*)(MigrateOutMsg*, int);
 using SmapMigrateOutSyncFunc = int (*)(MigrateOutMsg*, int, uint64_t);
-using SmapQueryVmFreqFunc = int (*)(int, uint16_t*, uint32_t, uint32_t&, int);
+using SmapQueryVmFreqFunc = int (*)(int, uint16_t*, uint16_t, uint16_t&, int);
 using SetSmapRemoteNumaInfoFunc = int (*)(RemoteNumaInfo*);
 using SetSmapRunModeFunc = int (*)(int);
 using SmapRemoveFunc = int (*)(RemoveMsg*, int);

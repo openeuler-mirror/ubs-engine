@@ -36,7 +36,7 @@ using namespace ubse::log;
 using namespace ubse::com;
 using namespace mempooling::smap;
 using namespace turbo::rmrs;
-const int SMAP_QUERY_PID_NUM = 40;
+const int SMAP_QUERY_PID_NUM = 300;
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
 

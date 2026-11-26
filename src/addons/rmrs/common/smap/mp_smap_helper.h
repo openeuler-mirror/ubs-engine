@@ -60,7 +60,7 @@ public:
 
     MpResult AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
-    static int QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource);
+    static int QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint16_t lengthIn, uint16_t& lengthOut, int dataSource);
 
     static MpResult SmapMode(int runMode);
 

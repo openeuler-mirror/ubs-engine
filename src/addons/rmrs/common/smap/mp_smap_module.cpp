@@ -104,7 +104,7 @@ SmapQueryVmFreqFunc SmapModule::GetSmapQueryVmFreq()
     if (smapQueryVmFreqFunc != nullptr) {
         return smapQueryVmFreqFunc;
     }
-    smapQueryVmFreqFunc = (SmapQueryVmFreqFunc)(dlsym(smapHandle, "ubturbo_smap_freq_query"));
+    smapQueryVmFreqFunc = (SmapQueryVmFreqFunc)(dlsym(smapHandle, "ubturbo_smap_vm_freq_query"));
     if (smapQueryVmFreqFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpSmapModule] Get ubturbo_smap_vm_freq_query ptr failed.";

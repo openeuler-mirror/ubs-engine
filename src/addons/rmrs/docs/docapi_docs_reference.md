@@ -753,7 +753,7 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
 | 参数名      | 数据类型              | 有效性规格                                                   | 参数类型 | 描述                                                         |
 | ----------- | --------------------- | ------------------------------------------------------------ | -------- | ------------------------------------------------------------ |
 | pidVec      | std::vector<pid_t>    | - 必须是目标节点存在的虚拟机PID。<br/>- 取值范围：[1, 100]   | 入参     | 需要添加进程扫描的进程数组                                   |
-| scanTimeVec | std::vector<uint32_t> | - 数量：[1,100]<br/>- 值必须为50毫秒的正整数倍，最大值为200毫秒。 | 入参     | 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为200毫秒    |
+| scanTimeVec | std::vector<uint32_t> | - 数量：[1,100]<br/>- 值必须为50毫秒的正整数倍，最大值为2000毫秒。 | 入参     | 扫描周期数组，50毫秒的倍数，最小值50毫秒，最大值为2000毫秒    |
 | scanType    | int                   | 标志位。<br/>- 取值范围：[0,2]<br/>- 0：HAM_SCAN，供HAM使用。<br/>- 1：NORMAL_SCAN。<br/>- 2：STATISTIC_SCAN。 | 入参     | 标志位。取值范围：0：HAM_SCAN，供HAM使用。1：NORMAL_SCAN。2：STATISTIC_SCAN, 此模式可以统计特定时长的访存频次信息 |
 | durationVec | std::vector<uint32_t> | - 数量:[1,100]<br/>- 取值范围：[1, 300],单位：s              | 入参     | 统计周期数组，在scanType=2时使用，默认值为1s。               |
 
@@ -788,8 +788,8 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
 ```cpp
 #include "mempooling_interface.h"
 
-int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const uint32_t &lengthIn,
-                         uint32_t &lengthOut, const int &dataSource);
+int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const uint16_t &lengthIn,
+                         uint16_t &lengthOut, const int &dataSource);
 ```
 
 ## 描述 DESCRIPTION
@@ -802,8 +802,8 @@ int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const
 | ---------- | --------------------- | --------------------------- | -------- | ------------------------------------------------------------ |
 | pid        | pid_t                 | 目标节点存在的虚拟机PID。   | 入参     | 需要查询冷热信息的虚拟机对应PID。                            |
 | dataVec    | std::vector<uint16_t> | 频次信息，取值大于等于0。   | 出参     | 存放冷热信息的数组。                                         |
-| lengthIn   | uint32_t              | 大于0.                      | 入参     | 指示data数组的大小，虚拟机内存大小除以2M的数量，或者容器内存大小除以4kb的数量。 |
-| lengthOut  | uint32_t              | lengthOut小于等于lengthIn。 | 出参     | 返回实际写入data数组的大小。                                 |
+| lengthIn   | uint16_t              | 大于0，最大值65535。        | 入参     | 指示data数组的大小，虚拟机内存大小除以2M的数量，或者容器内存大小除以4kb的数量。 |
+| lengthOut  | uint16_t              | lengthOut小于等于lengthIn。 | 出参     | 返回实际写入data数组的大小。                                 |
 | dataSource | int                   | - 值需为0或1                | 入参     | 标识数据来源。0表示迁移进程的冷热信息。1表示统计扫描进程的冷热信息。 |
 
 ## 返回值 RETURN VALUE
