@@ -325,5 +325,20 @@ struct HugePageInfo {
         return oss.str();
     }
 };
+
+// Record the hugepage size that a borrowId is split into, so that the hugepages can be recovered at startup.
+struct HugePageBorrowRecord {
+    std::string borrowId{};
+    uint64_t pageSize{}; // hugepage size in kB
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "{";
+        oss << R"("borrowId": ")" << borrowId << R"(", )";
+        oss << R"("pageSize": )" << pageSize;
+        oss << "}";
+        return oss.str();
+    }
+};
 } // namespace vm
 #endif // UBSE_MANAGER_UBSE_VM_STRUCT_H
