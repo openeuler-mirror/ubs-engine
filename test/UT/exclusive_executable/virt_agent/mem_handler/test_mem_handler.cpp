@@ -232,4 +232,35 @@ TEST_F(TestMemHandler, GetMemoryBorrowInfoTest)
     EXPECT_EQ(MemHandler::GetMemoryBorrowInfo(borrowInfo), VM_OK);
 }
 
+UbseResult MockUbseGetNumaMemDebtInfoWithData(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
+{
+    UbseNumaMemoryImportDebtInfo debtInfo{};
+    debtInfo.name = "borrow1";
+    debtInfo.remoteNumaId = 1;
+    debtInfo.size = BORROW_SIZE;
+    debtInfos.emplace_back(debtInfo);
+    return UBSE_OK;
+}
+
+TEST_F(TestMemHandler, GetBorrowDebtInfos_ShouldReturnError_WhenQueryFailed)
+{
+    std::vector<UbseNumaMemoryImportDebtInfo> debtInfos;
+    MOCKER(UbseGetNumaMemImportDebtInfoWithLocalNode).stubs().will(returnValue(UBSE_ERR_AUTH_FAILED));
+    EXPECT_EQ(MemHandler::GetBorrowDebtInfos(debtInfos), VM_ERROR);
+    EXPECT_TRUE(debtInfos.empty());
+    MOCKER(UbseGetNumaMemImportDebtInfoWithLocalNode).reset();
+}
+
+TEST_F(TestMemHandler, GetBorrowDebtInfos_ShouldReturnDebtInfos_WhenQuerySuccess)
+{
+    std::vector<UbseNumaMemoryImportDebtInfo> debtInfos;
+    MOCKER(UbseGetNumaMemImportDebtInfoWithLocalNode).stubs().will(invoke(MockUbseGetNumaMemDebtInfoWithData));
+    EXPECT_EQ(MemHandler::GetBorrowDebtInfos(debtInfos), VM_OK);
+    ASSERT_EQ(debtInfos.size(), 1);
+    EXPECT_EQ(debtInfos[0].name, "borrow1");
+    EXPECT_EQ(debtInfos[0].remoteNumaId, 1);
+    EXPECT_EQ(debtInfos[0].size, BORROW_SIZE);
+    MOCKER(UbseGetNumaMemImportDebtInfoWithLocalNode).reset();
+}
+
 } // namespace ubse::ut::vm

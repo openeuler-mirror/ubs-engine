@@ -26,7 +26,7 @@
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
-#include "src/framework/security/ubse_security_module.h"
+#include <ubse_security_module.h>
 
 #include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
@@ -34,7 +34,6 @@
 #include "migrate_strategy.h"
 #include "resource_query.h"
 #include "response_info_message.h"
-#include "src/framework/security/ubse_security_module.h"
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_http_util.h"

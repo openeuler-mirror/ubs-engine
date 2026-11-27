@@ -19,6 +19,7 @@
 #include "escape_algorithm_helper.h"
 #include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
+#include "hugepage_handler.h"
 #include "libvirt_helper.h"
 #include "mem_handler.h"
 #include "mempooling_module.h"
@@ -183,6 +184,12 @@ uint32_t MemFragRegister()
         UBSE_LOG_ERROR << "Failed to init FragmentationVmCollection.Frag, " << FormatRetCode(ret);
         return ret;
     }
-    return ret;
+    // Recover the hugepages according to the borrow ledger after restart. This only affects hugepages,
+    // so a failure is logged but does not fail the whole plugin initialization.
+    ret = HugePageHandler::RecoverHugePages();
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to recover hugepages, " << FormatRetCode(ret);
+    }
+    return VM_OK;
 }
 } // namespace vm

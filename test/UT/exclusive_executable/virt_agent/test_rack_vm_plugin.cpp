@@ -21,6 +21,7 @@
 #include "escape_algorithm_helper.h"
 #include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
+#include "hugepage_handler.h"
 #include "mem_handler.h"
 #include "rack_vm_plugin.h"
 #include "resource_collect.h"
@@ -168,9 +169,20 @@ TEST_F(TestUbseVmPlugin, StrategyInit)
 TEST_F(TestUbseVmPlugin, MemFragRegister)
 {
     MOCKER(&FragmentationVmCollection::FragInit).stubs().will(returnValue(VM_OK));
-    MOCKER(VMMemFragSdkServerInit).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(VMMemFragSdkServerInit)
+        .stubs()
+        .will(returnValue(VM_ERROR))
+        .then(returnValue(VM_OK))
+        .then(returnValue(VM_OK));
+    MOCKER(HugePageHandler::RecoverHugePages).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    // The plugin init fails before the hugepage recovery when the router init fails.
     EXPECT_EQ(MemFragRegister(), VM_ERROR);
+    // The hugepage recovery failure does not fail the plugin init.
     EXPECT_EQ(MemFragRegister(), VM_OK);
+    EXPECT_EQ(MemFragRegister(), VM_OK);
+    MOCKER(&FragmentationVmCollection::FragInit).reset();
+    MOCKER(VMMemFragSdkServerInit).reset();
+    MOCKER(HugePageHandler::RecoverHugePages).reset();
 }
 
 } // namespace ubse::vm::ut

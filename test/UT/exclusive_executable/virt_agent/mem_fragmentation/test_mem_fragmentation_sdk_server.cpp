@@ -26,6 +26,7 @@
 
 #include "adapter_plugins/mti/ubse_smbios.h"
 #include "gmock/gmock-actions.h"
+#include "hugepage_borrow_storage.h"
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
 #include "mem_fragmentation_sdk_server.h"
@@ -1303,17 +1304,17 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenR
 }
 
 /**
- * @tc.name  : SetSrcNodeHugePage_ShouldReturnError_WhenGetBorrowedSizeMapFailed
+ * @tc.name  : SetSrcNodeHugePage_ShouldReturnError_WhenSaveHugePageRecordFailed
  * @tc.number: SetSrcNodeHugePage_002
- * @tc.desc  : 当GetBorrowedSizeMap失败时，返回error
+ * @tc.desc  : 当保存大页规格记录失败时，返回error
  */
-TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenGetBorrowedSizeMapFailed)
+TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenSaveHugePageRecordFailed)
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
-    MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(returnValue(VM_ERROR_NOMEM));
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).stubs().will(returnValue(VM_ERROR_NOMEM));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_2M_KB), VM_ERROR_NOMEM);
-    MOCKER(MemHandler::GetBorrowedSizeMap).reset();
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenPageSizeInvalid)
@@ -1323,30 +1324,20 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenP
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, 4096), VM_ERROR_INVAL);
 }
 
-VmResult MockGetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
-                                std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
-{
-    uint16_t numaId = 0;
-    uint64_t borrowedSize = (::vm::NO_1024) * (::vm::NO_1024);
-    numaBorrowedSizeMap.emplace(std::make_pair(numaId, borrowedSize));
-    return VM_OK;
-}
-
 /**
- * @tc.name  : SetSrcNodeHugePage_ShouldReturnError_WhenSetHugePagesFailed
+ * @tc.name  : SetSrcNodeHugePage_ShouldReturnError_WhenReconcileHugePagesFailed
  * @tc.number: SetSrcNodeHugePage_003
- * @tc.desc  : 当SetHugePages失败时，返回error
+ * @tc.desc  : 当大页对账失败时，返回error
  */
-TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenSetHugePagesFailed)
+TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenReconcileHugePagesFailed)
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
-    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(VM_OK));
-    MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
-    MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_ERROR_NOMEM));
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).stubs().will(returnValue(VM_OK));
+    MOCKER(HugePageHandler::ReconcileHugePages).stubs().will(returnValue(VM_ERROR_NOMEM));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_2M_KB), VM_ERROR_NOMEM);
-    MOCKER(MemHandler::GetBorrowedSizeMap).reset();
-    MOCKER(HugePageHandler::SetHugePages).reset();
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).reset();
+    MOCKER(HugePageHandler::ReconcileHugePages).reset();
 }
 
 /**
@@ -1358,12 +1349,35 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnOK_WhenEver
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
-    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(VM_OK));
-    MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
-    MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_OK));
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).stubs().will(returnValue(VM_OK));
+    MOCKER(HugePageHandler::ReconcileHugePages).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result, HUGE_PAGE_SIZE_1G_KB), VM_OK);
-    MOCKER(MemHandler::GetBorrowedSizeMap).reset();
-    MOCKER(HugePageHandler::SetHugePages).reset();
+    MOCKER(HugePageBorrowStorage::SaveBorrowPageSizes).reset();
+    MOCKER(HugePageHandler::ReconcileHugePages).reset();
+}
+
+/**
+ * @tc.name  : SetSrcNodeHugePageGlobal_ShouldReturnOK_WhenEverythingIsOk
+ * @tc.number: SetSrcNodeHugePageGlobal_001
+ * @tc.desc  : 全局大页恢复成功时，返回OK
+ */
+TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePageGlobal_ShouldReturnOK_WhenEverythingIsOk)
+{
+    MOCKER(HugePageHandler::RecoverHugePages).stubs().will(returnValue(VM_OK));
+    EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePageGlobal(), VM_OK);
+    MOCKER(HugePageHandler::RecoverHugePages).reset();
+}
+
+/**
+ * @tc.name  : SetSrcNodeHugePageGlobal_ShouldReturnError_WhenRecoverHugePagesFailed
+ * @tc.number: SetSrcNodeHugePageGlobal_002
+ * @tc.desc  : 全局大页恢复失败时，返回error
+ */
+TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePageGlobal_ShouldReturnError_WhenRecoverHugePagesFailed)
+{
+    MOCKER(HugePageHandler::RecoverHugePages).stubs().will(returnValue(VM_ERROR_NOMEM));
+    EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePageGlobal(), VM_ERROR_NOMEM);
+    MOCKER(HugePageHandler::RecoverHugePages).reset();
 }
 
 /**

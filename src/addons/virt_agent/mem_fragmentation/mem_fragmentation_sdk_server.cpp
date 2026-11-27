@@ -13,11 +13,6 @@
 
 #include "mem_fragmentation_sdk_server.h"
 
-#include <ubse_api_server.h>
-#include <ubse_com.h>
-#include <ubse_error.h>
-#include <ubse_logger.h>
-#include <ubse_node.h>
 #include <condition_variable>
 #include <map>
 #include <memory>
@@ -25,7 +20,16 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <ubse_api_server.h>
+#include <ubse_com.h>
+#include <ubse_error.h>
+#include <ubse_logger.h>
+#include <ubse_node.h>
+#include <ubse_security_manager.h>
+
 #include "adapter_plugins/mti/ubse_smbios.h"
+#include "hugepage_borrow_storage.h"
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
 #include "mem_handler.h"
@@ -33,7 +37,6 @@
 #include "mempooling_def.h"
 #include "mempooling_module.h"
 #include "msg_utils.h"
-#include "src/framework/security/ubse_security_module.h"
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_def.h"
@@ -624,73 +627,32 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult& borrow
         UBSE_LOG_ERROR << "Invalid pageSize: " << pageSize << "kB, supported values are 2048 and 1048576 (kB).";
         return VM_ERROR_INVAL;
     }
-    // initialize numaBorrowedSizeMap
-    std::map<uint16_t, uint64_t> numaBorrowedSizeMap;
-    vector<uint16_t> remoteNumaIds = borrowExecuteResult.presentNumaIds;
-    // get the Memory Account Borrowing Size
-    VmResult ret = MemHandler::GetBorrowedSizeMap(remoteNumaIds, numaBorrowedSizeMap);
+    // Record which hugepage size each borrowId is split into, so that the hugepages can be recovered at startup.
+    VmResult ret = HugePageBorrowStorage::SaveBorrowPageSizes(borrowExecuteResult.borrowIds, pageSize);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to get memInfo from mem, pageSize=" << pageSize << "kB, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to save hugepage borrow records, pageSize=" << pageSize << "kB, "
+                       << FormatRetCode(ret);
         return ret;
     }
-    ubse::security::CapabilityGuard overrideGuard({CAP_DAC_OVERRIDE});
-    if (!overrideGuard.IsEnabled()) {
-        UBSE_LOG_ERROR << "Failed to enable CAP_DAC_OVERRIDE, pageSize=" << pageSize << "kB.";
-        return VM_ERROR;
+    // Reconcile the hugepages of the present NUMA nodes with the borrow ledger.
+    ret = HugePageHandler::ReconcileHugePages(borrowExecuteResult.presentNumaIds);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to reconcile hugepages, pageSize=" << pageSize << "kB, " << FormatRetCode(ret);
+        return ret;
     }
-    // Set source node remote hugepage memory
-    for (const auto& [key, value] : numaBorrowedSizeMap) {
-        // When value is 0, no need to set hugePage.
-        if (value == 0) {
-            continue;
-        }
-        ret = HugePageHandler::SetHugePages(key, value, pageSize);
-        if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Failed to set hugepages"
-                           << ", remoteNumaId=" << key << ", pageSize=" << pageSize << "kB, borrowedSize=" << value
-                           << FormatRetCode(ret);
-            return ret;
-        }
-    }
-    return ret;
+    return VM_OK;
 }
 
-VmResult VirtMemFragSdk::SetSrcNodeHugePageGlobal(const uint64_t& pageSize)
+VmResult VirtMemFragSdk::SetSrcNodeHugePageGlobal()
 {
-    UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal start (global reconciliation), pageSize=" << pageSize << "kB.";
-    if (pageSize != HUGE_PAGE_SIZE_2M_KB && pageSize != HUGE_PAGE_SIZE_1G_KB) {
-        UBSE_LOG_ERROR << "Invalid pageSize: " << pageSize << "kB, supported values are 2048 and 1048576 (kB).";
-        return VM_ERROR_INVAL;
-    }
-    // Get all borrow debts from the system, not dependent on input presentNumaIds
-    std::map<uint16_t, uint64_t> numaBorrowedSizeMap;
-    VmResult ret = MemHandler::GetAllBorrowedSizeMap(numaBorrowedSizeMap);
+    UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal start (global reconciliation).";
+    VmResult ret = HugePageHandler::RecoverHugePages();
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to get all borrowed size map, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to recover hugepages, " << FormatRetCode(ret);
         return ret;
     }
-    if (numaBorrowedSizeMap.empty()) {
-        UBSE_LOG_INFO << "No active borrow debt, skip hugepage setting.";
-        return VM_OK;
-    }
-    ubse::security::CapabilityGuard overrideGuard({CAP_DAC_OVERRIDE});
-    if (!overrideGuard.IsEnabled()) {
-        UBSE_LOG_ERROR << "Failed to enable CAP_DAC_OVERRIDE.";
-        return VM_ERROR;
-    }
-    for (const auto& [key, value] : numaBorrowedSizeMap) {
-        if (value == 0) {
-            continue;
-        }
-        ret = HugePageHandler::SetHugePages(key, value, pageSize);
-        if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Failed to set hugepages, remoteNumaId=" << key << ", pageSize=" << pageSize
-                           << "kB, borrowedSize=" << value << FormatRetCode(ret);
-            return ret;
-        }
-    }
     UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal end.";
-    return ret;
+    return VM_OK;
 }
 
 void FillVMMemoryBorrowParam(const borrow_strategy_c& borrowMsg, const uint64_t& pageSize, const uid_t uid,
@@ -2239,7 +2201,21 @@ void VirtMemFragSdk::AsyncBorrowWorker(std::shared_ptr<AsyncBorrowCtx> ctx, cons
         AsyncBorrowCountDown(ctx);
         return;
     }
-    // phase-1 succeeded: ConvertToLegacyResult + SetMemBorrowResult remain in place
+    // phase-1 succeeded: persist which hugepage size each borrowId is split into, phase-2 reconciles the hugepages.
+    ret = HugePageBorrowStorage::SaveBorrowPageSizes(memBorrowExecRst.borrowIds, ctx->pageSize);
+    if (ret != VM_OK) {
+        // The memory has already been borrowed successfully. Failing the task here would leave the borrowed memory
+        // with neither a persisted hugepage record nor hugepage reconciliation, and the client would lose the
+        // resource usage of a successful borrow. Keep the task successful and fall back to the borrow ledger so that
+        // the hugepages of this request are still split.
+        UBSE_LOG_WARN << "Save hugepage borrow record failed, taskId=" << taskId << ", " << FormatRetCode(ret);
+        ret = HugePageHandler::AllocateHugePagesForBorrows(memBorrowExecRst.borrowIds, memBorrowExecRst.presentNumaIds,
+                                                           ctx->pageSize);
+        if (ret != VM_OK) {
+            UBSE_LOG_ERROR << "Allocate hugepages by ledger failed, taskId=" << taskId << ", " << FormatRetCode(ret);
+        }
+    }
+    // ConvertToLegacyResult + SetMemBorrowResult remain in place
     mem_borrow_result_c memBorrowRstC{};
     ret = ConvertToLegacyResult(memBorrowExecRst, memBorrowRstC);
     if (ret != VM_OK) {
@@ -2279,8 +2255,8 @@ void VirtMemFragSdk::AsyncBorrowWatcher(std::shared_ptr<AsyncBorrowCtx> ctx)
             successIds = ctx->successTaskIds;
         }
         UBSE_LOG_INFO << "All borrow threads done, successCount=" << successIds.size()
-                      << ", starting phase-2 SetSrcNodeHugePageGlobal, pageSize=" << ctx->pageSize << "kB.";
-        VmResult hpRet = SetSrcNodeHugePageGlobal(ctx->pageSize);
+                      << ", starting phase-2 global hugepage reconciliation.";
+        VmResult hpRet = SetSrcNodeHugePageGlobal();
         if (hpRet == VM_OK) {
             UBSE_LOG_INFO << "phase-2 hugepage success, marking " << successIds.size() << " tasks SUCCESS.";
             for (const auto& tid : successIds) {
