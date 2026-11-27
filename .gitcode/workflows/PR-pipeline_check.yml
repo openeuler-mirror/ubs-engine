@@ -274,14 +274,14 @@ stages:
           pr: write
         steps:
           - name: Mark PR success or failed
-            if: ${{ needs.CI.result == 'success' || needs.CI.result == 'skipped' }}
+            if: ${{ jobs.CI.result == 'success' || jobs.CI.result == 'skipped' }}
             uses: openlibing/pr-label-action@v1.0.0
             with:
               token: ${{ secrets.OPENEULER_BOT_TOKEN }}
               add_labels: ${{ needs.SCA_ubsengine.result == 'success' && needs.Antipoison_ubsengine.result == 'success' && needs.pre_commit.result == 'success' && needs.detect_changes.result == 'success' && needs.issue_associate_check.result == 'success' && 'ci_successful' || 'ci_failed' }}
               remove_labels: ci_processing
           - name: Mark PR failed
-            if: ${{ needs.CI.result != 'success' && needs.CI.result != 'skipped' }}
+            if: ${{ jobs.CI.result != 'success' && jobs.CI.result != 'skipped' }}
             uses: openlibing/pr-label-action@v1.0.0
             with:
               token: ${{ secrets.OPENEULER_BOT_TOKEN }}
