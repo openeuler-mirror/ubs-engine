@@ -93,7 +93,7 @@ private:
                                       const UbseRequestContext& context);
     static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult& migrateStrategyResult, UbseIpcMessage& buffer);
     static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult, const uint64_t& pageSize);
-    static VmResult SetSrcNodeHugePageGlobal(const uint64_t& pageSize);
+    static VmResult SetSrcNodeHugePageGlobal();
     /** ==============big memory virtual machine============== */
     static VmResult NodeInfoListSerialize(const std::vector<mem_fragmentation::NodeInfo>& nodeInfoList,
                                           UbseIpcMessage& resp);

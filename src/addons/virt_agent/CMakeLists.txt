@@ -21,6 +21,7 @@ target_include_directories(virtagent PUBLIC ${VM_INCLUDE}
         ${PROJECT_SOURCE_DIR}/src/include
         ${PROJECT_SOURCE_DIR}/src/framework/config
         ${PROJECT_SOURCE_DIR}/src/framework/serde
+        ${PROJECT_SOURCE_DIR}/src/framework/security
         )
 target_link_libraries(virtagent PUBLIC boundscheck)
 

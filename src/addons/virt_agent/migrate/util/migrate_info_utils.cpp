@@ -12,14 +12,14 @@
  */
 #include "migrate_info_utils.h"
 
+#include <dirent.h>
 #include <filesystem>
 #include <fstream>
 #include <regex>
 
-#include <dirent.h>
-
 #include <ubse_logger.h>
-#include "src/framework/security/ubse_security_module.h"
+#include <ubse_security_module.h>
+
 #include "vm_file_util.h"
 #include "vm_string_util.h"
 

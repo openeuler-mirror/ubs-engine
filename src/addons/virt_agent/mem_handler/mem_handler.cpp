@@ -185,17 +185,11 @@ VmResult MemHandler::NotifyVm(WatermarkWarningType warningType, const Notify& no
     return VM_OK;
 }
 
-VmResult MemHandler::GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
-                                        std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
+VmResult MemHandler::GetBorrowDebtInfos(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
 {
-    // Fill the map. The value is initialized to 0.
-    for (const auto& id : remoteNumaIds) {
-        UBSE_LOG_DEBUG << "Start to get borrowd size for numa " << id;
-        numaBorrowedSizeMap[id] = 0;
-    }
-    std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
+    debtInfos.clear();
     int maxRetries = 30;
-    UbseResult res;
+    UbseResult res = UBSE_OK;
     while (maxRetries-- > 0) {
         res = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
         if (res == UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
@@ -210,59 +204,6 @@ VmResult MemHandler::GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaI
         return VM_ERROR;
     }
     UBSE_LOG_DEBUG << "debt info num=" << debtInfos.size();
-    for (auto& debtInfo : debtInfos) {
-        UBSE_LOG_DEBUG << "borrow name=" << debtInfo.name << ", remoteNumaId=" << debtInfo.remoteNumaId
-                       << ", size=" << debtInfo.size;
-        if (debtInfo.remoteNumaId < 0 || debtInfo.size == 0) {
-            continue;
-        }
-        auto remoteNumaId = static_cast<uint16_t>(debtInfo.remoteNumaId);
-        if (std::find(remoteNumaIds.begin(), remoteNumaIds.end(), remoteNumaId) != remoteNumaIds.end()) {
-            if (numaBorrowedSizeMap[remoteNumaId] > std::numeric_limits<uint64_t>::max() - debtInfo.size) {
-                UBSE_LOG_ERROR << "The remoteNumaId=" << remoteNumaId << " borrowed size exceeds the limit.";
-                return VM_ERROR;
-            }
-            numaBorrowedSizeMap[remoteNumaId] += debtInfo.size;
-        }
-    }
-    UBSE_LOG_INFO << "Got the numaBorrowedSizeMap successfully.";
-    return VM_OK;
-}
-
-VmResult MemHandler::GetAllBorrowedSizeMap(std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
-{
-    // Do not pass remoteNumaIds filter, get all borrow debts from the system for global hugepage reconciliation
-    std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
-    int maxRetries = 30;
-    UbseResult res;
-    while (maxRetries-- > 0) {
-        res = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
-        if (res == UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-            debtInfos.clear();
-            std::this_thread::sleep_for(std::chrono::milliseconds(ONE_SECOND_TO_MILLI_SECONDS));
-            continue;
-        }
-        break;
-    }
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get local numaMemDebtInfo failed, res=" << static_cast<uint32_t>(res);
-        return VM_ERROR;
-    }
-    UBSE_LOG_DEBUG << "debt info num=" << debtInfos.size();
-    for (auto& debtInfo : debtInfos) {
-        UBSE_LOG_DEBUG << "borrow name=" << debtInfo.name << ", remoteNumaId=" << debtInfo.remoteNumaId
-                       << ", size=" << debtInfo.size;
-        if (debtInfo.remoteNumaId < 0 || debtInfo.size == 0) {
-            continue;
-        }
-        auto remoteNumaId = static_cast<uint16_t>(debtInfo.remoteNumaId);
-        if (numaBorrowedSizeMap[remoteNumaId] > std::numeric_limits<uint64_t>::max() - debtInfo.size) {
-            UBSE_LOG_ERROR << "The remoteNumaId=" << remoteNumaId << " borrowed size exceeds the limit.";
-            return VM_ERROR;
-        }
-        numaBorrowedSizeMap[remoteNumaId] += debtInfo.size;
-    }
-    UBSE_LOG_INFO << "Got all numaBorrowedSizeMap successfully, count=" << numaBorrowedSizeMap.size();
     return VM_OK;
 }
 

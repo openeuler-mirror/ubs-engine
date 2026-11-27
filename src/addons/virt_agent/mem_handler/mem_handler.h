@@ -16,7 +16,11 @@
 
 #include <map>
 #include <mutex>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
+#include <ubse_mem_controller.h>
 
 #include "vm_error.h"
 #include "vm_info.h"
@@ -80,9 +84,8 @@ public:
     void Terminate();
     static VmResult CheckNumaWaterLine();
     static VmResult TransNotify(const std::string& notifyMessage, Notify& notify);
-    static VmResult GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
-                                       std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
-    static VmResult GetAllBorrowedSizeMap(std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
+    // Get the local import debt ledger, each item is an unreturned borrow record.
+    static VmResult GetBorrowDebtInfos(std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo>& debtInfos);
     static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int>& borrowInfo);
 
     static uint64_t SizeByte2Mb(uint64_t size)
